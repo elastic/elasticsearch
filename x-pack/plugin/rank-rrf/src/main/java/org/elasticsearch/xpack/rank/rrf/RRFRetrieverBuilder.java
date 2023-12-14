@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.search.RetrieverQueryPhaseResultConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -205,6 +206,19 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
             original = new SearchSourceBuilder().shallowCopy();
             original.size(windowSize);
             retrieverBuilder.doBuildQuerySearchSourceBuilders(shardIndex, dfsKnnResultsList, original, queries);
+        }
+    }
+
+    @Override
+    public void doBuildPendingMerges(
+        int from,
+        int size,
+        int batchedReduceSize,
+        int expectedSize,
+        List<RetrieverQueryPhaseResultConsumer.PendingMerge> pendingMerges
+    ) {
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            retrieverBuilder.doBuildPendingMerges(from, windowSize, batchedReduceSize, expectedSize, pendingMerges);
         }
     }
 }

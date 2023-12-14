@@ -14,6 +14,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.search.RetrieverQueryPhaseResultConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -371,5 +372,17 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder<KnnRetrieverBuil
         copy.setRetrieverBuilder(this);
         copy.query(buildCompoundQuery(shardIndex, dfsKnnResults));
         searchSourceBuilders.add(copy);
+    }
+
+    @Override
+    public void doBuildPendingMerges(
+        int from,
+        int size,
+        int batchedReduceSize,
+        int expectedSize,
+        List<RetrieverQueryPhaseResultConsumer.PendingMerge> pendingMerges
+    ) {
+        batchedReduceSize = size == 0 ? expectedSize : batchedReduceSize;
+        pendingMerges.add(new RetrieverQueryPhaseResultConsumer.PendingMerge(queryIndex, size + from, 0, batchedReduceSize));
     }
 }

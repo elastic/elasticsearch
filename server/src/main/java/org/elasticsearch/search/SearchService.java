@@ -704,8 +704,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     .info(
                         "ON SHARD: "
                             + context.queryResult().getQueryIndex()
-                            + " | "
-                            + context.queryResult().getShardIndex()
                             + builder.toString()
                     );
                 return context.queryResult();

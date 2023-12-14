@@ -10,6 +10,7 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.search.RetrieverQueryPhaseResultConsumer.PendingMerge;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -422,5 +423,11 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         copy.postFilter(postFilterQueryBuilder);
         copy.collapse(collapseBuilder);
         searchSourceBuilders.add(copy);
+    }
+
+    @Override
+    public void doBuildPendingMerges(int from, int size, int batchedReduceSize, int expectedSize, List<PendingMerge> pendingMerges) {
+        batchedReduceSize = size == 0 ? expectedSize : batchedReduceSize;
+        pendingMerges.add(new PendingMerge(queryIndex, size + from, 0, batchedReduceSize));
     }
 }

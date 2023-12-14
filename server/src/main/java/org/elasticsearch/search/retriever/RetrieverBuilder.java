@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.action.search.RetrieverQueryPhaseResultConsumer.PendingMerge;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -363,4 +365,35 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     public int getQueryIndex() {
         return queryIndex;
     }
+
+    public final List<PendingMerge> buildPendingMerges(SearchSourceBuilder original, int batchedReducedSize, int expectedSize) {
+        batchedReducedSize = Math.min(batchedReducedSize, expectedSize);
+        List<PendingMerge> pendingMerges = new ArrayList<>();
+
+        if (original.aggregations() != null
+            || original.trackTotalHitsUpTo() != null && original.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED) {
+            pendingMerges.add(
+                new PendingMerge(
+                    queryIndex,
+                    0,
+                    original.trackTotalHitsUpTo() == null ? TRACK_TOTAL_HITS_DISABLED : original.trackTotalHitsUpTo(),
+                    batchedReducedSize
+                )
+            );
+        }
+
+        int from = original.from() == -1 ? SearchService.DEFAULT_FROM : original.from();
+        int size = (original.size() == -1 ? SearchService.DEFAULT_SIZE : original.size());
+
+        doBuildPendingMerges(from, size, batchedReducedSize, expectedSize, pendingMerges);
+        return pendingMerges;
+    }
+
+    public abstract void doBuildPendingMerges(
+        int from,
+        int size,
+        int batchedReduceSize,
+        int expectedSize,
+        List<PendingMerge> pendingMerges
+    );
 }

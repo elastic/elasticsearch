@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -36,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -59,6 +61,7 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
@@ -440,5 +443,44 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+    }
+
+    public void testLiveVersionMapMemoryBytesUsed() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        // Enforce safe access mode
+        client().prepareIndex(indexName).setId("non-existing").setSource("field1", randomUnicodeOfLength(10)).get();
+        IndicesStatsResponse statsBeforeIndexing = indicesAdmin().prepareStats().setSegments(true).get();
+        var sizeBeforeIndexing = statsBeforeIndexing.getTotal().getSegments().getVersionMapMemoryInBytes();
+        indexDocs(indexName, randomIntBetween(1, 1000));
+        IndicesStatsResponse statsAfterIndexing = indicesAdmin().prepareStats().setSegments(true).get();
+        var sizeAfterIndexing = statsAfterIndexing.getTotal().getSegments().getVersionMapMemoryInBytes();
+        assertThat(sizeAfterIndexing, greaterThan(sizeBeforeIndexing));
+        var sendingUnpromotableShardRefresh = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
+                sendingUnpromotableShardRefresh.countDown();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        // Commit the indexed docs and make sure after flushing but before unpromotable refresh
+        // the map size still reflects the indexed docs.
+        var refreshFuture = indicesAdmin().prepareRefresh(indexName).execute();
+        safeAwait(sendingUnpromotableShardRefresh);
+        IndicesStatsResponse statsAfterFlush = indicesAdmin().prepareStats().setSegments(true).get();
+        var sizeAfterFlush = statsAfterFlush.getTotal().getSegments().getVersionMapMemoryInBytes();
+        assertEquals(sizeAfterFlush, sizeAfterIndexing, sizeAfterIndexing / 10);
+        ElasticsearchAssertions.assertNoFailures(refreshFuture.get());
+        // We need a second commit to clear previous entries from the LVM Archive.
+        indexDocs(indexName, 1);
+        refresh(indexName);
+        assertBusy(() -> {
+            IndicesStatsResponse statsAfterUnpromotableRefresh = indicesAdmin().prepareStats().setSegments(true).get();
+            var sizeAfterUnpromotableRefresh = statsAfterUnpromotableRefresh.getTotal().getSegments().getVersionMapMemoryInBytes();
+            assertEquals(sizeAfterUnpromotableRefresh, sizeBeforeIndexing, sizeBeforeIndexing);
+        });
     }
 }

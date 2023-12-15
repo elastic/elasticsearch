@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 3)
 public class EsqlAsyncActionIT extends EsqlActionIT {
 
     @Override

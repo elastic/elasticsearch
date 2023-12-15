@@ -101,7 +101,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
-        this.async = false; // TODO.
     }
 
     @Override

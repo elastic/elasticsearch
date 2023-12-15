@@ -16,7 +16,6 @@ public class EsqlAsyncGetResultAction extends ActionType<EsqlQueryResponse> {
     public static final String NAME = "indices:data/read/esql/async/get";
 
     private EsqlAsyncGetResultAction() {
-        // TODO: is the exception ok here?
-        super(NAME, in -> { throw new IllegalArgumentException("can't transport EsqlAsyncResultGet"); });
+        super(NAME, in -> { throw new IllegalArgumentException("can't transport EsqlAsyncGetResultAction"); });
     }
 }

@@ -51,7 +51,7 @@ public final class ResponseValueUtils {
 
     /**
      * Returns an iterator of iterators over the values in the given pages. There is one iterator
-     * for each block  CHEGAR/TODO: fix comment
+     * for each block.
      */
     public static Iterator<Iterator<Object>> pagesToValues(List<String> dataTypes, List<Page> pages) {
         BytesRef scratch = new BytesRef();

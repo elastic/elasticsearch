@@ -218,7 +218,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return new EsqlQueryResponse(
             List.of(),
             List.of(),
-            null, // TODO: is this ok?
+            null,
             false,
             task.getExecutionId().getEncoded(),
             true // is_running
@@ -227,7 +227,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     public EsqlQueryResponse readResponse(StreamInput inputStream) throws IOException {
-        throw new AssertionError("implement me"); // TODO:
+        throw new AssertionError("should not reach here");
     }
 
     private static boolean requestIsAsync(EsqlQueryRequest request) {

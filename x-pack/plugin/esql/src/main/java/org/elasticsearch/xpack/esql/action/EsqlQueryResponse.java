@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -41,6 +42,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContentObject, Releasable {
+
+    private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
 
     private static final ParseField ID = new ParseField("id");
     private static final ParseField IS_RUNNING = new ParseField("is_running");
@@ -212,7 +215,31 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     }
 
     @Override
+    public void incRef() {
+        tryIncRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return counted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return counted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return counted.hasReferences();
+    }
+
+    @Override
     public void close() {
+        decRef();
+    }
+
+    void closeInternal() {
         Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
     }
 

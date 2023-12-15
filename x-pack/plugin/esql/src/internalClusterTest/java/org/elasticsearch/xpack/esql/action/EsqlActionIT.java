@@ -84,14 +84,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex("test");
     }
 
-    @Repeat(iterations = 10)
     public void testProjectConstant() {
         try (EsqlQueryResponse results = run("from test | eval x = 1 | keep x")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfo("x", "integer"))));
             assertThat(getValuesList(results).size(), equalTo(40));
             assertThat(getValuesList(results).get(0).get(0), equalTo(1));
         }
-        ensureBlocksReleased(); // TODO: remove, this is already done elsewhere
     }
 
     public void testStatsOverConstant() {
@@ -795,6 +793,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             EsqlQueryResponse results = new EsqlQueryRequestBuilder(client()).query(command).filter(filter).pragmas(randomPragmas()).get()
         ) {
             logger.info(results);
+            results.decRef(); // Q: why does the client increment out already non-0 ref
             OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
             if (avg.isPresent()) {
                 assertEquals(avg.getAsDouble(), (double) getValuesList(results).get(0).get(0), 0.01d);

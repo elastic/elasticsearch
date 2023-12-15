@@ -23,7 +23,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     private final AsyncExecutionId asyncExecutionId;
     private final Map<String, String> originHeaders;
     private volatile long expirationTimeMillis;
-    private final List<ActionListener<Response>> completionListeners;
+    protected final List<ActionListener<Response>> completionListeners;
 
     @SuppressWarnings("this-escape")
     public StoredAsyncTask(

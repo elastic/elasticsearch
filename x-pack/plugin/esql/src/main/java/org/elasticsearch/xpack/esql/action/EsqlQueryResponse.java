@@ -88,16 +88,6 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         this(columns, pages, profile, columnar, null, false);
     }
 
-    public EsqlQueryResponse(
-        List<ColumnInfo> columns,
-        List<Page> pages,
-        @Nullable Profile profile,
-        @Nullable String asyncExecutionId,
-        boolean isRunning
-    ) {
-        this(columns, pages, profile, false, asyncExecutionId, isRunning);
-    }
-
     /**
      * Build a reader for the response.
      */
@@ -166,18 +156,22 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params unused) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         final Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar);
         Iterator<? extends ToXContent> idIt = Collections.emptyIterator();
         if (asyncExecutionId != null) {
             idIt = ChunkedToXContentHelper.field("id", asyncExecutionId);
         }
+        Iterator<ToXContent> profileRender = profile == null
+            ? List.<ToXContent>of().iterator()
+            : ChunkedToXContentHelper.field("profile", profile, params);
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             idIt,
             ChunkedToXContentHelper.field("is_running", isRunning),
             ResponseXContentUtils.columnHeadings(columns),
             ChunkedToXContentHelper.array("values", valuesIt),
+            profileRender,
             ChunkedToXContentHelper.endObject()
         );
     }
@@ -196,8 +190,9 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EsqlQueryResponse that = (EsqlQueryResponse) o;
-        // TODO: add new properties
         return Objects.equals(columns, that.columns)
+            && Objects.equals(asyncExecutionId, that.asyncExecutionId)
+            && Objects.equals(isRunning, that.isRunning)
             && columnar == that.columnar
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
             && Objects.equals(profile, that.profile);
@@ -205,8 +200,13 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public int hashCode() {
-        // TODO: add new properties
-        return Objects.hash(columns, Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)), columnar);
+        return Objects.hash(
+            asyncExecutionId,
+            isRunning,
+            columns,
+            Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
+            columnar
+        );
     }
 
     @Override

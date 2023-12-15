@@ -221,28 +221,45 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 5 + bodySize);
+            assertChunkCount(resp, r -> 6 + bodySize);
         }
     }
 
     public void testChunkResponseSizeRows() {
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount()).sum();
-            assertChunkCount(resp, r -> 5 + bodySize);
+            assertChunkCount(resp, r -> 6 + bodySize);
         }
     }
 
     public void testSimpleXContentColumnar() {
         try (EsqlQueryResponse response = simple(true)) {
             assertThat(Strings.toString(response), equalTo("""
-                {"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}"""));
+                {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40,80]]}"""));
         }
     }
 
     public void testSimpleXContentRows() {
         try (EsqlQueryResponse response = simple(false)) {
             assertThat(Strings.toString(response), equalTo("""
-                {"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
+                {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
+        }
+    }
+
+    public void testBasicXContentIdAndRunning() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfo("foo", "integer")),
+                List.of(new Page(new IntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                null,
+                false,
+                "id-123",
+                true
+
+            )
+        ) {
+            assertThat(Strings.toString(response), equalTo("""
+                {"id":"id-123","is_running":true,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]]}"""));
         }
     }
 
@@ -267,7 +284,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             );
         ) {
             assertThat(Strings.toString(response), equalTo("""
-                {"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]],"profile":{"drivers":[""" + """
+                {"is_running":false,"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]],"profile":{"drivers":[""" + """
                 {"operators":[{"operator":"asdf","status":{"pages_processed":10}}]}]}}"""));
         }
     }

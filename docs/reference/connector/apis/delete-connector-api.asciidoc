@@ -1,0 +1,66 @@
+[[delete-connector-api]]
+=== Delete connector API
+
+preview::[]
+
+++++
+<titleabbrev>Delete connector</titleabbrev>
+++++
+
+Removes a connector and its associated data.
+This is a destructive action that is not recoverable.
+
+[[delete-connector-api-request]]
+==== {api-request-title}
+
+`DELETE _connector/<connector_id>`
+
+[[delete-connector-api-prereq]]
+==== {api-prereq-title}
+
+* To sync data using connectors, it's essential to have the Elastic connectors service running.
+
+[[delete-connector-api-path-params]]
+==== {api-path-parms-title}
+
+`<connector_id>`::
+(Required, string)
+
+[[delete-connector-api-response-codes]]
+==== {api-response-codes-title}
+
+`400`::
+The `connector_id` was not provided.
+
+`404` (Missing resources)::
+No connector matching `connector_id` could be found.
+
+[[delete-connector-api-example]]
+==== {api-examples-title}
+
+The following example deletes the connector with ID `my-connector`:
+
+////
+[source, console]
+--------------------------------------------------
+PUT _connector/my-connector
+{
+  "index_name": "search-google-drive",
+  "name": "My Connector",
+  "service_type": "google_drive"
+}
+--------------------------------------------------
+// TESTSETUP
+////
+
+[source,console]
+----
+DELETE _connector/my-connector
+----
+
+[source,console-result]
+----
+{
+    "acknowledged": true
+}
+----

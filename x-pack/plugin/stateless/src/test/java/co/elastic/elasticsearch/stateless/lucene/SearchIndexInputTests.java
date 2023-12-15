@@ -55,7 +55,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                Stateless.SHARD_THREAD_POOL,
+                Stateless.SHARD_READ_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -96,7 +96,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                Stateless.SHARD_THREAD_POOL,
+                Stateless.SHARD_READ_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             )
         ) {

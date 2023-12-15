@@ -192,7 +192,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             len
                         )
                     ) {
-                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
                         logger.trace(
                             "{}: writing channel {} pos {} length {} (details: {})",
                             cacheFile.getCacheKey().fileName(),

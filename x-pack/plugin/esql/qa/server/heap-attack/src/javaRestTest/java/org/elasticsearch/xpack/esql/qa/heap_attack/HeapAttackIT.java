@@ -63,7 +63,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 values = values.item(List.of(0, b));
             }
         }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(map, matchesMap().entry("columns", columns).entry("values", values).entry("is_running", false));
     }
 
     /**
@@ -107,7 +107,7 @@ public class HeapAttackIT extends ESRestTestCase {
         );
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(map, matchesMap().entry("columns", columns).entry("values", values).entry("is_running", false));
     }
 
     /**
@@ -122,7 +122,7 @@ public class HeapAttackIT extends ESRestTestCase {
         );
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(map, matchesMap().entry("columns", columns).entry("values", values).entry("is_running", false));
     }
 
     private Response groupOnManyLongs(int count) throws IOException {
@@ -151,7 +151,7 @@ public class HeapAttackIT extends ESRestTestCase {
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "str").entry("type", "keyword"));
         ListMatcher values = matchesList().item(List.of(1, "1".repeat(100)));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(map, matchesMap().entry("columns", columns).entry("values", values).entry("is_running", false));
     }
 
     public void testHugeConcat() throws IOException {
@@ -188,7 +188,7 @@ public class HeapAttackIT extends ESRestTestCase {
         for (int s = 0; s < 300; s++) {
             columns = columns.item(matchesMap().entry("name", "str" + s).entry("type", "keyword"));
         }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", any(List.class)));
+        assertMap(map, matchesMap().entry("columns", columns).entry("values", any(List.class)).entry("is_running", false));
     }
 
     /**
@@ -244,7 +244,7 @@ public class HeapAttackIT extends ESRestTestCase {
         for (int i = 0; i < 10; i++) {
             columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
         }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
+        assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)).entry("is_running", false));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")

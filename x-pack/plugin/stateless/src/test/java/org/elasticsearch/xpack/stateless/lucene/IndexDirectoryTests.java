@@ -113,7 +113,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                Stateless.SHARD_THREAD_POOL,
+                Stateless.SHARD_READ_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
@@ -243,7 +243,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                Stateless.SHARD_THREAD_POOL,
+                Stateless.SHARD_READ_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
@@ -325,7 +325,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                Stateless.SHARD_THREAD_POOL,
+                Stateless.SHARD_READ_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);

@@ -17,14 +17,20 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.index.engine.LiveVersionMap;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.enforceSafeAccess;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.maybePutIndex;
@@ -34,12 +40,16 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.newLiveVers
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.pruneTombstones;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.putDelete;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.putIndex;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomIndexVersionValue;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.versionLookupSize;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class StatelessLiveVersionMapTests extends ESTestCase {
 
-    public void testBasics() throws Exception {
+    private static final long EMPTY_ARCHIVE_SIZE = RamUsageTester.ramUsed(new StatelessLiveVersionMapArchive(() -> 0L));
+    private static final long EMPTY_LVM_SIZE = RamUsageTester.ramUsed(newLiveVersionMap(new StatelessLiveVersionMapArchive(() -> 0L)));
+
+    public void testBasics() {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong(0);
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
@@ -97,7 +107,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
     }
 
-    public void testMultipleRefreshesWithFlush() throws Exception {
+    public void testMultipleRefreshesWithFlush() {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong(0);
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
@@ -136,7 +146,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
      * In the case where a pruneTombstone happens between a refresh and afterUnpromotablesRefreshed,
      * we could return stale value from archive rather than delete from tombstone.
      */
-    public void testPruneTombstonesBetweenRefreshAndUnpromotableRefresh() throws Exception {
+    public void testPruneTombstonesBetweenRefreshAndUnpromotableRefresh() {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong(0);
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
@@ -163,7 +173,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertNull(get(map, id));
     }
 
-    public void testArchiveMinDeleteTimestamp() throws IOException {
+    public void testArchiveMinDeleteTimestamp() {
         // current segment generation is 0
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong(0);
@@ -200,7 +210,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
     }
 
-    public void testUnsafeMapIsRecordedInArchiveUntilUnpromotablesAreRefreshed() throws IOException {
+    public void testUnsafeMapIsRecordedInArchiveUntilUnpromotablesAreRefreshed() {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong(0);
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
@@ -228,7 +238,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertFalse(isUnsafe(map));
     }
 
-    public void testUnsafeMapClearedByUnpromotableRefresh() throws IOException {
+    public void testUnsafeMapClearedByUnpromotableRefresh() {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong();
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
@@ -251,7 +261,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertFalse(isUnsafe(map));
     }
 
-    public void testUnsafeMapNotClearedDueToLocalRefresh() throws IOException {
+    public void testUnsafeMapNotClearedDueToLocalRefresh() {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong();
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
@@ -280,7 +290,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
      * in the archive to preCommitGeneration + 1, as otherwise we'd risk not seeing some documents that are indexed while a flush is
      * happening and the live version map is unsafe.
      */
-    public void testUnsafeMapDataIndexedDuringFlush() throws IOException {
+    public void testUnsafeMapDataIndexedDuringFlush() {
         AtomicLong currentGeneration = new AtomicLong(0);
         AtomicLong preCommitGeneration = new AtomicLong();
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
@@ -310,15 +320,106 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertFalse(isUnsafe(map));
     }
 
-    private void flush(LiveVersionMap map, AtomicLong currentGeneration, AtomicLong preCommitGeneration) throws IOException {
+    public void testArchiveMemoryUsed() {
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
+        var map = newLiveVersionMap(archive);
+        // Index and refresh on an unsafe map
+        assertEquals(0, archive.getMemoryBytesUsed());
+        maybePutIndex(map, "1", randomIndexVersionValue());
+        assertEquals(0, archive.getMemoryBytesUsed());
+        assertTrue(isUnsafe(map));
+        refresh(map);
+        assertEquals(0, archive.getMemoryBytesUsed());
+        // Index and refresh on an safe map
+        enforceSafeAccess(map);
+        maybePutIndex(map, "2", randomIndexVersionValue());
+        assertEquals(0, archive.getMemoryBytesUsed());
+        refresh(map);
+        assertArchiveMemoryBytesUsedIsCorrect(archive);
+        flush(map, currentGeneration, preCommitGeneration);
+        assertArchiveMemoryBytesUsedIsCorrect(archive);
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        assertEquals(0, archive.getMemoryBytesUsed());
+        // Randomly test indexing (assuming safe map), refresh, flush and unpromotable refresh
+        IntStream.range(1, randomIntBetween(10, 20)).forEach(i -> {
+            var sizeBeforeIndexing = archive.getMemoryBytesUsed();
+            IntStream.range(0, randomIntBetween(0, 10)).forEach(opCounter -> putIndex(map, randomIdentifier(), randomIndexVersionValue()));
+            assertEquals(sizeBeforeIndexing, archive.getMemoryBytesUsed());
+            IntStream.range(0, randomIntBetween(0, 3)).forEach(refreshCounter -> refresh(map));
+            assertArchiveMemoryBytesUsedIsCorrect(archive);
+            List<Long> flushedGenerations = new ArrayList<>();
+            IntStream.range(0, randomIntBetween(0, 3)).forEach(flushCounter -> {
+                flush(map, currentGeneration, preCommitGeneration);
+                assertArchiveMemoryBytesUsedIsCorrect(archive);
+                flushedGenerations.add(currentGeneration.get());
+            });
+            if (randomBoolean()) {
+                // Unpromotable refreshes might come back in a different order
+                Collections.shuffle(flushedGenerations, random());
+            }
+            for (var generation : flushedGenerations) {
+                archive.afterUnpromotablesRefreshed(generation);
+                assertArchiveMemoryBytesUsedIsCorrect(archive);
+            }
+        });
+        assertArchiveMemoryBytesUsedIsCorrect(archive);
+    }
+
+    public void testLiveVersionMapMemoryUsed() {
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
+        var map = newLiveVersionMap(archive);
+        long emptyMapActualMemUsed = RamUsageTester.ramUsed(map);
+        IntStream.range(10000, randomIntBetween(10001, 100000))
+            .forEach(i -> { putIndex(map, randomIdentifier(), randomIndexVersionValue()); });
+        var preRefreshActualMemUsed = RamUsageTester.ramUsed(map);
+        var preRefreshCalculatedMemUsed = map.ramBytesUsed();
+        // The thresholds used here are based on the ones used in {@link LiveVersionMapTests#testRamBytesUsed()}
+        // as {@link org.elasticsearch.index.engine.LiveVersionMap.ramBytesUsed} is an under-estimation compared to the
+        // actual memory usage.
+        assertEquals(preRefreshCalculatedMemUsed, preRefreshActualMemUsed, preRefreshActualMemUsed / 2);
+        assertLVMBytesUsedIsCorrect(map);
+        refresh(map);
+        var postRefreshActualMemUsed = RamUsageTester.ramUsed(map);
+        var postRefreshCalculatedMemUsed = map.ramBytesUsed();
+        // There is a small variation since we move entries to the archive which is not exactly the same data structure as the LVM map.
+        assertEquals(postRefreshActualMemUsed, preRefreshActualMemUsed, preRefreshActualMemUsed / 10);
+        assertEquals(preRefreshCalculatedMemUsed, postRefreshCalculatedMemUsed, preRefreshCalculatedMemUsed / 10);
+        assertLVMBytesUsedIsCorrect(map);
+        flush(map, currentGeneration, preCommitGeneration);
+        assertEquals(RamUsageTester.ramUsed(map), postRefreshActualMemUsed);
+        assertLVMBytesUsedIsCorrect(map);
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        assertEquals(RamUsageTester.ramUsed(map), emptyMapActualMemUsed);
+        assertLVMBytesUsedIsCorrect(map);
+    }
+
+    private static void assertLVMBytesUsedIsCorrect(LiveVersionMap liveVersionMap) {
+        var actualMemoryUsed = RamUsageTester.ramUsed(liveVersionMap);
+        assertEquals(EMPTY_LVM_SIZE + liveVersionMap.ramBytesUsed(), actualMemoryUsed, actualMemoryUsed / 2);
+    }
+
+    private static void assertArchiveMemoryBytesUsedIsCorrect(StatelessLiveVersionMapArchive archive) {
+        var actualMemoryUsed = RamUsageTester.ramUsed(archive);
+        assertEquals(EMPTY_ARCHIVE_SIZE + archive.getMemoryBytesUsed(), actualMemoryUsed, actualMemoryUsed / 2);
+    }
+
+    private void flush(LiveVersionMap map, AtomicLong currentGeneration, AtomicLong preCommitGeneration) {
         preCommitGeneration.set(currentGeneration.get() + 1);
         refresh(map); // A refresh (version_table_flush) that happens after the index writer is committed. See {@link InternalEngine#flush}
         currentGeneration.incrementAndGet();
     }
 
-    private void refresh(LiveVersionMap map) throws IOException {
-        map.beforeRefresh();
-        map.afterRefresh(randomBoolean());
+    private void refresh(LiveVersionMap map) {
+        try {
+            map.beforeRefresh();
+            map.afterRefresh(randomBoolean());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private Translog.Location randomTranslogLocation() {

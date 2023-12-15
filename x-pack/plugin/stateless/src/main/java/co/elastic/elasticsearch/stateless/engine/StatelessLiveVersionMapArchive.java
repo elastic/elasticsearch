@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.engine.LiveVersionMap;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.engine.VersionValue;
@@ -46,6 +47,21 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     private volatile boolean isUnsafe = false;
     // Records the generation that we need to receive unpromotable refresh for, in order to consider the archive map safe.
     private volatile long minSafeGeneration = -1;
+
+    private static final long MAP_ENTRY_KEY_BYTES = RamUsageEstimator.shallowSizeOfInstance(Long.class);
+    private static final long BASE_BYTES_PER_MAP_ENTRY;
+
+    static {
+        // use the same impl as archivePerGeneration
+        Map<Integer, Integer> map = new TreeMap<>();
+        map.put(0, 0);
+        long mapEntryShallowSize = RamUsageEstimator.shallowSizeOf(map.entrySet().iterator().next());
+        // assume a load factor of 50%
+        // for each entry, we need two object refs, one for the entry itself
+        // and one for the free space that is due to the fact hash tables can
+        // not be fully loaded
+        BASE_BYTES_PER_MAP_ENTRY = mapEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    }
 
     StatelessLiveVersionMapArchive(Supplier<Long> preCommitGenerationSupplier) {
         this.preCommitGenerationSupplier = preCommitGenerationSupplier;
@@ -96,6 +112,10 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
         }
     }
 
+    static long archiveEntryBytesUsed(LiveVersionMap.VersionLookup versionLookup) {
+        return BASE_BYTES_PER_MAP_ENTRY + MAP_ENTRY_KEY_BYTES + versionLookup.ramBytesUsed();
+    }
+
     @Override
     public VersionValue get(BytesRef uid) {
         synchronized (mutex) {
@@ -128,5 +148,14 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     @Override
     public boolean isUnsafe() {
         return isUnsafe;
+    }
+
+    @Override
+    public long getMemoryBytesUsed() {
+        long memBytesUsed = 0;
+        for (var versionLookup : archivePerGeneration.values()) {
+            memBytesUsed += archiveEntryBytesUsed(versionLookup);
+        }
+        return memBytesUsed;
     }
 }

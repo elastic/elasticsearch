@@ -10,24 +10,13 @@ package org.elasticsearch.test.fixtures.smb;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
-public class SmbTestContainer extends DockerEnvironmentAwareTestContainer {
+public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer {
 
     private static final String DOCKER_BASE_IMAGE = "ubuntu:16.04";
+    public static final int AD_LDAP_PORT = 636;
+    public static final int AD_LDAP_GC_PORT = 3269;
 
     public SmbTestContainer() {
-
-        // FROM ubuntu:16.04
-        // RUN apt-get update -qqy && apt-get install -qqy samba ldap-utils
-        // ADD . /fixture
-        // RUN chmod +x /fixture/src/main/resources/provision/installsmb.sh
-        // RUN /fixture/src/main/resources/provision/installsmb.sh
-        //
-        // EXPOSE 389
-        // EXPOSE 636
-        // EXPOSE 3268
-        // EXPOSE 3269
-        //
-        // CMD service samba-ad-dc restart && sleep infinity
         super(
             new ImageFromDockerfile("es-smb-fixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
@@ -48,17 +37,17 @@ public class SmbTestContainer extends DockerEnvironmentAwareTestContainer {
                 .withFileFromClasspath("fixture/certs/cert.pem", "/smb/certs/cert.pem")
                 .withFileFromClasspath("fixture/certs/key.pem", "/smb/certs/key.pem")
         );
-        addExposedPort(389);
-        addExposedPort(636);
-        addExposedPort(3268);
-        addExposedPort(3269);
+        // addExposedPort(389);
+        // addExposedPort(3268);
+        addExposedPort(AD_LDAP_PORT);
+        addExposedPort(AD_LDAP_GC_PORT);
     }
 
     public String getAdLdapUrl() {
-        return "ldaps://localhost:" + getMappedPort(636);
+        return "ldaps://localhost:" + getMappedPort(AD_LDAP_PORT);
     }
 
     public String getAdLdapGcUrl() {
-        return "ldaps://localhost:" + getMappedPort(3269);
+        return "ldaps://localhost:" + getMappedPort(AD_LDAP_GC_PORT);
     }
 }

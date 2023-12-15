@@ -9,7 +9,7 @@ dependencies {
   api "junit:junit:${versions.junit}"
   api "org.testcontainers:testcontainers:${versions.testcontainer}"
   implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
+  api "com.github.docker-java:docker-java-api:${versions.dockerJava}"
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "com.github.docker-java:docker-java-transport-zerodep:${versions.dockerJava}"
   runtimeOnly "com.github.docker-java:docker-java-transport:${versions.dockerJava}"

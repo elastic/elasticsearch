@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
-public class InstanceTypeService {
+public final class InstanceTypeService {
 
     private InstanceTypeService() {}
 
@@ -52,7 +52,7 @@ public class InstanceTypeService {
                 }
                 costsPerDatacenter = Map.copyOf(tmp);
             } catch (IOException e) {
-                throw new AssertionError(e);
+                throw new ExceptionInInitializerError(e);
             }
         }
     }

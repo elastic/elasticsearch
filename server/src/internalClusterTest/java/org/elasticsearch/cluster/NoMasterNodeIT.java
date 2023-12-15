@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -136,21 +137,17 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             RestStatus.SERVICE_UNAVAILABLE
         );
 
-        checkUpdateAction(
-            false,
-            timeout,
-            clientToMasterlessNode.prepareUpdate("test", "1")
-                .setScript(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap()))
-                .setTimeout(timeout)
-        );
+        UpdateRequestBuilder updateRequestBuilder = clientToMasterlessNode.prepareUpdate("test", "1")
+            .setScript(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap()))
+            .setTimeout(timeout);
+        checkUpdateAction(false, timeout, updateRequestBuilder);
+        updateRequestBuilder.request().decRef();
 
-        checkUpdateAction(
-            true,
-            timeout,
-            clientToMasterlessNode.prepareUpdate("no_index", "1")
-                .setScript(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap()))
-                .setTimeout(timeout)
-        );
+        updateRequestBuilder = clientToMasterlessNode.prepareUpdate("no_index", "1")
+            .setScript(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap()))
+            .setTimeout(timeout);
+        checkUpdateAction(true, timeout, updateRequestBuilder);
+        updateRequestBuilder.request().decRef();
 
         checkWriteAction(
             clientToMasterlessNode.prepareIndex("test")

@@ -74,7 +74,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         settings.put("index.analysis.analyzer.mock_snowball.tokenizer", "standard");
         settings.put("index.analysis.analyzer.mock_snowball.filter", "mock_snowball");
         createIndex("test", settings.build());
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             false,
             prepareIndex("test").setId("1").setSource("body", "foo"),
@@ -121,7 +121,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     public void testSimpleQueryStringMinimumShouldMatch() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             false,
             prepareIndex("test").setId("1").setSource("body", "foo"),
@@ -156,7 +156,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
             "4"
         );
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             false,
             prepareIndex("test").setId("5").setSource("body2", "foo", "other", "foo"),
@@ -212,7 +212,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                     .endObject()
             )
         );
-        prepareIndex("test").setId("1").setSource("body", "foo bar baz").get();
+        indexDoc("test", "1", "body", "foo bar baz");
         refresh();
 
         assertSearchHitsWithoutFailures(prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body")), "1");
@@ -223,7 +223,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testSimpleQueryStringFlags() throws ExecutionException, InterruptedException {
         createIndex("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("body", "foo"),
             prepareIndex("test").setId("2").setSource("body", "bar"),
@@ -281,7 +281,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     public void testSimpleQueryStringLenient() throws ExecutionException, InterruptedException {
         createIndex("test1", "test2");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test1").setId("1").setSource("field", "foo"),
             prepareIndex("test2").setId("10").setSource("field", 5)
@@ -302,7 +302,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     // Issue #7967
     public void testLenientFlagBeingTooLenient() throws Exception {
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("num", 1, "body", "foo bar baz"),
             prepareIndex("test").setId("2").setSource("num", 2, "body", "eggplant spaghetti lasagna")
@@ -329,22 +329,22 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
-        indexRandom(true, prepareIndex("test1").setId("1").setSource("location", "Köln"));
+        indexRandomAndDecRefRequests(true, prepareIndex("test1").setId("1").setSource("location", "Köln"));
         refresh();
 
         assertSearchHitsWithoutFailures(prepareSearch().setQuery(simpleQueryStringQuery("Köln*").field("location")), "1");
     }
 
     public void testSimpleQueryStringUsesFieldAnalyzer() throws Exception {
-        prepareIndex("test").setId("1").setSource("foo", 123, "bar", "abc").get();
-        prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
+        indexDoc("test", "1", "foo", 123, "bar", "abc");
+        indexDoc("test", "2", "foo", 234, "bar", "bcd");
         refresh();
         assertSearchHitsWithoutFailures(prepareSearch().setQuery(simpleQueryStringQuery("123").field("foo").field("bar")), "1");
     }
 
     public void testSimpleQueryStringOnIndexMetaField() throws Exception {
-        prepareIndex("test").setId("1").setSource("foo", 123, "bar", "abc").get();
-        prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
+        indexDoc("test", "1", "foo", 123, "bar", "abc");
+        indexDoc("test", "2", "foo", 234, "bar", "bcd");
         refresh();
         assertSearchHitsWithoutFailures(prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")), "1", "2");
     }
@@ -365,7 +365,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
-        indexRandom(true, prepareIndex("test1").setId("1").setSource("body", "Some Text"));
+        indexRandomAndDecRefRequests(true, prepareIndex("test1").setId("1").setSource("body", "Some Text"));
         refresh();
 
         assertSearchHitsWithoutFailures(prepareSearch().setQuery(simpleQueryStringQuery("the*").field("body")));
@@ -380,7 +380,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("1").setSource("f1", "foo bar baz"));
         reqs.add(prepareIndex("test").setId("2").setSource("f2", "Bar"));
         reqs.add(prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
-        indexRandom(true, false, reqs);
+        indexRandomAndDecRefRequests(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo")), response -> {
             assertHitCount(response, 2L);
@@ -404,7 +404,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02"));
         reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
-        indexRandom(true, false, reqs);
+        indexRandomAndDecRefRequests(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")), response -> {
             assertHits(response.getHits(), "1", "2");
@@ -432,7 +432,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02", "f_float", "1.7", "f_ip", "127.0.0.1"));
         reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2"));
-        indexRandom(true, false, reqs);
+        indexRandomAndDecRefRequests(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")), response -> {
             assertHits(response.getHits(), "1", "2");
@@ -460,7 +460,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         String docBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-example-document.json");
         reqs.add(prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
-        indexRandom(true, false, reqs);
+        indexRandomAndDecRefRequests(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo")), response -> assertHits(response.getHits(), "1"));
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")), response -> assertHits(response.getHits(), "1"));
@@ -502,7 +502,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("1").setSource("f2", "Foo Bar"));
         reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar"));
         reqs.add(prepareIndex("test").setId("3").setSource("f1", "foo bar"));
-        indexRandom(true, false, reqs);
+        indexRandomAndDecRefRequests(true, false, reqs);
 
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo")), response -> {
             assertHits(response.getHits(), "3");
@@ -521,7 +521,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(prepareIndex("test").setId("1").setSource("f_long", 1));
-        indexRandom(true, false, reqs);
+        indexRandomAndDecRefRequests(true, false, reqs);
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
@@ -539,7 +539,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         indexRequests.add(prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
         indexRequests.add(prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
         indexRequests.add(prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
-        indexRandom(true, false, indexRequests);
+        indexRandomAndDecRefRequests(true, false, indexRequests);
 
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("value").field("f3_alias")), response -> {
             assertHitCount(response, 2);
@@ -556,7 +556,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         indexRequests.add(prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
         indexRequests.add(prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
         indexRequests.add(prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
-        indexRandom(true, false, indexRequests);
+        indexRandomAndDecRefRequests(true, false, indexRequests);
 
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("value").field("f3_*")), response -> {
             assertHitCount(response, 2);
@@ -571,7 +571,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         indexRequests.add(prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
-        indexRandom(true, false, indexRequests);
+        indexRandomAndDecRefRequests(true, false, indexRequests);
 
         // The wildcard field matches aliases for both a text and boolean field.
         // By default, the boolean field should be ignored when building the query.
@@ -615,6 +615,38 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         @Override
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
             return singletonList(PreConfiguredTokenFilter.singleton("mock_snowball", false, MockSnowBall::new));
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders)
+        throws InterruptedException {
+        try {
+            super.indexRandom(forceRefresh, dummyDocuments, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders)
+        throws InterruptedException {
+        try {
+            super.indexRandom(forceRefresh, dummyDocuments, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            super.indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
         }
     }
 }

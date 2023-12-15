@@ -8,7 +8,6 @@
 
 package org.elasticsearch.broadcast;
 
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;

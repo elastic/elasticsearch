@@ -13,6 +13,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterState;
@@ -277,7 +278,11 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         );
 
         if (closed == false) {
-            prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
+                .setSource("field", "value")
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         final Index index = resolveIndex("test");
 

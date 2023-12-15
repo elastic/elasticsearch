@@ -14,8 +14,10 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -92,9 +94,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureGreen();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("field1", "value1"))
-                .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
-                .get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("field1", "value1");
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2");
+            BulkResponse bulkResponse = bulkRequestBuilder.add(indexRequestBuilder).add(updateRequestBuilder).get();
+            indexRequestBuilder.request().decRef();
+            updateRequestBuilder.request().decRef();
 
             assertThat(bulkResponse.hasFailures(), equalTo(false));
             assertThat(bulkResponse.getItems().length, equalTo(2));
@@ -114,7 +118,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     // returns data paths settings of in-sync shard copy
     private Settings createStaleReplicaScenario(String master) throws Exception {
-        prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        index("test", null, jsonBuilder().startObject().field("field", "value1").endObject());
         refresh();
         ClusterState state = clusterAdmin().prepareState().all().get().getState();
         List<ShardRouting> shards = state.routingTable().allShards("test");
@@ -141,7 +145,10 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureStableCluster(2, master);
 
         logger.info("--> index a document into previous replica shard (that is now primary)");
-        client(replicaNode).prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        IndexRequestBuilder indexRequestBuilder = client(replicaNode).prepareIndex("test")
+            .setSource(jsonBuilder().startObject().field("field", "value1").endObject());
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         logger.info("--> shut down node that has new acknowledged document");
         final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
@@ -438,7 +445,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureYellow("test");
         assertEquals(2, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         logger.info("--> indexing...");
-        prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        index("test", null, jsonBuilder().startObject().field("field", "value1").endObject());
         assertEquals(1, clusterAdmin().prepareState().get().getState().metadata().index("test").inSyncAllocationIds(0).size());
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
@@ -465,7 +472,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> creating index with 1 primary and 2 replicas");
         createIndex("test", randomIntBetween(1, 3), 2);
         ensureGreen("test");
-        prepareIndex("test").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        index("test", null, jsonBuilder().startObject().field("field", "value1").endObject());
         logger.info("--> removing 2 nodes from cluster");
         internalCluster().stopNode(nodes.get(1));
         internalCluster().stopNode(nodes.get(2));

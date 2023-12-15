@@ -387,9 +387,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // this request does not change the cluster state, because the mapping is dynamic,
         // we need to await and cancel committed publication
         IndexRequestBuilder indexRequestBuilder2 = prepareIndex("index").setId("2").setSource("field2", 42);
-        ActionFuture<DocWriteResponse> dynamicMappingsFut = executeAndCancelCommittedPublication(
-            indexRequestBuilder2
-        );
+        ActionFuture<DocWriteResponse> dynamicMappingsFut = executeAndCancelCommittedPublication(indexRequestBuilder2);
 
         // ...and wait for second mapping to be available on master
         assertBusy(() -> {

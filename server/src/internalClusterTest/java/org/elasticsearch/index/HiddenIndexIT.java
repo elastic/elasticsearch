@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -37,7 +38,10 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
     public void testHiddenIndexSearch() {
         assertAcked(indicesAdmin().prepareCreate("hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get());
-        prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("hidden-index").setSource("foo", "bar")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         // default not visible to wildcard expansion
         assertResponse(
@@ -67,7 +71,9 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
         // implicit based on use of pattern starting with . and a wildcard
         assertAcked(indicesAdmin().prepareCreate(".hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get());
-        prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        indexRequestBuilder = prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertResponse(prepareSearch(randomFrom(".*", ".hidden-*")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()), response -> {
             boolean matchedHidden = Arrays.stream(response.getHits().getHits()).anyMatch(hit -> ".hidden-index".equals(hit.getIndex()));
             assertTrue(matchedHidden);

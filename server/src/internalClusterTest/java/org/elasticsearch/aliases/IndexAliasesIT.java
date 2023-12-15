@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -1143,7 +1144,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         final int numDocs = scaledRandomIntBetween(5, 52);
         for (int i = 1; i <= numDocs; i++) {
-            prepareIndex("my-index").setSource("timestamp", "2016-12-12").get();
+            indexDoc("my-index", null, "timestamp", "2016-12-12");
             if (i % 2 == 0) {
                 refresh();
                 assertHitCount(prepareSearch("filter1"), i);
@@ -1239,7 +1240,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {
         assertAcked(indicesAdmin().prepareCreate("test"));
-        indexRandom(true, prepareIndex("test_2").setId("test").setSource("test", "test"));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test_2").setId("test").setSource("test", "test");
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
         assertAliasesVersionIncreases(
             "test_2",
             () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test_2", "test").removeIndex("test"))

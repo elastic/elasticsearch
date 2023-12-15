@@ -496,7 +496,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @Before
     public final void before() {
-        System.err.println(getTestParamsForLogging() + " before test");
+        logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
@@ -527,7 +527,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
         logger.info("{}after test", getTestParamsForLogging());
-        System.err.println(getTestParamsForLogging() + " after test");
     }
 
     private String getTestParamsForLogging() {

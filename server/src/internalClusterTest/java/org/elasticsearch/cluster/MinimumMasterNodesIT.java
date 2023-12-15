@@ -93,7 +93,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
+            indexDoc("test", Integer.toString(i), "field", "value");
         }
         // make sure that all shards recovered before trying to flush
         assertThat(
@@ -234,7 +234,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
+            indexDoc("test", Integer.toString(i), "field", "value");
         }
         ensureGreen();
         // make sure that all shards recovered before trying to flush

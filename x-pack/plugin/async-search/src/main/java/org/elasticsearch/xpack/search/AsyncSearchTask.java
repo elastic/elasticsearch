@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
+import org.elasticsearch.action.search.SearchResponseMerger;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -27,6 +28,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -72,6 +74,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
     private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
+    private SearchResponseMerger searchResponseMerger;
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -130,6 +133,19 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
     Listener getSearchProgressActionListener() {
         return progressListener;
+    }
+
+    @Override
+    public Supplier<SearchResponseMerger> getSearchResponseMergerSupplier(
+        SearchSourceBuilder source,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        AggregationReduceContext.Builder aggReduceContextBuilder
+    ) {
+        return () -> {
+            System.err.println("YYYY AsyncSearchTask creating SearchResponseMerger");
+            searchResponseMerger = SearchTask.createSearchResponseMerger(source, timeProvider, aggReduceContextBuilder);
+            return searchResponseMerger;
+        };
     }
 
     /**
@@ -310,7 +326,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         for (Consumer<AsyncSearchResponse> consumer : completionsListenersCopy.values()) {
             consumer.accept(finalResponse);
         }
-
     }
 
     /**
@@ -437,10 +452,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
-            searchResponse.compareAndSet(
-                null,
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
+            MutableSearchResponse mutableSearchResponse = new MutableSearchResponse(
+                shards.size() + skipped.size(),
+                skipped.size(),
+                clusters,
+                threadPool.getThreadContext()
             );
+            mutableSearchResponse.setSearchResponseMerger(searchResponseMerger); // MP TODO: should we just add this to the ctor?
+            searchResponse.compareAndSet(null, mutableSearchResponse);
+
             executeInitListeners();
         }
 
@@ -467,20 +487,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                  */
                 reducedAggs = () -> InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
-        }
-
-        /**
-         * Called when a full reduction is done as part of CCS minimize_roundtrips=true.
-         * This may or may not be the final response. The final response (once all clusters have
-         * responded) will be sent to the ActionListener.onResponse callback below.
-         * @param response SearchResponse with fully merged aggs and tophits based on CCS responses
-         *                 received so far
-         */
-        @Override
-        public void onCcsMinimizeRoundtripsReduce(SearchResponse response) {
-            // this is only used for MRT=true, so not passing to the MRT=false delegate
-            searchResponse.get().updatePartialResponse(response);
+            System.err.println("GGG AsyncSearchTask: onPartialReduce: #shards: " + shards.size());
+            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase, false);
         }
 
         /**
@@ -489,12 +497,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
          */
         @Override
         public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
+            System.err.println("GGG-F AsyncSearchTask: onFINALReduce: #shards: " + shards.size());
             // best effort to cancel expired tasks
             checkCancellation();
             if (delegate != null) {
                 delegate.onFinalReduce(shards, totalHits, aggregations, reducePhase);
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
+            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase, true);
         }
 
         @Override

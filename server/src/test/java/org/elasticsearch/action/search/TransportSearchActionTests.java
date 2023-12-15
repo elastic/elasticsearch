@@ -65,6 +65,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -112,6 +113,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
@@ -523,6 +525,12 @@ public class TransportSearchActionTests extends ESTestCase {
                 ActionListener.wrap(r -> fail("no response expected"), failure::set),
                 latch
             );
+
+            Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
+                searchRequest.source(),
+                timeProvider,
+                emptyReduceContextBuilder()
+            );
             TransportSearchAction.ccsRemoteReduce(
                 new TaskId("n", 1),
                 searchRequest,
@@ -530,10 +538,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 remoteIndicesByCluster,
                 new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                 timeProvider,
-                emptyReduceContextBuilder(),
                 remoteClusterService,
                 threadPool,
-                SearchProgressListener.NOOP,
+                searchResponseMergerSupplier,
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l))
             );
@@ -594,18 +601,11 @@ public class TransportSearchActionTests extends ESTestCase {
                     }),
                     latch
                 );
-                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
-                boolean useProgressListener = randomBoolean();
-                SearchProgressListener progressListener = SearchProgressListener.NOOP;
-                if (useProgressListener) {
-                    progressListener = new SearchProgressListener() {
-                        @Override
-                        protected void onCcsMinimizeRoundtripsReduce(SearchResponse response) {
-                            incrementalResponses.add(response);
-                            response.mustIncRef();
-                        }
-                    };
-                }
+                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
+                    searchRequest.source(),
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                );
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -613,10 +613,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
-                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    progressListener,
+                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -642,16 +641,8 @@ public class TransportSearchActionTests extends ESTestCase {
                         searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
                     );
                     assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
-                    // incremental merges are done iff more than one cluster is searched and a
-                    // non-NOOP SearchProgressListener is provided
-                    if (useProgressListener && totalClusters > 1) {
-                        assertEquals(totalClusters, incrementalResponses.size());
-                    }
                 } finally {
                     searchResponse.decRef();
-                    for (SearchResponse incrementalResponse : incrementalResponses) {
-                        incrementalResponse.decRef();
-                    }
                 }
             }
 
@@ -669,18 +660,11 @@ public class TransportSearchActionTests extends ESTestCase {
                     }),
                     latch
                 );
-                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
-                boolean useProgressListener = randomBoolean();
-                SearchProgressListener progressListener = SearchProgressListener.NOOP;
-                if (useProgressListener) {
-                    progressListener = new SearchProgressListener() {
-                        @Override
-                        protected void onCcsMinimizeRoundtripsReduce(SearchResponse response) {
-                            incrementalResponses.add(response);
-                            response.mustIncRef();
-                        }
-                    };
-                }
+                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
+                    searchRequest.source(),
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                );
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -688,10 +672,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
-                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    progressListener,
+                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -717,16 +700,8 @@ public class TransportSearchActionTests extends ESTestCase {
                         searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
                     );
                     assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
-                    // incremental merges are done iff more than one cluster is searched and a
-                    // non-NOOP SearchProgressListener is provided
-                    if (useProgressListener && totalClusters > 1) {
-                        assertEquals(totalClusters, incrementalResponses.size());
-                    }
                 } finally {
                     searchResponse.decRef();
-                    for (SearchResponse incrementalResponse : incrementalResponses) {
-                        incrementalResponse.decRef();
-                    }
                 }
             }
 
@@ -770,18 +745,11 @@ public class TransportSearchActionTests extends ESTestCase {
                     latch
                 );
 
-                boolean useProgressListener = randomBoolean();
-                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
-                SearchProgressListener progressListener = SearchProgressListener.NOOP;
-                if (useProgressListener) {
-                    progressListener = new SearchProgressListener() {
-                        @Override
-                        protected void onCcsMinimizeRoundtripsReduce(SearchResponse response) {
-                            incrementalResponses.add(response);
-                            response.mustIncRef();
-                        }
-                    };
-                }
+                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
+                    searchRequest.source(),
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                );
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -789,10 +757,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
-                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    progressListener,
+                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -809,14 +776,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
                 assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
-                if (useProgressListener && localIndices != null) {
-                    // the local index is the only search that succeeds in this sub-test
-                    // the remote clusters all send back failures, so no incremental responses from them
-                    assertEquals(1, incrementalResponses.size());
-                }
-                for (SearchResponse incrementalResponse : incrementalResponses) {
-                    incrementalResponse.decRef();
-                }
             }
 
         } finally {
@@ -882,19 +841,11 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
-                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
-                boolean useProgressListener = randomBoolean();
-                SearchProgressListener progressListener = SearchProgressListener.NOOP;
-                if (useProgressListener) {
-                    progressListener = new SearchProgressListener() {
-                        @Override
-                        protected void onCcsMinimizeRoundtripsReduce(SearchResponse response) {
-                            incrementalResponses.add(response);
-                            response.mustIncRef();
-                        }
-                    };
-                }
-
+                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
+                    searchRequest.source(),
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                );
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -902,10 +853,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
-                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    progressListener,
+                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -922,12 +872,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
                 assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
-                if (useProgressListener && localIndices != null) {
-                    assertEquals(totalClusters - numDisconnectedClusters, incrementalResponses.size());
-                }
-                for (SearchResponse incrementalResponse : incrementalResponses) {
-                    incrementalResponse.decRef();
-                }
             }
 
             // setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
@@ -951,19 +895,12 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
-                List<SearchResponse> incrementalResponses = new CopyOnWriteArrayList<>();
-                boolean useProgressListener = randomBoolean();
-                SearchProgressListener progressListener = SearchProgressListener.NOOP;
-                if (useProgressListener) {
-                    progressListener = new SearchProgressListener() {
-                        @Override
-                        protected void onCcsMinimizeRoundtripsReduce(SearchResponse response) {
-                            incrementalResponses.add(response);
-                            response.mustIncRef();
-                        }
-                    };
-                }
-
+                AggregationReduceContext.Builder aggReduceContextBuilder = null;
+                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
+                    searchRequest.source(),
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                );
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -971,10 +908,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
-                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    progressListener,
+                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -1001,12 +937,6 @@ public class TransportSearchActionTests extends ESTestCase {
                     assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
                     assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                     assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
-                    if (useProgressListener && successful > 0) {
-                        assertEquals(totalClusters - numDisconnectedClusters, incrementalResponses.size());
-                    }
-                    for (SearchResponse incrementalResponse : incrementalResponses) {
-                        incrementalResponse.decRef();
-                    }
                 } finally {
                     searchResponse.decRef();
                 }
@@ -1042,6 +972,11 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
+                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
+                    searchRequest.source(),
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                );
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -1049,10 +984,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
-                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    SearchProgressListener.NOOP,
+                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );

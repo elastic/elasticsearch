@@ -8,6 +8,10 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
@@ -53,4 +57,37 @@ public class SearchTask extends CancellableTask {
         return progressListener;
     }
 
+    public Supplier<SearchResponseMerger> getSearchResponseMergerSupplier(
+        SearchSourceBuilder source,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        AggregationReduceContext.Builder aggReduceContextBuilder
+    ) {
+        return () -> createSearchResponseMerger(source, timeProvider, aggReduceContextBuilder);
+    }
+
+    protected static SearchResponseMerger createSearchResponseMerger(
+        SearchSourceBuilder source,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        AggregationReduceContext.Builder aggReduceContextBuilder
+    ) {
+        System.err.println("XXXXX CALLING SearchTask.createSearchResponseMerger");
+        final int from;
+        final int size;
+        final int trackTotalHitsUpTo;
+        if (source == null) {
+            from = SearchService.DEFAULT_FROM;
+            size = SearchService.DEFAULT_SIZE;
+            trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
+        } else {
+            from = source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
+            size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+            trackTotalHitsUpTo = source.trackTotalHitsUpTo() == null
+                ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+                : source.trackTotalHitsUpTo();
+            // here we modify the original source so we can re-use it by setting it to each outgoing search request
+            source.from(0);
+            source.size(from + size);
+        }
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder);
+    }
 }

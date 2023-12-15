@@ -66,7 +66,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs
 // TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 // from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 // cluster response would have the fetch results.
-final class SearchResponseMerger implements Releasable {
+public final class SearchResponseMerger implements Releasable {
     final int from;
     final int size;
     final int trackTotalHitsUpTo;
@@ -99,7 +99,7 @@ final class SearchResponseMerger implements Releasable {
      * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
-    void add(SearchResponse searchResponse) {
+    public void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponse.mustIncRef();
         searchResponses.add(searchResponse);
@@ -113,10 +113,17 @@ final class SearchResponseMerger implements Releasable {
      * Returns the merged response of all SearchResponses received so far. This can be called at any point,
      * including when only some clusters have finished, in order to get "incremental" partial results.
      */
-    SearchResponse getMergedResponse(Clusters clusters) {
+    public SearchResponse getMergedResponse(Clusters clusters) {
+        return getMergedResponse(clusters, null);
+    }
+
+    /**
+     * TODO: DOCUMENT ME
+     */
+    public SearchResponse getMergedResponse(Clusters clusters, SearchResponse additionalResponse) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
-        if (searchResponses.size() == 0) {
+        if (searchResponses.size() == 0 && additionalResponse == null) {
             return SearchResponse.empty(searchTimeProvider::buildTookInMillis, clusters);
         }
         int totalShards = 0;
@@ -134,7 +141,15 @@ final class SearchResponseMerger implements Releasable {
 
         TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
 
-        for (SearchResponse searchResponse : searchResponses) {
+        List<SearchResponse> responsesToMerge = searchResponses;
+        if (additionalResponse != null) {
+            responsesToMerge = new ArrayList<>(searchResponses.size() + 1);
+            responsesToMerge.addAll(searchResponses);
+            System.err.println(">>> SearchResponseMerger: ADDING IN THE ADDITIONAL RESPONSE");
+            responsesToMerge.add(additionalResponse);
+        }
+
+        for (SearchResponse searchResponse : responsesToMerge) {
             totalShards += searchResponse.getTotalShards();
             skippedShards += searchResponse.getSkippedShards();
             successfulShards += searchResponse.getSuccessfulShards();

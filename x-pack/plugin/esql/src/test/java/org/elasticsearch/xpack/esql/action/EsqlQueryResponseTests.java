@@ -93,7 +93,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         List<ColumnInfo> columns = randomList(noCols, noCols, this::randomColumnInfo);
         int noPages = randomIntBetween(1, 20);
         List<Page> values = randomList(noPages, noPages, () -> randomPage(columns));
-        return new EsqlQueryResponse(columns, values, profile, columnar);
+        String id = randomAlphaOfLengthBetween(1, 16);
+        boolean isRunning = randomBoolean();
+        return new EsqlQueryResponse(columns, values, profile, columnar, id, isRunning);
     }
 
     private ColumnInfo randomColumnInfo() {
@@ -221,14 +223,14 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 6 + bodySize);
+            assertChunkCount(resp, r -> 7 + bodySize);
         }
     }
 
     public void testChunkResponseSizeRows() {
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount()).sum();
-            assertChunkCount(resp, r -> 6 + bodySize);
+            assertChunkCount(resp, r -> 7 + bodySize);
         }
     }
 

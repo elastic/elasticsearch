@@ -28,6 +28,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -40,6 +41,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
 
 public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContentObject, Releasable {
 
@@ -54,10 +56,10 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             true,
             EsqlQueryResponse.class
         );
+        parser.declareString(optionalConstructorArg(), ID);
+        parser.declareBoolean(optionalConstructorArg(), IS_RUNNING);
         parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfo.fromXContent(p), new ParseField("columns"));
         parser.declareField(constructorArg(), (p, c) -> p.list(), new ParseField("values"), ObjectParser.ValueType.OBJECT_ARRAY);
-        parser.declareString(optionalConstructorArg(), ID);
-        parser.declareBoolean(constructorArg(), IS_RUNNING);
         PARSER = parser.build();
     }
 
@@ -86,6 +88,12 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, @Nullable Profile profile, boolean columnar) {
         this(columns, pages, profile, columnar, null, false);
+    }
+
+    // Used for XContent reconstruction
+    @ParserConstructor
+    public EsqlQueryResponse(@Nullable String asyncExecutionId, boolean isRunning, List<ColumnInfo> columns, List<List<Object>> values) {
+        this(columns, List.of(valuesToPage(columns, values)), null, false, asyncExecutionId, isRunning);
     }
 
     /**

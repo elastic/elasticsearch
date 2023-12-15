@@ -36,4 +36,6 @@ build-tools-internal @elastic/es-delivery
 .buildkite @elastic/es-delivery
 .ci @elastic/es-delivery
 .idea @elastic/es-delivery
-distribution @elastic/es-delivery
+distribution/src @elastic/es-delivery
+distribution/packages/src @elastic/es-delivery
+distribution/docker/src @elastic/es-delivery

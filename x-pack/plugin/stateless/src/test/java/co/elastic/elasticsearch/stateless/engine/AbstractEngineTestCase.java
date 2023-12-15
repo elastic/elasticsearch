@@ -291,7 +291,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             nodeEnvironment,
             indexSettings.getSettings(),
             threadPool,
-            Stateless.SHARD_THREAD_POOL,
+            Stateless.SHARD_READ_THREAD_POOL,
             BlobCacheMetrics.NOOP
         );
         var directory = new SearchDirectory(cache, shardId);

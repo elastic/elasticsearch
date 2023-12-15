@@ -183,7 +183,7 @@ public class FakeStatelessNode implements Closeable {
                 nodeEnvironment,
                 nodeSettings,
                 threadPool,
-                Stateless.SHARD_THREAD_POOL,
+                Stateless.SHARD_READ_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             localCloseables.add(sharedCacheService);

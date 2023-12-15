@@ -229,12 +229,12 @@ public class Stateless extends Plugin
         Setting.Property.NodeScope
     );
 
-    public static final String SHARD_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_THREAD_NAME;
-    public static final String SHARD_THREAD_POOL_SETTING = "stateless." + SHARD_THREAD_POOL + "_thread_pool";
+    public static final String SHARD_READ_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME;
+    public static final String SHARD_READ_THREAD_POOL_SETTING = "stateless." + SHARD_READ_THREAD_POOL + "_thread_pool";
     public static final String TRANSLOG_THREAD_POOL = BlobStoreRepository.STATELESS_TRANSLOG_THREAD_NAME;
     public static final String TRANSLOG_THREAD_POOL_SETTING = "stateless." + TRANSLOG_THREAD_POOL + "_thread_pool";
-    public static final String UPLOAD_THREAD_POOL = BlobStoreRepository.STATELESS_UPLOAD_THREAD_NAME;
-    public static final String UPLOAD_THREAD_POOL_SETTING = "stateless." + UPLOAD_THREAD_POOL + "_thread_pool";
+    public static final String SHARD_WRITE_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_WRITE_THREAD_NAME;
+    public static final String SHARD_WRITE_THREAD_POOL_SETTING = "stateless." + SHARD_WRITE_THREAD_POOL + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
@@ -381,7 +381,7 @@ public class Stateless extends Plugin
                     nodeEnvironment,
                     settings,
                     threadPool,
-                    SHARD_THREAD_POOL,
+                    SHARD_READ_THREAD_POOL,
                     new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
                 )
             )
@@ -519,35 +519,40 @@ public class Stateless extends Plugin
     }
 
     public static ExecutorBuilder<?>[] statelessExecutorBuilders(Settings settings, boolean hasIndexRole) {
+        // TODO: Consider modifying these pool counts if we change the object store client connections based on node size.
+        // Right now we have 10 threads for snapshots, 1 or 8 threads for translog and 20 or 28 threads for shard thread pools. This is to
+        // attempt to keep the threads below the default client connections limit of 50. This assumption is currently broken by the snapshot
+        // metadata pool having 50 threads. But we will continue to iterate on this numbers and limits.
+
         final int processors = EsExecutors.allocatedProcessors(settings);
-        final int shardMaxThreads;
+        final int shardReadMaxThreads;
         final int translogCoreThreads;
         final int translogMaxThreads;
-        final int uploadCoreThreads;
-        final int uploadMaxThreads;
+        final int shardWriteCoreThreads;
+        final int shardWriteMaxThreads;
 
         if (hasIndexRole) {
-            shardMaxThreads = Math.min(processors * 4, 20);
+            shardReadMaxThreads = Math.min(processors * 4, 10);
             translogCoreThreads = 2;
             translogMaxThreads = Math.min(processors * 2, 8);
-            uploadCoreThreads = 2;
-            uploadMaxThreads = Math.min(processors * 2, 10);
+            shardWriteCoreThreads = 2;
+            shardWriteMaxThreads = Math.min(processors * 4, 10);
         } else {
-            shardMaxThreads = Math.min(processors * 4, 28);
+            shardReadMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;
             translogMaxThreads = 1;
-            uploadCoreThreads = 0;
-            uploadMaxThreads = 1;
+            shardWriteCoreThreads = 0;
+            shardWriteMaxThreads = 1;
         }
 
         return new ExecutorBuilder<?>[] {
             new ScalingExecutorBuilder(
-                SHARD_THREAD_POOL,
+                SHARD_READ_THREAD_POOL,
                 4,
-                shardMaxThreads,
+                shardReadMaxThreads,
                 TimeValue.timeValueSeconds(30L),
                 true,
-                SHARD_THREAD_POOL_SETTING
+                SHARD_READ_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
                 TRANSLOG_THREAD_POOL,
@@ -558,12 +563,12 @@ public class Stateless extends Plugin
                 TRANSLOG_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
-                UPLOAD_THREAD_POOL,
-                uploadCoreThreads,
-                uploadMaxThreads,
+                SHARD_WRITE_THREAD_POOL,
+                shardWriteCoreThreads,
+                shardWriteMaxThreads,
                 TimeValue.timeValueSeconds(30L),
                 true,
-                UPLOAD_THREAD_POOL_SETTING
+                SHARD_WRITE_THREAD_POOL_SETTING
             ) };
     }
 

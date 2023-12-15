@@ -222,8 +222,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
-            threadPool.info(Stateless.UPLOAD_THREAD_POOL).getMax(),
-            threadPool.executor(Stateless.UPLOAD_THREAD_POOL)
+            threadPool.info(Stateless.SHARD_WRITE_THREAD_POOL).getMax(),
+            threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL)
         );
         this.permits = new Semaphore(0);
     }
@@ -426,9 +426,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             );
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(Stateless.SHARD_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
-        }, Stateless.SHARD_THREAD_POOL);
+        }, Stateless.SHARD_WRITE_THREAD_POOL);
     }
 
     private void asyncDeleteFile(Runnable deleteFileRunnable, String executor) {
@@ -801,7 +801,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         public void onAfter() {
             shardFileDeleteSchedulePermit.release();
             if (commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(Stateless.SHARD_THREAD_POOL).execute(new ShardFilesDeleteTask());
+                threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
         }
 

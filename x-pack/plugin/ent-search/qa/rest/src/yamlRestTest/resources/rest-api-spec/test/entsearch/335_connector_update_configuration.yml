@@ -86,6 +86,41 @@ setup:
   - match: { status: configured }
 
 ---
+"Update Connector Configuration with null tooltip":
+  - do:
+      connector.update_configuration:
+        connector_id: test-connector
+        body:
+          configuration:
+            some_field:
+              default_value: null
+              depends_on:
+                - field: some_field
+                  value: 31
+              display: numeric
+              label: Very important field
+              options: [ ]
+              order: 4
+              required: true
+              sensitive: false
+              tooltip: null
+              type: str
+              ui_restrictions: [ ]
+              validations:
+                - constraint: 0
+                  type: greater_than
+              value: 123
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { configuration.some_field.tooltip: null }
+
+---
 "Update Connector Configuration - Connector doesn't exist":
   - do:
       catch: "missing"

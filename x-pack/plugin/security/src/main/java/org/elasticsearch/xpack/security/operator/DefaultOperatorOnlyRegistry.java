@@ -21,7 +21,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.license.PutLicenseAction;
-import org.elasticsearch.license.TransportDeleteLicenseAction;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -37,7 +36,7 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         TransportAddVotingConfigExclusionsAction.TYPE.name(),
         TransportClearVotingConfigExclusionsAction.TYPE.name(),
         PutLicenseAction.NAME,
-        TransportDeleteLicenseAction.TYPE.name(),
+        "cluster:admin/xpack/license/delete",
         // Autoscaling does not publish its actions to core, literal strings are needed.
         "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/autoscaling/delete_autoscaling_policy",

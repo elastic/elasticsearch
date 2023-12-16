@@ -13,13 +13,18 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.security.Security;
 
@@ -41,6 +46,7 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
 
     private final RemoteClusterService remoteClusterService;
     private final ClusterService clusterService;
+    private final ThreadContext threadContext;
 
     @Inject
     public TransportReloadRemoteClusterCredentialsAction(
@@ -51,24 +57,35 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         super(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name(), actionFilters, transportService.getTaskManager());
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.clusterService = clusterService;
+        this.threadContext = transportService.getThreadPool().getThreadContext();
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
-        // TODO do we need to check cluster state block?
-        // Need this to construct a complete view of the current remote cluster settings
-        final Settings persistentSettings = clusterService.state().metadata().persistentSettings();
-        final Settings transientSettings = clusterService.state().metadata().transientSettings();
+        assert Transports.assertNotTransportThread("Remote connection re-building is too much for a transport thread");
+        final ClusterState clusterState = clusterService.state();
+        final ClusterBlockException clusterBlockException = checkBlock(clusterState);
+        if (clusterBlockException != null) {
+            throw clusterBlockException;
+        }
+        final Settings persistentSettings = clusterState.metadata().persistentSettings();
+        final Settings transientSettings = clusterState.metadata().transientSettings();
         final Settings combinedSettings = Settings.builder()
             .put(request.getSettings(), true)
             .put(persistentSettings, false)
             .put(transientSettings, false)
             .build();
-        // We avoid stashing and marking context as system to keep the action as minimal as possible (i.e., avoid copying context)
-        remoteClusterService.updateRemoteClusterCredentials(
-            combinedSettings,
-            ActionListener.wrap(nothing -> listener.onResponse(ActionResponse.Empty.INSTANCE), listener::onFailure)
-        );
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            remoteClusterService.updateRemoteClusterCredentials(
+                combinedSettings,
+                ActionListener.wrap(nothing -> listener.onResponse(ActionResponse.Empty.INSTANCE), listener::onFailure)
+            );
+        }
+    }
+
+    private ClusterBlockException checkBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     public static class Request extends ActionRequest {

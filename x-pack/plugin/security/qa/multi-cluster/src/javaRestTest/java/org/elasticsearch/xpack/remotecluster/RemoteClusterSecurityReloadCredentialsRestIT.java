@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -14,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -29,6 +33,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+@TimeoutSuite(millis = 10 * TimeUnits.MINUTE) // account for slow stored settings updates (involves removing and re-creating the keystore)
 public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     @BeforeClass
@@ -68,40 +73,20 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
+    @After
+    public void cleanUp() throws IOException {
+        removeRemoteCluster();
+        removeRemoteClusterCredentials("my_remote_cluster");
+    }
+
     public void testFirstTimeSetup() throws Exception {
-        final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-            {
-              "search": [
-                {
-                    "names": ["*"]
-                }
-              ]
-            }""");
-
-        final boolean isProxyMode = randomBoolean();
-        final boolean configureSettingsFirst = randomBoolean();
-        // it's valid to first configure remote cluster, then credentials
-        if (configureSettingsFirst) {
-            putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
-        }
-
-        configureRemoteClusterCredentials("my_remote_cluster", (String) apiKeyMap.get("encoded"));
-
-        // also valid to configure credentials, then cluster
-        if (false == configureSettingsFirst) {
-            configureRemoteCluster("my_remote_cluster");
-        } else {
-            // now that credentials are configured, we expect a successful connection
-            checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
-        }
+        configureRcs2();
 
         assertOK(
             performRequestWithRemoteSearchUser(
                 new Request("GET", String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean()))
             )
         );
-
-        removeAllRemoteClusterConfiguration();
     }
 
     public void testUpgradeFromRcs1() throws Exception {
@@ -136,31 +121,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         {
             removeRemoteCluster();
 
-            final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                {
-                  "search": [
-                    {
-                        "names": ["*"]
-                    }
-                  ]
-                }""");
-
-            final boolean isProxyMode = randomBoolean();
-            final boolean configureSettingsFirst = randomBoolean();
-            // it's valid to first configure remote cluster, then credentials
-            if (configureSettingsFirst) {
-                putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
-            }
-
-            configureRemoteClusterCredentials("my_remote_cluster", (String) apiKeyMap.get("encoded"));
-
-            // also valid to configure credentials, then cluster
-            if (false == configureSettingsFirst) {
-                configureRemoteCluster("my_remote_cluster");
-            } else {
-                // now that credentials are configured, we expect a successful connection
-                checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
-            }
+            configureRcs2();
 
             assertOK(
                 performRequestWithRemoteSearchUser(
@@ -171,37 +132,11 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
                 )
             );
         }
-
-        removeAllRemoteClusterConfiguration();
     }
 
     public void testDowngradeToRcs1() throws Exception {
         {
-            final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                {
-                  "search": [
-                    {
-                        "names": ["*"]
-                    }
-                  ]
-                }""");
-
-            final boolean isProxyMode = randomBoolean();
-            final boolean configureSettingsFirst = randomBoolean();
-            // it's valid to first configure remote cluster, then credentials
-            if (configureSettingsFirst) {
-                putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
-            }
-
-            configureRemoteClusterCredentials("my_remote_cluster", (String) apiKeyMap.get("encoded"));
-
-            // also valid to configure credentials, then cluster
-            if (false == configureSettingsFirst) {
-                configureRemoteCluster("my_remote_cluster");
-            } else {
-                // now that credentials are configured, we expect a successful connection
-                checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
-            }
+            configureRcs2();
 
             assertOK(
                 performRequestWithRemoteSearchUser(
@@ -214,7 +149,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         }
 
         {
-            removeAllRemoteClusterConfiguration();
+            cleanUp();
 
             configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), randomBoolean());
 
@@ -240,13 +175,6 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
                 )
             );
         }
-
-        removeAllRemoteClusterConfiguration();
-    }
-
-    private void removeAllRemoteClusterConfiguration() throws IOException {
-        removeRemoteCluster();
-        removeRemoteClusterCredentials("my_remote_cluster");
     }
 
     private void removeRemoteCluster() throws IOException {
@@ -258,6 +186,35 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
                 .putNull("cluster.remote.my_remote_cluster.seeds")
                 .build()
         );
+    }
+
+    private void configureRcs2() throws Exception {
+        final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+            {
+              "search": [
+                {
+                    "names": ["*"]
+                }
+              ]
+            }""");
+        final String remoteClusterCredentials = (String) apiKeyMap.get("encoded");
+
+        final boolean isProxyMode = randomBoolean();
+        final boolean configureSettingsFirst = randomBoolean();
+        // it's valid to first configure remote cluster, then credentials
+        if (configureSettingsFirst) {
+            putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
+        }
+
+        configureRemoteClusterCredentials("my_remote_cluster", remoteClusterCredentials);
+
+        // also valid to configure credentials, then cluster
+        if (false == configureSettingsFirst) {
+            configureRemoteCluster("my_remote_cluster");
+        } else {
+            // now that credentials are configured, we expect a successful connection
+            checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
+        }
     }
 
     private void configureRemoteClusterCredentials(String clusterAlias, String credentials) throws IOException {

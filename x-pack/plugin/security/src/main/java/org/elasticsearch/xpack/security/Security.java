@@ -1945,13 +1945,12 @@ public class Security extends Plugin
      * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
      */
     private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
-        // TODO we need to fork
-        final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>() {
-            @Override
-            protected boolean blockingAllowed() {
-                return true;
-            }
-        };
+        // Using `settings` instead of `settingsWithKeystore` is deliberate: we are not interested in secure settings here
+        if (DiscoveryNode.isStateless(settings)) {
+            // Stateless does not support remote cluster operations. Skip.
+            return;
+        }
+        final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
         getClient().execute(
             ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),

@@ -170,9 +170,9 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
         String[] expectedRemoteIndices,
         String[] expectedFields
     ) {
-        try {
+        try (var parser = responseAsParser(searchResponse)) {
             assertOK(searchResponse);
-            final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
+            final var searchResult = Arrays.stream(SearchResponse.fromXContent(parser).getHits().getHits())
                 .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
 
             assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
@@ -193,9 +193,9 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
         Response searchResponse,
         Map<String, Set<String>> expectedRemoteIndicesAndFields
     ) {
-        try {
+        try (var parser = responseAsParser(searchResponse)) {
             assertOK(searchResponse);
-            final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
+            final var searchResult = Arrays.stream(SearchResponse.fromXContent(parser).getHits().getHits())
                 .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
 
             assertThat(searchResult.keySet(), equalTo(expectedRemoteIndicesAndFields.keySet()));
@@ -209,9 +209,9 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     }
 
     protected void assertSearchResponseContainsEmptyResult(Response response) {
-        try {
+        try (var parser = responseAsParser(response)) {
             assertOK(response);
-            SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            SearchResponse searchResponse = SearchResponse.fromXContent(parser);
             try {
                 assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
             } finally {

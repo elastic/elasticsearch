@@ -668,8 +668,7 @@ public class PersistedClusterStateService {
     }
 
     private <T> T readXContent(BytesReference bytes, CheckedFunction<XContentParser, T, IOException> reader) throws IOException {
-        final XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(parserConfig, bytes.streamInput());
-        try {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(parserConfig, bytes.streamInput())) {
             return reader.apply(parser);
         } catch (Exception e) {
             throw new CorruptStateException(e);

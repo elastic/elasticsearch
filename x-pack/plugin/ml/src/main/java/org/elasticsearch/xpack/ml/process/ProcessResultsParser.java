@@ -40,9 +40,10 @@ public class ProcessResultsParser<T> {
     }
 
     public Iterator<T> parseResults(InputStream in) throws ElasticsearchParseException {
-        try {
+        try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, in);
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, in)
+        ) {
             XContentParser.Token token = parser.nextToken();
             // if start of an array ignore it, we expect an array of results
             if (token != XContentParser.Token.START_ARRAY) {

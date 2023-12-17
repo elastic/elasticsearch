@@ -583,24 +583,27 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         NamedXContentRegistry namedXContentRegistry,
         DeprecationHandler deprecationHandler
     ) throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-        XContentParser sourceParser = XContentType.JSON.xContent()
-            .createParser(
-                XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
-                BytesReference.bytes(xContentBuilder).streamInput()
-            );
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+            XContentParser sourceParser = XContentType.JSON.xContent()
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
+                    BytesReference.bytes(xContentBuilder).streamInput()
+                )
+        ) {
 
-        XContentParser.Token token = sourceParser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
-        token = sourceParser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
-        String currentName = sourceParser.currentName();
+            XContentParser.Token token = sourceParser.nextToken();
+            assert token == XContentParser.Token.START_OBJECT;
+            token = sourceParser.nextToken();
+            assert token == XContentParser.Token.FIELD_NAME;
+            String currentName = sourceParser.currentName();
 
-        InferenceConfig inferenceConfig = sourceParser.namedObject(LenientlyParsedInferenceConfig.class, currentName, null);
-        // consume the end object token
-        token = sourceParser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
-        return inferenceConfig;
+            InferenceConfig inferenceConfig = sourceParser.namedObject(LenientlyParsedInferenceConfig.class, currentName, null);
+            // consume the end object token
+            token = sourceParser.nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
+            return inferenceConfig;
+        }
     }
 
 }

@@ -96,7 +96,10 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
                     ML_ORIGIN,
                     TransportUpdateAction.TYPE,
                     updateRequest,
-                    ActionListener.wrap(updateResponse -> chainedListener.onResponse(null), chainedListener::onFailure)
+                    ActionListener.runAfter(
+                        ActionListener.wrap(updateResponse -> chainedListener.onResponse(null), chainedListener::onFailure),
+                        updateRequest::decRef
+                    )
                 );
             });
         }

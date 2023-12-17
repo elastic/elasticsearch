@@ -334,6 +334,9 @@ public class IndexStatsIT extends ESIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("common", "field").field("str_value", "s" + i).endObject());
             }
             indexRandom(true, builders);
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
             numDocs += pageDocs;
 
             boolean allHaveDocs = true;
@@ -378,6 +381,9 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject().field("common", "field").field("str_value", "s" + i).endObject());
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         refresh();
         assertBusy(() -> {
             assertThat(
@@ -1186,8 +1192,9 @@ public class IndexStatsIT extends ESIntegTestCase {
         ensureGreen();
         try (BulkRequest request1 = new BulkRequest()) {
             for (int i = 0; i < 20; ++i) {
-                request1.add(new IndexRequest(index).source(Collections.singletonMap("key", "value" + i)))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                IndexRequest indexRequest = new IndexRequest(index).source(Collections.singletonMap("key", "value" + i));
+                request1.add(indexRequest).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = client().bulk(request1).get();
             assertThat(bulkResponse.hasFailures(), equalTo(false));

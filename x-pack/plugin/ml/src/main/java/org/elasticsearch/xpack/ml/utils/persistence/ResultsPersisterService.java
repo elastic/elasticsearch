@@ -149,7 +149,12 @@ public class ResultsPersisterService {
     ) throws IOException {
         try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy)) {
             try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
-                bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
+                IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias);
+                try {
+                    bulkRequest.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
             return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
         }
@@ -169,7 +174,12 @@ public class ResultsPersisterService {
     ) throws IOException {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
-            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
+            IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias);
+            try {
+                bulkRequest.add(indexRequest);
+            } finally {
+                indexRequest.decRef();
+            }
         }
         bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, ActionListener.releaseAfter(finalListener, bulkRequest));
     }

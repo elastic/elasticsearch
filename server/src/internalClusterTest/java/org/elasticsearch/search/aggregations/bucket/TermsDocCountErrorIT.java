@@ -146,6 +146,9 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         buildIndex(shard5DocsPerTerm, "idx_fixed_docs_5", 5, builders);
 
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 

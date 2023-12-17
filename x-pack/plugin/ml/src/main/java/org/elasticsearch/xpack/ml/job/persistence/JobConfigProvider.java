@@ -132,14 +132,14 @@ public class JobConfigProvider {
                 ML_ORIGIN,
                 TransportIndexAction.TYPE,
                 indexRequest,
-                ActionListener.wrap(listener::onResponse, e -> {
+                ActionListener.runAfter(ActionListener.wrap(listener::onResponse, e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         // the job already exists
                         listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
                     } else {
                         listener.onFailure(e);
                     }
-                })
+                }), indexRequest::decRef)
             );
 
         } catch (IOException e) {
@@ -344,10 +344,16 @@ public class JobConfigProvider {
             indexRequest.setIfSeqNo(seqNo);
             indexRequest.setIfPrimaryTerm(primaryTerm);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.wrap(indexResponse -> {
-                assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                updatedJobListener.onResponse(updatedJob);
-            }, updatedJobListener::onFailure));
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(ActionListener.wrap(indexResponse -> {
+                    assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                    updatedJobListener.onResponse(updatedJob);
+                }, updatedJobListener::onFailure), indexRequest::decRef)
+            );
 
         } catch (IOException e) {
             updatedJobListener.onFailure(

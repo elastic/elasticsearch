@@ -467,6 +467,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             );
         }
         indexRandom(randomBoolean(), docs);
+        decRefIndexRequests(docs);
 
         logger.info("--> start node B");
         // force a shard recovery from nodeA to nodeB
@@ -933,6 +934,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         indexRandom(true, docs);
+        decRefIndexRequests(docs);
         flush();
         assertHitCount(prepareSearch(name).setSize(0), numDocs);
         return indicesAdmin().prepareStats(name).get();
@@ -997,6 +999,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
+        decRefIndexRequests(docs);
         if (randomBoolean()) {
             flush(indexName);
         }
@@ -1016,7 +1019,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         final int numNewDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numNewDocs; i++) {
-            prepareIndex(indexName).setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource("{}", XContentType.JSON)
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         // Flush twice to update the safe commit's local checkpoint
         assertThat(indicesAdmin().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
@@ -1048,7 +1054,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         indicesAdmin().preparePutMapping("test").setSource("test_field", "type=text,analyzer=test_analyzer").get();
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            prepareIndex("test").setId("u" + i).setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("u" + i)
+                .setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         Semaphore recoveryBlocked = new Semaphore(1);
         for (DiscoveryNode node : clusterService().state().nodes()) {
@@ -1144,12 +1153,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
         ensureGreen(indexName);
         int numDocs = randomIntBetween(0, 100);
-        indexRandom(
-            randomBoolean(),
-            false,
-            randomBoolean(),
-            IntStream.range(0, numDocs).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, numDocs)
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), false, randomBoolean(), indexRequestBuilders);
+        decRefIndexRequests(indexRequestBuilders);
         indicesAdmin().prepareRefresh(indexName).get(); // avoid refresh when we are failing a shard
         String failingNode = randomFrom(nodes);
         PlainActionFuture<StartRecoveryRequest> startRecoveryRequestFuture = new PlainActionFuture<>();
@@ -1235,12 +1243,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
                 .build()
         );
-        indexRandom(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, between(0, 100))
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), indexRequestBuilders);
+        decRefIndexRequests(indexRequestBuilders);
         ensureGreen(indexName);
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -1299,12 +1306,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
                 .build()
         );
-        indexRandom(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, between(0, 100))
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), indexRequestBuilders);
+        decRefIndexRequests(indexRequestBuilders);
         ensureGreen(indexName);
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -1330,12 +1336,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                             .isTimedOut()
                     );
 
-                    indexRandom(
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        IntStream.range(0, between(1, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-                    );
+                    List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, between(0, 100))
+                        .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+                        .collect(toList());
+                    indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), indexRequestBuilders);
+                    decRefIndexRequests(indexRequestBuilders);
 
                     // We do not guarantee that the replica can recover locally all the way to its own global checkpoint before starting
                     // to recover from the primary, so we must be careful not to perform an operations-based recovery if this would require
@@ -1383,12 +1388,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> performing ops-based recoveries up to [{}%] of docs", reasonableOperationsBasedRecoveryProportion * 100.0);
 
         createIndex(indexName, settings.build());
-        indexRandom(
-            randomBoolean(),
-            false,
-            randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, between(0, 100))
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), false, randomBoolean(), indexRequestBuilders);
+        decRefIndexRequests(indexRequestBuilders);
         ensureGreen(indexName);
 
         flush(indexName);
@@ -1463,13 +1467,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                      *
                      * ==> it is unreasonable to recover the replica using a seqno-based recovery
                      */
-
-                    indexRandom(
-                        randomBoolean(),
-                        randomBoolean(),
-                        randomBoolean(),
-                        IntStream.range(0, newDocCount).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-                    );
+                    List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, newDocCount)
+                        .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+                        .collect(toList());
+                    indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), indexRequestBuilders);
+                    decRefIndexRequests(indexRequestBuilders);
 
                     flush(indexName);
 
@@ -1506,12 +1508,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         String indexName = "test-index";
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
-        indexRandom(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, between(0, 100))
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), indexRequestBuilders);
+        decRefIndexRequests(indexRequestBuilders);
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         final DiscoveryNodes discoveryNodes = clusterService().state().nodes();
@@ -1525,12 +1526,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertBusy(() -> assertThat(primary.getLastSyncedGlobalCheckpoint(), equalTo(maxSeqNoBeforeRecovery)));
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), is(0)); // makes a safe commit
 
-        indexRandom(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        indexRequestBuilders = IntStream.range(0, between(0, 100))
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), indexRequestBuilders);
+        decRefIndexRequests(indexRequestBuilders);
 
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
@@ -1582,12 +1582,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indexName,
             indexSettings(randomIntBetween(1, 6), 1).put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms").build()
         );
-        indexRandom(
-            randomBoolean(),
-            false,
-            randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 10)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, between(0, 10))
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), false, randomBoolean(), indexRequestBuilders);
+        decRefIndexRequests(indexRequestBuilders);
 
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
 
@@ -1610,12 +1609,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
 
         logger.info("--> index more documents");
-        indexRandom(
-            randomBoolean(),
-            false,
-            randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 10)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        indexRequestBuilders = IntStream.range(0, between(0, 10))
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), false, randomBoolean(), indexRequestBuilders);
+        decRefIndexRequests(indexRequestBuilders);
 
         logger.info("--> add replicas again");
         setReplicaCount(1, indexName);
@@ -1635,6 +1633,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .mapToObj(n -> prepareIndex(indexName).setSource("foo", "bar"))
             .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
+        decRefIndexRequests(indexRequests);
         ensureGreen();
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
@@ -1678,10 +1677,12 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indexers[i] = new Thread(() -> {
                 while (stopped.get() == false) {
                     try {
-                        DocWriteResponse response = prepareIndex(indexName).setSource(
+                        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource(
                             Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()),
                             XContentType.JSON
-                        ).get();
+                        );
+                        DocWriteResponse response = indexRequestBuilder.get();
+                        indexRequestBuilder.request().decRef();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                     } catch (ElasticsearchException ignored) {}
                 }
@@ -1727,6 +1728,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .mapToObj(n -> prepareIndex(indexName).setSource("foo", "bar"))
             .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
+        decRefIndexRequests(indexRequests);
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
 
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
@@ -1801,6 +1803,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .mapToObj(n -> prepareIndex(indexName).setSource("foo", "bar"))
             .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
+        decRefIndexRequests(indexRequests);
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
 
         final var replicaNode = internalCluster().startDataOnlyNode();
@@ -1871,6 +1874,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .mapToObj(n -> prepareIndex(indexName).setSource("foo", "bar"))
             .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
+        decRefIndexRequests(indexRequests);
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
 
         final var replicaNode = internalCluster().startDataOnlyNode();
@@ -1898,7 +1902,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     // Process the TRANSLOG_OPS response on the replica (avoiding failing it due to a concurrent delete) but
                     // before sending the response back send another document to the primary, advancing the GCP to prevent the replica
                     // being marked as in-sync (NB below we delay the replica write until after the index is deleted)
-                    prepareIndex(indexName).setSource("foo", "baz").execute(ActionListener.noop());
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource("foo", "baz");
+                    indexRequestBuilder.execute(ActionListener.running(() -> indexRequestBuilder.request().decRef()));
 
                     primaryIndexShard.addGlobalCheckpointListener(
                         globalCheckpointBeforeRecovery + 1,
@@ -2048,6 +2053,18 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             }
             assertThat(localCheckpointTracker.getPersistedCheckpoint(), is(greaterThanOrEqualTo(commitLocalCheckpoint)));
             return localCheckpointTracker.getPersistedCheckpoint();
+        }
+    }
+
+    private void decRefIndexRequests(IndexRequestBuilder[] indexRequestBuilders) {
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private void decRefIndexRequests(List<IndexRequestBuilder> indexRequestBuilders) {
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
         }
     }
 }

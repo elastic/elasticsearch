@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
@@ -91,7 +92,9 @@ public class ExceptionRetryIT extends ESIntegTestCase {
             for (int i = 0; i < numDocs; i++) {
                 XContentBuilder doc = null;
                 doc = jsonBuilder().startObject().field("foo", "bar").endObject();
-                bulkBuilder.add(client.prepareIndex("index").setSource(doc));
+                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("index").setSource(doc);
+                bulkBuilder.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
 
             BulkResponse bulkResponse = bulkBuilder.get();

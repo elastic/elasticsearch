@@ -183,7 +183,14 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private void writeDoc(ToXContent toXContent) {
-        client.index(indexRequest(toXContent), ActionListener.wrap(AbstractAuditor::onIndexResponse, AbstractAuditor::onIndexFailure));
+        IndexRequest indexRequest = indexRequest(toXContent);
+        client.index(
+            indexRequest,
+            ActionListener.runAfter(
+                ActionListener.wrap(AbstractAuditor::onIndexResponse, AbstractAuditor::onIndexFailure),
+                indexRequest::decRef
+            )
+        );
     }
 
     private IndexRequest indexRequest(ToXContent toXContent) {
@@ -215,7 +222,12 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         BulkRequest bulkRequest = new BulkRequest();
         ToXContent doc = backlog.poll();
         while (doc != null) {
-            bulkRequest.add(indexRequest(doc));
+            IndexRequest indexRequest = indexRequest(doc);
+            try {
+                bulkRequest.add(indexRequest);
+            } finally {
+                indexRequest.decRef();
+            }
             doc = backlog.poll();
         }
 

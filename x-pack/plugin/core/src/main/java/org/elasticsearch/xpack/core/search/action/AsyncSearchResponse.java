@@ -141,9 +141,6 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
     }
 
     public AsyncSearchResponse clone(String searchId) {
-        if (searchResponse != null) {
-            searchResponse.incRef();
-        }
         return new AsyncSearchResponse(searchId, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 

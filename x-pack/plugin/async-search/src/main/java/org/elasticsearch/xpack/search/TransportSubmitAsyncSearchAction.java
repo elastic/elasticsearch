@@ -122,11 +122,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                                     submitListener.onResponse(searchResponse);
                                                 }
                                             } else {
-                                                onFinalResponse(
-                                                    searchTask,
-                                                    searchResponse,
-                                                    () -> submitListener.onResponse(searchResponse)
-                                                );
+                                                searchResponse.mustIncRef();
+                                                onFinalResponse(searchTask, searchResponse, () -> {
+                                                    try {
+                                                        submitListener.onResponse(searchResponse);
+                                                    } finally {
+                                                        searchResponse.decRef();
+                                                    }
+                                                });
                                             }
                                         }
 
@@ -152,7 +155,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                         // the task completed within the timeout so the response is sent back to the user
                         // with a null id since nothing was stored on the cluster.
                         taskManager.unregister(searchTask);
-                        submitListener.onResponse(searchResponse.clone(null));
+                        ActionListener.respondAndRelease(submitListener, searchResponse.clone(null));
                     }
                 }
 
@@ -208,14 +211,20 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
-                    task.addCompletionListener(finalResponse -> taskManager.unregister(task));
+                    task.addCompletionListener(finalResponse -> {
+                        taskManager.unregister(task);
+                        task.close();
+                    });
                 } finally {
                     listener.onFailure(error);
                 }
             }, cancelReason);
         } else {
             try {
-                task.addCompletionListener(finalResponse -> taskManager.unregister(task));
+                task.addCompletionListener(finalResponse -> {
+                    taskManager.unregister(task);
+                    task.close();
+                });
             } finally {
                 listener.onFailure(error);
             }
@@ -229,6 +238,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             response,
             ActionListener.running(() -> {
                 taskManager.unregister(searchTask);
+                searchTask.close();
                 nextAction.run();
             })
         );

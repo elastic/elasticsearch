@@ -19,6 +19,7 @@ This is a destructive action that is not recoverable.
 ==== {api-prereq-title}
 
 * To sync data using connectors, it's essential to have the Elastic connectors service running.
+* The `connector_id` parameter should reference an existing connector.
 
 [[delete-connector-api-path-params]]
 ==== {api-path-parms-title}

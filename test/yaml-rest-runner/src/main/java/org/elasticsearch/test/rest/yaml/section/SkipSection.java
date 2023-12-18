@@ -156,7 +156,7 @@ public class SkipSection {
 
     public static final SkipSection EMPTY = new SkipSection();
 
-    private final List<SkipCriteria> skipCriteriaList;
+    final List<SkipCriteria> skipCriteriaList;
     private final List<String> testFeatures;
     private final String reason;
 

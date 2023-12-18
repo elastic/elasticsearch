@@ -9,6 +9,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 class VersionSkipCriteria implements SkipCriteria {
     private final List<VersionRange> versionRanges;
@@ -21,5 +22,10 @@ class VersionSkipCriteria implements SkipCriteria {
     @Override
     public boolean skip(SkipSectionContext context) {
         return versionRanges.stream().anyMatch(context::clusterVersionInRange);
+    }
+
+    @Override
+    public String toString() {
+        return versionRanges.stream().map(VersionRange::toString).collect(Collectors.joining(";"));
     }
 }

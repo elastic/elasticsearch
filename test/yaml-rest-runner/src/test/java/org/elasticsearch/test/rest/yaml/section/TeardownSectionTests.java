@@ -10,7 +10,11 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -63,7 +67,9 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(false));
-        // assertSkipVersionRange(section.getSkipSection(), Version.fromString("6.0.0"), (Version.fromString("6.3.0")));
+        assertThat(section.getSkipSection().skipCriteriaList, hasSize(1));
+        assertThat(section.getSkipSection().skipCriteriaList, contains(instanceOf(VersionSkipCriteria.class)));
+        assertThat(section.getSkipSection().skipCriteriaList, contains(hasToString("[6.0.0 - 6.3.0]")));
         assertThat(section.getSkipSection().getReason(), equalTo("there is a reason"));
         assertThat(section.getDoSections().size(), equalTo(2));
         assertThat(((DoSection) section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));

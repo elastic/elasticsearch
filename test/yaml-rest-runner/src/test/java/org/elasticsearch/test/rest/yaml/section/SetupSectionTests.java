@@ -11,9 +11,11 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -107,8 +109,9 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));
         assertThat(setupSection.getSkipSection(), notNullValue());
-        // assertThat(setupSection.getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
-        // assertThat(setupSection.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.3.0")));
+        assertThat(setupSection.getSkipSection().skipCriteriaList, hasSize(1));
+        assertThat(setupSection.getSkipSection().skipCriteriaList, contains(instanceOf(VersionSkipCriteria.class)));
+        assertThat(setupSection.getSkipSection().skipCriteriaList, contains(hasToString("[6.0.0 - 6.3.0]")));
         assertThat(setupSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(setupSection.getExecutableSections().size(), equalTo(2));
         assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));

@@ -77,7 +77,7 @@ Once your synonyms sets are created, you can start configuring your token filter
 
 [WARNING]
 ======
-Synonym sets must exist before they can be added to indices.
+Synonyms sets must exist before they can be added to indices.
 If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state.
 The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
 ======

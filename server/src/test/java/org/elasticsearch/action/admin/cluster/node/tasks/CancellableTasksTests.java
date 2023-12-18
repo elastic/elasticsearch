@@ -31,6 +31,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TestTransportChannels;
@@ -647,6 +648,18 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         assertThat(expectThrows(TaskCancelledException.class, future::actionGet).getMessage(), equalTo("task cancelled [simulated]"));
         safeAwait(barrier);
         concurrentNotify.join();
+    }
+
+    public void testReleaseListenersOnCancellation() {
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final AtomicBoolean cancelNotified = new AtomicBoolean();
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        task.addListener(reachabilityChecker.register(() -> assertTrue(cancelNotified.compareAndSet(false, true))));
+
+        reachabilityChecker.checkReachable();
+        TaskCancelHelper.cancel(task, "simulated");
+        reachabilityChecker.ensureUnreachable();
+        assertTrue(cancelNotified.get());
     }
 
 }

@@ -289,7 +289,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     .execute(ActionListener.wrap(stats -> {
                         IndexStats indexStats = stats.getIndices().get(InferenceIndexConstants.nativeDefinitionStore());
                         if (indexStats != null
-                            && indexStats.getTotal().getStore().getSizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
+                            && indexStats.getTotal().getStore().sizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
                             finalResponseListener.onFailure(
                                 new ElasticsearchStatusException(
                                     "Native model store has exceeded the maximum acceptable size of {}, "
@@ -476,15 +476,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         client.execute(
             LoadTrainedModelPackageAction.INSTANCE,
             new LoadTrainedModelPackageAction.Request(modelId, modelPackageConfig, waitForCompletion),
-            ActionListener.wrap(ack -> {
-                if (waitForCompletion) {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure)
+            ActionListener.wrap(ack -> listener.onResponse(null), listener::onFailure)
         );
-        if (waitForCompletion == false) {
-            listener.onResponse(null);
-        }
     }
 
     private void resolvePackageConfig(String modelId, ActionListener<ModelPackageConfig> listener) {

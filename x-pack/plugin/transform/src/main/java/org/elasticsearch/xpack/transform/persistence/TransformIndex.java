@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
@@ -138,7 +139,7 @@ public final class TransformIndex {
         if (dest.length == 0) {
             TransformDestIndexSettings generatedDestIndexSettings = createTransformDestIndexSettings(
                 destIndexSettings,
-                destIndexMappings,
+                Boolean.FALSE.equals(config.getSettings().getDeduceMappings()) ? emptyMap() : destIndexMappings,
                 config.getId(),
                 Clock.systemUTC()
             );
@@ -233,7 +234,7 @@ public final class TransformIndex {
             config.getHeaders(),
             TRANSFORM_ORIGIN,
             client,
-            IndicesAliasesAction.INSTANCE,
+            TransportIndicesAliasesAction.TYPE,
             request,
             ActionListener.wrap(aliasesResponse -> {
                 listener.onResponse(true);

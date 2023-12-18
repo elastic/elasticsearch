@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -50,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -248,11 +251,17 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length);
                     StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
                 ) {
-                    Version clusterVersion = getOldClusterVersion();
 
-                    TransportVersion transportVersion;
-                    if (clusterVersion.before(Version.V_8_8_0)) {
-                        transportVersion = TransportVersion.fromId(clusterVersion.id);
+                    @UpdateForV9 // condition will always be true
+                    var originalClusterHasTransportVersion = parseLegacyVersion(getOldClusterVersion()).map(
+                        v -> v.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
+                    ).orElse(true);
+
+                    final TransportVersion transportVersion;
+                    if (originalClusterHasTransportVersion == false) {
+                        transportVersion = TransportVersion.fromId(
+                            parseLegacyVersion(getOldClusterVersion()).map(Version::id).orElse(TransportVersions.MINIMUM_COMPATIBLE.id())
+                        );
                     } else {
                         transportVersion = TransportVersion.readVersion(input);
                     }

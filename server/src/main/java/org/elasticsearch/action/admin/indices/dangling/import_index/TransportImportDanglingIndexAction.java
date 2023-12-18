@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
@@ -33,11 +34,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexAction},
+ * Implements the import of a dangling index. When handling a {@link ImportDanglingIndexRequest},
  * this class first checks that such a dangling index exists. It then calls {@link LocalAllocateDangledIndices}
  * to perform the actual allocation.
  */
 public class TransportImportDanglingIndexAction extends HandledTransportAction<ImportDanglingIndexRequest, AcknowledgedResponse> {
+    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.acknowledgedResponse("cluster:admin/indices/dangling/import");
     private static final Logger logger = LogManager.getLogger(TransportImportDanglingIndexAction.class);
 
     private final LocalAllocateDangledIndices danglingIndexAllocator;
@@ -50,13 +52,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
         LocalAllocateDangledIndices danglingIndexAllocator,
         NodeClient nodeClient
     ) {
-        super(
-            ImportDanglingIndexAction.NAME,
-            transportService,
-            actionFilters,
-            ImportDanglingIndexRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, actionFilters, ImportDanglingIndexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.danglingIndexAllocator = danglingIndexAllocator;
         this.nodeClient = nodeClient;
     }

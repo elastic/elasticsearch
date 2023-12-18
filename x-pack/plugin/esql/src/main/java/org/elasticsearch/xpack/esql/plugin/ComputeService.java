@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -31,6 +32,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
+import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -100,12 +102,14 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final ExchangeService exchangeService;
     private final EnrichLookupService enrichLookupService;
+    private final ClusterService clusterService;
 
     public ComputeService(
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
         EnrichLookupService enrichLookupService,
+        ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory
@@ -119,6 +123,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, this.esqlExecutor);
         this.exchangeService = exchangeService;
         this.enrichLookupService = enrichLookupService;
+        this.clusterService = clusterService;
     }
 
     public void execute(
@@ -158,6 +163,8 @@ public class ComputeService {
 
         LOGGER.debug("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);
 
+        final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
+        listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
         String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
         computeTargetNodes(
             rootTask,
@@ -189,6 +196,7 @@ public class ComputeService {
                         computeContext,
                         coordinatorPlan,
                         cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(driverProfiles -> {
+                            responseHeadersCollector.collect();
                             if (configuration.profile()) {
                                 collectedProfiles.addAll(driverProfiles);
                             }
@@ -204,6 +212,7 @@ public class ComputeService {
                         exchangeSource,
                         targetNodes,
                         () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(response -> {
+                            responseHeadersCollector.collect();
                             if (configuration.profile()) {
                                 collectedProfiles.addAll(response.profiles);
                             }
@@ -278,6 +287,7 @@ public class ComputeService {
                 task,
                 bigArrays,
                 blockFactory,
+                clusterService.getSettings(),
                 context.configuration,
                 context.exchangeSource(),
                 context.exchangeSink(),
@@ -318,6 +328,7 @@ public class ComputeService {
 
     private void acquireSearchContexts(
         List<ShardId> shardIds,
+        EsqlConfiguration configuration,
         Map<Index, AliasFilter> aliasFilters,
         ActionListener<List<SearchContext>> listener
     ) {
@@ -341,11 +352,12 @@ public class ComputeService {
                             try {
                                 for (IndexShard shard : targetShards) {
                                     var aliasFilter = aliasFilters.getOrDefault(shard.shardId().getIndex(), AliasFilter.EMPTY);
-                                    ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shard.shardId(), 0, aliasFilter);
-                                    SearchContext context = searchService.createSearchContext(
-                                        shardSearchLocalRequest,
-                                        SearchService.NO_TIMEOUT
+                                    var shardRequest = new ShardSearchRequest(
+                                        shard.shardId(),
+                                        configuration.absoluteStartedTimeInMillis(),
+                                        aliasFilter
                                     );
+                                    SearchContext context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
                                     searchContexts.add(context);
                                 }
                                 for (SearchContext searchContext : searchContexts) {
@@ -491,14 +503,18 @@ public class ComputeService {
             final var exchangeSink = exchangeService.getSinkHandler(sessionId);
             parentTask.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException("task cancelled")));
             final ActionListener<DataNodeResponse> listener = new OwningChannelActionListener<>(channel);
-            acquireSearchContexts(request.shardIds(), request.aliasFilters(), ActionListener.wrap(searchContexts -> {
-                var computeContext = new ComputeContext(sessionId, searchContexts, request.configuration(), null, exchangeSink);
+            final EsqlConfiguration configuration = request.configuration();
+            acquireSearchContexts(request.shardIds(), configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
+                var computeContext = new ComputeContext(sessionId, searchContexts, configuration, null, exchangeSink);
                 runCompute(parentTask, computeContext, request.plan(), ActionListener.wrap(driverProfiles -> {
                     // don't return until all pages are fetched
                     exchangeSink.addCompletionListener(
-                        ActionListener.releaseAfter(
-                            listener.map(nullValue -> new DataNodeResponse(driverProfiles)),
-                            () -> exchangeService.finishSinkHandler(sessionId, null)
+                        ContextPreservingActionListener.wrapPreservingContext(
+                            ActionListener.releaseAfter(
+                                listener.map(nullValue -> new DataNodeResponse(driverProfiles)),
+                                () -> exchangeService.finishSinkHandler(sessionId, null)
+                            ),
+                            transportService.getThreadPool().getThreadContext()
                         )
                     );
                 }, e -> {

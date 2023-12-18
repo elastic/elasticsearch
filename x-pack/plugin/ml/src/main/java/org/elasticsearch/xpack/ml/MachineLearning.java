@@ -46,6 +46,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -65,6 +66,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -324,9 +326,8 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentSer
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
-import org.elasticsearch.xpack.ml.inference.ltr.InferenceRescorerFeature;
-import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankRescorerBuilder;
-import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankService;
+import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
+import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
@@ -359,6 +360,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.ml.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -370,6 +372,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
+import org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -476,7 +479,8 @@ public class MachineLearning extends Plugin
         PersistentTaskPlugin,
         SearchPlugin,
         ShutdownAwarePlugin,
-        ExtensiblePlugin {
+        ExtensiblePlugin,
+        MapperPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
@@ -762,7 +766,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlLifeCycleService> mlLifeCycleService = new SetOnce<>();
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
-    private final SetOnce<LearnToRankService> learnToRankService = new SetOnce<>();
+    private final SetOnce<LearningToRankService> learningToRankService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
@@ -886,13 +890,12 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RescorerSpec<?>> getRescorers() {
-        if (enabled && InferenceRescorerFeature.isEnabled()) {
-            // Inference rescorer requires access to the model loading service
+        if (enabled && machineLearningExtension.get().isLearningToRankEnabled()) {
             return List.of(
                 new RescorerSpec<>(
-                    LearnToRankRescorerBuilder.NAME,
-                    in -> new LearnToRankRescorerBuilder(in, learnToRankService.get()),
-                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, learnToRankService.get())
+                    LearningToRankRescorerBuilder.NAME,
+                    in -> new LearningToRankRescorerBuilder(in, learningToRankService.get()),
+                    parser -> LearningToRankRescorerBuilder.fromXContent(parser, learningToRankService.get())
                 )
             );
         }
@@ -1121,8 +1124,8 @@ public class MachineLearning extends Plugin
         );
         this.modelLoadingService.set(modelLoadingService);
 
-        this.learnToRankService.set(
-            new LearnToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
+        this.learningToRankService.set(
+            new LearningToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
         );
 
         this.deploymentManager.set(
@@ -1717,6 +1720,11 @@ public class MachineLearning extends Plugin
                 TextExpansionQueryBuilder.NAME,
                 TextExpansionQueryBuilder::new,
                 TextExpansionQueryBuilder::fromXContent
+            ),
+            new QuerySpec<QueryBuilder>(
+                WeightedTokensQueryBuilder.NAME,
+                WeightedTokensQueryBuilder::new,
+                WeightedTokensQueryBuilder::fromXContent
             )
         );
     }
@@ -1798,7 +1806,7 @@ public class MachineLearning extends Plugin
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
         // LTR Combine with Inference named content provider when feature flag is removed
-        if (InferenceRescorerFeature.isEnabled()) {
+        if (machineLearningExtension.get().isLearningToRankEnabled()) {
             namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
         }
         return namedXContent;
@@ -1886,7 +1894,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
         // LTR Combine with Inference named content provider when feature flag is removed
-        if (InferenceRescorerFeature.isEnabled()) {
+        if (machineLearningExtension.get().isLearningToRankEnabled()) {
             namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         }
         return namedWriteables;
@@ -2288,5 +2296,13 @@ public class MachineLearning extends Plugin
         if (enabled) {
             mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
         }
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        if (SemanticTextFeature.isEnabled()) {
+            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+        }
+        return Map.of();
     }
 }

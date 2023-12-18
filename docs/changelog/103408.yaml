@@ -1,0 +1,6 @@
+pr: 103408
+summary: Cache component versions
+area: Infra/Core
+type: bug
+issues:
+ - 102103

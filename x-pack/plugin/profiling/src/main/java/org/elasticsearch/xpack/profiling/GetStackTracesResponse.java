@@ -7,16 +7,15 @@
 package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -35,37 +34,6 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     private final int totalFrames;
     private final double samplingRate;
     private final long totalSamples;
-
-    public GetStackTracesResponse(StreamInput in) throws IOException {
-        this.stackTraces = in.readBoolean()
-            ? in.readMap(
-                i -> new StackTrace(
-                    i.readCollectionAsList(StreamInput::readInt),
-                    i.readCollectionAsList(StreamInput::readString),
-                    i.readCollectionAsList(StreamInput::readString),
-                    i.readCollectionAsList(StreamInput::readInt),
-                    i.readDouble(),
-                    i.readDouble(),
-                    i.readLong()
-                )
-            )
-            : null;
-        this.stackFrames = in.readBoolean()
-            ? in.readMap(
-                i -> new StackFrame(
-                    i.readCollectionAsList(StreamInput::readString),
-                    i.readCollectionAsList(StreamInput::readString),
-                    i.readCollectionAsList(StreamInput::readInt),
-                    i.readCollectionAsList(StreamInput::readInt)
-                )
-            )
-            : null;
-        this.executables = in.readBoolean() ? in.readMap(StreamInput::readString) : null;
-        this.stackTraceEvents = in.readBoolean() ? in.readMap(i -> new TraceEvent(i.readString(), i.readLong())) : null;
-        this.totalFrames = in.readInt();
-        this.samplingRate = in.readDouble();
-        this.totalSamples = in.readLong();
-    }
 
     public GetStackTracesResponse(
         Map<String, StackTrace> stackTraces,
@@ -86,50 +54,8 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (stackTraces != null) {
-            out.writeBoolean(true);
-            out.writeMap(stackTraces, (o, v) -> {
-                o.writeCollection(v.addressOrLines, StreamOutput::writeInt);
-                o.writeStringCollection(v.fileIds);
-                o.writeStringCollection(v.frameIds);
-                o.writeCollection(v.typeIds, StreamOutput::writeInt);
-                o.writeDouble(v.annualCO2Tons);
-                o.writeDouble(v.annualCostsUSD);
-                o.writeLong(v.count);
-            });
-        } else {
-            out.writeBoolean(false);
-        }
-        if (stackFrames != null) {
-            out.writeBoolean(true);
-            out.writeMap(stackFrames, (o, v) -> {
-                o.writeStringCollection(v.fileName);
-                o.writeStringCollection(v.functionName);
-                o.writeCollection(v.functionOffset, StreamOutput::writeInt);
-                o.writeCollection(v.lineNumber, StreamOutput::writeInt);
-            });
-        } else {
-            out.writeBoolean(false);
-        }
-        if (executables != null) {
-            out.writeBoolean(true);
-            out.writeMap(executables, StreamOutput::writeString);
-        } else {
-            out.writeBoolean(false);
-        }
-        if (stackTraceEvents != null) {
-            out.writeBoolean(true);
-            out.writeMap(stackTraceEvents, (o, v) -> {
-                o.writeString(v.stacktraceID);
-                o.writeLong(v.count);
-            });
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeInt(totalFrames);
-        out.writeDouble(samplingRate);
-        out.writeLong(totalSamples);
+    public void writeTo(StreamOutput out) {
+        TransportAction.localOnly();
     }
 
     public Map<String, StackTrace> getStackTraces() {

@@ -101,9 +101,10 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                     items[originalSlot] = new MultiSearchTemplateResponse.Item(null, item.getFailure());
                 } else {
                     items[originalSlot].getResponse().setResponse(item.getResponse());
+                    item.getResponse().incRef();
                 }
             }
-            l.onResponse(new MultiSearchTemplateResponse(items, r.getTook().millis()));
+            ActionListener.respondAndRelease(l, new MultiSearchTemplateResponse(items, r.getTook().millis()));
         }));
     }
 }

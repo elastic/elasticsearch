@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,13 +78,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .get()
         );
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(searchRequest)
-            .setScript(query)
-            .setScriptType(ScriptType.INLINE)
-            .setScriptParams(Collections.singletonMap("my_size", 1))
-            .get();
-
-        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+        assertResponse(
+            new SearchTemplateRequestBuilder(client()).setRequest(searchRequest)
+                .setScript(query)
+                .setScriptType(ScriptType.INLINE)
+                .setScriptParams(Collections.singletonMap("my_size", 1)),
+            searchResponse -> assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1))
+        );
     }
 
     /**
@@ -101,8 +102,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
-        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+        assertResponse(
+            client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request),
+            searchResponse -> assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1))
+        );
     }
 
     /**
@@ -122,8 +125,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
-        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+        assertResponse(
+            client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request),
+            searchResponse -> assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1))
+        );
     }
 
     /**
@@ -143,8 +148,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
-        assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
+        assertResponse(
+            client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request),
+            searchResponse -> assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1))
+        );
     }
 
     public void testIndexedTemplateClient() throws Exception {
@@ -177,12 +184,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
-            .setScript("testTemplate")
-            .setScriptType(ScriptType.STORED)
-            .setScriptParams(templateParams)
-            .get();
-        assertHitCount(searchResponse.getResponse(), 4);
+        assertResponse(
+            new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+                .setScript("testTemplate")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(templateParams),
+            searchResponse -> assertHitCount(searchResponse.getResponse(), 4)
+        );
 
         assertAcked(clusterAdmin().prepareDeleteStoredScript("testTemplate"));
 
@@ -274,12 +282,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
-            .setScript("1a")
-            .setScriptType(ScriptType.STORED)
-            .setScriptParams(templateParams)
-            .get();
-        assertHitCount(searchResponse.getResponse(), 4);
+        assertResponse(
+            new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
+                .setScript("1a")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(templateParams),
+            searchResponse -> assertHitCount(searchResponse.getResponse(), 4)
+        );
 
         expectThrows(
             ResourceNotFoundException.class,
@@ -291,12 +300,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         );
 
         templateParams.put("fieldParam", "bar");
-        searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
-            .setScript("2")
-            .setScriptType(ScriptType.STORED)
-            .setScriptParams(templateParams)
-            .get();
-        assertHitCount(searchResponse.getResponse(), 1);
+        assertResponse(
+            new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+                .setScript("2")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(templateParams),
+            searchResponse -> assertHitCount(searchResponse.getResponse(), 1)
+        );
     }
 
     // Relates to #10397
@@ -353,12 +363,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
             );
 
-            SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
-                .setScript("git01")
-                .setScriptType(ScriptType.STORED)
-                .setScriptParams(templateParams)
-                .get();
-            assertHitCount(searchResponse.getResponse(), 1);
+            assertResponse(
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
+                    .setScript("git01")
+                    .setScriptType(ScriptType.STORED)
+                    .setScriptParams(templateParams),
+                searchResponse -> assertHitCount(searchResponse.getResponse(), 1)
+            );
         }
     }
 
@@ -394,12 +405,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         String[] fieldParams = { "foo", "bar" };
         arrayTemplateParams.put("fieldParam", fieldParams);
 
-        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
-            .setScript("4")
-            .setScriptType(ScriptType.STORED)
-            .setScriptParams(arrayTemplateParams)
-            .get();
-        assertHitCount(searchResponse.getResponse(), 5);
+        assertResponse(
+            new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
+                .setScript("4")
+                .setScriptType(ScriptType.STORED)
+                .setScriptParams(arrayTemplateParams),
+            searchResponse -> assertHitCount(searchResponse.getResponse(), 5)
+        );
     }
 
     /**

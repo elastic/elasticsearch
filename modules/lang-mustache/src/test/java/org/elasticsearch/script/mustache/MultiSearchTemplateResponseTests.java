@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -20,13 +21,14 @@ import java.io.IOException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.NUMBER_OF_TEST_RUNS;
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<MultiSearchTemplateResponse> {
+public class MultiSearchTemplateResponseTests extends ESTestCase {
 
-    @Override
     protected MultiSearchTemplateResponse createTestInstance() {
         int numItems = randomIntBetween(0, 128);
         long overallTookInMillis = randomNonNegativeLong();
@@ -41,17 +43,18 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
             SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-            SearchResponse searchResponse = new SearchResponse(
-                internalSearchResponse,
-                null,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                tookInMillis,
-                ShardSearchFailure.EMPTY_ARRAY,
-                clusters
+            searchTemplateResponse.setResponse(
+                new SearchResponse(
+                    internalSearchResponse,
+                    null,
+                    totalShards,
+                    successfulShards,
+                    skippedShards,
+                    tookInMillis,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    clusters
+                )
             );
-            searchTemplateResponse.setResponse(searchResponse);
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
         }
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
@@ -78,17 +81,18 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
                 SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-                SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
-                    null,
-                    totalShards,
-                    successfulShards,
-                    skippedShards,
-                    tookInMillis,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    clusters
+                searchTemplateResponse.setResponse(
+                    new SearchResponse(
+                        internalSearchResponse,
+                        null,
+                        totalShards,
+                        successfulShards,
+                        skippedShards,
+                        tookInMillis,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        clusters
+                    )
                 );
-                searchTemplateResponse.setResponse(searchResponse);
                 items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
             } else {
                 items[i] = new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("an error"));
@@ -97,12 +101,10 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
 
-    @Override
     protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
         return MultiSearchTemplateResponse.fromXContext(parser);
     }
 
-    @Override
     protected boolean supportsUnknownFields() {
         return true;
     }
@@ -111,7 +113,6 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         return field -> field.startsWith("responses");
     }
 
-    @Override
     protected void assertEqualInstances(MultiSearchTemplateResponse expectedInstance, MultiSearchTemplateResponse newInstance) {
         assertThat(newInstance.getTook(), equalTo(expectedInstance.getTook()));
         assertThat(newInstance.getResponses().length, equalTo(expectedInstance.getResponses().length));
@@ -140,17 +141,30 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         boolean supportsUnknownFields = true;
         // exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(
-            NUMBER_OF_TEST_RUNS,
-            instanceSupplier,
-            supportsUnknownFields,
-            Strings.EMPTY_ARRAY,
-            getRandomFieldsExcludeFilterWhenResultHasErrors(),
-            this::createParser,
-            this::doParseInstance,
-            this::assertEqualInstances,
-            assertToXContentEquivalence,
-            ToXContent.EMPTY_PARAMS
-        );
+        Predicate<String> randomFieldsExcludeFilter = getRandomFieldsExcludeFilterWhenResultHasErrors();
+        xContentTester(this::createParser, instanceSupplier, ToXContent.EMPTY_PARAMS, this::doParseInstance).numberOfTestRuns(
+            NUMBER_OF_TEST_RUNS
+        )
+            .supportsUnknownFields(supportsUnknownFields)
+            .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
+            .randomFieldsExcludeFilter(randomFieldsExcludeFilter)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(assertToXContentEquivalence)
+            .dispose(MultiSearchTemplateResponse::decRef)
+            .test();
+    }
+
+    public final void testFromXContent() throws IOException {
+        boolean supportsUnknownFields = supportsUnknownFields();
+        xContentTester(this::createParser, this::createTestInstance, ToXContent.EMPTY_PARAMS, this::doParseInstance).numberOfTestRuns(
+            NUMBER_OF_TEST_RUNS
+        )
+            .supportsUnknownFields(supportsUnknownFields)
+            .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
+            .randomFieldsExcludeFilter(field -> false)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(true)
+            .dispose(MultiSearchTemplateResponse::decRef)
+            .test();
     }
 }

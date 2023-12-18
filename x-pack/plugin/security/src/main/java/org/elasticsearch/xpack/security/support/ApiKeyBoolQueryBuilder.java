@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -27,7 +28,11 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
@@ -36,6 +41,8 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         "_id",
         "doc_type",
         "name",
+        "type", // TODO is this necessary?
+        API_KEY_TYPE_RUNTIME_MAPPING_FIELD,
         "api_key_invalidated",
         "invalidation_time",
         "creation_time",
@@ -106,6 +113,15 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         } else if (qb instanceof final ExistsQueryBuilder query) {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.existsQuery(translatedFieldName);
+        } else if (qb instanceof final MultiMatchQueryBuilder query) {
+            // this relies on the query fields map to be mutable
+            Map<String, Float> originalFields = new HashMap<>(query.fields());
+            query.fields().clear();
+            for (Map.Entry<String, Float> originalField : originalFields.entrySet()) {
+                query.fields().put(ApiKeyFieldNameTranslators.translate(originalField.getKey()), originalField.getValue());
+            }
+            assert query.fields().size() == originalFields.size();
+            return query;
         } else if (qb instanceof final TermsQueryBuilder query) {
             if (query.termsLookup() != null) {
                 throw new IllegalArgumentException("terms query with terms lookup is not supported for API Key query");

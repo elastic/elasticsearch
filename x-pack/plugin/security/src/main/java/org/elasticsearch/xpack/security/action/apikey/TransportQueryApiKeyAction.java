@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 import org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
@@ -34,6 +35,13 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
+
+    // TODO
+    public static final String API_KEY_TYPE_RUNTIME_MAPPING_FIELD = "runtime_key_type";
+    private static final Map<String, Object> API_KEY_TYPE_RUNTIME_MAPPING = Map.of(
+            API_KEY_TYPE_RUNTIME_MAPPING_FIELD,
+            Map.of("type", "keyword", "script", Map.of("source", "emit(doc['type'].value ?: \"rest\");"))
+    );
 
     @Inject
     public TransportQueryApiKeyAction(
@@ -58,6 +66,7 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
             .version(false)
             .fetchSource(true)
             .trackTotalHits(true);
+        searchSourceBuilder.runtimeMappings(API_KEY_TYPE_RUNTIME_MAPPING);
 
         if (request.getFrom() != null) {
             searchSourceBuilder.from(request.getFrom());

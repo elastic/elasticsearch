@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 
 public interface TransformExtension {
 
@@ -20,4 +21,6 @@ public interface TransformExtension {
      * source settings.
      */
     Settings getTransformDestinationIndexSettings();
+
+    TimeValue getMinFrequency();
 }

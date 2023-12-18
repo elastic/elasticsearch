@@ -18,7 +18,7 @@ import java.io.IOException;
  * Block that stores double values.
  * This class is generated. Do not edit it.
  */
-public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock {
+public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock {
 
     /**
      * Retrieves the double value stored at the given value index.

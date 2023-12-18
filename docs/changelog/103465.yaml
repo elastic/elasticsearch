@@ -1,0 +1,5 @@
+pr: 103465
+summary: Use non-metric fields for routing
+area: TSDB
+type: enhancement
+issues: []

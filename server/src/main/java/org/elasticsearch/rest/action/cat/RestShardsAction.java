@@ -293,8 +293,8 @@ public class RestShardsAction extends AbstractCatAction {
             }
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
-            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getTotalDataSetSize));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::size));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::totalDataSetSize));
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();

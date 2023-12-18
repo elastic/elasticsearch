@@ -143,9 +143,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             // TODO: If we have doc-values we have to use them, due to BlockSourceReader.columnAtATimeReader() returning null
-            // if (hasDocValues()) {
-            // return new BlockDocValuesReader.LongsBlockLoader(name());
-            // }
+            if (blContext.forStats() && hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
             // TODO: Enhance BlockLoaderContext with knowledge about preferring to load from source (see EsPhysicalOperationProviders)
             return new BlockSourceReader.PointsBlockLoader(
                 valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)

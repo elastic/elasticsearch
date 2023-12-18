@@ -1283,6 +1283,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
 
             @Override
+            public boolean forStats() {
+                return false;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 return searchLookup;
             }

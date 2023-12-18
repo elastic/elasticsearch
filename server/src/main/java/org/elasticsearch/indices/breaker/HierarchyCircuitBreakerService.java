@@ -773,8 +773,37 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             return new TriggerGCResult(canPerformGC, allocationIndex, allocationDuration, begin - lastCheckTime);
         }
 
-        private record TriggerGCResult(boolean gcAttempted, int allocationIndex, long allocationDuration, long timeSinceLastCheck) {
+        private static final class TriggerGCResult {
+            private final boolean gcAttempted;
+            private final int allocationIndex;
+            private final long allocationDuration;
+            private final long timeSinceLastCheck;
+
             private static final TriggerGCResult EMPTY = new TriggerGCResult(false, 0, 0, 0);
+
+            TriggerGCResult(boolean gcAttempted, int allocationIndex, long allocationDuration, long timeSinceLastCheck) {
+
+                this.gcAttempted = gcAttempted;
+                this.allocationIndex = allocationIndex;
+                this.allocationDuration = allocationDuration;
+                this.timeSinceLastCheck = timeSinceLastCheck;
+            }
+
+            public boolean gcAttempted() {
+                return gcAttempted;
+            }
+
+            public int allocationIndex() {
+                return allocationIndex;
+            }
+
+            public long allocationDuration() {
+                return allocationDuration;
+            }
+
+            public long timeSinceLastCheck() {
+                return timeSinceLastCheck;
+            }
         }
 
         void overLimitTriggered(boolean leader) {

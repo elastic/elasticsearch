@@ -49,9 +49,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
@@ -364,7 +362,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             null,
                             false
                         )
-                        : resolved
+                        : resolved,
+                    p.limit()
                 );
             }
             return p;
@@ -704,74 +703,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
             }
 
-            Limit l = new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
-            return maybeAddDefaultLimitForMvExpand(l);
-        }
-
-        /**
-         * This adds the implicit limit to a plan that has a sort and no limit between EsRelation and the first MvExpand.
-         * To date, the only known use case that "needs" this is a query of the form
-         * from test
-         * | sort emp_no
-         * | mv_expand first_name
-         * | rename first_name AS x
-         * | where x LIKE "*a*"
-         * | limit 15
-         *
-         * or
-         *
-         * from test
-         * | sort emp_no
-         * | mv_expand first_name
-         * | sort first_name
-         * | limit 15
-         *
-         * LogicalPlanAnalyzer.PushDownAndCombineLimits rule will copy the "limit 15" after "sort emp_no" if there is no filter
-         * on the expanded values OR if there is no sort between "limit" and "mv_expand". In these two situations, to be able for
-         * "sort emp_no" to form a TopN, we need a limit. Since the "limit 15" in the query cannot be pushed down (otherwise, it will change
-         * the results that reach mv_expand command) we need some kind of value there. For now, this is the implicit limit.
-         * The second query above becomes:
-         *
-         * from test
-         * | sort emp_no
-         * | limit 10000
-         * | mv_expand first_name
-         * | sort first_name
-         * | limit 15
-         */
-        private Limit maybeAddDefaultLimitForMvExpand(Limit limit) {
-            LogicalPlan plan = limit.child();
-            MvExpand mvExpand = null;
-            UnaryPlan esRelationParent = null;
-            UnaryPlan orderByParent = null;
-
-            // basically, locate the closest to Lucene mv_expand and any potential sort
-            while (plan instanceof UnaryPlan unaryPlan) {
-                if (plan instanceof MvExpand mve) {
-                    mvExpand = mve;
-                    orderByParent = null;
-                } else if (plan instanceof OrderBy && mvExpand != null) {
-                    orderByParent = esRelationParent;
-                }
-                plan = unaryPlan.child();
-                esRelationParent = unaryPlan;
-            }
-
-            // when these two are found, place the default limit before sort
-            if (mvExpand != null && orderByParent != null && plan instanceof EsRelation) {
-                var duplicateLimit = new Limit(limit.source(), limit.limit(), orderByParent.child());
-                return limit.replaceChild(propagateLimitUntilEsRelation(duplicateLimit, orderByParent, (UnaryPlan) limit.child()));
-            }
-
-            return limit;
-        }
-
-        private LogicalPlan propagateLimitUntilEsRelation(Limit duplicateLimit, UnaryPlan esRelationParent, UnaryPlan child) {
-            if (child == esRelationParent) {
-                return esRelationParent.replaceChild(duplicateLimit);
-            } else {
-                return child.replaceChild(propagateLimitUntilEsRelation(duplicateLimit, esRelationParent, (UnaryPlan) child.child()));
-            }
+            return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
         }
     }
 

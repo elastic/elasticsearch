@@ -135,13 +135,16 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneColumns(),
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
-            new DuplicateLimitAfterMvExpand(),
             new PushDownAndCombineFilters(),
             new PushDownEval(),
             new PushDownRegexExtract(),
             new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
+            // see https://github.com/elastic/elasticsearch/issues/103543
+            // new PushDownMvExpandPastProject(),
+            new DuplicateLimitAfterMvExpand(),
+            new PushDownMvExpandPastOrderBy(),
             new PruneRedundantSortClauses()
         );
 
@@ -151,7 +154,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceDuplicateAggWithEval(),
             // pushing down limits again, because ReplaceDuplicateAggWithEval could create new Project nodes that can still be optimized
             new PushDownAndCombineLimits(),
-            new ReplaceLimitAndSortAsTopN()
+            new ReplaceLimitAndSortAsTopN(),
+            new CleanUpMvExpand()
         );
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
@@ -433,7 +437,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 var l2 = (int) childLimit.limit().fold();
                 return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
             } else if (limit.child() instanceof UnaryPlan unary) {
-                if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
+                if (isTransparentForLimit(unary)) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
                 // check if there's a 'visible' descendant limit lower than the current one
@@ -478,64 +482,33 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    static class DuplicateLimitAfterMvExpand extends OptimizerRules.OptimizerRule<Limit> {
+    private static boolean isTransparentForLimit(LogicalPlan plan) {
+        return plan instanceof Eval || plan instanceof Project || plan instanceof RegexExtract || plan instanceof Enrich;
+    }
 
+    protected static class PushDownMvExpandPastOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
         @Override
-        protected LogicalPlan rule(Limit limit) {
-            var child = limit.child();
-            var shouldSkip = child instanceof Eval
-                || child instanceof Project
-                || child instanceof RegexExtract
-                || child instanceof Enrich
-                || child instanceof Limit;
-
-            if (shouldSkip == false && child instanceof UnaryPlan unary) {
-                // in case unary is THE MvExpand, return it right away
-                MvExpand mvExpand = unary instanceof MvExpand mve ? mve : descendantMvExpand(unary);
-                if (mvExpand != null) {
-                    Limit limitBeforeMvExpand = limitBeforeMvExpand(mvExpand);
-                    // if there is no "appropriate" limit before mv_expand, then push down a copy of the one after it so that:
-                    // - a possible TopN is properly built as low as possible in the tree (closed to Lucene)
-                    // - the input of mv_expand is as small as possible before it is expanded (less rows to inflate and occupy memory)
-                    // limitBeforeMvExpand > limit is a cheap way of not indefinetely copying the same limit past mv_expand
-                    // ">" will enforce the limit of the mv_expand, limitting the results that come to mv_expand to bare minimum
-                    if (limitBeforeMvExpand == null || (int) limitBeforeMvExpand.limit().fold() > (int) limit.limit().fold()) {
-                        var duplicateLimit = new Limit(limit.source(), limit.limit(), mvExpand.child());
-                        return limit.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, unary));
-                    }
+        protected LogicalPlan rule(OrderBy upperOrderBy) {
+            if (upperOrderBy.child() instanceof UnaryPlan unary) {
+                MvExpand mvExpand = descendantMvExpand(unary);
+                if (mvExpand != null && mvExpand.child() instanceof OrderBy) {
+                    return upperOrderBy.replaceChild(replaceChildUntilMvExpandAndOrderBy(unary, mvExpand));
                 }
             }
-            return limit;
+
+            return upperOrderBy;
         }
 
         private static MvExpand descendantMvExpand(UnaryPlan unary) {
             UnaryPlan plan = unary;
-            AttributeSet filterReferences = new AttributeSet();
             while (plan instanceof UnaryPlan) {
-                if (plan instanceof MvExpand mve) {
-                    // don't return the mv_expand that has a filter after it which uses the expanded values
-                    // since this will trigger the use of a potentially incorrect (too restrictive) limit further down in the tree
-                    if (filterReferences.isEmpty() == false) {
-                        if (filterReferences.contains(mve.target()) // the same field or reference attribute is used in mv_expand AND filter
-                            || mve.target() instanceof ReferenceAttribute // or the mv_expand attr hasn't yet been resolved to a field attr
-                            // or not all filter references have been resolved to field attributes
-                            || filterReferences.stream().anyMatch(ref -> ref instanceof ReferenceAttribute)) {
-                            return null;
-                        }
-                    }
+                // find the first MvExpand that also has an orderBy in front of it, otherwise keep looking,
+                // otherwise we will skip valid mv_expands further down the tree
+                if (plan instanceof MvExpand mve && mve.child() instanceof OrderBy) {
                     return mve;
-                } else if (plan instanceof Filter filter) {
-                    // gather all the filters' references to be checked later when a mv_expand is found
-                    filterReferences.addAll(filter.references());
                 } else if (plan instanceof OrderBy) {
-                    // ordering after mv_expand COULD break the order of the results, so the limit shouldn't be copied past mv_expand
-                    // something like from test | sort emp_no | mv_expand job_positions | sort first_name | limit 5
-                    // (the sort first_name likely changes the order of the docs after sort emp_no, so "limit 5" shouldn't be copied down
-                    return null;
-                } else if (plan instanceof Limit) {
                     return null;
                 }
-
                 if (plan.child() instanceof UnaryPlan unaryPlan) {
                     plan = unaryPlan;
                 } else {
@@ -544,28 +517,94 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
             return null;
         }
+    }
 
-        private static Limit limitBeforeMvExpand(MvExpand mvExpand) {
-            UnaryPlan plan = mvExpand;
-            while (plan instanceof UnaryPlan) {
-                if (plan instanceof Limit limit) {
-                    return limit;
+    protected static class PushDownMvExpandPastProject extends OptimizerRules.OptimizerRule<MvExpand> {
+        @Override
+        protected LogicalPlan rule(MvExpand mvExpand) {
+            LogicalPlan child = mvExpand.child();
+            if (child instanceof Project) {
+                return pushDownPastProject(mvExpand);
+            }
+
+            return mvExpand;
+        }
+    }
+
+    static class DuplicateLimitAfterMvExpand extends OptimizerRules.OptimizerRule<Limit> {
+        @Override
+        protected LogicalPlan rule(Limit limit) {
+            var child = limit.child();
+            // let the PushDownAndCombineLimits rule to push Limit further down
+            var shouldSkip = isTransparentForLimit(child) || child instanceof Limit;
+            if (shouldSkip || child instanceof UnaryPlan == false) {
+                return limit;
+            }
+
+            UnaryPlan unary = (UnaryPlan) child;
+            MvExpand mvExpand = null;
+            AttributeSet filterReferences = new AttributeSet();
+            boolean hasOrderBy = false;
+            boolean isFiltered = false;
+            // look for any orderBy between this limit and mv_expand
+            // and, separately, for any filter that is filtering the expanded values of mv_expand
+            while (mvExpand == null && unary instanceof UnaryPlan) {
+                if (unary instanceof MvExpand mve) {
+                    if (filterReferences.isEmpty() == false) {
+                        if (filterReferences.contains(mve.expanded())) {// if the filter is on the mv_expand field
+                            isFiltered = true;
+                        }
+                    }
+                    mvExpand = mve;
+                    break;
+                } else if (unary instanceof Filter filter) {
+                    // gather all the filters' references to be checked later when a mv_expand is found
+                    filterReferences.addAll(filter.references());
+                } else if (unary instanceof OrderBy) {
+                    hasOrderBy = true;
+                    break;
+                } else if (unary instanceof Limit) {
+                    break;
                 }
-                if (plan.child() instanceof UnaryPlan unaryPlan) {
-                    plan = unaryPlan;
+
+                if (unary.child() instanceof UnaryPlan unaryPlan) {
+                    unary = unaryPlan;
                 } else {
                     break;
                 }
             }
-            return null;
+
+            if (mvExpand != null) {
+                // if the filter is on the expanded values and the order of the results doesn't change, push down mv_expand past sort
+                if (isFiltered && hasOrderBy == false) {
+                    if (mvExpand.child() instanceof OrderBy) {
+                        return limit.replaceChild(replaceChildUntilMvExpandAndOrderBy((UnaryPlan) child, mvExpand));
+                    }
+                } else if (mvExpand.limit() == null) { // otherwise push down a copy of the limit before mv_expand
+                    var duplicateLimit = new Limit(limit.source(), limit.limit(), mvExpand.child());
+                    return limit.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, (UnaryPlan) child));
+                }
+            }
+
+            return limit;
         }
 
         private LogicalPlan propagateDuplicateLimitUntilMvExpand(Limit duplicateLimit, MvExpand mvExpand, UnaryPlan child) {
             if (child == mvExpand) {
-                return mvExpand.replaceChild(duplicateLimit);
+                return new MvExpand(mvExpand.source(), duplicateLimit, mvExpand.target(), mvExpand.expanded(), duplicateLimit);
             } else {
                 return child.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, (UnaryPlan) child.child()));
             }
+        }
+    }
+
+    private static LogicalPlan replaceChildUntilMvExpandAndOrderBy(UnaryPlan child, MvExpand mvExpand) {
+        if (child == mvExpand) {
+            assert mvExpand.child() instanceof OrderBy;
+            OrderBy orderBy = (OrderBy) mvExpand.child();
+            return orderBy.replaceChild(mvExpand.replaceChild(orderBy.child()));
+        } else {
+            return child.replaceChild(replaceChildUntilMvExpandAndOrderBy((UnaryPlan) child.child(), mvExpand));
         }
     }
 
@@ -1015,6 +1054,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 p = new TopN(plan.source(), o.child(), o.order(), plan.limit());
             }
             return p;
+        }
+    }
+
+    static class CleanUpMvExpand extends OptimizerRules.OptimizerRule<MvExpand> {
+        @Override
+        protected LogicalPlan rule(MvExpand plan) {
+            return plan.limit() == null ? plan : new MvExpand(plan.source(), plan.child(), plan.target(), plan.expanded(), null);
         }
     }
 

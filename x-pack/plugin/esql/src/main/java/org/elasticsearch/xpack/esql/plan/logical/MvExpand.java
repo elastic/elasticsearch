@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -23,11 +24,13 @@ public class MvExpand extends UnaryPlan {
     private final Attribute expanded;
 
     private List<Attribute> output;
+    private Limit limit; // a temporary "marker" indicating if a limit has been "associated" with this mv_expand
 
-    public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded) {
+    public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded, Limit limit) {
         super(source, child);
         this.target = target;
         this.expanded = expanded;
+        this.limit = limit;
     }
 
     public static List<Attribute> calculateOutput(List<Attribute> input, NamedExpression target, Attribute expanded) {
@@ -50,6 +53,10 @@ public class MvExpand extends UnaryPlan {
         return expanded;
     }
 
+    public Limit limit() {
+        return limit;
+    }
+
     @Override
     public boolean expressionsResolved() {
         return target.resolved();
@@ -57,7 +64,7 @@ public class MvExpand extends UnaryPlan {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new MvExpand(source(), newChild, target, expanded);
+        return new MvExpand(source(), newChild, target, expanded, limit);
     }
 
     @Override
@@ -70,19 +77,20 @@ public class MvExpand extends UnaryPlan {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, MvExpand::new, child(), target, expanded);
+        return NodeInfo.create(this, MvExpand::new, child(), target, expanded, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), target, expanded);
+        return Objects.hash(super.hashCode(), target, expanded, limit);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
+        if (super.equals(obj)) {
+            var other = (MvExpand) obj;
+            return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded) && Objects.equals(limit, other.limit);
         }
-        return Objects.equals(target, ((MvExpand) obj).target) && Objects.equals(expanded, ((MvExpand) obj).expanded);
+        return false;
     }
 }

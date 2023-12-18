@@ -21,6 +21,7 @@
 * <<esql-log10>>
 * <<esql-pi>>
 * <<esql-pow>>
+* <<esql-random>>
 * <<esql-round>>
 * <<esql-sin>>
 * <<esql-sinh>>
@@ -43,6 +44,7 @@ include::floor.asciidoc[]
 include::log10.asciidoc[]
 include::pi.asciidoc[]
 include::pow.asciidoc[]
+include::random.asciidoc[]
 include::round.asciidoc[]
 include::sin.asciidoc[]
 include::sinh.asciidoc[]

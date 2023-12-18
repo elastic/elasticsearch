@@ -57,6 +57,7 @@ mv_sum                   |? mv_sum(arg1:?)                                      
 now                      |? now()                                                 | null                    |null              | null                                               |?                    | ""                      | null                 | false
 percentile               |? percentile(arg1:?, arg2:?)                            |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 pi                       |? pi()                                                  | null                    |  null            | null                                               |?                    | ""                      | null                 | false
+random                   |? random()                                                 | null                    |null              | null                                               |?                    | ""                      | null                 | false
 pow                      |"? pow(base:integer|unsigned_long|long|double, exponent:integer|unsigned_long|long|double)" |[base, exponent]         |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]           |["", ""]                                            |?                    | ""                      | [false, false]       | false
 replace                  |"? replace(arg1:?, arg2:?, arg3:?)"                       | [arg1, arg2, arg3]      | [?, ?, ?]        |["", "", ""]                                        |?                    | ""                      | [false, false, false]| false 
 right                    |"? right(string:keyword, length:integer)"     |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
@@ -144,14 +145,15 @@ synopsis:keyword
 "? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
 ? mv_median(arg1:?)
 "? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
-? mv_sum(arg1:?)
-? now()
-? percentile(arg1:?, arg2:?)
+? mv_sum(arg1:?)                                        
+? now()                                                 
+? percentile(arg1:?, arg2:?)                            
 ? pi()
 "? pow(base:integer|unsigned_long|long|double, exponent:integer|unsigned_long|long|double)"
-? replace(arg1:?, arg2:?, arg3:?)
-? right(string:keyword, length:integer)
-? round(arg1:?, arg2:?)
+double random()
+"? replace(arg1:?, arg2:?, arg3:?)"
+"? right(string:keyword, length:integer)"     
+? round(arg1:?, arg2:?)                                 
 "keyword|text rtrim(str:keyword|text)"
 "double sin(n:integer|long|double|unsigned_long)"
 "double sinh(n:integer|long|double|unsigned_long)"
@@ -209,5 +211,5 @@ countFunctions#[skip:-8.11.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-84     | 84     | 84
+85     | 85     | 85
 ;

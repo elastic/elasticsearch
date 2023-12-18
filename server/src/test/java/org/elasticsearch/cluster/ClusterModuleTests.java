@@ -50,16 +50,20 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.contains;
 
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
@@ -232,7 +236,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     // running them. If the order of the deciders is changed for a valid reason, the order should be
     // changed in the test too.
     public void testAllocationDeciderOrder() {
-        List<Class<? extends AllocationDecider>> expectedDeciders = List.of(
+        Stream<Class<? extends AllocationDecider>> expectedDeciders = Stream.of(
             MaxRetryAllocationDecider.class,
             ResizeAllocationDecider.class,
             ReplicaAfterPrimaryActiveAllocationDecider.class,
@@ -258,12 +262,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             Collections.emptyList()
         );
-        Iterator<AllocationDecider> iter = deciders.iterator();
-        int idx = 0;
-        while (iter.hasNext()) {
-            AllocationDecider decider = iter.next();
-            assertSame(decider.getClass(), expectedDeciders.get(idx++));
-        }
+        assertThat(deciders, contains(expectedDeciders.<Matcher<? super AllocationDecider>>map(Matchers::instanceOf).toList()));
     }
 
     public void testRejectsReservedExistingShardsAllocatorName() {

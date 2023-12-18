@@ -33,6 +33,8 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -47,6 +49,10 @@ import java.util.stream.IntStream;
 @Fork(1)
 public class BlockBenchmark {
     public static final int NUM_BLOCKS_PER_ITERATION = 1024;
+
+    private static final double MV_PERCENTAGE = 0.3;
+    private static final double NULL_PERCENTAGE = 0.1;
+    private static final int MAX_MV_ELEMENTS = 100;
 
     private static final Random random = new Random();
 
@@ -83,16 +89,12 @@ public class BlockBenchmark {
             case "int" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     int[] values = new int[totalPositions];
-                    long sum = 0;
                     for (int i = 0; i < totalPositions; i++) {
                         values[i] = random.nextInt();
-                        sum += values[i];
                     }
-                    checkSums[blockIndex] = sum;
 
                     switch (blockKind) {
                         case "array" -> {
-                            // TODO: bench with MVs and with nulls
                             blocks[blockIndex] = new IntArrayBlock(
                                 values,
                                 totalPositions,
@@ -101,8 +103,21 @@ public class BlockBenchmark {
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
                             );
                         }
+                        case "array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            blocks[blockIndex] = new IntArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                        }
                         case "vector" -> {
-                            // TODO: more vector kinds
+                            // TODO: add also BigArrayVectors
                             IntVector vector = new IntArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
@@ -110,17 +125,17 @@ public class BlockBenchmark {
                             throw new IllegalStateException();
                         }
                     }
+
+                    IntBlock block = (IntBlock) blocks[blockIndex];
+                    checkSums[blockIndex] = computeIntCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
             }
             case "long" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     long[] values = new long[totalPositions];
-                    long sum = 0L;
                     for (int i = 0; i < totalPositions; i++) {
                         values[i] = random.nextLong();
-                        sum += values[i];
                     }
-                    checkSums[blockIndex] = sum;
 
                     switch (blockKind) {
                         case "array" -> {
@@ -132,6 +147,19 @@ public class BlockBenchmark {
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
                             );
                         }
+                        case "array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            blocks[blockIndex] = new LongArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                        }
                         case "vector" -> {
                             LongVector vector = new LongArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
@@ -140,6 +168,9 @@ public class BlockBenchmark {
                             throw new IllegalStateException();
                         }
                     }
+
+                    LongBlock block = (LongBlock) blocks[blockIndex];
+                    checkSums[blockIndex] = computeLongCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
             }
             default -> {
@@ -168,38 +199,50 @@ public class BlockBenchmark {
         return orders;
     }
 
+    private static int[] randomFirstValueIndexes(int totalPositions) {
+        ArrayList<Integer> firstValueIndexes = new ArrayList<>();
+        firstValueIndexes.add(0);
+
+        int currentPosition = 0;
+        int nextPosition;
+        while (currentPosition < totalPositions) {
+            if (random.nextDouble() < MV_PERCENTAGE) {
+                nextPosition = Math.min(currentPosition + 1 + random.nextInt(MAX_MV_ELEMENTS), totalPositions);
+            } else {
+                nextPosition = currentPosition + 1;
+            }
+            firstValueIndexes.add(nextPosition);
+            currentPosition = nextPosition;
+        }
+
+        return firstValueIndexes.stream().mapToInt(x -> x).toArray();
+    }
+
+    private static BitSet randomNulls(int positionCount) {
+        BitSet nulls = new BitSet(positionCount);
+        for (int i = 0; i < positionCount; i++) {
+            if (random.nextDouble() < NULL_PERCENTAGE) {
+                nulls.set(i);
+            }
+        }
+
+        return nulls;
+    }
+
     private static void run(String dataType, BenchmarkBlocks data, int[][] traversalOrders, long[] resultCheckSums) {
         switch (dataType) {
             case "int" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     IntBlock block = (IntBlock) data.blocks[blockIndex];
-                    long sum = 0;
 
-                    for (int position : traversalOrders[blockIndex]) {
-                        int start = block.getFirstValueIndex(position);
-                        int end = start + block.getValueCount(position);
-                        for (int i = start; i < end; i++) {
-                            sum += block.getInt(i);
-                        }
-                    }
-
-                    resultCheckSums[blockIndex] = sum;
+                    resultCheckSums[blockIndex] = computeIntCheckSum(block, traversalOrders[blockIndex]);
                 }
             }
             case "long" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     LongBlock block = (LongBlock) data.blocks[blockIndex];
-                    long sum = 0;
 
-                    for (int position : traversalOrders[blockIndex]) {
-                        int start = block.getFirstValueIndex(position);
-                        int end = start + block.getValueCount(position);
-                        for (int i = start; i < end; i++) {
-                            sum += block.getLong(i);
-                        }
-                    }
-
-                    resultCheckSums[blockIndex] = sum;
+                    resultCheckSums[blockIndex] = computeLongCheckSum(block, traversalOrders[blockIndex]);
                 }
             }
             default -> {
@@ -216,6 +259,34 @@ public class BlockBenchmark {
         }
     }
 
+    private static long computeIntCheckSum(IntBlock block, int[] traversalOrder) {
+        long sum = 0;
+
+        for (int position : traversalOrder) {
+            int start = block.getFirstValueIndex(position);
+            int end = start + block.getValueCount(position);
+            for (int i = start; i < end; i++) {
+                sum += block.getInt(i);
+            }
+        }
+
+        return sum;
+    }
+
+    private static long computeLongCheckSum(LongBlock block, int[] traversalOrder) {
+        long sum = 0;
+
+        for (int position : traversalOrder) {
+            int start = block.getFirstValueIndex(position);
+            int end = start + block.getValueCount(position);
+            for (int i = start; i < end; i++) {
+                sum += block.getLong(i);
+            }
+        }
+
+        return sum;
+    }
+
     private static int totalPositions(String blockLength) {
         return (int) ByteSizeValue.parseBytesSizeValue(blockLength, "block length").getBytes();
     }
@@ -228,10 +299,11 @@ public class BlockBenchmark {
     public String blockLength;
 
     // TODO other types
+    // TODO: add DocBlocks/DocVectors
     @Param({ "int", "long" })
     public String dataType;
 
-    @Param({ "array", "vector" })
+    @Param({ "array", "array-multivalue-null", "vector" })
     public String blockKind;
 
     @Param({ "sequential", "random" })

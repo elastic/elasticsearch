@@ -10,6 +10,10 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanArrayBlock;
+import org.elasticsearch.compute.data.BooleanArrayVector;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -86,6 +90,50 @@ public class BlockBenchmark {
         long[] checkSums = new long[NUM_BLOCKS_PER_ITERATION];
 
         switch (dataType) {
+            case "boolean" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    boolean[] values = new boolean[totalPositions];
+                    for (int i = 0; i < totalPositions; i++) {
+                        values[i] = random.nextBoolean();
+                    }
+
+                    switch (blockKind) {
+                        case "array" -> {
+                            blocks[blockIndex] = new BooleanArrayBlock(
+                                values,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+                            );
+                        }
+                        case "array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            blocks[blockIndex] = new BooleanArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                        }
+                        case "vector" -> {
+                            // TODO: add also BigArrayVectors
+                            BooleanVector vector = new BooleanArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock();
+                        }
+                        default -> {
+                            throw new IllegalStateException();
+                        }
+                    }
+
+                    BooleanBlock block = (BooleanBlock) blocks[blockIndex];
+                    checkSums[blockIndex] = computeBooleanCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
+                }
+            }
             case "int" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     int[] values = new int[totalPositions];
@@ -117,7 +165,6 @@ public class BlockBenchmark {
                             );
                         }
                         case "vector" -> {
-                            // TODO: add also BigArrayVectors
                             IntVector vector = new IntArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
@@ -231,6 +278,13 @@ public class BlockBenchmark {
 
     private static void run(String dataType, BenchmarkBlocks data, int[][] traversalOrders, long[] resultCheckSums) {
         switch (dataType) {
+            case "boolean" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    BooleanBlock block = (BooleanBlock) data.blocks[blockIndex];
+
+                    resultCheckSums[blockIndex] = computeBooleanCheckSum(block, traversalOrders[blockIndex]);
+                }
+            }
             case "int" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     IntBlock block = (IntBlock) data.blocks[blockIndex];
@@ -257,6 +311,20 @@ public class BlockBenchmark {
                 throw new AssertionError("checksums do not match for block [" + blockIndex + "]");
             }
         }
+    }
+
+    private static long computeBooleanCheckSum(BooleanBlock block, int[] traversalOrder) {
+        long sum = 0;
+
+        for (int position : traversalOrder) {
+            int start = block.getFirstValueIndex(position);
+            int end = start + block.getValueCount(position);
+            for (int i = start; i < end; i++) {
+                sum += block.getBoolean(i) ? 1 : 0;
+            }
+        }
+
+        return sum;
     }
 
     private static long computeIntCheckSum(IntBlock block, int[] traversalOrder) {

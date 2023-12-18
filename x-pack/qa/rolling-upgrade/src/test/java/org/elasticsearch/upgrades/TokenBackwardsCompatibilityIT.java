@@ -440,17 +440,22 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }""");
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
-        final SearchHits searchHits = SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits();
-        assertThat(
-            "Search request used with size parameter that was too small to fetch all tokens.",
-            searchHits.getTotalHits().value,
-            lessThanOrEqualTo(searchSize)
-        );
-        final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {
-            assertNotNull(searchHit.getId());
-            return searchHit.getId();
-        }).toList();
-        assertThat(tokenIds, not(empty()));
-        return tokenIds;
+        var response = SearchResponse.fromXContent(responseAsParser(searchResponse));
+        try {
+            final SearchHits searchHits = response.getHits();
+            assertThat(
+                "Search request used with size parameter that was too small to fetch all tokens.",
+                searchHits.getTotalHits().value,
+                lessThanOrEqualTo(searchSize)
+            );
+            final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {
+                assertNotNull(searchHit.getId());
+                return searchHit.getId();
+            }).toList();
+            assertThat(tokenIds, not(empty()));
+            return tokenIds;
+        } finally {
+            response.decRef();
+        }
     }
 }

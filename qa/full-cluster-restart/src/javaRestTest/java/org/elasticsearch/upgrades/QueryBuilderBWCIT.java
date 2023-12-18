@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -251,9 +252,9 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
                 ) {
 
-                    @UpdateForV9 // always true
+                    @UpdateForV9 // condition will always be true
                     var originalClusterHasTransportVersion = parseLegacyVersion(getOldClusterVersion()).map(
-                        v -> v.onOrAfter(Version.V_8_8_0)
+                        v -> v.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
                     ).orElse(true);
 
                     final TransportVersion transportVersion;

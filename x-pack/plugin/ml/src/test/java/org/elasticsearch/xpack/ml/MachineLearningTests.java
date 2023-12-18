@@ -221,9 +221,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testAnomalyDetectionOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             ActionPlugin.RestHandlerParameters p = mock(ActionPlugin.RestHandlerParameters.class);
             when(p.settings()).thenReturn(settings);
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(p);
@@ -244,9 +243,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testDataFrameAnalyticsOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             ActionPlugin.RestHandlerParameters p = mock(ActionPlugin.RestHandlerParameters.class);
             when(p.settings()).thenReturn(settings);
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(p);
@@ -267,9 +265,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testNlpOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             ActionPlugin.RestHandlerParameters p = mock(ActionPlugin.RestHandlerParameters.class);
             when(p.settings()).thenReturn(settings);
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(p);
@@ -297,19 +294,22 @@ public class MachineLearningTests extends ESTestCase {
         private final boolean isAnomalyDetectionEnabled;
         private final boolean isDataFrameAnalyticsEnabled;
         private final boolean isNlpEnabled;
+        private final boolean isLearningToRankEnabled;
 
         MlTestExtension(
             boolean useIlm,
             boolean includeNodeInfo,
             boolean isAnomalyDetectionEnabled,
             boolean isDataFrameAnalyticsEnabled,
-            boolean isNlpEnabled
+            boolean isNlpEnabled,
+            boolean isLearningToRankEnabled
         ) {
             this.useIlm = useIlm;
             this.includeNodeInfo = includeNodeInfo;
             this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
             this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
             this.isNlpEnabled = isNlpEnabled;
+            this.isLearningToRankEnabled = isLearningToRankEnabled;
         }
 
         @Override
@@ -335,6 +335,11 @@ public class MachineLearningTests extends ESTestCase {
         @Override
         public boolean isNlpEnabled() {
             return isNlpEnabled;
+        }
+
+        @Override
+        public boolean isLearningToRankEnabled() {
+            return isLearningToRankEnabled;
         }
 
         @Override
@@ -383,6 +388,12 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public static MachineLearning createTrialLicensedMachineLearning(Settings settings) {
-        return new TrialLicensedMachineLearning(settings);
+        return createTrialLicensedMachineLearning(settings, null);
+    }
+
+    public static MachineLearning createTrialLicensedMachineLearning(Settings settings, MlTestExtensionLoader loader) {
+        MachineLearning mlPlugin = new TrialLicensedMachineLearning(settings);
+        mlPlugin.loadExtensions(loader);
+        return mlPlugin;
     }
 }

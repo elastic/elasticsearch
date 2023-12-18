@@ -18,7 +18,6 @@ final class CO2Calculator {
     private static final double DEFAULT_KILOWATTS_PER_CORE_ARM64 = 2.8d / 1000.0d; // unit: watt / core
     private static final double DEFAULT_KILOWATTS_PER_CORE = DEFAULT_KILOWATTS_PER_CORE_X86; // unit: watt / core
     private static final double DEFAULT_DATACENTER_PUE = 1.7d;
-    private final InstanceTypeService instanceTypeService;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
     private final double customCO2PerKWH;
@@ -27,7 +26,6 @@ final class CO2Calculator {
     private final double customKilowattsPerCoreARM64;
 
     CO2Calculator(
-        InstanceTypeService instanceTypeService,
         Map<String, HostMetadata> hostMetadata,
         double samplingDurationInSeconds,
         Double customCO2PerKWH,
@@ -35,7 +33,6 @@ final class CO2Calculator {
         Double customPerCoreWattX86,
         Double customPerCoreWattARM64
     ) {
-        this.instanceTypeService = instanceTypeService;
         this.hostMetadata = hostMetadata;
         this.samplingDurationInSeconds = samplingDurationInSeconds > 0 ? samplingDurationInSeconds : 1.0d; // avoid division by zero
         this.customCO2PerKWH = customCO2PerKWH == null ? DEFAULT_CO2_TONS_PER_KWH : customCO2PerKWH;
@@ -54,7 +51,7 @@ final class CO2Calculator {
             return DEFAULT_KILOWATTS_PER_CORE * customCO2PerKWH * annualCoreHours * customDatacenterPUE;
         }
 
-        CostEntry costs = instanceTypeService.getCosts(host.instanceType);
+        CostEntry costs = InstanceTypeService.getCosts(host.instanceType);
         if (costs == null) {
             return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
         }

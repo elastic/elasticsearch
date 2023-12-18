@@ -1,8 +1,6 @@
 [[list-synonyms-sets]]
 === List synonyms sets
 
-beta::[]
-
 ++++
 <titleabbrev>List synonyms sets</titleabbrev>
 ++++

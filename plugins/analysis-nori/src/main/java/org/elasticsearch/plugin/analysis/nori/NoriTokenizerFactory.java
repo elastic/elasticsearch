@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 import org.elasticsearch.index.analysis.Analysis;
 
@@ -35,17 +36,24 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, settings, name);
         decompoundMode = getMode(settings);
-        userDictionary = getUserDictionary(env, settings);
+        userDictionary = getUserDictionary(env, settings, indexSettings);
         discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
     }
 
-    public static UserDictionary getUserDictionary(Environment env, Settings settings) {
+    public static UserDictionary getUserDictionary(Environment env, Settings settings, IndexSettings indexSettings) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
             throw new IllegalArgumentException(
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
             );
         }
-        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, true);
+        List<String> ruleList = Analysis.getWordList(
+            env,
+            settings,
+            USER_DICT_PATH_OPTION,
+            USER_DICT_RULES_OPTION,
+            true,
+            isSupportDuplicateCheck(indexSettings)
+        );
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
         }
@@ -58,6 +66,21 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load nori user dictionary", e);
         }
+    }
+
+    /**
+     * Determines if the specified index version supports duplicate checks.
+     * This method checks if the version of the index where it was created
+     * is at Version 8.13.0 or above.
+     * The feature of duplicate checks is introduced starting
+     * from version 8.13.0, hence any versions earlier than this do not support duplicate checks.
+     *
+     * @param indexSettings The settings of the index in question.
+     * @return Returns true if the version is 8.13.0 or later which means
+     * that the duplicate check feature is supported.
+     */
+    private static boolean isSupportDuplicateCheck(IndexSettings indexSettings) {
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES_VERSION_8_13);
     }
 
     public static KoreanTokenizer.DecompoundMode getMode(Settings settings) {

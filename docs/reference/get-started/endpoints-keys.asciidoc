@@ -3,10 +3,10 @@
 
 This section contains all the essential information you need to connect to your {es} instance.
 
-For {ecloud} users this information is available in your https://cloud.elastic.co/deployments[deployments overview] page:
+This information is available under *Search* in your deployment's UI ({kib}).
 
 [.screenshot]
-image::images/deployments-overview.png[Deployments overview page]
+image::images/cloud-home-search.png[Search card on {ecloud} home page]
 
 [discrete]
 [[endpoints-keys-elasticsearch]]
@@ -17,8 +17,9 @@ The {es} endpoint is the URL you use to access your {es} instance.
 To find this URL on {ecloud}:
 
 . Go to your https://cloud.elastic.co/deployments[{ecloud} deployments] page.
-. Select your deployment.
-. Select *Copy endpoint* beside {es}.
+. To open your deployment's UI, select *Open*.
+. Select *Search* on your deployment's home page.
+. Copy your {es} endpoint.
 
 If you're using a self-managed {es} instance, your URL will look something like this:
 `https://localhost:9200`.
@@ -39,38 +40,47 @@ It's the recommended option for connecting to Elasticsearch for many of our prog
 To find the Cloud ID for your deployment:
 
 . Go to your https://cloud.elastic.co/deployments[{ecloud} deployments] page.
-. Select your deployment.
-. Select *Manage*.
-. Copy the Cloud ID on that screen.
+. To open your deployment's UI, select *Open*.
+. Select *Search* on your deployment's home page.
+. Copy your Cloud ID.
 
 [TIP]
 ====
-If you want to jump straight into your deployment's UI from the *Deployments* overview, select the *Open Kibana* button.
+Use the *Endpoints* quicklink anywhere within the *Search* section of your deployment's UI to quickly copy your {es} endpoint, Cloud ID, and manage API keys.
+Find this button in the top right corner of your UI.
+
+[.screenshot]
+image::images/search-endpoints.png[Endpoints quicklink, width="10%"]
 ====
 
 [discrete]
 [[endpoints-keys-api-keys]]
 === API keys
 
-We recommend using API keys to connect to your {es} instance using a programming language client or cURL. 
+We recommend using API keys to connect to your {es} instance when using a programming language client or `curl`. 
 
 [discrete]
 [[endpoints-keys-api-keys-create-ui]]
 ==== Create API keys in UI
 
-In your deployment's UI ({kib}), go to *Stack Management > Security > API Keys*.
-Alternatively, simply search for *API Keys* in the global search bar in your UI.
-Select *Create API key*.
+To create and manage API keys in your deployment's UI:
+
+. Go to your https://cloud.elastic.co/deployments[{ecloud} deployments] page.
+. To open your deployment's UI, select *Open*.
+. Select *Search* on your deployment's home page.
+. Under the {es} endpoint and Cloud ID, you'll see an overview of your API keys.
+.. To create a new API key, select *New*.
+.. To manage existing API keys, select *Manage*.
+
+Alternatively, simply search for *API Keys* in the global search bar in your UI and select *Create API key*.
 
 [.screenshot]
-image::images/find-api-keys.png[Search for API keys]
+image::images/find-api-keys.png[Search for API keys, width="60%"]
 
 [discrete]
 [[endpoints-keys-api-keys-create-api-key-api]]
 ==== Create API keys using the API
 
 Once you've connected to {es}, you can create API keys using {es}'s <<security-api-create-api-key, Create API key API>>.
-
-
 
 

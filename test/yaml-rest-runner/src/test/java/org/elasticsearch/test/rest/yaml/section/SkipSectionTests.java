@@ -69,15 +69,31 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
     }
 
     public void testSkipTestFeatures() {
-        var section = new SkipSection(randomBoolean() ? List.of() : List.of(context -> false), Collections.singletonList("boom"), "foobar");
-        assertTrue(section.skip(versionOnlyContext(Version.CURRENT)));
+        var section = new SkipSection(List.of(), Collections.singletonList("boom"), "foobar");
+        assertTrue(section.skip(neverSkipContext()));
+    }
+
+    public void testSkipTestFeaturesWithSkipCriteria() {
+        var section = new SkipSection(List.of(context -> false), Collections.singletonList("boom"), "foobar");
+        assertTrue(section.skip(neverSkipContext()));
     }
 
     public void testSkipOs() {
         var osList = List.of("windows95", "debian-5");
         SkipSection section = new SkipSection(
+            List.of(new OsSkipCriteria(osList)), Collections.emptyList(),
+            "foobar"
+        );
+        assertTrue(section.skip(osOnlyContext("windows95")));
+        assertTrue(section.skip(osOnlyContext("debian-5")));
+        assertFalse(section.skip(osOnlyContext("ms-dos")));
+    }
+
+    public void testSkipOsWithTestFeatures() {
+        var osList = List.of("windows95", "debian-5");
+        SkipSection section = new SkipSection(
             List.of(new OsSkipCriteria(osList)),
-            randomBoolean() ? Collections.emptyList() : Collections.singletonList("warnings"),
+            Collections.singletonList("warnings"),
             "foobar"
         );
         assertTrue(section.skip(osOnlyContext("windows95")));

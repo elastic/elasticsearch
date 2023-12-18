@@ -61,6 +61,26 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
         };
     }
 
+    protected static SkipSectionContext neverSkipContext() {
+        return new SkipSectionContext() {
+            @Override
+            public boolean clusterIsRunningOs(String osName) {
+                return false;
+            }
+
+            @Override
+            public boolean clusterHasFeature(String featureId) {
+                return true;
+            }
+
+            @Override
+            public boolean clusterVersionInRange(VersionRange range) {
+                return false;
+            }
+
+        };
+    }
+
     protected static SkipSectionContext osOnlyContext(String os) {
         return new SkipSectionContext() {
             @Override

@@ -12,6 +12,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.Type;
@@ -80,6 +81,7 @@ public class IndexNameExpressionResolver {
         Context context = new Context(
             state,
             request.indicesOptions(),
+            request.dataStreamOptions(),
             false,
             false,
             request.includeDataStreams(),
@@ -97,6 +99,7 @@ public class IndexNameExpressionResolver {
         Context context = new Context(
             state,
             request.indicesOptions(),
+            request.dataStreamOptions(),
             false,
             false,
             request.includeDataStreams(),
@@ -115,6 +118,7 @@ public class IndexNameExpressionResolver {
         Context context = new Context(
             state,
             request.indicesOptions(),
+            request.dataStreamOptions(),
             false,
             false,
             request.includeDataStreams(),
@@ -315,6 +319,7 @@ public class IndexNameExpressionResolver {
         Context context = new Context(
             state,
             request.indicesOptions(),
+            request.dataStreamOptions(),
             startTime,
             false,
             false,
@@ -359,12 +364,25 @@ public class IndexNameExpressionResolver {
                     concreteIndicesResult.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                Index writeIndex = indexAbstraction.getWriteIndex();
-                if (addIndex(writeIndex, null, context)) {
-                    concreteIndicesResult.add(writeIndex);
+                if (DataStream.isFailureStoreEnabled() == false
+                    || DataStreamOptions.FailureStore.includeNormalIndices(context.dataStreamOptions.failureStore())) {
+                    Index writeIndex = indexAbstraction.getWriteIndex();
+                    if (addIndex(writeIndex, null, context)) {
+                        concreteIndicesResult.add(writeIndex);
+                    }
+                }
+                DataStream dataStream = (DataStream) indexAbstraction;
+                if (DataStream.isFailureStoreEnabled()
+                    && dataStream.isFailureStore()
+                    && DataStreamOptions.FailureStore.includeFailureIndices(context.dataStreamOptions.failureStore())) {
+                    Index writeIndex = dataStream.getFailureStoreWriteIndex();
+                    if (writeIndex != null && addIndex(writeIndex, null, context)) {
+                        concreteIndicesResult.add(writeIndex);
+                    }
                 }
             } else {
-                if (indexAbstraction.getIndices().size() > 1 && context.getOptions().allowAliasesToMultipleIndices() == false) {
+                if (resolvesToMoreThanOneIndices(indexAbstraction, context)
+                    && context.getOptions().allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
                     for (Index indexName : indexAbstraction.getIndices()) {
@@ -380,9 +398,29 @@ public class IndexNameExpressionResolver {
                     );
                 }
 
-                for (Index index : indexAbstraction.getIndices()) {
-                    if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
-                        concreteIndicesResult.add(index);
+                if (indexAbstraction.getType() == Type.DATA_STREAM) {
+                    DataStream dataStream = (DataStream) indexAbstraction;
+                    if (context.dataStreamOptions.includeNormalIndices()) {
+                        for (Index index : indexAbstraction.getIndices()) {
+                            if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                                concreteIndicesResult.add(index);
+                            }
+                        }
+                    }
+                    if (DataStream.isFailureStoreEnabled()
+                        && dataStream.isFailureStore()
+                        && context.dataStreamOptions.includeFailureIndices()) {
+                        for (Index index : dataStream.getFailureIndices()) {
+                            if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                                concreteIndicesResult.add(index);
+                            }
+                        }
+                    }
+                } else {
+                    for (Index index : indexAbstraction.getIndices()) {
+                        if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                            concreteIndicesResult.add(index);
+                        }
                     }
                 }
             }
@@ -393,6 +431,21 @@ public class IndexNameExpressionResolver {
         }
         checkSystemIndexAccess(context, concreteIndicesResult);
         return concreteIndicesResult.toArray(Index.EMPTY_ARRAY);
+    }
+
+    private static boolean resolvesToMoreThanOneIndices(IndexAbstraction indexAbstraction, Context context) {
+        if (indexAbstraction.getType() == Type.DATA_STREAM) {
+            DataStream dataStream = (DataStream) indexAbstraction;
+            int count = 0;
+            if (DataStream.isFailureStoreEnabled() == false || context.dataStreamOptions.includeNormalIndices()) {
+                count += dataStream.getIndices().size();
+            }
+            if (DataStream.isFailureStoreEnabled() && dataStream.isFailureStore() && context.dataStreamOptions.includeFailureIndices()) {
+                count += dataStream.getFailureIndices().size();
+            }
+            return count > 1;
+        }
+        return indexAbstraction.getIndices().size() > 1;
     }
 
     private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {
@@ -971,6 +1024,7 @@ public class IndexNameExpressionResolver {
 
         private final ClusterState state;
         private final IndicesOptions options;
+        private final DataStreamOptions dataStreamOptions;
         private final long startTime;
         private final boolean preserveAliases;
         private final boolean resolveToWriteIndex;
@@ -1014,6 +1068,33 @@ public class IndexNameExpressionResolver {
             this(
                 state,
                 options,
+                DataStreamOptions.EXCLUDE_FAILURE_STORE,
+                System.currentTimeMillis(),
+                preserveAliases,
+                resolveToWriteIndex,
+                includeDataStreams,
+                false,
+                systemIndexAccessLevel,
+                systemIndexAccessPredicate,
+                netNewSystemIndexPredicate
+            );
+        }
+
+        Context(
+            ClusterState state,
+            IndicesOptions options,
+            DataStreamOptions dataStreamOptions,
+            boolean preserveAliases,
+            boolean resolveToWriteIndex,
+            boolean includeDataStreams,
+            SystemIndexAccessLevel systemIndexAccessLevel,
+            Predicate<String> systemIndexAccessPredicate,
+            Predicate<String> netNewSystemIndexPredicate
+        ) {
+            this(
+                state,
+                options,
+                dataStreamOptions,
                 System.currentTimeMillis(),
                 preserveAliases,
                 resolveToWriteIndex,
@@ -1039,6 +1120,7 @@ public class IndexNameExpressionResolver {
             this(
                 state,
                 options,
+                DataStreamOptions.EXCLUDE_FAILURE_STORE,
                 System.currentTimeMillis(),
                 preserveAliases,
                 resolveToWriteIndex,
@@ -1061,6 +1143,7 @@ public class IndexNameExpressionResolver {
             this(
                 state,
                 options,
+                DataStreamOptions.EXCLUDE_FAILURE_STORE,
                 startTime,
                 false,
                 false,
@@ -1075,6 +1158,7 @@ public class IndexNameExpressionResolver {
         protected Context(
             ClusterState state,
             IndicesOptions options,
+            DataStreamOptions dataStreamOptions,
             long startTime,
             boolean preserveAliases,
             boolean resolveToWriteIndex,
@@ -1086,6 +1170,7 @@ public class IndexNameExpressionResolver {
         ) {
             this.state = state;
             this.options = options;
+            this.dataStreamOptions = dataStreamOptions;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
             this.resolveToWriteIndex = resolveToWriteIndex;
@@ -1722,7 +1807,7 @@ public class IndexNameExpressionResolver {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, name -> false, name -> false);
+            super(null, null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, name -> false, name -> false);
         }
 
         @Override

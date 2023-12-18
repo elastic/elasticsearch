@@ -10,6 +10,7 @@ package org.elasticsearch.action.support.master.info;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -25,6 +26,7 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     private String[] indices = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private DataStreamOptions dataStreamOptions = DataStreamOptions.EXCLUDE_FAILURE_STORE;
 
     public ClusterInfoRequest() {}
 
@@ -35,6 +37,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
             in.readStringArray();
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+            dataStreamOptions = DataStreamOptions.readDataStreamOptions(in);
+        }
     }
 
     @Override
@@ -45,6 +50,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         indicesOptions.writeIndicesOptions(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
+            dataStreamOptions.writeDataStreamOptions(out);
+        }
     }
 
     @Override
@@ -60,6 +68,12 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
         return (Request) this;
     }
 
+    @SuppressWarnings("unchecked")
+    public Request dataStreamOptions(DataStreamOptions dataStreamOptions) {
+        this.dataStreamOptions = dataStreamOptions;
+        return (Request) this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -68,6 +82,11 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public DataStreamOptions dataStreamOptions() {
+        return dataStreamOptions;
     }
 
     @Override

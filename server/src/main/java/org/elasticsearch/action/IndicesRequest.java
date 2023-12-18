@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 
 /**
@@ -28,6 +29,14 @@ public interface IndicesRequest {
      * accepted, whether an empty array will be converted to _all, and how wildcards will be expanded if needed.
      */
     IndicesOptions indicesOptions();
+
+    /**
+     * Returns the data stream options used to resolve indices. They tell for instance whether we need to only expand
+     * to the normal backing indices or also to the failure store.
+     */
+    default DataStreamOptions dataStreamOptions() {
+        return DataStreamOptions.EXCLUDE_FAILURE_STORE;
+    }
 
     /**
      * Determines whether the request should be applied to data streams. When {@code false}, none of the names or

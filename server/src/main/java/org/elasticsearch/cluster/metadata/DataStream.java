@@ -236,6 +236,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return indices.get(indices.size() - 1);
     }
 
+    @Nullable
+    public Index getFailureStoreWriteIndex() {
+        return failureIndices.isEmpty() ? null : failureIndices.get(failureIndices.size() - 1);
+    }
+
     /**
      * @param timestamp The timestamp used to select a backing index based on its start and end time.
      * @param metadata  The metadata that is used to fetch the start and end times for backing indices of this data stream.

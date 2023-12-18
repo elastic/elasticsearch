@@ -9,8 +9,10 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -64,6 +66,9 @@ public class RestGetIndicesAction extends BaseRestHandler {
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
+        if (DataStream.isFailureStoreEnabled()) {
+            getIndexRequest.dataStreamOptions(DataStreamOptions.fromRequest(request, getIndexRequest.dataStreamOptions()));
+        }
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
         getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));

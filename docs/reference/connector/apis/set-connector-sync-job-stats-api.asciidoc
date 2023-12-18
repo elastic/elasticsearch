@@ -35,7 +35,7 @@ This API is mainly used by the connector service for updating sync job informati
 ==== {api-request-body-title}
 
 `deleted_document_count`::
-(Required, int) The document count the sync job deleted.
+(Required, int) The number of documents the sync job deleted.
 
 `indexed_document_count`::
 (Required, int) The document count the sync job indexed.

@@ -109,6 +109,10 @@ public class BwcSetupExtension {
                 loggedExec.args("-Dorg.elasticsearch.build.cache.url=" + buildCacheUrl);
             }
 
+            if (System.getProperty("isCI") != null) {
+                loggedExec.args("-DisCI");
+            }
+
             loggedExec.args("-Dbuild.snapshot=true", "-Dscan.tag.NESTED");
             final LogLevel logLevel = project.getGradle().getStartParameter().getLogLevel();
             List<LogLevel> nonDefaultLogLevels = Arrays.asList(LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG);

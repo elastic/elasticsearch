@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -31,7 +32,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -541,12 +541,7 @@ public class RestRequest implements ToXContent.Params {
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
             Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-            BytesReference content = tuple.v2();
-            XContentType xContentType = tuple.v1();
-            try (
-                InputStream stream = content.streamInput();
-                XContentParser parser = xContentType.xContent().createParser(parserConfig, stream)
-            ) {
+            try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
                 withParser.accept(parser);
             }
         } else {

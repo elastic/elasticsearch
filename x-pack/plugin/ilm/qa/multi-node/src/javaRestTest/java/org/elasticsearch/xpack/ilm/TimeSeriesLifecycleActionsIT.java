@@ -77,6 +77,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
@@ -1220,10 +1221,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         // Finally, check that the history index is in a good state
-        Step.StepKey stepKey = getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName("ilm-history-5", 1));
-        assertEquals("hot", stepKey.phase());
-        assertEquals(RolloverAction.NAME, stepKey.action());
-        assertEquals(WaitForRolloverReadyStep.NAME, stepKey.name());
+        String historyIndexName = DataStream.getDefaultBackingIndexName("ilm-history-6", 1);
+        Response explainHistoryIndex = client().performRequest(new Request("GET", historyIndexName + "/_lifecycle/explain"));
+        Map<String, Object> responseMap;
+        try (InputStream is = explainHistoryIndex.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+        Map<String, Object> historyIndexDSLExplain = indexResponse.get(historyIndexName);
+        assertThat(historyIndexDSLExplain, is(notNullValue()));
+        assertThat(historyIndexDSLExplain.get("managed_by_lifecycle"), is(true));
+        assertThat(historyIndexDSLExplain.get("index_creation_date_millis"), is(notNullValue()));
     }
 
     private void createSlmPolicy(String smlPolicy, String repo) throws IOException {

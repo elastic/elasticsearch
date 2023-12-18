@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +46,7 @@ public class RestUpdateConnectorSyncJobIngestionStatsAction extends BaseRestHand
         return channel -> client.execute(
             UpdateConnectorSyncJobIngestionStatsAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, r -> RestStatus.OK)
+            new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );
     }
 }

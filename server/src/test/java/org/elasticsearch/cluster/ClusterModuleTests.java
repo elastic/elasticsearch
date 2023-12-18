@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
@@ -52,7 +53,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -232,7 +232,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     // running them. If the order of the deciders is changed for a valid reason, the order should be
     // changed in the test too.
     public void testAllocationDeciderOrder() {
-        List<Class<? extends AllocationDecider>> expectedDeciders = Arrays.asList(
+        List<Class<? extends AllocationDecider>> expectedDeciders = List.of(
             MaxRetryAllocationDecider.class,
             ResizeAllocationDecider.class,
             ReplicaAfterPrimaryActiveAllocationDecider.class,
@@ -240,6 +240,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             ClusterRebalanceAllocationDecider.class,
             ConcurrentRebalanceAllocationDecider.class,
             EnableAllocationDecider.class,
+            IndexVersionAllocationDecider.class,
             NodeVersionAllocationDecider.class,
             SnapshotInProgressAllocationDecider.class,
             RestoreInProgressAllocationDecider.class,

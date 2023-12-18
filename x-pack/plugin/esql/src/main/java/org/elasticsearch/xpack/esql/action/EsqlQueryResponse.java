@@ -57,7 +57,12 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             EsqlQueryResponse.class
         );
         parser.declareString(optionalConstructorArg(), ID);
-        parser.declareBoolean(optionalConstructorArg(), IS_RUNNING);
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? false : p.booleanValue(),
+            IS_RUNNING,
+            ObjectParser.ValueType.BOOLEAN_OR_NULL
+        );
         parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfo.fromXContent(p), new ParseField("columns"));
         parser.declareField(constructorArg(), (p, c) -> p.list(), new ParseField("values"), ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER = parser.build();
@@ -69,6 +74,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     private final boolean columnar;
     private final String asyncExecutionId;
     private final boolean isRunning;
+    // True if this response is as a result of an async query request
+    private final boolean isAsync;
 
     public EsqlQueryResponse(
         List<ColumnInfo> columns,
@@ -76,7 +83,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         @Nullable Profile profile,
         boolean columnar,
         @Nullable String asyncExecutionId,
-        boolean isRunning
+        boolean isRunning,
+        boolean isAsync
     ) {
         this.columns = columns;
         this.pages = pages;
@@ -84,16 +92,32 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         this.columnar = columnar;
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
+        this.isAsync = isAsync;
     }
 
-    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, @Nullable Profile profile, boolean columnar) {
-        this(columns, pages, profile, columnar, null, false);
+    public EsqlQueryResponse(List<ColumnInfo> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
+        this(columns, pages, profile, columnar, null, false, isAsync);
     }
 
     // Used for XContent reconstruction
     @ParserConstructor
-    public EsqlQueryResponse(@Nullable String asyncExecutionId, boolean isRunning, List<ColumnInfo> columns, List<List<Object>> values) {
-        this(columns, List.of(valuesToPage(columns, values)), null, false, asyncExecutionId, isRunning);
+    public EsqlQueryResponse(@Nullable String asyncExecutionId, Boolean isRunning, List<ColumnInfo> columns, List<List<Object>> values) {
+        this(
+            columns,
+            List.of(valuesToPage(columns, values)),
+            null,
+            false,
+            asyncExecutionId,
+            isRunning != null,
+            isAsync(asyncExecutionId, isRunning)
+        );
+    }
+
+    static boolean isAsync(@Nullable String asyncExecutionId, Boolean isRunning) {
+        if (asyncExecutionId != null || isRunning != null) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -106,10 +130,12 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {
         String asyncExecutionId = null;
         boolean isRunning = false;
+        boolean isAsync = false;
         Profile profile = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ASYNC_QUERY)) {
             asyncExecutionId = in.readOptionalString();
             isRunning = in.readBoolean();
+            isAsync = in.readBoolean();
         }
         List<ColumnInfo> columns = in.readCollectionAsList(ColumnInfo::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
@@ -117,7 +143,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             profile = in.readOptionalWriteable(Profile::new);
         }
         boolean columnar = in.readBoolean();
-        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning);
+        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync);
     }
 
     @Override
@@ -125,6 +151,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ASYNC_QUERY)) {
             out.writeOptionalString(asyncExecutionId);
             out.writeBoolean(isRunning);
+            out.writeBoolean(isAsync);
         }
         out.writeCollection(columns);
         out.writeCollection(pages);
@@ -163,20 +190,33 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return isRunning;
     }
 
+    public boolean isAsync() {
+        return isRunning;
+    }
+
+    private Iterator<? extends ToXContent> asyncPropertiesOrEmpty() {
+        if (isAsync) {
+            return ChunkedToXContentHelper.singleChunk((builder, params) -> {
+                if (asyncExecutionId != null) {
+                    builder.field("id", asyncExecutionId);
+                }
+                builder.field("is_running", isRunning);
+                return builder;
+            });
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         final Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar);
-        Iterator<? extends ToXContent> idIt = Collections.emptyIterator();
-        if (asyncExecutionId != null) {
-            idIt = ChunkedToXContentHelper.field("id", asyncExecutionId);
-        }
         Iterator<ToXContent> profileRender = profile == null
             ? List.<ToXContent>of().iterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
-            idIt,
-            ChunkedToXContentHelper.field("is_running", isRunning),
+            asyncPropertiesOrEmpty(),
             ResponseXContentUtils.columnHeadings(columns),
             ChunkedToXContentHelper.array("values", valuesIt),
             profileRender,

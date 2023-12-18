@@ -45,6 +45,7 @@ import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_ARRAY;
 public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesRequest {
 
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
 
     private static final ConstructingObjectParser<TypedParamValue, Void> PARAM_PARSER = new ConstructingObjectParser<>(
         "params",
@@ -83,7 +84,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private List<TypedParamValue> params = List.of();
-    private TimeValue waitForCompletionTimeout;
+    private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
 

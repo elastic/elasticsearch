@@ -165,7 +165,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                         EsqlQueryResponse.Profile profile = configuration.profile()
                             ? new EsqlQueryResponse.Profile(result.profiles())
                             : null;
-                        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar());
+                        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
                     })
                 )
             )
@@ -221,7 +221,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             false,
             task.getExecutionId().getEncoded(),
-            true // is_running
+            true, // is_running
+            true // isAsync
         );
     }
 

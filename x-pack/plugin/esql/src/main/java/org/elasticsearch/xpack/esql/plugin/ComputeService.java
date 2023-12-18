@@ -159,7 +159,10 @@ public class ComputeService {
             );
             return;
         }
-        // TODO we need a lambda to identify exact subfields usage
+        // The lambda is to say if a TEXT field has an identical exact subfield
+        // We cannot use SearchContext because we don't have it yet.
+        // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
+        // but it would be better to have a proper impl.
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan, x -> true);
 
         LOGGER.debug("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);

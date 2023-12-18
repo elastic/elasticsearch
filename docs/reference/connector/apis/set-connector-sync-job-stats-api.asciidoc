@@ -55,6 +55,9 @@ This API is mainly used by the connector service for updating sync job informati
 `200`::
 Indicates that the connector sync job stats were successfully updated.
 
+`404`::
+No connector sync job matching `connector_sync_job_id` could be found.
+
 [[set-connector-sync-job-stats-api-example]]
 ==== {api-examples-title}
 

@@ -368,7 +368,7 @@ public class BlockBenchmark {
 
     // TODO other types
     // TODO: add DocBlocks/DocVectors
-    @Param({ "int", "long" })
+    @Param({ "boolean", "int", "long" })
     public String dataType;
 
     @Param({ "array", "array-multivalue-null", "vector" })

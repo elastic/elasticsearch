@@ -23,12 +23,14 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 
-public class AddVersionTaskTests {
+public class UpdateVersionsTaskTests {
 
     @Test
     public void addVersion_versionExists() {
@@ -42,7 +44,7 @@ public class AddVersionTaskTests {
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        var newUnit = AddVersionTask.addVersionConstant(unit, Version.fromString("8.10.1"), false);
+        var newUnit = UpdateVersionsTask.addVersionConstant(unit, Version.fromString("8.10.1"), false);
         assertThat(newUnit.isPresent(), is(false));
     }
 
@@ -72,7 +74,7 @@ public class AddVersionTaskTests {
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        AddVersionTask.addVersionConstant(unit, Version.fromString("8.10.2"), false);
+        UpdateVersionsTask.addVersionConstant(unit, Version.fromString("8.10.2"), false);
 
         assertThat(unit, hasToString(updatedVersionJava));
     }
@@ -103,23 +105,85 @@ public class AddVersionTaskTests {
 
         CompilationUnit unit = StaticJavaParser.parse(versionJava);
 
-        AddVersionTask.addVersionConstant(unit, Version.fromString("8.11.1"), true);
+        UpdateVersionsTask.addVersionConstant(unit, Version.fromString("8.11.1"), true);
 
         assertThat(unit, hasToString(updatedVersionJava));
     }
 
     @Test
-    public void updateVersionFile_updatesCorrectly() throws Exception {
-        Version newVersion = new Version(50, 10, 20);
-        String versionField = AbstractVersionTask.toVersionField(newVersion);
+    public void removeVersion_versionDoesntExist() {
+        final String versionJava = """
+            public class Version {
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
+                public static final Version V_8_11_0 = new Version(8_11_00_99);
+                public static final Version CURRENT = V_8_11_0;
+            }""";
 
-        Path versionFile = Path.of("..", AddVersionTask.VERSION_FILE_PATH);
+        CompilationUnit unit = StaticJavaParser.parse(versionJava);
+
+        var newUnit = UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("8.10.2"));
+        assertThat(newUnit.isPresent(), is(false));
+    }
+
+    @Test
+    public void removeVersion_versionIsCurrent() {
+        final String versionJava = """
+            public class Version {
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
+                public static final Version V_8_11_0 = new Version(8_11_00_99);
+                public static final Version CURRENT = V_8_11_0;
+            }""";
+
+        CompilationUnit unit = StaticJavaParser.parse(versionJava);
+
+        var ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("8.11.0"))
+        );
+        assertThat(ex.getMessage(), equalTo("Cannot remove version [8.11.0], it is referenced by CURRENT"));
+    }
+
+    @Test
+    public void removeVersion() {
+        final String versionJava = """
+            public class Version {
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+                public static final Version V_8_10_1 = new Version(8_10_01_99);
+                public static final Version V_8_11_0 = new Version(8_11_00_99);
+                public static final Version CURRENT = V_8_11_0;
+            }""";
+        final String updatedVersionJava = """
+            public class Version {
+
+                public static final Version V_8_10_0 = new Version(8_10_00_99);
+
+                public static final Version V_8_11_0 = new Version(8_11_00_99);
+
+                public static final Version CURRENT = V_8_11_0;
+            }
+            """;
+
+        CompilationUnit unit = StaticJavaParser.parse(versionJava);
+
+        UpdateVersionsTask.removeVersionConstant(unit, Version.fromString("8.10.1"));
+
+        assertThat(unit, hasToString(updatedVersionJava));
+    }
+
+    @Test
+    public void updateVersionFile_addsCorrectly() throws Exception {
+        Version newVersion = new Version(50, 10, 20);
+        String versionField = UpdateVersionsTask.toVersionField(newVersion);
+
+        Path versionFile = Path.of("..", UpdateVersionsTask.VERSION_FILE_PATH);
         CompilationUnit unit = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionFile));
         assertFalse("Test version already exists in the file", findFirstField(unit, versionField).isPresent());
 
         List<FieldDeclaration> existingFields = unit.findAll(FieldDeclaration.class);
 
-        var result = AddVersionTask.addVersionConstant(unit, newVersion, true);
+        var result = UpdateVersionsTask.addVersionConstant(unit, newVersion, true);
         assertThat(result.isPresent(), is(true));
 
         // write out & parse back in again
@@ -142,6 +206,36 @@ public class AddVersionTaskTests {
         // and CURRENT has been updated
         var current = findFirstField(unit, "CURRENT");
         assertThat(current.get().getVariable(0).getInitializer().get(), hasToString(versionField));
+    }
+
+    @Test
+    public void updateVersionFile_removesCorrectly() throws Exception {
+        Path versionFile = Path.of("..", UpdateVersionsTask.VERSION_FILE_PATH);
+        CompilationUnit unit = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionFile));
+
+        List<FieldDeclaration> existingFields = unit.findAll(FieldDeclaration.class);
+
+        var staticVersionFields = unit.findAll(
+            FieldDeclaration.class,
+            f -> f.isStatic() && f.getVariable(0).getTypeAsString().equals("Version")
+        );
+        // remove the last-but-two static version field (skip CURRENT and the latest version)
+        String constant = staticVersionFields.get(staticVersionFields.size() - 3).getVariable(0).getNameAsString();
+
+        Version versionToRemove = UpdateVersionsTask.parseVersionField(constant).orElseThrow(AssertionError::new);
+        var result = UpdateVersionsTask.removeVersionConstant(unit, versionToRemove);
+        assertThat(result.isPresent(), is(true));
+
+        // write out & parse back in again
+        StringWriter writer = new StringWriter();
+        LexicalPreservingPrinter.print(unit, writer);
+        unit = StaticJavaParser.parse(writer.toString());
+
+        // a field has been removed
+        assertThat(unit.findAll(FieldDeclaration.class), hasSize(existingFields.size() - 1));
+        // the removed field does not exist
+        var field = findFirstField(unit, constant);
+        assertThat(field.isPresent(), is(false));
     }
 
     private static Optional<FieldDeclaration> findFirstField(Node node, String name) {

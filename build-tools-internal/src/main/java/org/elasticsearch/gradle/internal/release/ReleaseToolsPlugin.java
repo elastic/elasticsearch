@@ -47,8 +47,12 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         final Version version = VersionProperties.getElasticsearchVersion();
 
-        project.getTasks().register("addVersion", AddVersionTask.class);
-        project.getTasks().register("removeVersion", RemoveVersionTask.class);
+        project.getTasks()
+            .register(
+                "updateVersions",
+                UpdateVersionsTask.class,
+                t -> t.finalizedBy(project.findProject("server").getTasks().named("spotlessApply").get())
+            );
 
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()

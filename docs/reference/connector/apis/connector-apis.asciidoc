@@ -46,6 +46,7 @@ Use the following APIs to manage sync jobs:
 * <<delete-connector-sync-job-api>>
 * <<get-connector-sync-job-api>>
 * <<list-connector-sync-jobs-api>>
+* <<set-connector-sync-job-error-api>>
 
 
 include::cancel-connector-sync-job-api.asciidoc[]
@@ -61,3 +62,4 @@ include::list-connectors-api.asciidoc[]
 include::list-connector-sync-jobs-api.asciidoc[]
 include::update-connector-pipeline-api.asciidoc[]
 include::update-connector-scheduling-api.asciidoc[]
+include::set-connector-sync-job-error-api.asciidoc[]

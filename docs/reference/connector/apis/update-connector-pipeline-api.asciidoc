@@ -11,8 +11,6 @@ Updates the `pipeline` configuration of a connector.
 
 When you create a new connector, the configuration of an <<ingest-pipeline-search-details-generic-reference, ingest pipeline>> is populated with default settings.
 
-include::{es-repo-dir}/ingest/search-ingest-pipelines.asciidoc[]
-
 [[update-connector-pipeline-api-request]]
 ==== {api-request-title}
 

@@ -156,6 +156,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                         // with a null id since nothing was stored on the cluster.
                         taskManager.unregister(searchTask);
                         ActionListener.respondAndRelease(submitListener, searchResponse.clone(null));
+                        searchTask.close();
                     }
                 }
 

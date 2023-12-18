@@ -198,7 +198,7 @@ class MutableSearchResponse implements Releasable {
         if (finalResponse != null) {
             // We have a final response, use it.
             searchResponse = finalResponse;
-            finalResponse.mustIncRef();
+            searchResponse.mustIncRef();
         } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;

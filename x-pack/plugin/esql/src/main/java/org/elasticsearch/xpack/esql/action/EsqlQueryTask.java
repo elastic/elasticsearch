@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -30,15 +29,6 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
         TimeValue keepAlive
     ) {
         super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
-    }
-
-    @Override
-    public synchronized void onResponse(EsqlQueryResponse response) {
-        for (var listener : completionListeners) {
-            response.incRef();
-            listener = ActionListener.releaseAfter(listener, response);
-            listener.onResponse(response);
-        }
     }
 
     @Override

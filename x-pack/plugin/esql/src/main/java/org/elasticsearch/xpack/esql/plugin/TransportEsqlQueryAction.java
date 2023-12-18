@@ -113,6 +113,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        listener = listener.delegateFailureAndWrap(ActionListener::respondAndRelease);
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(
                 request,

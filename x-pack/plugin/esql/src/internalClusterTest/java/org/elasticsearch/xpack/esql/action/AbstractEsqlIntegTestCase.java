@@ -128,9 +128,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
         try {
-            try (var resp = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS)) {
-                return resp;
-            }
+            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }

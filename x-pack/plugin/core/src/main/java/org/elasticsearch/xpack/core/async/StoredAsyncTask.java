@@ -79,7 +79,8 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
      */
     public synchronized void onResponse(Response response) {
         for (ActionListener<Response> listener : completionListeners) {
-            listener.onResponse(response);
+            response.incRef();
+            ActionListener.respondAndRelease(listener, response);
         }
     }
 

@@ -17,7 +17,7 @@ import org.elasticsearch.core.Releasable;
  */
 public final class $Type$BigArrayVector extends AbstractVector implements $Type$Vector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$BigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final $if(boolean)$Bit$else$$Type$$endif$Array values;
 

@@ -18,6 +18,9 @@ public class CarthesianCombinator<T> {
 
     @SuppressWarnings("unchecked")
     CarthesianCombinator(T[] elems, int len) {
+        if (elems.length == 0) {
+            throw new IllegalArgumentException("elems must not be empty");
+        }
         this.elems = elems;
         this.index = new int[len];
         this.result = (T[]) Array.newInstance(elems[0].getClass(), len);

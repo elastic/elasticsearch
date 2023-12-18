@@ -139,7 +139,8 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         searchCoordinationExecutor
                     );
                     ResolveClusterActionRequest remoteRequest = new ResolveClusterActionRequest(originalIndices.indices());
-                    ActionListener<ResolveClusterActionResponse> remoteListener = new ActionListener<ResolveClusterActionResponse>() {
+                    remoteRequest.setParentTask(task.getParentTaskId());
+                    ActionListener<ResolveClusterActionResponse> remoteListener = new ActionListener<>() {
                         @Override
                         public void onResponse(ResolveClusterActionResponse response) {
                             if (resolveClusterTask.isCancelled()) {

@@ -1,6 +1,6 @@
 # Metrics in Elasticsearch
 
-Elasticsearch has the metrics API available in server's (perhaps we should move to lib?) package
+Elasticsearch has the metrics API available in server's package
 `org.elasticsearch.telemetry.metric`.
 This package contains base classes/interfaces for creating and working with metrics.
 Please refer to the javadocs provided in these classes in that package for more details.
@@ -18,7 +18,6 @@ see https://www.elastic.co/guide/en/apm/agent/java/current/metrics.html#metrics-
 
 ## How to choose an instrument
 
-We support various instruments and might be adding more as we go.
 The choice of the right instrument is not always easy as often differences are subtle.
 The simplified algorithm could be as follows:
 
@@ -45,7 +44,7 @@ for more details
 
 ## How to name an instrument
 See the naming guidelines for metrics:
-https://docs.google.com/document/d/1jKxuaZi7QAMIRD_Eq3nonkYswVlQXW5TWllJEicoOtM/edit#heading=h.jxn90hx2ayic
+[NAMING GUIDE](NAMING.md)
 
 ### Restarts and overflows
 if the instrument is correctly chosen, the apm server will be able to determine if the metrics
@@ -70,7 +69,7 @@ There are 2 types of usages of an instrument depending on a type.
 ```java
 MeterRegistry registry;
 long someValue = 1;
-registry.registerLongGauge("es.test.cpu.temperature", "a test gauge", "celcius",
+registry.registerLongGauge("es.test.cpu.temperature", "the current CPU temperature as measured by psensor", "degrees Celsius",
 () -> new LongWithAttributes(someValue, Map.of("cpuNumber", 1)));
 ```
 
@@ -88,44 +87,19 @@ of value that was reported during the metric event
 
 ## Development
 
-### Fake http server
+### Mock http server
 
 The quickest way to verify that your metrics are working is to run `./gradlew run --with-apm-server`.
-This will run ES node (or nodes in serverless) and also start a fake http server that will act
+This will run ES node (or nodes in serverless) and also start a mock http server that will act
 as an apm server. This fake http server will log all the http messages it receives from apm-agent
 
 ### With APM server in cloud
 You can also run local ES node with an apm server in cloud.
-Create a new deployment in cloud, then click the 'hamburger :)' on the left, scroll to Observability and click APM under it.
+Create a new deployment in cloud, then click the 'hamburger' on the left, scroll to Observability and click APM under it.
 At the upper right corner there is `Add data` link, then scroll down to `ApmAgents` section and pick Java
 There you should be able to see `elastic.apm.secret_token` and `elastic.apm.server_url. You will use them in the next step.
 
-Next you should create a file `apm_server_ess.gradle`
-in a different directory than your elasticsearch checkout (so that branch changes don't remove it)
-The content of the file:
-```
-rootProject {
-  if (project.name == 'elasticsearch') {
-    afterEvaluate {
-      testClusters.matching { it.name == "runTask" }.configureEach {
-        setting 'xpack.security.audit.enabled', 'true'
-        keystore 'tracing.apm.secret_token', 'REDACTED'
-        setting 'telemetry.metrics.enabled', 'true'
-
-      setting 'tracing.apm.agent.server_url', 'https://REDACTED:443'
-      }
-    }
-  }
-}
-```
-Use the secret_token and server_url (REDACTED) from previous step.
-
-you can run your local ES node with APM in ESS with this command
-`./gradlew run -I ../apm_enable_statefull.gradle`
-
-#### An init.d gradle setup
-
-Alternatively you can edit your `~/.gradle/init.d/apm.gradle`
+edit your `~/.gradle/init.d/apm.gradle` and replace the secret_token and the server_url.
 ```groovy
 rootProject {
     if (project.name == 'elasticsearch' && Boolean.getBoolean('metrics.enabled')) {
@@ -145,9 +119,6 @@ The example use:
 ```
 ./gradlew :run -Dmetrics.enabled=true
 ```
-
-
-
 
 #### Logging
 with any approach you took to run your ES with APM you will find apm-agent.json file

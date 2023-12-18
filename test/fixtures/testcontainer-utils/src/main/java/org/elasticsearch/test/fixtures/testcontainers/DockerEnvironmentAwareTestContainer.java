@@ -58,13 +58,13 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
 
     public DockerEnvironmentAwareTestContainer(ImageFromDockerfile imageFromDockerfile) {
         super(imageFromDockerfile);
-        withLogConsumer(new Slf4jLogConsumer(logger()));
     }
 
     @Override
     public void start() {
         Assume.assumeFalse("Docker support excluded on OS", EXCLUDED_OS);
         Assume.assumeTrue("Docker probing succesful", DOCKER_PROBING_SUCCESSFUL);
+        withLogConsumer(new Slf4jLogConsumer(logger()));
         super.start();
     }
 

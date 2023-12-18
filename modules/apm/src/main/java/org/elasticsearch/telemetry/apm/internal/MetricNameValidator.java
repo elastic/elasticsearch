@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 public class MetricNameValidator {
     private final Pattern ALLOWED_CHARACTERS = Pattern.compile("[a-z][a-z0-9_]*");
-    private final Set<String> LAST_ELEMENT_ALLOW_LIST = Set.of(
+    private final Set<String> ALLOWED_SUFFIXES = Set.of(
         "size",
         "total",
         "count",
@@ -27,7 +27,8 @@ public class MetricNameValidator {
         "time"
     );
 
-    static final int MAX_ELEMENT_LENGTH = 30;
+    public static final int MAX_ELEMENT_LENGTH = 30;
+    public static final int MAX_NUMBER_OF_ELEMENTS = 10;
 
     public void validate(String name) {
         String[] elements = name.split("\\.");
@@ -41,10 +42,10 @@ public class MetricNameValidator {
 
     private void lastElementIsFromAllowListOrPlural(String[] elements, String name) {
         String lastElement = elements[elements.length - 1];
-        if (LAST_ELEMENT_ALLOW_LIST.contains(lastElement) == false) {
+        if (ALLOWED_SUFFIXES.contains(lastElement) == false) {
             throw new IllegalArgumentException(
                 "Metric name should end with one of ["
-                    + LAST_ELEMENT_ALLOW_LIST.stream().collect(Collectors.joining(","))
+                    + ALLOWED_SUFFIXES.stream().collect(Collectors.joining(","))
                     + "] "
                     + "Last element was: "
                     + lastElement
@@ -56,7 +57,7 @@ public class MetricNameValidator {
     }
 
     private void hasNotBreachNumberOfElementsLimit(String[] elements, String name) {
-        if (elements.length > 10) {
+        if (elements.length > MAX_NUMBER_OF_ELEMENTS) {
             throw new IllegalArgumentException(
                 "Metric name should have at most 10 elements. It had: " + elements.length + ". The name was: " + name
             );

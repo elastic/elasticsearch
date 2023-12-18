@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -34,7 +36,11 @@ public class ToGeoPoint extends AbstractConvertFunction {
         Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
     );
 
-    public ToGeoPoint(Source source, Expression field) {
+    @FunctionInfo(returnType = "geo_point")
+    public ToGeoPoint(
+        Source source,
+        @Param(name = "v", type = { "geo_point", "long", "unsigned_long", "keyword", "text" }) Expression field
+    ) {
         super(source, field);
     }
 
@@ -58,7 +64,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
         return NodeInfo.create(this, ToGeoPoint::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { RuntimeException.class })
     static long fromKeyword(BytesRef in) {
         return GEO.pointAsLong(GEO.stringAsPoint(in.utf8ToString()));
     }

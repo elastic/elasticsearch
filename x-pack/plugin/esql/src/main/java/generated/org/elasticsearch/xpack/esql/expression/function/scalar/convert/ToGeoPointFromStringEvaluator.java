@@ -4,8 +4,8 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
+import java.lang.RuntimeException;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
@@ -40,7 +40,7 @@ public final class ToGeoPointFromStringEvaluator extends AbstractConvertFunction
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (IllegalArgumentException  e) {
+      } catch (RuntimeException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
@@ -49,7 +49,7 @@ public final class ToGeoPointFromStringEvaluator extends AbstractConvertFunction
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendLong(evalValue(vector, p, scratchPad));
-        } catch (IllegalArgumentException  e) {
+        } catch (RuntimeException  e) {
           registerException(e);
           builder.appendNull();
         }
@@ -84,7 +84,7 @@ public final class ToGeoPointFromStringEvaluator extends AbstractConvertFunction
             }
             builder.appendLong(value);
             valuesAppended = true;
-          } catch (IllegalArgumentException  e) {
+          } catch (RuntimeException  e) {
             registerException(e);
           }
         }

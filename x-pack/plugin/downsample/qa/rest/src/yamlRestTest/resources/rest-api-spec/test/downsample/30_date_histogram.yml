@@ -39,18 +39,18 @@ setup:
           - '{ "index": {} }'
           - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "004", "total_memory_used": 120770 }'
 
-  - do:
-      indices.put_settings:
-        index: test
-        body:
-          index.blocks.write: true
-
 ---
 "Date histogram aggregation on time series index and rollup indices":
   - skip:
       version: " - 8.4.99"
       reason: "rollup: unsupported aggregations errors added in 8.5.0"
       features: close_to
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
 
   - do:
       indices.downsample:
@@ -142,24 +142,6 @@ setup:
   - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z"}
   - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
 
-  # date histogram aggregation with non-utc timezone on rollup index not supported
-  - do:
-      catch: bad_request
-      search:
-        index: test-downsample
-        body:
-          size: 0
-          aggs:
-            date_histogram:
-              date_histogram:
-                field: "@timestamp"
-                fixed_interval: 1h
-                time_zone: "America/New_York"
-
-  - match: { status: 400 }
-  - match: { error.root_cause.0.type: illegal_argument_exception }
-  - match: { error.root_cause.0.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with timezone [America/New_York]" }
-
   # date histogram aggregation with non-utc timezone on time series index supported
   - do:
       search:
@@ -247,3 +229,175 @@ setup:
   - match: { _shards.failures.0.index: "test-downsample" }
   - match: { _shards.failures.0.reason.type: illegal_argument_exception }
   - match: { _shards.failures.0.reason.reason: "Field [@timestamp] of type [date] is not supported for aggregation [date_histogram] with interval type [calendar_interval]" }
+
+---
+timezone support - 15m:
+  - skip:
+      version: " - 8.12.99"
+      reason: "timezone support added in 8.13"
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T10:05:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T10:55:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T11:05:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T11:55:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T12:05:00Z", "uid": "001", "total_memory_used": 120770 }'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "15m"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2021-04-28T15:00:00Z"
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T14:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "-01:30"
+          query:
+            range:
+              "@timestamp":
+                lt: "2021-04-28T15:00:00Z"
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T08:00:00.000-01:30" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2021-04-28T09:00:00.000-01:30" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2021-04-28T10:00:00.000-01:30" }
+
+---
+timezone support - 1h:
+  - skip:
+      version: " - 8.12.99"
+      reason: "timezone support added in 8.13"
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T10:05:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T10:55:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T11:05:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T11:55:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T12:05:00Z", "uid": "001", "total_memory_used": 120770 }'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "America/New_York"
+          query:
+            range:
+              "@timestamp":
+                gt: "2021-04-28T15:00:00Z"
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 4 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T14:00:00.000-04:00" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1619632800000 }
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          size: 0
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+                time_zone: "-01:30"
+          query:
+            range:
+              "@timestamp":
+                lt: "2021-04-28T15:00:00Z"
+
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.date_histogram.buckets: 3 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2021-04-28T08:00:00.000-01:30" }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2021-04-28T09:00:00.000-01:30" }
+  - match: { aggregations.date_histogram.buckets.2.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.2.key_as_string: "2021-04-28T10:00:00.000-01:30" }

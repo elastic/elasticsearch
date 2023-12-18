@@ -419,12 +419,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
 
         final ZoneId tz = timeZone();
-        if (context.getIndexSettings().getIndexMetadata().isDownsampledIndex() && tz != null && ZoneId.of("UTC").equals(tz) == false) {
-            throw new IllegalArgumentException(
-                config.getDescription() + " is not supported for aggregation [" + getName() + "] with timezone [" + tz + "]"
-            );
-        }
-
         DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
 

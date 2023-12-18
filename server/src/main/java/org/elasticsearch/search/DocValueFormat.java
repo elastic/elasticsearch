@@ -248,11 +248,7 @@ public interface DocValueFormat extends NamedWriteable {
                 */
                 in.readBoolean();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                this.formatSortValues = in.readBoolean();
-            } else {
-                this.formatSortValues = false;
-            }
+            this.formatSortValues = in.readBoolean();
         }
 
         @Override
@@ -272,9 +268,7 @@ public interface DocValueFormat extends NamedWriteable {
                 */
                 out.writeBoolean(false);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                out.writeBoolean(formatSortValues);
-            }
+            out.writeBoolean(formatSortValues);
         }
 
         public DateMathParser getDateMathParser() {

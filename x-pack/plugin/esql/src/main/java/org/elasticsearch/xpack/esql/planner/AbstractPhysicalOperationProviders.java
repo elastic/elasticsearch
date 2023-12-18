@@ -301,7 +301,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         }
 
         ElementType elementType() {
-            return LocalExecutionPlanner.toElementType(attribute.dataType());
+            return PlannerUtils.toElementType(attribute.dataType());
         }
     }
 

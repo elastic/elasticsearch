@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.OS
+
 apply plugin: 'elasticsearch.build'
 
 base {
@@ -38,6 +40,12 @@ tasks.named("dependencyLicenses").configure {
 tasks.named("test").configure {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
+  // These tests are "heavy" on the secure number generator. On Linux, the NativePRNG defaults to /dev/random for the seeds, and
+  // its entropy is quite limited, to the point that it's known to hang: https://bugs.openjdk.org/browse/JDK-6521844
+  // We force the seed to be initialized from /dev/urandom, which is less secure, but in case of unit tests is not important.
+  if (OS.current() == OS.LINUX) {
+    systemProperty 'java.security.egd', 'file:/dev/urandom'
+  }
 }
 
 /*

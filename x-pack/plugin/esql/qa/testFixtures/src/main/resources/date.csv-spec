@@ -139,9 +139,9 @@ emp_no:integer | birth_date:date               | x:date
 ;
 
 evalDateTruncGrouping
-from employees | eval y = date_trunc(1 year, hire_date) | stats count(emp_no) by y | sort y | keep y, count(emp_no) | limit 5;
+from employees | eval y = date_trunc(1 year, hire_date) | stats c = count(emp_no) by y | sort y | keep y, c | limit 5;
 
-y:date                        | count(emp_no):long
+y:date                        | c:long
 1985-01-01T00:00:00.000Z      | 11       
 1986-01-01T00:00:00.000Z      | 11                  
 1987-01-01T00:00:00.000Z      | 15                 
@@ -724,4 +724,46 @@ birth_date:datetime
 1952-06-13T00:00:00.000Z
 1952-02-27T00:00:00.000Z
 1953-04-21T00:00:00.000Z
+;
+
+docsGettingStartedAutoBucket
+// tag::gs-auto_bucket[]
+FROM sample_data
+| KEEP @timestamp
+| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+// end::gs-auto_bucket[]
+| LIMIT 0
+;
+
+@timestamp:date | bucket:date
+;
+
+docsGettingStartedAutoBucketStatsBy
+// tag::gs-auto_bucket-stats-by[]
+FROM sample_data
+| KEEP @timestamp, event_duration
+| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| STATS COUNT(*) BY bucket
+// end::gs-auto_bucket-stats-by[]
+| SORT bucket
+;
+
+COUNT(*):long | bucket:date
+2              |2023-10-23T12:00:00.000Z
+5              |2023-10-23T13:00:00.000Z
+;
+
+docsGettingStartedAutoBucketStatsByMedian
+// tag::gs-auto_bucket-stats-by-median[]
+FROM sample_data
+| KEEP @timestamp, event_duration
+| EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| STATS median_duration = MEDIAN(event_duration) BY bucket
+// end::gs-auto_bucket-stats-by-median[]
+| SORT bucket
+;
+
+median_duration:double | bucket:date
+3107561.0              |2023-10-23T12:00:00.000Z
+1756467.0              |2023-10-23T13:00:00.000Z
 ;

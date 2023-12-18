@@ -328,24 +328,15 @@ groups:: _(Recommended)_
 +
 [NOTE]
 ====
-Some IdPs are configured to send the `groups` list as a comma-separated string,
-but {es} can't parse this string into an array of groups. To map this SAML
-attribute to the `attributes.groups` setting in the {es} realm, a cluster
-security administrator can use a wildcard when
-<<saml-role-mapping,configuring role mappings>>. While flexible, wildcards are
-less accurate and can match on unwanted patterns. Instead, a cluster security
-administrator can use a regular expression to create a role mapping rule that
-matches only a single group. For example, the following regular expression
-matches only on the `elasticsearch-admins` group:
+Some IdPs are configured to send the `groups` list as a single value, comma-separated
+string. To map this SAML attribute to the `attributes.groups` setting in the {es}
+realm, you can configure a string delimiter using the `attribute_delimiters.group`
+setting.
 
-[source,sh]
-----
-/^(.*,)?elasticsearch-admins(,.*)?$/
-----
-
-These regular expressions are based on Lucene’s
-{ref}/regexp-syntax.html[regular expression syntax], and can match more complex
-patterns. All regular expressions must start and end with a forward slash.
+For example, splitting the SAML attribute value
+`engineering,elasticsearch-admins,employees` on a delimiter value of `,` will
+result in `engineering`, `elasticsearch-admins`, and `employees` as the list of
+groups for the user.
 ====
 
 name:: _(Optional)_ The user's full name.

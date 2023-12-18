@@ -91,7 +91,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         NUM_DOCS = between(4 * PAGE_SIZE, 5 * PAGE_SIZE);
         READ_DESCRIPTION = """
             \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = PAGE_SIZE, limit = 2147483647]
-            \\_ValuesSourceReaderOperator[field = pause_me]
+            \\_ValuesSourceReaderOperator[fields = [pause_me]]
             \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
             \\_ExchangeSinkOperator""".replace("PAGE_SIZE", Integer.toString(PAGE_SIZE));
         MERGE_DESCRIPTION = """
@@ -175,7 +175,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                         luceneSources++;
                         continue;
                     }
-                    if (o.operator().equals("ValuesSourceReaderOperator[field = pause_me]")) {
+                    if (o.operator().equals("ValuesSourceReaderOperator[fields = [pause_me]]")) {
                         ValuesSourceReaderOperator.Status oStatus = (ValuesSourceReaderOperator.Status) o.status();
                         assertMap(
                             oStatus.readersBuilt(),
@@ -266,9 +266,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                 .put("status_interval", "0ms")
                 .build()
         );
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query("from test | stats sum(pause_me)")
-            .pragmas(pragmas)
-            .execute();
+        return new EsqlQueryRequestBuilder(client()).query("from test | stats sum(pause_me)").pragmas(pragmas).execute();
     }
 
     private void cancelTask(TaskId taskId) {

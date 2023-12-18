@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.Scroll;
@@ -19,12 +18,12 @@ import org.elasticsearch.search.Scroll;
  */
 public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrollRequest, SearchResponse> {
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, ActionType<SearchResponse> action) {
-        super(client, action, new SearchScrollRequest());
+    public SearchScrollRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportSearchScrollAction.TYPE, new SearchScrollRequest());
     }
 
-    public SearchScrollRequestBuilder(ElasticsearchClient client, ActionType<SearchResponse> action, String scrollId) {
-        super(client, action, new SearchScrollRequest(scrollId));
+    public SearchScrollRequestBuilder(ElasticsearchClient client, String scrollId) {
+        super(client, TransportSearchScrollAction.TYPE, new SearchScrollRequest(scrollId));
     }
 
     /**

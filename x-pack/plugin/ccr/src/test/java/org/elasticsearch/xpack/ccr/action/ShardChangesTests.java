@@ -134,7 +134,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         client().admin().indices().forceMerge(forceMergeRequest).actionGet();
 
         indicesAdmin().execute(
-            RetentionLeaseActions.Add.INSTANCE,
+            RetentionLeaseActions.ADD,
             new RetentionLeaseActions.AddRequest(new ShardId(resolveIndex("index"), 0), "test", RetentionLeaseActions.RETAIN_ALL, "ccr")
         ).get();
 

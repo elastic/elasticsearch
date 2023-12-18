@@ -11,12 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -27,7 +26,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class TransportGetFlamegraphAction extends HandledTransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
+public class TransportGetFlamegraphAction extends TransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetFlamegraphAction.class);
     private static final StackFrame EMPTY_STACKFRAME = new StackFrame("", "", 0, 0);
 
@@ -36,7 +35,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
 
     @Inject
     public TransportGetFlamegraphAction(NodeClient nodeClient, TransportService transportService, ActionFilters actionFilters) {
-        super(GetFlamegraphAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetFlamegraphAction.NAME, actionFilters, transportService.getTaskManager());
         this.nodeClient = nodeClient;
         this.transportService = transportService;
     }
@@ -147,10 +146,6 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         private int size = 0;
         private long selfCPU;
         private long totalCPU;
-        private double selfAnnualCO2Tons;
-        private double totalAnnualCO2Tons;
-        private double selfAnnualCostsUSD;
-        private double totalAnnualCostsUSD;
         // totalSamples is the total number of samples in the stacktraces
         private final long totalSamples;
         // Map: FrameGroupId -> NodeId
@@ -229,10 +224,8 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             this.totalCPU += samples;
             this.countExclusive.add(0L);
             this.annualCO2TonsInclusive.add(annualCO2Tons);
-            this.totalAnnualCO2Tons += annualCO2Tons;
             this.annualCO2TonsExclusive.add(0.0);
             this.annualCostsUSDInclusive.add(annualCostsUSD);
-            this.totalAnnualCostsUSD += annualCostsUSD;
             this.annualCostsUSDExclusive.add(0.0);
             if (frameGroupId != null) {
                 this.edges.get(currentNode).put(frameGroupId, node);
@@ -268,25 +261,21 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         public void addAnnualCO2TonsInclusive(int nodeId, double annualCO2Tons) {
             Double priorAnnualCO2Tons = this.annualCO2TonsInclusive.get(nodeId);
             this.annualCO2TonsInclusive.set(nodeId, priorAnnualCO2Tons + annualCO2Tons);
-            this.totalAnnualCO2Tons += annualCO2Tons;
         }
 
         public void addAnnualCO2TonsExclusive(int nodeId, double annualCO2Tons) {
             Double priorAnnualCO2Tons = this.annualCO2TonsExclusive.get(nodeId);
             this.annualCO2TonsExclusive.set(nodeId, priorAnnualCO2Tons + annualCO2Tons);
-            this.selfAnnualCO2Tons += annualCO2Tons;
         }
 
         public void addAnnualCostsUSDInclusive(int nodeId, double annualCostsUSD) {
             Double priorAnnualCostsUSD = this.annualCostsUSDInclusive.get(nodeId);
             this.annualCostsUSDInclusive.set(nodeId, priorAnnualCostsUSD + annualCostsUSD);
-            this.totalAnnualCostsUSD += annualCostsUSD;
         }
 
         public void addAnnualCostsUSDExclusive(int nodeId, double annualCostsUSD) {
             Double priorAnnualCostsUSD = this.annualCostsUSDExclusive.get(nodeId);
             this.annualCostsUSDExclusive.set(nodeId, priorAnnualCostsUSD + annualCostsUSD);
-            this.selfAnnualCostsUSD += annualCostsUSD;
         }
 
         public GetFlamegraphResponse build() {
@@ -311,10 +300,6 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 annualCostsUSDExclusive,
                 selfCPU,
                 totalCPU,
-                selfAnnualCO2Tons,
-                totalAnnualCO2Tons,
-                selfAnnualCostsUSD,
-                totalAnnualCostsUSD,
                 totalSamples
             );
         }

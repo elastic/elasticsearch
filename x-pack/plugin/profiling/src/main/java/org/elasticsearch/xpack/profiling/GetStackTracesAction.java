@@ -7,12 +7,13 @@
 package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public final class GetStackTracesAction extends ActionType<GetStackTracesResponse> {
     public static final GetStackTracesAction INSTANCE = new GetStackTracesAction();
     public static final String NAME = "indices:data/read/profiling/stack_traces";
 
     private GetStackTracesAction() {
-        super(NAME, GetStackTracesResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

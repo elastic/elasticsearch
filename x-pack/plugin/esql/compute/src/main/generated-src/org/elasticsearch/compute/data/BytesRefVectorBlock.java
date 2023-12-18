@@ -89,4 +89,9 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
     }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
 }

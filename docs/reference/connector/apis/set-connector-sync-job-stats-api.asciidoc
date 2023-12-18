@@ -21,7 +21,7 @@ Sets connector sync job stats.
 
 Sets the stats for a connector sync job.
 Stats include: `deleted_document_count`, `indexed_document_count`, `indexed_document_volume` and `total_document_count`.
-`last_seen` can also be update using this API.
+`last_seen` can also be updated using this API.
 This API is mainly used by the connector service for updating sync job information.
 
 [[set-connector-sync-job-stats-api-path-params]]

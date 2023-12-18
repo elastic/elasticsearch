@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
@@ -794,7 +793,6 @@ public abstract class StreamInput extends InputStream {
             case 28 -> readDuration();
             case 29 -> readPeriod();
             case 30 -> readNamedWriteable(GenericNamedWriteable.class);
-            case 31 -> readPoint();
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }
@@ -862,13 +860,6 @@ public abstract class StreamInput extends InputStream {
      */
     public GeoPoint readGeoPoint() throws IOException {
         return new GeoPoint(readDouble(), readDouble());
-    }
-
-    /**
-     * Reads a {@link SpatialPoint} from this stream input
-     */
-    public SpatialPoint readPoint() throws IOException {
-        return new SpatialPoint(readDouble(), readDouble());
     }
 
     /**

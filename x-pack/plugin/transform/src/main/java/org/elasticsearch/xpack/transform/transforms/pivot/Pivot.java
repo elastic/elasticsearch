@@ -43,7 +43,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -93,10 +92,6 @@ public class Pivot extends AbstractCompositeAggFunction {
         SourceConfig sourceConfig,
         final ActionListener<Map<String, String>> listener
     ) {
-        if (Boolean.FALSE.equals(settings.getDeduceMappings())) {
-            listener.onResponse(emptyMap());
-            return;
-        }
         SchemaUtil.deduceMappings(
             client,
             headers,

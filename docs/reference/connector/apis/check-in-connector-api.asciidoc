@@ -1,34 +1,37 @@
-[[delete-connector-api]]
-=== Delete connector API
+[[check-in-connector-api]]
+=== Check in connector API
 
 preview::[]
 
 ++++
-<titleabbrev>Delete connector</titleabbrev>
+<titleabbrev>Check in a connector</titleabbrev>
 ++++
 
-Removes a connector and its associated data.
-This is a destructive action that is not recoverable.
+Updates the `last_seen` field of a connector with current timestamp.
 
-[[delete-connector-api-request]]
+[[check-in-connector-api-request]]
 ==== {api-request-title}
 
-`DELETE _connector/<connector_id>`
+`PUT _connector/<connector_id>/_check_in`
 
-[[delete-connector-api-prereq]]
+[[check-in-connector-api-prereq]]
 ==== {api-prereq-title}
 
 * To sync data using connectors, it's essential to have the Elastic connectors service running.
 * The `connector_id` parameter should reference an existing connector.
 
-[[delete-connector-api-path-params]]
+[[check-in-connector-api-path-params]]
 ==== {api-path-parms-title}
 
 `<connector_id>`::
 (Required, string)
 
-[[delete-connector-api-response-codes]]
+
+[[check-in-connector-api-response-codes]]
 ==== {api-response-codes-title}
+
+`200`::
+Connector `last_seen` field was successfully updated with a current timestamp.
 
 `400`::
 The `connector_id` was not provided.
@@ -36,10 +39,10 @@ The `connector_id` was not provided.
 `404` (Missing resources)::
 No connector matching `connector_id` could be found.
 
-[[delete-connector-api-example]]
+[[check-in-connector-api-example]]
 ==== {api-examples-title}
 
-The following example deletes the connector with ID `my-connector`:
+The following example updates the `last_seen` property with current timestamp for the connector with ID `my-connector`:
 
 ////
 [source, console]
@@ -52,16 +55,22 @@ PUT _connector/my-connector
 }
 --------------------------------------------------
 // TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _connector/my-connector
+--------------------------------------------------
+// TEARDOWN
 ////
 
 [source,console]
 ----
-DELETE _connector/my-connector
+PUT _connector/my-connector/_check_in
 ----
 
 [source,console-result]
 ----
 {
-    "acknowledged": true
+    "result": "updated"
 }
 ----

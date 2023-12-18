@@ -1,0 +1,5 @@
+pr: 103508
+summary: "[Connectors API] Fix `ClassCastException` when creating a new sync job"
+area: Application
+type: bug
+issues: []

@@ -35,12 +35,12 @@ public class MetricNameValidator {
         hasESPrefix(elements, name);
         hasAtLeast3Elements(elements, name);
         hasNotBreachNumberOfElementsLimit(elements, name);
-        lastElementIsFromAllowListOrPlural(elements, name);
+        lastElementIsFromAllowList(elements, name);
 
         perElementValidations(elements, name);
     }
 
-    private void lastElementIsFromAllowListOrPlural(String[] elements, String name) {
+    private void lastElementIsFromAllowList(String[] elements, String name) {
         String lastElement = elements[elements.length - 1];
         if (ALLOWED_SUFFIXES.contains(lastElement) == false) {
             throw new IllegalArgumentException(

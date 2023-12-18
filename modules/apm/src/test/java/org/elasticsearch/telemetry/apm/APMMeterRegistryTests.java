@@ -118,7 +118,7 @@ public class APMMeterRegistryTests extends ESTestCase {
 
     // note this method will create more groups than allowed to test error scenarios
     private String metricNameWithLength(int length) {
-        int prefixAndSuffix = "es.".length() + ".utilisation".length();
+        int prefixAndSuffix = "es.".length() + ".utilization".length();
         assert length > prefixAndSuffix : "length too short";
 
         var remainingChars = length - prefixAndSuffix;
@@ -135,7 +135,7 @@ public class APMMeterRegistryTests extends ESTestCase {
             i++;
 
         }
-        metricName.append("utilisation");
+        metricName.append("utilization");
         return metricName.toString();
     }
 

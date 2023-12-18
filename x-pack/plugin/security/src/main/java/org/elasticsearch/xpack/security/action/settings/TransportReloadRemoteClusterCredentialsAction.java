@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.security.Security;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * This is a local-only action which updates remote cluster credentials for remote cluster connections, from keystore settings reloaded via
@@ -65,17 +66,13 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         if (clusterBlockException != null) {
             throw clusterBlockException;
         }
-        final Settings persistentSettings = clusterState.metadata().persistentSettings();
-        final Settings transientSettings = clusterState.metadata().transientSettings();
-        final Settings combinedSettings = Settings.builder()
-            .put(request.getSettings(), true)
-            .put(persistentSettings, false)
-            .put(transientSettings, false)
-            .build();
-        remoteClusterService.updateRemoteClusterCredentials(
-            combinedSettings,
-            ActionListener.wrap(nothing -> listener.onResponse(ActionResponse.Empty.INSTANCE), listener::onFailure)
-        );
+        // Use a supplier to ensure we resolve cluster settings inside a synchronized block, to prevent race conditions
+        final Supplier<Settings> settingsSupplier = () -> {
+            final Settings persistentSettings = clusterState.metadata().persistentSettings();
+            final Settings transientSettings = clusterState.metadata().transientSettings();
+            return Settings.builder().put(request.getSettings(), true).put(persistentSettings, false).put(transientSettings, false).build();
+        };
+        remoteClusterService.updateRemoteClusterCredentials(settingsSupplier, listener.safeMap(ignored -> ActionResponse.Empty.INSTANCE));
     }
 
     private ClusterBlockException checkBlock(ClusterState clusterState) {

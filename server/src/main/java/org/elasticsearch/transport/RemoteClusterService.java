@@ -50,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
@@ -304,6 +305,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (remote != null) {
             remote.setSkipUnavailable(skipUnavailable);
         }
+    }
+
+    public synchronized void updateRemoteClusterCredentials(Supplier<Settings> settingsSupplier, ActionListener<Void> listener) {
+        updateRemoteClusterCredentials(settingsSupplier.get(), listener);
     }
 
     public synchronized void updateRemoteClusterCredentials(Settings settings, ActionListener<Void> listener) {

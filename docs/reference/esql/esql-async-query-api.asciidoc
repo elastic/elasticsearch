@@ -78,8 +78,7 @@ finished, and the results are returned.
   "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
   "is_running": false,
   "columns": ...
-  "values": ...
 }
 ----
 // TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
-// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+// TESTRESPONSE[s/"columns": \.\.\./"columns": $body.hits/]

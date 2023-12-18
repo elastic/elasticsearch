@@ -39,12 +39,12 @@ public class ApiKeyFieldNameTranslators {
      * Translate the query level field name to index level field names.
      * It throws an exception if the field name is not explicitly allowed.
      */
-    public static String translate(String fieldName, @Nullable Set<String> visitedMappingFieldNames) {
+    public static String translate(String fieldName, @Nullable Set<String> accessedMappingFieldNames) {
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
             if (translator.supports(fieldName)) {
                 String mappingFieldName = translator.translate(fieldName);
-                if (visitedMappingFieldNames != null) {
-                    visitedMappingFieldNames.add(mappingFieldName);
+                if (accessedMappingFieldNames != null) {
+                    accessedMappingFieldNames.add(mappingFieldName);
                 }
                 return mappingFieldName;
             }

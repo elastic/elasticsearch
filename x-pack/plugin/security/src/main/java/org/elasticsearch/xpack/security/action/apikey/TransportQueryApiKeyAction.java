@@ -79,6 +79,7 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
             request.isFilterForCurrentUser() ? authentication : null
         );
         searchSourceBuilder.query(apiKeyBoolQueryBuilderAndMappingFields.v1());
+        // conditionally add the request-wise runtime field for API key type only if the type field is actually queried
         if (apiKeyBoolQueryBuilderAndMappingFields.v2().contains(API_KEY_TYPE_RUNTIME_MAPPING_FIELD)) {
             searchSourceBuilder.runtimeMappings(API_KEY_TYPE_RUNTIME_MAPPING);
         }

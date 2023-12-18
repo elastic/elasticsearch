@@ -374,8 +374,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         // TODO add support for other roles? If so, it may have to be an instance method...
         // NOTE, whatever determines assignment should not be dynamically set on the node
         // Otherwise assignment logic might fail
-        public static boolean mayAssignToNode(DiscoveryNode node) {
-            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && MlConfigVersion.fromNode(node).onOrAfter(VERSION_INTRODUCED);
+        public static boolean mayAssignToNode(@Nullable DiscoveryNode node) {
+            return node != null
+                && node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)
+                && MlConfigVersion.fromNode(node).onOrAfter(VERSION_INTRODUCED);
         }
 
         public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_8_0_0;

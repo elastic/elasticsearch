@@ -18,7 +18,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -42,7 +44,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.IngestServiceTests;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -59,10 +61,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.IntConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
@@ -70,7 +72,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -199,6 +200,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
+        when(state.nodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()
             .indices(
                 Map.of(
@@ -230,15 +232,21 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
-        ingestService = spy(IngestServiceTests.createIngestService());
-        doNothing().when(ingestService).executeBulkRequest(
-            anyInt(),
-            any(),
-            any(),
-            any(),
-            any(),
-            any()
+        ingestService = spy(
+            new IngestService(
+                clusterService,
+                createThreadPool(),
+                null,
+                null,
+                null,
+                List.of(),
+                mock(Client.class),
+                null,
+                () -> DocumentParsingObserver.EMPTY_INSTANCE
+            )
         );
+        doNothing().when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        ingestService.applyClusterState(new ClusterChangedEvent("", state, state));
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
         reset(transportService); // call on construction of action
@@ -307,7 +315,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verifyNoMoreInteractions(transportService);
     }
 
     public void testSingleItemBulkActionIngestLocal() throws Exception {
@@ -693,10 +701,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             .template(new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null))
             .build();
 
-        ClusterState state = clusterService.state();
         Metadata metadata = Metadata.builder().put("my-template", t1).build();
-        when(state.metadata()).thenReturn(metadata);
-        when(state.getMetadata()).thenReturn(metadata);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+        ClusterChangedEvent event = new ClusterChangedEvent("created-from-test", clusterState, clusterState);
+        ingestService.applyClusterState(event);
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());

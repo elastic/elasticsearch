@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -112,7 +113,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         }
 
                         if (acceptableClusterStatePredicate.test(newState)) {
-                            ActionListener.completeWith(listener, () -> buildResponse(request, newState));
+                            executor.execute(ActionRunnable.supply(listener, () -> buildResponse(request, newState)));
                         } else {
                             listener.onFailure(
                                 new NotMasterException(
@@ -150,6 +151,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     }
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
+        ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT); // too heavy to construct & serialize cluster state without forking
+
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());

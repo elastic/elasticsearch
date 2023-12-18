@@ -97,6 +97,7 @@ List projects = [
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
+  'test:fixtures:testcontainer-utils',
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',

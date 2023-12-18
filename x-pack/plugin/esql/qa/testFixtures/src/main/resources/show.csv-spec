@@ -97,7 +97,7 @@ trim                     |"keyword|text trim(str:keyword|text)"                 
 ;
 
 
-showFunctionsSynopsis#[skip:-8.11.99]
+showFunctionsSynopsis#[skip:-8.12.99]
 show functions | keep synopsis;
 
 synopsis:keyword

@@ -641,7 +641,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     // TODO: remove this - and move the tests for it in TransportSearchActionTests somewhere else
-    // this method is now in the SearchTask class and is redundent/unused here (other than by tests)
+    // this method is now in the SearchTask class and is redundant/unused here (other than by tests)
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,

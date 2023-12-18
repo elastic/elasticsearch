@@ -145,7 +145,6 @@ public final class SearchResponseMerger implements Releasable {
         if (additionalResponse != null) {
             responsesToMerge = new ArrayList<>(searchResponses.size() + 1);
             responsesToMerge.addAll(searchResponses);
-            System.err.println(">>> SearchResponseMerger: ADDING IN THE ADDITIONAL RESPONSE");
             responsesToMerge.add(additionalResponse);
         }
 

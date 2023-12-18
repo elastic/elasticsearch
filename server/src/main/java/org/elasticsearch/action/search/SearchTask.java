@@ -70,7 +70,6 @@ public class SearchTask extends CancellableTask {
         TransportSearchAction.SearchTimeProvider timeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder
     ) {
-        System.err.println("XXXXX CALLING SearchTask.createSearchResponseMerger");
         final int from;
         final int size;
         final int trackTotalHitsUpTo;

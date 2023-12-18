@@ -142,8 +142,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         AggregationReduceContext.Builder aggReduceContextBuilder
     ) {
         return () -> {
-            System.err.println("YYYY AsyncSearchTask creating SearchResponseMerger");
             searchResponseMerger = SearchTask.createSearchResponseMerger(source, timeProvider, aggReduceContextBuilder);
+            MutableSearchResponse mutableSearchResponse = searchResponse.get();
+            // when a remote-only CCS is done (no local shards), then onListShards is called BEFORE
+            // getSearchResponseMergerSupplier, so check if the MutableSearchResponse has been created
+            // and if so, set the SearchResponseMerger
+            if (mutableSearchResponse != null) {
+                mutableSearchResponse.setSearchResponseMerger(searchResponseMerger);
+            }
             return searchResponseMerger;
         };
     }
@@ -487,7 +493,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                  */
                 reducedAggs = () -> InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
-            System.err.println("GGG AsyncSearchTask: onPartialReduce: #shards: " + shards.size());
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase, false);
         }
 
@@ -497,7 +502,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
          */
         @Override
         public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
-            System.err.println("GGG-F AsyncSearchTask: onFINALReduce: #shards: " + shards.size());
             // best effort to cancel expired tasks
             checkCancellation();
             if (delegate != null) {

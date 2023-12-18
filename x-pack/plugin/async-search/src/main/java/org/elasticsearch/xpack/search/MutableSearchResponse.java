@@ -202,7 +202,6 @@ class MutableSearchResponse {
         if (restoreResponseHeaders && responseHeaders != null) {
             restoreResponseHeadersContext(threadContext, responseHeaders);
         }
-        System.err.println("BBB toAsyncSearchResponse DEBUG 1");
 
         SearchResponse searchResponse;
         if (finalResponse != null) {
@@ -221,19 +220,16 @@ class MutableSearchResponse {
              * reduced aggs sitting around which can't be GCed until we get an update.
              */
             if (searchResponseMerger == null) {
-                System.err.println("XXX DEBUG 1 - no search response merger - local aggs only");
                 InternalAggregations reducedAggs = reducedAggsSource.get();
                 reducedAggsSource = () -> reducedAggs;
                 searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
             } else if (finalReduce == false) {
-                System.err.println("XXX DEBUG 2 using SRM + partial local results");
                 InternalAggregations reducedAggs = reducedAggsSource.get();
                 reducedAggsSource = () -> reducedAggs;
                 // TODO: check that this just returns the partial aggs response passed in if SearchResponseMerger
                 // has no other full SearchResponses
                 searchResponse = searchResponseMerger.getMergedResponse(clusters, buildResponse(task.getStartTimeNanos(), reducedAggs));
             } else {
-                System.err.println("XXX DEBUG 3 using SRM full responses only");
                 searchResponse = searchResponseMerger.getMergedResponse(clusters);
             }
         }
@@ -257,7 +253,6 @@ class MutableSearchResponse {
      * @return response representing the status of async search
      */
     synchronized AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
-        System.err.println("BBB toStatusResponse DEBUG 100");
         SearchResponse.Clusters clustersInStatus = null;
         if (clusters != null && clusters.getTotal() > 0) {
             // include clusters in the status if present and not Clusters.EMPTY (the case for local searches only)

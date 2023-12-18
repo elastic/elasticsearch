@@ -313,29 +313,43 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public synchronized void updateRemoteClusterCredentials(Settings settings, ActionListener<Void> listener) {
         final UpdateRemoteClusterCredentialsResult result = remoteClusterCredentialsManager.updateClusterCredentials(settings);
-        if (result.totalSize() == 0) {
-            logger.debug("No connection rebuilding required after credentials update");
+        // We only need to rebuild connections when a credential was newly added or removed for a cluster alias, not if the credential
+        // value was updated. Therefore, only consider added or removed aliases
+        final int totalConnectionsToRebuild = result.addedClusterAliases().size() + result.removedClusterAliases().size();
+        if (totalConnectionsToRebuild == 0) {
+            logger.debug("no connection rebuilding required after credentials update");
             listener.onResponse(null);
             return;
         }
-        logger.debug("Rebuilding [{}] connections after credentials update", result.totalSize());
+        logger.debug("rebuilding [{}] connections after credentials update", totalConnectionsToRebuild);
         final GroupedActionListener<RemoteClusterConnectionStatus> groupedListener = new GroupedActionListener<>(
-            result.totalSize(),
+            totalConnectionsToRebuild,
             listener.map(remoteClusterConnectionStatuses -> {
-                assert remoteClusterConnectionStatuses.size() == result.totalSize();
-                logger.debug("Remote connections statuses after credential update: [{}]", remoteClusterConnectionStatuses);
+                logger.debug("rebuild complete for [{}] connections after credentials update", remoteClusterConnectionStatuses.size());
                 return null;
             })
         );
-        for (var aliasWithChangedCredentials : result.allAliases()) {
-            logger.debug("Rebuilding connection for remote cluster [{}] because credentials changed", aliasWithChangedCredentials);
-            if (remoteClusters.containsKey(aliasWithChangedCredentials)) {
-                updateRemoteCluster(aliasWithChangedCredentials, settings, true, groupedListener);
-            } else {
-                // A credential was added before a remote connection was configured.
-                // Without an existing connection, there is nothing to rebuild.
-                groupedListener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
-            }
+        for (var clusterAlias : result.addedClusterAliases()) {
+            maybeRebuildConnection(clusterAlias, settings, groupedListener);
+        }
+        for (var clusterAlias : result.removedClusterAliases()) {
+            maybeRebuildConnection(clusterAlias, settings, groupedListener);
+        }
+    }
+
+    private void maybeRebuildConnection(
+        String clusterAlias,
+        Settings settings,
+        GroupedActionListener<RemoteClusterConnectionStatus> groupedListener
+    ) {
+        if (remoteClusters.containsKey(clusterAlias)) {
+            logger.trace("rebuilding connection for remote cluster [{}] because credentials changed", clusterAlias);
+            updateRemoteCluster(clusterAlias, settings, true, groupedListener);
+        } else {
+            // A credential was added before a remote connection was configured.
+            // Without an existing connection, there is nothing to rebuild.
+            logger.trace("no connection rebuild required for remote cluster [{}]", clusterAlias);
+            groupedListener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
         }
     }
 

@@ -36,48 +36,22 @@ public class RemoteClusterCredentialsManager {
     public synchronized UpdateRemoteClusterCredentialsResult updateClusterCredentials(Settings settings) {
         final Map<String, SecureString> newClusterCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
         if (clusterCredentials.isEmpty()) {
-            setCredentialsAndLog(newClusterCredentials);
-            return new UpdateRemoteClusterCredentialsResult(new TreeSet<>(clusterCredentials.keySet()), Collections.emptySortedSet());
+            setClusterCredentialsAndLog(newClusterCredentials);
+            return new UpdateRemoteClusterCredentialsResult(new TreeSet<>(newClusterCredentials.keySet()), Collections.emptySortedSet());
         }
-        final SortedSet<String> aliasesWithAddedCredentials = Sets.sortedDifference(
-            newClusterCredentials.keySet(),
-            clusterCredentials.keySet()
-        );
-        final SortedSet<String> aliasesWithRemovedCredentials = Sets.sortedDifference(
-            clusterCredentials.keySet(),
-            newClusterCredentials.keySet()
-        );
-        setCredentialsAndLog(newClusterCredentials);
-        assert Sets.haveEmptyIntersection(aliasesWithRemovedCredentials, aliasesWithAddedCredentials);
-        return new UpdateRemoteClusterCredentialsResult(aliasesWithAddedCredentials, aliasesWithRemovedCredentials);
-    }
-
-    private void setCredentialsAndLog(Map<String, SecureString> newClusterCredentials) {
-        clusterCredentials = newClusterCredentials;
-        logger.debug(
-            () -> Strings.format(
-                "Updated remote cluster credentials for clusters: [%s]",
-                Strings.collectionToCommaDelimitedString(clusterCredentials.keySet())
-            )
-        );
+        final SortedSet<String> addedClusterAliases = Sets.sortedDifference(newClusterCredentials.keySet(), clusterCredentials.keySet());
+        final SortedSet<String> removedClusterAliases = Sets.sortedDifference(clusterCredentials.keySet(), newClusterCredentials.keySet());
+        setClusterCredentialsAndLog(newClusterCredentials);
+        assert Sets.haveEmptyIntersection(removedClusterAliases, addedClusterAliases);
+        return new UpdateRemoteClusterCredentialsResult(addedClusterAliases, removedClusterAliases);
     }
 
     public record UpdateRemoteClusterCredentialsResult(
-        // Use sorted sets since we will iterate over these, and call a synchronized method. Establishing a deterministic order to prevent
-        // deadlocks
-        SortedSet<String> aliasesWithAddedCredentials,
-        SortedSet<String> aliasesWithRemovedCredentials
-    ) {
-        int totalSize() {
-            return aliasesWithAddedCredentials.size() + aliasesWithRemovedCredentials.size();
-        }
-
-        SortedSet<String> allAliases() {
-            final var set = new TreeSet<>(aliasesWithAddedCredentials);
-            set.addAll(aliasesWithRemovedCredentials);
-            return set;
-        }
-    }
+        // Use sorted sets since we will iterate over these, and call a synchronized method for each.
+        // Sorting establishes a deterministic call order to prevent deadlocks
+        SortedSet<String> addedClusterAliases,
+        SortedSet<String> removedClusterAliases
+    ) {}
 
     @Nullable
     public SecureString resolveCredentials(String clusterAlias) {
@@ -86,6 +60,16 @@ public class RemoteClusterCredentialsManager {
 
     public boolean hasCredentials(String clusterAlias) {
         return clusterCredentials.containsKey(clusterAlias);
+    }
+
+    private void setClusterCredentialsAndLog(Map<String, SecureString> newClusterCredentials) {
+        clusterCredentials = newClusterCredentials;
+        logger.debug(
+            () -> Strings.format(
+                "Updated remote cluster credentials for clusters: [%s]",
+                Strings.collectionToCommaDelimitedString(clusterCredentials.keySet())
+            )
+        );
     }
 
     public static final RemoteClusterCredentialsManager EMPTY = new RemoteClusterCredentialsManager(Settings.EMPTY);

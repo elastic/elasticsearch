@@ -790,14 +790,16 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
 
         logger.info("--> creating index on node A");
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0);
-
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
+            .getStore()
+            .size();
         var nodeARecoverySettings = new RecoverySettings(
             internalCluster().getInstance(Settings.class, nodeA),
             clusterService().getClusterSettings()
         );
-        // Use a fraction of the size that causes throttling to be triggered on the source node's RateLimiter
-        long chunkSize = nodeARecoverySettings.rateLimiter().getMinPauseCheckBytes() / 2;
+        // Use a fraction of the size that causes throttling to be triggered on the source node's RateLimiter, and
+        // ensure the value is small enough that it would take more than one chunk.
+        long chunkSize = Math.min(nodeARecoverySettings.rateLimiter().getMinPauseCheckBytes() / 2, shardSize.getBytes() / 2);
         logger.info(
             "--> starting node B with recovery throttling setting's chunk of size `{}` per second.",
             ByteSizeValue.ofBytes(chunkSize)

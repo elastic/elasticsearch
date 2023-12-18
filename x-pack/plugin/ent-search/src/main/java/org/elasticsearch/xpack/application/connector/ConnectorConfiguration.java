@@ -54,6 +54,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
     private final String placeholder;
     private final boolean required;
     private final boolean sensitive;
+    @Nullable
     private final String tooltip;
     private final ConfigurationFieldType type;
     private final List<String> uiRestrictions;
@@ -199,7 +200,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), PLACEHOLDER_FIELD);
         PARSER.declareBoolean(constructorArg(), REQUIRED_FIELD);
         PARSER.declareBoolean(constructorArg(), SENSITIVE_FIELD);
-        PARSER.declareStringOrNull(constructorArg(), TOOLTIP_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), TOOLTIP_FIELD);
         PARSER.declareField(
             constructorArg(),
             (p, c) -> ConfigurationFieldType.fieldType(p.text()),

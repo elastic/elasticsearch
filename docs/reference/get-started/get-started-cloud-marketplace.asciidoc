@@ -8,6 +8,6 @@ You can deploy {ecloud} instances directly via the major cloud provider marketpl
 
 Learn more:
 
-* https://aws.amazon.com/marketplace/pp/prodview-voru33wi6xs7k[Amazon Web Services]
-* https://console.cloud.google.com/marketplace/product/elastic-prod/elastic-cloud[Google Cloud]
-* https://azuremarketplace.microsoft.com/en-us/marketplace/apps/elastic.ec-azure-pp[Microsoft Azure]
+* https://aws.amazon.com/marketplace/pp/prodview-voru33wi6xs7k[AWS Marketplace]
+* https://console.cloud.google.com/marketplace/product/elastic-prod/elastic-cloud[Google Cloud Marketplace]
+* https://azuremarketplace.microsoft.com/en-us/marketplace/apps/elastic.ec-azure-pp[Microsoft Azure Marketplace]

@@ -18,6 +18,7 @@ If you get started with {es} in {ecloud}, you'll be ready to go to production fr
 Learn how to:
 
 * <<get-started-elasticsearch-cloud, Get started with {es} in {ecloud}>>
+* <<get-started-elasticsearch-cloud-marketplace, Get started with {es} using cloud provider marketplaces>>
 * <<get-started-elasticsearch-local-dev, Get started with {es} locally (Docker)>>
 * <<endpoints-keys, Connect to your endpoints>>
 

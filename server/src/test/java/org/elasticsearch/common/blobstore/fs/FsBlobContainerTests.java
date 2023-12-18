@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -228,14 +229,19 @@ public class FsBlobContainerTests extends ESTestCase {
             BlobPath.EMPTY,
             path
         );
-        container.writeBlobAtomic(randomPurpose(), blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true);
+        container.writeBlobAtomic(
+            randomNonDataPurpose(),
+            blobName,
+            new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
+            true
+        );
         final var blobData = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
-        container.writeBlobAtomic(randomPurpose(), blobName, blobData, false);
+        container.writeBlobAtomic(randomNonDataPurpose(), blobName, blobData, false);
         assertEquals(blobData, Streams.readFully(container.readBlob(randomPurpose(), blobName)));
         expectThrows(
             FileAlreadyExistsException.class,
             () -> container.writeBlobAtomic(
-                randomPurpose(),
+                randomNonDataPurpose(),
                 blobName,
                 new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
                 true

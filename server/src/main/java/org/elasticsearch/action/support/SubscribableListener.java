@@ -94,8 +94,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * listener immediately with the result with which this listener was completed. Otherwise, the subscribing listener is retained and
      * completed when this listener is completed.
      * <p>
-     * Subscribed listeners must not throw any exceptions. Use {@link ActionListener#wrap(ActionListener)} if you have a listener for which
-     * exceptions from its {@link ActionListener#onResponse} method should be handled by its own {@link ActionListener#onFailure} method.
+     * Subscribed listeners must not throw any exceptions.
      * <p>
      * Listeners added strictly before this listener is completed will themselves be completed in the order in which their subscriptions
      * were received. However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with
@@ -113,8 +112,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * listener immediately with the result with which this listener was completed. Otherwise, the subscribing listener is retained and
      * completed when this listener is completed.
      * <p>
-     * Subscribed listeners must not throw any exceptions. Use {@link ActionListener#wrap(ActionListener)} if you have a listener for which
-     * exceptions from its {@link ActionListener#onResponse} method should be handled by its own {@link ActionListener#onFailure} method.
+     * Subscribed listeners must not throw any exceptions.
      * <p>
      * Listeners added strictly before this listener is completed will themselves be completed in the order in which their subscriptions
      * were received. However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with

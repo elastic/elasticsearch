@@ -705,7 +705,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     protected static Object asJacksonNumberOutput(long l) {
         // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
-        if (l < 0 && l > Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
+        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
             return (int) l;
         } else {
             return l;

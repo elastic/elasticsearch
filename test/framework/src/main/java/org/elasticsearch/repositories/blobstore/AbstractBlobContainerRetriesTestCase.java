@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -146,7 +147,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             }
         });
 
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_max_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_max_retries")) {
             final int readLimit;
             final InputStream wrappedStream;
             if (randomBoolean()) {
@@ -212,7 +213,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_range_blob_max_retries", position, length)) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_range_blob_max_retries", position, length)) {
             final int readLimit;
             final InputStream wrappedStream;
             if (randomBoolean()) {
@@ -269,8 +270,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
-                    ? blobContainer.readBlob(randomPurpose(), "read_blob_incomplete")
-                    : blobContainer.readBlob(randomPurpose(), "read_blob_incomplete", position, length)
+                    ? blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete")
+                    : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete", position, length)
             ) {
                 Streams.readFully(stream);
             }
@@ -287,6 +288,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
     protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
         return equalTo(maxRetries);
+    }
+
+    protected OperationPurpose randomRetryingPurpose() {
+        return randomPurpose();
     }
 
     public void testReadBlobWithNoHttpResponse() {
@@ -323,8 +328,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final Exception exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
-                    ? blobContainer.readBlob(randomPurpose(), "read_blob_incomplete", 0, 1)
-                    : blobContainer.readBlob(randomPurpose(), "read_blob_incomplete")
+                    ? blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete", 0, 1)
+                    : blobContainer.readBlob(randomRetryingPurpose(), "read_blob_incomplete")
             ) {
                 Streams.readFully(stream);
             }

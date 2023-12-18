@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -48,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchIdleIT extends ESSingleNodeTestCase {
 
     public void testAutomaticRefreshSearch() throws InterruptedException {
-        runTestAutomaticRefresh(numDocs -> client().prepareSearch("test").get().getHits().getTotalHits().value);
+        runTestAutomaticRefresh(numDocs -> SearchResponseUtils.getTotalHitsValue(client().prepareSearch("test")));
     }
 
     public void testAutomaticRefreshGet() throws InterruptedException {

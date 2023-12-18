@@ -33,8 +33,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     @Nullable
     private final Long lastIndexedDocumentCount;
     @Nullable
-    private final Instant lastSeen;
-    @Nullable
     private final String lastSyncError;
     @Nullable
     private final Instant lastSyncScheduledAt;
@@ -50,7 +48,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
      * @param lastDeletedDocumentCount        The count of documents last deleted during sync.
      * @param lastIncrementalSyncScheduledAt  The timestamp when the last incremental sync was scheduled.
      * @param lastIndexedDocumentCount        The count of documents last indexed during sync.
-     * @param lastSeen                        The timestamp when the connector was last active or seen.
      * @param lastSyncError                   The last error message encountered during sync, if any.
      * @param lastSyncScheduledAt             The timestamp when the last sync was scheduled.
      * @param lastSyncStatus                  The status of the last sync.
@@ -63,7 +60,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
         Long lastDeletedDocumentCount,
         Instant lastIncrementalSyncScheduledAt,
         Long lastIndexedDocumentCount,
-        Instant lastSeen,
         String lastSyncError,
         Instant lastSyncScheduledAt,
         ConnectorSyncStatus lastSyncStatus,
@@ -75,7 +71,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
         this.lastDeletedDocumentCount = lastDeletedDocumentCount;
         this.lastIncrementalSyncScheduledAt = lastIncrementalSyncScheduledAt;
         this.lastIndexedDocumentCount = lastIndexedDocumentCount;
-        this.lastSeen = lastSeen;
         this.lastSyncError = lastSyncError;
         this.lastSyncScheduledAt = lastSyncScheduledAt;
         this.lastSyncStatus = lastSyncStatus;
@@ -89,62 +84,39 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
         this.lastDeletedDocumentCount = in.readOptionalLong();
         this.lastIncrementalSyncScheduledAt = in.readOptionalInstant();
         this.lastIndexedDocumentCount = in.readOptionalLong();
-        this.lastSeen = in.readOptionalInstant();
         this.lastSyncError = in.readOptionalString();
         this.lastSyncScheduledAt = in.readOptionalInstant();
         this.lastSyncStatus = in.readOptionalEnum(ConnectorSyncStatus.class);
         this.lastSynced = in.readOptionalInstant();
     }
 
-    static final ParseField LAST_ACCESS_CONTROL_SYNC_ERROR = new ParseField("last_access_control_sync_error");
-    static final ParseField LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD = new ParseField("last_access_control_sync_status");
-    static final ParseField LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_access_control_sync_scheduled_at");
-    static final ParseField LAST_DELETED_DOCUMENT_COUNT_FIELD = new ParseField("last_deleted_document_count");
-    static final ParseField LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_incremental_sync_scheduled_at");
-    static final ParseField LAST_INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("last_indexed_document_count");
-    static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
-    static final ParseField LAST_SYNC_ERROR_FIELD = new ParseField("last_sync_error");
-    static final ParseField LAST_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_sync_scheduled_at");
-    static final ParseField LAST_SYNC_STATUS_FIELD = new ParseField("last_sync_status");
-    static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
+    public static final ParseField LAST_ACCESS_CONTROL_SYNC_ERROR = new ParseField("last_access_control_sync_error");
+    public static final ParseField LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD = new ParseField("last_access_control_sync_status");
+    public static final ParseField LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_access_control_sync_scheduled_at");
+    public static final ParseField LAST_DELETED_DOCUMENT_COUNT_FIELD = new ParseField("last_deleted_document_count");
+    public static final ParseField LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_incremental_sync_scheduled_at");
+    public static final ParseField LAST_INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("last_indexed_document_count");
+    public static final ParseField LAST_SYNC_ERROR_FIELD = new ParseField("last_sync_error");
+    public static final ParseField LAST_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_sync_scheduled_at");
+    public static final ParseField LAST_SYNC_STATUS_FIELD = new ParseField("last_sync_status");
+    public static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-
-        if (lastAccessControlSyncError != null) {
-            builder.field(LAST_ACCESS_CONTROL_SYNC_ERROR.getPreferredName(), lastAccessControlSyncError);
-        }
-        if (lastAccessControlSyncStatus != null) {
-            builder.field(LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD.getPreferredName(), lastAccessControlSyncStatus);
-        }
-        if (lastAccessControlSyncScheduledAt != null) {
-            builder.field(LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastAccessControlSyncScheduledAt);
-        }
+        builder.field(LAST_ACCESS_CONTROL_SYNC_ERROR.getPreferredName(), lastAccessControlSyncError);
+        builder.field(LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD.getPreferredName(), lastAccessControlSyncStatus);
+        builder.field(LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastAccessControlSyncScheduledAt);
         if (lastDeletedDocumentCount != null) {
             builder.field(LAST_DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastDeletedDocumentCount);
         }
-        if (lastIncrementalSyncScheduledAt != null) {
-            builder.field(LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastIncrementalSyncScheduledAt);
-        }
+        builder.field(LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastIncrementalSyncScheduledAt);
         if (lastIndexedDocumentCount != null) {
             builder.field(LAST_INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastIndexedDocumentCount);
         }
-        if (lastSeen != null) {
-            builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
-        }
-        if (lastSyncError != null) {
-            builder.field(LAST_SYNC_ERROR_FIELD.getPreferredName(), lastSyncError);
-        }
-        if (lastSyncScheduledAt != null) {
-            builder.field(LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastSyncScheduledAt);
-        }
-        if (lastSyncStatus != null) {
-            builder.field(LAST_SYNC_STATUS_FIELD.getPreferredName(), lastSyncStatus);
-        }
-        if (lastSynced != null) {
-            builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
-        }
-
+        builder.field(LAST_SYNC_ERROR_FIELD.getPreferredName(), lastSyncError);
+        builder.field(LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastSyncScheduledAt);
+        builder.field(LAST_SYNC_STATUS_FIELD.getPreferredName(), lastSyncStatus);
+        builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
         return builder;
     }
 
@@ -156,7 +128,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
         out.writeOptionalLong(lastDeletedDocumentCount);
         out.writeOptionalInstant(lastIncrementalSyncScheduledAt);
         out.writeOptionalLong(lastIndexedDocumentCount);
-        out.writeOptionalInstant(lastSeen);
         out.writeOptionalString(lastSyncError);
         out.writeOptionalInstant(lastSyncScheduledAt);
         out.writeOptionalEnum(lastSyncStatus);
@@ -174,7 +145,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
             && Objects.equals(lastDeletedDocumentCount, that.lastDeletedDocumentCount)
             && Objects.equals(lastIncrementalSyncScheduledAt, that.lastIncrementalSyncScheduledAt)
             && Objects.equals(lastIndexedDocumentCount, that.lastIndexedDocumentCount)
-            && Objects.equals(lastSeen, that.lastSeen)
             && Objects.equals(lastSyncError, that.lastSyncError)
             && Objects.equals(lastSyncScheduledAt, that.lastSyncScheduledAt)
             && lastSyncStatus == that.lastSyncStatus
@@ -190,7 +160,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
             lastDeletedDocumentCount,
             lastIncrementalSyncScheduledAt,
             lastIndexedDocumentCount,
-            lastSeen,
             lastSyncError,
             lastSyncScheduledAt,
             lastSyncStatus,
@@ -206,7 +175,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
         private Long lastDeletedDocumentCount;
         private Instant lastIncrementalSyncScheduledAt;
         private Long lastIndexedDocumentCount;
-        private Instant lastSeen;
         private String lastSyncError;
         private Instant lastSyncScheduledAt;
         private ConnectorSyncStatus lastSyncStatus;
@@ -242,11 +210,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder setLastSeen(Instant lastSeen) {
-            this.lastSeen = lastSeen;
-            return this;
-        }
-
         public Builder setLastSyncError(String lastSyncError) {
             this.lastSyncError = lastSyncError;
             return this;
@@ -275,7 +238,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
                 lastDeletedDocumentCount,
                 lastIncrementalSyncScheduledAt,
                 lastIndexedDocumentCount,
-                lastSeen,
                 lastSyncError,
                 lastSyncScheduledAt,
                 lastSyncStatus,

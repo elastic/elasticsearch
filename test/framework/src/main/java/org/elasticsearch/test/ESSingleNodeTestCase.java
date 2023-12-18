@@ -421,7 +421,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             logger.info(
                 "ensureGreen timed out, cluster state:\n{}\n{}",
                 clusterAdmin().prepareState().get().getState(),
-                clusterAdmin().preparePendingClusterTasks().get()
+                ESIntegTestCase.getClusterPendingTasks(client())
             );
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }

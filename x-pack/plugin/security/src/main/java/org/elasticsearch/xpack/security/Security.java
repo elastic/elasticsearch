@@ -1950,6 +1950,7 @@ public class Security extends Plugin
             // Stateless does not support remote cluster operations. Skip.
             return;
         }
+
         final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
         getClient().execute(
             ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,

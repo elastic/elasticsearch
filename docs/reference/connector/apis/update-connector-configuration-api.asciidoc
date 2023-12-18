@@ -59,7 +59,7 @@ Each `ConnectorConfiguration` object contains the following attributes:
 
 * `tooltip` (Optional, string) Tooltip text providing additional information about the configuration. This text appears when the user hovers over the info icon next to the configuration field.
 
-* `type` (Required, string) The type of the configuration field, such as `str`, 'int', 'bool', 'list'. This defines the data type and format of the field's value.
+* `type` (Required, string) The type of the configuration field, such as `str`, `int`, `bool`, `list`. This defines the data type and format of the field's value.
 
 * `ui_restrictions` (Required, array of strings) A list of UI restrictions. These restrictions define where in the user interface this field should be available or restricted.
 

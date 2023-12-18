@@ -18,7 +18,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
@@ -783,12 +782,6 @@ public abstract class StreamOutput extends OutputStream {
             }
             o.writeByte((byte) 30);
             o.writeNamedWriteable(genericNamedWriteable);
-        }),
-        entry(SpatialPoint.class, (o, v) -> {
-            // TODO: assert on minSupportedVersion or feature or transportversion
-            // TODO: Consider merging this into GeoPoint above (ie. upgrade GeoPoint to handle SpatialPoint coordinate order)
-            o.writeByte((byte) 31);
-            o.writePoint((SpatialPoint) v);
         })
     );
 
@@ -1018,14 +1011,6 @@ public abstract class StreamOutput extends OutputStream {
     public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
         writeDouble(geoPoint.lat());
         writeDouble(geoPoint.lon());
-    }
-
-    /**
-     * Writes the given {@link SpatialPoint} to the stream
-     */
-    public void writePoint(SpatialPoint spatialPoint) throws IOException {
-        writeDouble(spatialPoint.getX());
-        writeDouble(spatialPoint.getY());
     }
 
     /**

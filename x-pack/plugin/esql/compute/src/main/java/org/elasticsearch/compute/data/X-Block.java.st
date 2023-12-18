@@ -80,7 +80,11 @@ $endif$
                     final int valueCount = in.readVInt();
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+$if(Point)$
+                        builder.appendPoint(new SpatialPoint(in.readDouble(), in.readDouble()));
+$else$
                         builder.append$Type$(in.read$Type$());
+$endif$
                     }
                     builder.endPositionEntry();
                 }
@@ -106,11 +110,15 @@ $endif$
                     final int valueCount = getValueCount(pos);
                     out.writeVInt(valueCount);
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-    $if(BytesRef)$
+$if(BytesRef)$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-    $else$
+$elseif(Point)$
+                        SpatialPoint point = getPoint(getFirstValueIndex(pos) + valueIndex);
+                        out.writeDouble(point.getX());
+                        out.writeDouble(point.getY());
+$else$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
-    $endif$
+$endif$
                     }
                 }
             }

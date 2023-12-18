@@ -168,6 +168,11 @@ public class ValuesSourceReaderBenchmark {
                 }
 
                 @Override
+                public boolean forStats() {
+                    return false;
+                }
+
+                @Override
                 public SearchLookup lookup() {
                     throw new UnsupportedOperationException();
                 }

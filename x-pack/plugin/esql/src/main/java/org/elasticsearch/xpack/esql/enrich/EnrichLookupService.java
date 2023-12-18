@@ -276,7 +276,8 @@ public class EnrichLookupService {
                 var loaders = BlockReaderFactories.loaders(
                     List.of(searchContext),
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType())
+                    EsqlDataTypes.isUnsupported(extractField.dataType()),
+                    false
                 );
                 fields.add(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders));
             }

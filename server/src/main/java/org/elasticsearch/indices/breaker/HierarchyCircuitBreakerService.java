@@ -25,7 +25,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
@@ -142,7 +142,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
-    private final LongCounter parentTripCountTotalMetric;
+    private final LongUpDownCounter parentTripCountTotalMetric;
 
     private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
     private volatile OverLimitStrategy overLimitStrategy;
@@ -414,7 +414,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            this.parentTripCountTotalMetric.increment();
+            this.parentTripCountTotalMetric.add(1L);
             final String messageString = buildParentTripMessage(
                 newBytesReserved,
                 label,
@@ -490,7 +490,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private CircuitBreaker validateAndCreateBreaker(LongCounter trippedCountMeter, BreakerSettings breakerSettings) {
+    private CircuitBreaker validateAndCreateBreaker(LongUpDownCounter trippedCountMeter, BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] { breakerSettings });
         return breakerSettings.getType() == CircuitBreaker.Type.NOOP

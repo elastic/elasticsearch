@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -30,7 +30,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final Logger logger;
     private final HierarchyCircuitBreakerService parent;
     private final String name;
-    private final LongCounter trippedCountMeter;
+    private final LongUpDownCounter trippedCountMeter;
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -43,7 +43,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * @param name the name of the breaker
      */
     public ChildMemoryCircuitBreaker(
-        LongCounter trippedCountMeter,
+        LongUpDownCounter trippedCountMeter,
         BreakerSettings settings,
         Logger logger,
         HierarchyCircuitBreakerService parent,
@@ -68,7 +68,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        this.trippedCountMeter.increment();
+        this.trippedCountMeter.add(1L);
         final String message = "["
             + this.name
             + "] Data too large, data for ["

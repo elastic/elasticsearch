@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Do not edit it.
  */
 final class $Type$State implements AggregatorState {
-    private $type$ value;
+    private $typeValue$;
     private boolean seen;
 
     $Type$State() {
@@ -30,7 +30,7 @@ final class $Type$State implements AggregatorState {
         return value;
     }
 
-    void $type$Value($type$ value) {
+    void $type$Value($typeValue$) {
         this.value = value;
     }
 

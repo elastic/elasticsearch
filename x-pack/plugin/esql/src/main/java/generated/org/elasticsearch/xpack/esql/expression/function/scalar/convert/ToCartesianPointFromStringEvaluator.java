@@ -40,7 +40,8 @@ public final class ToCartesianPointFromStringEvaluator extends AbstractConvertFu
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
       try {
-        return driverContext.blockFactory().newConstantPointBlockWith(evalValue(vector, 0, scratchPad), positionCount);
+        SpatialPoint point = evalValue(vector, 0, scratchPad);
+        return driverContext.blockFactory().newConstantPointBlockWith(point.getX(), point.getY(), positionCount);
       } catch (IllegalArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
@@ -49,7 +50,8 @@ public final class ToCartesianPointFromStringEvaluator extends AbstractConvertFu
     try (PointBlock.Builder builder = driverContext.blockFactory().newPointBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         try {
-          builder.appendPoint(evalValue(vector, p, scratchPad));
+          SpatialPoint point = evalValue(vector, p, scratchPad);
+          builder.appendPoint(point.getX(), point.getY());
         } catch (IllegalArgumentException  e) {
           registerException(e);
           builder.appendNull();
@@ -83,7 +85,7 @@ public final class ToCartesianPointFromStringEvaluator extends AbstractConvertFu
               builder.beginPositionEntry();
               positionOpened = true;
             }
-            builder.appendPoint(value);
+            builder.appendPoint(value.getX(), value.getY());
             valuesAppended = true;
           } catch (IllegalArgumentException  e) {
             registerException(e);

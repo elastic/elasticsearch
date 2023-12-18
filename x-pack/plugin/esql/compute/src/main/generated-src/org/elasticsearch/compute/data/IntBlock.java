@@ -15,7 +15,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.io.IOException;
 
 /**
- * Block that stores int values.
+ * Block that stores Int values.
  * This class is generated. Do not edit it.
  */
 public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock {
@@ -236,14 +236,14 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         Builder appendAllValuesToCurrentPosition(IntBlock block);

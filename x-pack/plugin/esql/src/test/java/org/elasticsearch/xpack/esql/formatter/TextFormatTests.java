@@ -264,11 +264,21 @@ public class TextFormatTests extends ESTestCase {
                     .build(),
                 new IntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
                 new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                new PointArrayVector(new SpatialPoint[] { new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611) }, 2).asBlock()
+                makePointArrayVector(new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611)).asBlock()
             )
         );
 
         return new EsqlQueryResponse(headers, values, null, false);
+    }
+
+    static PointArrayVector makePointArrayVector(SpatialPoint... points) {
+        double[] x = new double[points.length];
+        double[] y = new double[points.length];
+        for (int i = 0; i < points.length; i++) {
+            x[i] = points[i].getX();
+            y[i] = points[i].getY();
+        }
+        return new PointArrayVector(x, y, points.length);
     }
 
     private static EsqlQueryResponse escapedData() {

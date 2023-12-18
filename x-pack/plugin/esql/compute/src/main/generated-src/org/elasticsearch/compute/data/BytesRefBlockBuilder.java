@@ -117,8 +117,8 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
             for (int p = 0; p < positionCount; p++) {
                 int count = block.getValueCount(p);
                 int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendBytesRef(block.getBytesRef(i++, scratch));
+                for (int v = 0; v < count; v++, i++) {
+                    appendBytesRef(block.getBytesRef(i, scratch));
                 }
             }
         }
@@ -168,8 +168,8 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
                 beginPositionEntry();
             }
             int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendBytesRef(block.getBytesRef(i++, scratch));
+            for (int v = 0; v < count; v++, i++) {
+                appendBytesRef(block.getBytesRef(i, scratch));
             }
             if (count > 1) {
                 endPositionEntry();

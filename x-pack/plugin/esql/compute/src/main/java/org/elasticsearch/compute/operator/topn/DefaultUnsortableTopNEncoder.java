@@ -140,10 +140,10 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public void encodePoint(SpatialPoint value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodePoint(double x, double y, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Double.BYTES * 2);
-        DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value.getX());
-        DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length() + Double.BYTES, value.getY());
+        DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), x);
+        DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length() + Double.BYTES, y);
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES * 2);
     }
 

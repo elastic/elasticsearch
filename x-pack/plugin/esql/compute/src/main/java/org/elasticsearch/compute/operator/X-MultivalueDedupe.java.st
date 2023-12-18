@@ -60,7 +60,12 @@ $else$
 $endif$
 
     private final $Type$Block block;
+$if(Point)$
+    // TODO: figure out a way to remove this object array, currently needed for Arrays.sort() below
+    private SpatialPoint[] work = new SpatialPoint[ArrayUtil.oversize(2, $BYTES$)];
+$else$
     private $type$[] work = new $type$[ArrayUtil.oversize(2, $BYTES$)];
+$endif$
     private int w;
 
     public MultivalueDedupe$Type$($Type$Block block) {
@@ -88,6 +93,8 @@ $endif$
                     case 0 -> builder.appendNull();
     $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+    $elseif(Point)$
+                    case 1 -> builder.append$Type$(block.getX(first), block.getY(first));
     $else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
     $endif$
@@ -142,6 +149,8 @@ $endif$
                     case 0 -> builder.appendNull();
     $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+    $elseif(Point)$
+                    case 1 -> builder.append$Type$(block.getX(first), block.getY(first));
     $else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
     $endif$
@@ -176,6 +185,8 @@ $endif$
                     case 0 -> builder.appendNull();
     $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+    $elseif(Point)$
+                    case 1 -> builder.appendPoint(block.getX(first), block.getY(first));
     $else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
     $endif$
@@ -210,11 +221,14 @@ $endif$
                     }
                     case 1 -> {
 $if(BytesRef)$
-                        BytesRef v = block.getBytesRef(first, work[0]);
+                        BytesRef value = block.getBytesRef(first, work[0]);
+$elseif(Point)$
+                        double x = block.getX(first);
+                        double y = block.getY(first);
 $else$
-                        $type$ v = block.get$Type$(first);
+                        $typeValue$ = block.get$Type$(first);
 $endif$
-                        hash(builder, hash, v);
+                        hash(builder, hash, $value$);
                     }
                     default -> {
                         if (count < ALWAYS_COPY_MISSING) {
@@ -260,17 +274,26 @@ $endif$
                         case 0 -> encodeNull();
                         case 1 -> {
 $if(BytesRef)$
-                            BytesRef v = block.getBytesRef(first, work[0]);
-                            if (hasCapacity(v.length, 1)) {
+                            BytesRef value = block.getBytesRef(first, work[0]);
+                            if (hasCapacity(value.length, 1)) {
+$elseif(Point)$
+                            double x = block.getX(first);
+                            double y = block.getY(first);
+                            if (hasCapacity(1)) {
 $else$
-                            $type$ v = block.get$Type$(first);
+                            $typeValue$ = block.get$Type$(first);
                             if (hasCapacity(1)) {
 $endif$
                                 startPosition();
-                                encode(v);
+                                encode($value$);
                                 endPosition();
                             } else {
-                                work[0] = v;
+$if(Point)$
+                                // We should be able to replace this with two double[] if we can figure out the sorting below
+                                work[0] = new SpatialPoint(x, y);
+$else$
+                                work[0] = value;
+$endif$
                                 w = 1;
                                 return;
                             }
@@ -323,6 +346,8 @@ $endif$
 $if(BytesRef)$
             work[w] = block.getBytesRef(i, work[w]);
             w++;
+$elseif(Point)$
+            work[w++] = new SpatialPoint(block.getX(i), block.getY(i));
 $else$
             work[w++] = block.get$Type$(i);
 $endif$
@@ -341,6 +366,8 @@ $endif$
 
 $if(BytesRef)$
         work[0] = block.getBytesRef(first, work[0]);
+$elseif(Point)$
+        work[0] = new SpatialPoint(block.getX(first), block.getY(first));
 $else$
         work[0] = block.get$Type$(first);
 $endif$
@@ -348,6 +375,8 @@ $endif$
         i: for (int i = first + 1; i < end; i++) {
 $if(BytesRef)$
             $type$ v = block.getBytesRef(i, work[w]);
+$elseif(Point)$
+            SpatialPoint v = new SpatialPoint(block.getX(i), block.getY(i));
 $else$
             $type$ v = block.get$Type$(i);
 $endif$
@@ -371,12 +400,20 @@ $endif$
      */
     private void writeUniquedWork($Type$Block.Builder builder) {
         if (w == 1) {
+$if(Point)$
+            builder.appendPoint(work[0].getX(), work[0].getY());
+$else$
             builder.append$Type$(work[0]);
+$endif$
             return;
         }
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
+$if(Point)$
+            builder.appendPoint(work[i].getX(), work[i].getY());
+$else$
             builder.append$Type$(work[i]);
+$endif$
         }
         builder.endPositionEntry();
     }
@@ -386,12 +423,21 @@ $endif$
      */
     private void writeSortedWork($Type$Block.Builder builder) {
         if (w == 1) {
+$if(Point)$
+            builder.appendPoint(work[0].getX(), work[0].getY());
+$else$
             builder.append$Type$(work[0]);
+$endif$
             return;
         }
         builder.beginPositionEntry();
+$if(Point)$
+        SpatialPoint prev = work[0];
+        builder.appendPoint(prev.getX(), prev.getY());
+$else$
         $type$ prev = work[0];
         builder.append$Type$(prev);
+$endif$
         for (int i = 1; i < w; i++) {
 $if(BytesRef)$
             if (false == prev.equals(work[i])) {
@@ -401,7 +447,11 @@ $else$
             if (prev != work[i]) {
 $endif$
                 prev = work[i];
+$if(Point)$
+                builder.appendPoint(prev.getX(), prev.getY());
+$else$
                 builder.append$Type$(prev);
+$endif$
             }
         }
         builder.endPositionEntry();
@@ -416,12 +466,20 @@ $else$
     private void hashUniquedWork(LongHash hash, IntBlock.Builder builder) {
 $endif$
         if (w == 1) {
+$if(Point)$
+            hash(builder, hash, work[0].getX(), work[0].getY());
+$else$
             hash(builder, hash, work[0]);
+$endif$
             return;
         }
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
+$if(Point)$
+            hash(builder, hash, work[i].getX(), work[i].getY());
+$else$
             hash(builder, hash, work[i]);
+$endif$
         }
         builder.endPositionEntry();
     }
@@ -435,12 +493,21 @@ $else$
     private void hashSortedWork(LongHash hash, IntBlock.Builder builder) {
 $endif$
         if (w == 1) {
+$if(Point)$
+            hash(builder, hash, work[0].getX(), work[0].getY());
+$else$
             hash(builder, hash, work[0]);
+$endif$
             return;
         }
         builder.beginPositionEntry();
+$if(Point)$
+        SpatialPoint prev = work[0];
+        hash(builder, hash, prev.getX(), prev.getY());
+$else$
         $type$ prev = work[0];
         hash(builder, hash, prev);
+$endif$
         for (int i = 1; i < w; i++) {
 $if(BytesRef)$
             if (false == prev.equals(work[i])) {
@@ -450,7 +517,11 @@ $else$
             if (prev != work[i]) {
 $endif$
                 prev = work[i];
+$if(Point)$
+                hash(builder, hash, prev.getX(), prev.getY());
+$else$
                 hash(builder, hash, prev);
+$endif$
             }
         }
         builder.endPositionEntry();
@@ -461,7 +532,11 @@ $endif$
      */
     private void encodeUniquedWork(BatchEncoder.$Type$s encoder) {
         for (int i = 0; i < w; i++) {
+$if(Point)$
+            encoder.encode(work[i].getX(), work[i].getY());
+$else$
             encoder.encode(work[i]);
+$endif$
         }
     }
 
@@ -469,7 +544,11 @@ $endif$
      * Converts {@link #work} from sorted array to a deduplicated array.
      */
     private void convertSortedWorkToUnique() {
+$if(Point)$
+        SpatialPoint prev = work[0];
+$else$
         $type$ prev = work[0];
+$endif$
         int end = w;
         w = 1;
         for (int i = 1; i < end; i++) {
@@ -514,16 +593,16 @@ $if(BytesRef)$
 $endif$
 
 $if(BytesRef)$
-    private void hash(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
+    private void hash(IntBlock.Builder builder, BytesRefHash hash, BytesRef value) {
 $else$
-    private void hash(IntBlock.Builder builder, LongHash hash, $type$ v) {
+    private void hash(IntBlock.Builder builder, LongHash hash, $typeValue$) {
 $endif$
 $if(double)$
-        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(v)))));
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(value)))));
 $elseif(Point)$
-        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v.hashCode()))));
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(31L * Double.hashCode(x) + Double.hashCode(y)))));
 $else$
-        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v))));
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(value))));
 $endif$
     }
 }

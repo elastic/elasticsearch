@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.Arrays;
 
@@ -19,19 +18,21 @@ import java.util.Arrays;
  */
 final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock.Builder {
 
-    private SpatialPoint[] values;
+    private double[] xValues, yValues;
 
     PointBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
         adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
-        values = new SpatialPoint[initialSize];
+        xValues = new double[initialSize];
+        yValues = new double[initialSize];
     }
 
     @Override
-    public PointBlockBuilder appendPoint(SpatialPoint value) {
+    public PointBlockBuilder appendPoint(double x, double y) {
         ensureCapacity();
-        values[valueCount] = value;
+        xValues[valueCount] = x;
+        yValues[valueCount] = y;
         hasNonNullValue = true;
         valueCount++;
         updatePosition();
@@ -45,12 +46,13 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
 
     @Override
     protected int valuesLength() {
-        return values.length;
+        return xValues.length;
     }
 
     @Override
     protected void growValuesArray(int newSize) {
-        values = Arrays.copyOf(values, newSize);
+        xValues = Arrays.copyOf(xValues, newSize);
+        yValues = Arrays.copyOf(yValues, newSize);
     }
 
     @Override
@@ -103,14 +105,14 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
         final PointVector vector = block.asVector();
         if (vector != null) {
             for (int p = 0; p < positionCount; p++) {
-                appendPoint(vector.getPoint(p));
+                appendPoint(vector.getX(p), vector.getY(p));
             }
         } else {
             for (int p = 0; p < positionCount; p++) {
                 int count = block.getValueCount(p);
                 int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendPoint(block.getPoint(i++));
+                for (int v = 0; v < count; v++, i++) {
+                    appendPoint(block.getX(i), block.getY(i));
                 }
             }
         }
@@ -159,8 +161,8 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
                 beginPositionEntry();
             }
             int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendPoint(block.getPoint(i++));
+            for (int v = 0; v < count; v++, i++) {
+                appendPoint(block.getX(i), block.getY(i));
             }
             if (count > 1) {
                 endPositionEntry();
@@ -170,7 +172,7 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
 
     private void copyFromVector(PointVector vector, int beginInclusive, int endExclusive) {
         for (int p = beginInclusive; p < endExclusive; p++) {
-            appendPoint(vector.getPoint(p));
+            appendPoint(vector.getX(p), vector.getY(p));
         }
     }
 
@@ -186,16 +188,17 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
             finish();
             PointBlock theBlock;
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-                theBlock = blockFactory.newConstantPointBlockWith(values[0], 1, estimatedBytes);
+                theBlock = blockFactory.newConstantPointBlockWith(xValues[0], yValues[0], 1, estimatedBytes);
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
+                if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                    growValuesArray(valueCount);
                 }
                 if (isDense() && singleValued()) {
-                    theBlock = blockFactory.newPointArrayVector(values, positionCount, estimatedBytes).asBlock();
+                    theBlock = blockFactory.newPointArrayVector(xValues, yValues, positionCount, estimatedBytes).asBlock();
                 } else {
                     theBlock = blockFactory.newPointArrayBlock(
-                        values,
+                        xValues,
+                        yValues,
                         positionCount,
                         firstValueIndexes,
                         nullsMask,

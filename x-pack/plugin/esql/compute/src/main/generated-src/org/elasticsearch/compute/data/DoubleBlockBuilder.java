@@ -108,8 +108,8 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
             for (int p = 0; p < positionCount; p++) {
                 int count = block.getValueCount(p);
                 int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendDouble(block.getDouble(i++));
+                for (int v = 0; v < count; v++, i++) {
+                    appendDouble(block.getDouble(i));
                 }
             }
         }
@@ -158,8 +158,8 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
                 beginPositionEntry();
             }
             int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendDouble(block.getDouble(i++));
+            for (int v = 0; v < count; v++, i++) {
+                appendDouble(block.getDouble(i));
             }
             if (count > 1) {
                 endPositionEntry();
@@ -187,8 +187,8 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes);
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
+                if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                    growValuesArray(valueCount);
                 }
                 if (isDense() && singleValued()) {
                     theBlock = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();

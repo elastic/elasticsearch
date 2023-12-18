@@ -10,9 +10,6 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
-$if(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
-$endif$
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -40,6 +37,14 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return vector.getBytesRef(valueIndex, dest);
+$elseif(Point)$
+    public double getX(int valueIndex) {
+        return vector.getX(valueIndex);
+    }
+
+    @Override
+    public double getY(int valueIndex) {
+        return vector.getY(valueIndex);
 $else$
     public $type$ get$Type$(int valueIndex) {
         return vector.get$Type$(valueIndex);

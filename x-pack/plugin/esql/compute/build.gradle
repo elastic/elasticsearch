@@ -30,30 +30,34 @@ spotless {
   }
 }
 
-def prop(Type, type, TYPE, BYTES, Array) {
+def prop(Type, type, TYPE, BYTES, Array, typeValue, value, typeArrayValues, arrayValues) {
   return [
     "Type" : Type,
     "type" : type,
     "TYPE" : TYPE,
     "BYTES" : BYTES,
     "Array" : Array,
+    "typeValue" : typeValue,
+    "value": value,
+    "typeArrayValues" : typeArrayValues,
+    "arrayValues" : arrayValues,
 
-    "int" : type == "int" ? "true" : "",
-    "long" : type == "long" ? "true" : "",
-    "double" : type == "double" ? "true" : "",
-    "BytesRef" : type == "BytesRef" ? "true" : "",
-    "Point" : type == "SpatialPoint" ? "true" : "",
-    "boolean" : type == "boolean" ? "true" : "",
+    "int" : Type == "Int" ? "true" : "",
+    "long" : Type == "Long" ? "true" : "",
+    "double" : Type == "Double" ? "true" : "",
+    "BytesRef" : Type == "BytesRef" ? "true" : "",
+    "Point" : Type == "Point" ? "true" : "",
+    "boolean" : Type == "Boolean" ? "true" : "",
   ]
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES", "IntArray")
-  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES", "LongArray")
-  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
-  var pointProperties    = prop("Point", "SpatialPoint", "POINT", "16", "ObjectArray<SpatialPoint>")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
+  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES", "IntArray", "int value", "value", "int[] values", "values")
+  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES", "LongArray", "long value", "value", "long[] values", "values")
+  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray", "double value", "value", "double[] values", "values")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "", "BytesRef value", "value", "BytesRefArray values", "values")
+  var pointProperties    = prop("Point", "double", "POINT", "16", "DoubleArray", "double x, double y", "x, y", "double[] xValues, double[] yValues", "xValues, yValues")
+  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray", "boolean value", "value", "boolean[] values", "values")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {

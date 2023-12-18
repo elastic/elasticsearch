@@ -8,33 +8,29 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.Arrays;
 
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
-
 /**
- * Vector implementation that stores an array of SpatialPoint values.
+ * Vector implementation that stores an array of Point values.
  * This class is generated. Do not edit it.
  */
 public final class PointArrayVector extends AbstractVector implements PointVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PointArrayVector.class);
 
-    private final SpatialPoint[] values;
+    private final double[] xValues, yValues;
 
     private final PointBlock block;
 
-    public PointArrayVector(SpatialPoint[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    public PointArrayVector(double[] xValues, double[] yValues, int positionCount) {
+        this(xValues, yValues, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
-    public PointArrayVector(SpatialPoint[] values, int positionCount, BlockFactory blockFactory) {
+    public PointArrayVector(double[] xValues, double[] yValues, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
-        this.values = values;
+        this.xValues = xValues;
+        this.yValues = yValues;
         this.block = new PointVectorBlock(this);
     }
 
@@ -44,8 +40,13 @@ public final class PointArrayVector extends AbstractVector implements PointVecto
     }
 
     @Override
-    public SpatialPoint getPoint(int position) {
-        return values[position];
+    public double getX(int position) {
+        return xValues[position];
+    }
+
+    @Override
+    public double getY(int position) {
+        return yValues[position];
     }
 
     @Override
@@ -62,20 +63,19 @@ public final class PointArrayVector extends AbstractVector implements PointVecto
     public PointVector filter(int... positions) {
         try (PointVector.Builder builder = blockFactory().newPointVectorBuilder(positions.length)) {
             for (int pos : positions) {
-                builder.appendPoint(values[pos]);
+                builder.appendPoint(xValues[pos], yValues[pos]);
             }
             return builder.build();
         }
     }
 
-    public static long ramBytesEstimated(SpatialPoint[] values) {
-        long valuesEstimate = (long) NUM_BYTES_ARRAY_HEADER + ((long) Long.BYTES * 2 + (long) NUM_BYTES_OBJECT_REF) * values.length;
-        return BASE_RAM_BYTES_USED + alignObjectSize(valuesEstimate);
+    public static long ramBytesEstimated(double[] xValues, double[] yValues) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(xValues) * 2;
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values);
+        return ramBytesEstimated(xValues, yValues);
     }
 
     @Override
@@ -93,7 +93,14 @@ public final class PointArrayVector extends AbstractVector implements PointVecto
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        return getClass().getSimpleName()
+            + "[positions="
+            + getPositionCount()
+            + ", x="
+            + Arrays.toString(xValues)
+            + ", y="
+            + Arrays.toString(yValues)
+            + ']';
     }
 
 }

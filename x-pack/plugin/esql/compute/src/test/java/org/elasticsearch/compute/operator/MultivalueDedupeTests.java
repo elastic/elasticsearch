@@ -349,11 +349,21 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private void assertPointHash(Set<SpatialPoint> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(p -> hash.add(p.hashCode()));
+        previousValues.stream().forEach(p -> hash.add(pointHashCode(p)));
         MultivalueDedupe.HashResult hashes = new MultivalueDedupePoint((PointBlock) b.block()).hash(blockFactory(), hash);
         try (IntBlock ords = hashes.ords()) {
             assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(Objects::isNull)));
-            assertHash(b, ords, hash.size(), previousValues, hash::get, p -> (long) p.hashCode());
+            assertHash(b, ords, hash.size(), previousValues, hash::get, MultivalueDedupeTests::pointHashCode);
+        }
+    }
+
+    private static long pointHashCode(Object obj) {
+        // TODO: remove if we can get SpatialPoint.hashCode to use same implementation as MultivalueDedupePoint.hash()
+        if (obj instanceof SpatialPoint point) {
+            // Must match MultivalueDedupePoint.hash() implementation
+            return 31L * Double.hashCode(point.getX()) + Double.hashCode(point.getY());
+        } else {
+            return obj.hashCode();
         }
     }
 

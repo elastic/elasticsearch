@@ -14,13 +14,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
-$elseif(Point)$
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.geo.SpatialPoint;
-
-import java.util.Arrays;
-
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -46,8 +39,19 @@ $if(BytesRef)$
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
+$elseif(Point)$
+    private $type$[] $arrayValues$;
+
+    $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        xValues = new $type$[initialSize];
+        yValues = new $type$[initialSize];
+    }
+
 $else$
-    private $type$[] values;
+    private $type$[] $arrayValues$;
 
     $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
@@ -58,10 +62,13 @@ $else$
 $endif$
 
     @Override
-    public $Type$BlockBuilder append$Type$($type$ value) {
+    public $Type$BlockBuilder append$Type$($typeValue$) {
         ensureCapacity();
 $if(BytesRef)$
         values.append(value);
+$elseif(Point)$
+        xValues[valueCount] = x;
+        yValues[valueCount] = y;
 $else$
         values[valueCount] = value;
 $endif$
@@ -80,6 +87,8 @@ $endif$
     protected int valuesLength() {
 $if(BytesRef)$
         return Integer.MAX_VALUE; // allow the BytesRefArray through its own append
+$elseif(Point)$
+        return xValues.length;
 $else$
         return values.length;
 $endif$
@@ -89,6 +98,9 @@ $endif$
     protected void growValuesArray(int newSize) {
 $if(BytesRef)$
         throw new AssertionError("should not reach here");
+$elseif(Point)$
+        xValues = Arrays.copyOf(xValues, newSize);
+        yValues = Arrays.copyOf(yValues, newSize);
 $else$
         values = Arrays.copyOf(values, newSize);
 $endif$
@@ -156,6 +168,8 @@ $endif$
             for (int p = 0; p < positionCount; p++) {
 $if(BytesRef)$
                 appendBytesRef(vector.getBytesRef(p, scratch));
+$elseif(Point)$
+                append$Type$(vector.getX(p), vector.getY(p));
 $else$
                 append$Type$(vector.get$Type$(p));
 $endif$
@@ -164,11 +178,13 @@ $endif$
             for (int p = 0; p < positionCount; p++) {
                 int count = block.getValueCount(p);
                 int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
+                for (int v = 0; v < count; v++, i++) {
 $if(BytesRef)$
-                    appendBytesRef(block.getBytesRef(i++, scratch));
+                    appendBytesRef(block.getBytesRef(i, scratch));
+$elseif(Point)$
+                    append$Type$(block.getX(i), block.getY(i));
 $else$
-                    append$Type$(block.get$Type$(i++));
+                    append$Type$(block.get$Type$(i));
 $endif$
                 }
             }
@@ -221,11 +237,13 @@ $endif$
                 beginPositionEntry();
             }
             int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
+            for (int v = 0; v < count; v++, i++) {
 $if(BytesRef)$
-                appendBytesRef(block.getBytesRef(i++, scratch));
+                appendBytesRef(block.getBytesRef(i, scratch));
+$elseif(Point)$
+                append$Type$(block.getX(i), block.getY(i));
 $else$
-                append$Type$(block.get$Type$(i++));
+                append$Type$(block.get$Type$(i));
 $endif$
             }
             if (count > 1) {
@@ -241,6 +259,8 @@ $endif$
         for (int p = beginInclusive; p < endExclusive; p++) {
 $if(BytesRef)$
             appendBytesRef(vector.getBytesRef(p, scratch));
+$elseif(Point)$
+            append$Type$(vector.getX(p), vector.getY(p));
 $else$
             append$Type$(vector.get$Type$(p));
 $endif$
@@ -291,16 +311,21 @@ $endif$
             values = null;
     $else$
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-                theBlock = blockFactory.newConstant$Type$BlockWith(values[0], 1, estimatedBytes);
+                theBlock = blockFactory.newConstant$Type$BlockWith($if(Point)$xValues[0], yValues[0]$else$values[0]$endif$, 1, estimatedBytes);
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
+                if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                    growValuesArray(valueCount);
                 }
                 if (isDense() && singleValued()) {
-                    theBlock = blockFactory.new$Type$ArrayVector(values, positionCount, estimatedBytes).asBlock();
+                    theBlock = blockFactory.new$Type$ArrayVector($arrayValues$, positionCount, estimatedBytes).asBlock();
                 } else {
                     theBlock = blockFactory.new$Type$ArrayBlock(
-                        values,
+$if(Point)$
+                        xValues,
+                        yValues,
+$else$
+                        $arrayValues$,
+$endif$
                         positionCount,
                         firstValueIndexes,
                         nullsMask,

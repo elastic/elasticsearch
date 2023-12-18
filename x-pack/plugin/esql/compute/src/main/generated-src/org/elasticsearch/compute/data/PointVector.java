@@ -14,12 +14,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Vector that stores SpatialPoint values.
+ * Vector that stores Point values.
  * This class is generated. Do not edit it.
  */
 public sealed interface PointVector extends Vector permits ConstantPointVector, PointArrayVector, PointBigArrayVector, ConstantNullVector {
 
-    SpatialPoint getPoint(int position);
+    double getX(int position);
+
+    double getY(int position);
+
+    default SpatialPoint getPoint(int valueIndex) {
+        return new SpatialPoint(getX(valueIndex), getY(valueIndex));
+    }
 
     @Override
     PointBlock asBlock();
@@ -50,7 +56,7 @@ public sealed interface PointVector extends Vector permits ConstantPointVector, 
             return false;
         }
         for (int pos = 0; pos < positions; pos++) {
-            if (vector1.getPoint(pos).equals(vector2.getPoint(pos)) == false) {
+            if (vector1.getX(pos) != vector2.getY(pos) || vector1.getY(pos) != vector2.getY(pos)) {
                 return false;
             }
         }
@@ -67,10 +73,11 @@ public sealed interface PointVector extends Vector permits ConstantPointVector, 
         final int len = vector.getPositionCount();
         int result = 1;
         for (int pos = 0; pos < len; pos++) {
-            SpatialPoint point = vector.getPoint(pos);
-            long element = Double.doubleToLongBits(point.getX());
+            double x = vector.getX(pos);
+            double y = vector.getY(pos);
+            long element = Double.doubleToLongBits(x);
             result = 31 * result + (int) (element ^ (element >>> 32));
-            element = Double.doubleToLongBits(point.getY());
+            element = Double.doubleToLongBits(y);
             result = 31 * result + (int) (element ^ (element >>> 32));
         }
         return result;
@@ -81,11 +88,11 @@ public sealed interface PointVector extends Vector permits ConstantPointVector, 
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return blockFactory.newConstantPointVector(new SpatialPoint(in.readDouble(), in.readDouble()), positions);
+            return blockFactory.newConstantPointVector(in.readDouble(), in.readDouble(), positions);
         } else {
             try (var builder = blockFactory.newPointVectorFixedBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    builder.appendPoint(new SpatialPoint(in.readDouble(), in.readDouble()));
+                    builder.appendPoint(in.readDouble(), in.readDouble());
                 }
                 return builder.build();
             }
@@ -98,14 +105,12 @@ public sealed interface PointVector extends Vector permits ConstantPointVector, 
         out.writeVInt(positions);
         out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
-            SpatialPoint point = getPoint(0);
-            out.writeDouble(point.getX());
-            out.writeDouble(point.getY());
+            out.writeDouble(getX(0));
+            out.writeDouble(getY(0));
         } else {
             for (int i = 0; i < positions; i++) {
-                SpatialPoint point = getPoint(i);
-                out.writeDouble(point.getX());
-                out.writeDouble(point.getY());
+                out.writeDouble(getX(i));
+                out.writeDouble(getY(i));
             }
         }
     }
@@ -145,9 +150,9 @@ public sealed interface PointVector extends Vector permits ConstantPointVector, 
      */
     sealed interface Builder extends Vector.Builder permits PointVectorBuilder {
         /**
-         * Appends a SpatialPoint to the current entry.
+         * Appends a double to the current entry.
          */
-        Builder appendPoint(SpatialPoint value);
+        Builder appendPoint(double x, double y);
 
         @Override
         PointVector build();
@@ -158,9 +163,9 @@ public sealed interface PointVector extends Vector permits ConstantPointVector, 
      */
     sealed interface FixedBuilder extends Vector.Builder permits PointVectorFixedBuilder {
         /**
-         * Appends a SpatialPoint to the current entry.
+         * Appends a double to the current entry.
          */
-        FixedBuilder appendPoint(SpatialPoint value);
+        FixedBuilder appendPoint(double x, double y);
 
         @Override
         PointVector build();

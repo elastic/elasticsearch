@@ -8,33 +8,37 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
 
 /**
- * Vector implementation that stores a constant SpatialPoint value.
+ * Vector implementation that stores a constant double value.
  * This class is generated. Do not edit it.
  */
 public final class ConstantPointVector extends AbstractVector implements PointVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantPointVector.class);
 
-    private final SpatialPoint value;
-
+    private final double x, y;
     private final PointBlock block;
 
-    public ConstantPointVector(SpatialPoint value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    public ConstantPointVector(double x, double y, int positionCount) {
+        this(x, y, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
-    public ConstantPointVector(SpatialPoint value, int positionCount, BlockFactory blockFactory) {
+    public ConstantPointVector(double x, double y, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
-        this.value = value;
+        this.x = x;
+        this.y = y;
         this.block = new PointVectorBlock(this);
     }
 
     @Override
-    public SpatialPoint getPoint(int position) {
-        return value;
+    public double getX(int position) {
+        return x;
+    }
+
+    @Override
+    public double getY(int position) {
+        return y;
     }
 
     @Override
@@ -44,7 +48,7 @@ public final class ConstantPointVector extends AbstractVector implements PointVe
 
     @Override
     public PointVector filter(int... positions) {
-        return new ConstantPointVector(value, positions.length);
+        return new ConstantPointVector(x, y, positions.length);
     }
 
     @Override
@@ -76,7 +80,7 @@ public final class ConstantPointVector extends AbstractVector implements PointVe
     }
 
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", x=" + x + ", y=" + y + ']';
     }
 
     @Override

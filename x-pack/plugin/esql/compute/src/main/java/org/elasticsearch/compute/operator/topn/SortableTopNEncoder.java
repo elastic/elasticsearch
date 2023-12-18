@@ -71,10 +71,10 @@ public abstract class SortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final void encodePoint(SpatialPoint value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public final void encodePoint(double x, double y, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES * 2);
-        long xi = NumericUtils.doubleToSortableLong(value.getX());
-        long yi = NumericUtils.doubleToSortableLong(value.getY());
+        long xi = NumericUtils.doubleToSortableLong(x);
+        long yi = NumericUtils.doubleToSortableLong(y);
         NumericUtils.longToSortableBytes(xi, bytesRefBuilder.bytes(), bytesRefBuilder.length());
         NumericUtils.longToSortableBytes(yi, bytesRefBuilder.bytes(), bytesRefBuilder.length() + Long.BYTES);
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES * 2);

@@ -12,7 +12,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import java.util.Arrays;
 
 /**
- * Vector implementation that stores an array of long values.
+ * Vector implementation that stores an array of Long values.
  * This class is generated. Do not edit it.
  */
 public final class LongArrayVector extends AbstractVector implements LongVector {

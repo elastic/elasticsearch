@@ -108,8 +108,8 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
             for (int p = 0; p < positionCount; p++) {
                 int count = block.getValueCount(p);
                 int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendLong(block.getLong(i++));
+                for (int v = 0; v < count; v++, i++) {
+                    appendLong(block.getLong(i));
                 }
             }
         }
@@ -158,8 +158,8 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
                 beginPositionEntry();
             }
             int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendLong(block.getLong(i++));
+            for (int v = 0; v < count; v++, i++) {
+                appendLong(block.getLong(i));
             }
             if (count > 1) {
                 endPositionEntry();
@@ -187,8 +187,8 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantLongBlockWith(values[0], 1, estimatedBytes);
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
+                if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                    growValuesArray(valueCount);
                 }
                 if (isDense() && singleValued()) {
                     theBlock = blockFactory.newLongArrayVector(values, positionCount, estimatedBytes).asBlock();

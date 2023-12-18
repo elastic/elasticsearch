@@ -12,7 +12,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -531,11 +530,11 @@ public abstract class BatchEncoder implements Accountable {
         /**
          * Encode a {@code SpatialPoint} and advance to the next position.
          */
-        protected final void encode(SpatialPoint v) {
+        protected final void encode(double x, double y) {
             addingValue();
-            doubleHandle.set(bytes.bytes(), bytes.length(), v.getX());
+            doubleHandle.set(bytes.bytes(), bytes.length(), x);
             bytes.setLength(bytes.length() + Double.BYTES);
-            doubleHandle.set(bytes.bytes(), bytes.length(), v.getY());
+            doubleHandle.set(bytes.bytes(), bytes.length(), y);
             bytes.setLength(bytes.length() + Double.BYTES);
         }
     }
@@ -550,9 +549,8 @@ public abstract class BatchEncoder implements Accountable {
             int before = dst.length();
             int after = before + Double.BYTES * 2;
             dst.grow(after);
-            SpatialPoint v = ((PointBlock) block).getPoint(valueIndex);
-            doubleHandle.set(dst.bytes(), before, v.getX());
-            doubleHandle.set(dst.bytes(), before + Double.BYTES, v.getY());
+            doubleHandle.set(dst.bytes(), before, ((PointBlock) block).getX(valueIndex));
+            doubleHandle.set(dst.bytes(), before + Double.BYTES, ((PointBlock) block).getY(valueIndex));
             dst.setLength(after);
             return Double.BYTES * 2;
         }
@@ -573,7 +571,7 @@ public abstract class BatchEncoder implements Accountable {
                     double y = (double) doubleHandle.get(e.bytes, e.offset);
                     e.offset += Double.BYTES;
                     e.length -= Double.BYTES;
-                    b.appendPoint(new SpatialPoint(x, y));
+                    b.appendPoint(x, y);
                 }
             }
         }

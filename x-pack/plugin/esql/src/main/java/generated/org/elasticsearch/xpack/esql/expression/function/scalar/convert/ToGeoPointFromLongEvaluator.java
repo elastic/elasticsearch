@@ -38,7 +38,8 @@ public final class ToGeoPointFromLongEvaluator extends AbstractConvertFunction.A
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return driverContext.blockFactory().newConstantPointBlockWith(evalValue(vector, 0), positionCount);
+        SpatialPoint point = evalValue(vector, 0);
+        return driverContext.blockFactory().newConstantPointBlockWith(point.getX(), point.getY(), positionCount);
       } catch (IllegalArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
@@ -47,7 +48,8 @@ public final class ToGeoPointFromLongEvaluator extends AbstractConvertFunction.A
     try (PointBlock.Builder builder = driverContext.blockFactory().newPointBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         try {
-          builder.appendPoint(evalValue(vector, p));
+          SpatialPoint point = evalValue(vector, p);
+          builder.appendPoint(point.getX(), point.getY());
         } catch (IllegalArgumentException  e) {
           registerException(e);
           builder.appendNull();
@@ -80,7 +82,7 @@ public final class ToGeoPointFromLongEvaluator extends AbstractConvertFunction.A
               builder.beginPositionEntry();
               positionOpened = true;
             }
-            builder.appendPoint(value);
+            builder.appendPoint(value.getX(), value.getY());
             valuesAppended = true;
           } catch (IllegalArgumentException  e) {
             registerException(e);

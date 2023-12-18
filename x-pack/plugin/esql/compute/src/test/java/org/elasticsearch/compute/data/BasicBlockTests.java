@@ -916,7 +916,7 @@ public class BasicBlockTests extends ESTestCase {
                         case POINT -> {
                             SpatialPoint pt = new SpatialPoint(pointSupplier.get());
                             valuesAtPosition.add(pt);
-                            ((PointBlock.Builder) builder).appendPoint(pt);
+                            ((PointBlock.Builder) builder).appendPoint(pt.getX(), pt.getY());
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

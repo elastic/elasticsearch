@@ -13,16 +13,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
-$elseif(Point)$
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
-
-import java.util.Arrays;
-
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
-
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -30,7 +20,7 @@ import java.util.Arrays;
 $endif$
 
 /**
- * Vector implementation that stores an array of $type$ values.
+ * Vector implementation that stores an array of $Type$ values.
  * This class is generated. Do not edit it.
  */
 public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
@@ -40,19 +30,27 @@ public final class $Type$ArrayVector extends AbstractVector implements $Type$Vec
 $if(BytesRef)$
     private final BytesRefArray values;
 
+$elseif(Point)$
+    private final double[] xValues, yValues;
+
 $else$
     private final $type$[] values;
 $endif$
 
     private final $Type$Block block;
 
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    public $Type$ArrayVector($typeArrayValues$, int positionCount) {
+        this($arrayValues$, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
+    public $Type$ArrayVector($typeArrayValues$, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
+$if(Point)$
+        this.xValues = xValues;
+        this.yValues = yValues;
+$else$
         this.values = values;
+$endif$
         this.block = new $Type$VectorBlock(this);
     }
 
@@ -65,6 +63,17 @@ $if(BytesRef)$
     @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
         return values.get(position, dest);
+    }
+
+$elseif(Point)$
+    @Override
+    public double getX(int position) {
+        return xValues[position];
+    }
+
+    @Override
+    public double getY(int position) {
+        return yValues[position];
     }
 
 $else$
@@ -93,6 +102,8 @@ $endif$
             for (int pos : positions) {
             $if(BytesRef)$
                 builder.append$Type$(values.get(pos, scratch));
+            $elseif(Point)$
+                builder.append$Type$(xValues[pos], yValues[pos]);
             $else$
                 builder.append$Type$(values[pos]);
             $endif$
@@ -101,10 +112,9 @@ $endif$
         }
     }
 
-    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
+    public static long ramBytesEstimated($typeArrayValues$) {
     $if(Point)$
-        long valuesEstimate = (long) NUM_BYTES_ARRAY_HEADER + ((long) Long.BYTES * 2 + (long) NUM_BYTES_OBJECT_REF) * values.length;
-        return BASE_RAM_BYTES_USED + alignObjectSize(valuesEstimate);
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(xValues) * 2;
     $else$
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     $endif$
@@ -112,7 +122,7 @@ $endif$
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values);
+        return ramBytesEstimated($arrayValues$);
     }
 
     @Override
@@ -132,6 +142,15 @@ $endif$
     public String toString() {
 $if(BytesRef)$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
+$elseif(Point)$
+        return getClass().getSimpleName()
+            + "[positions="
+            + getPositionCount()
+            + ", x="
+            + Arrays.toString(xValues)
+            + ", y="
+            + Arrays.toString(yValues)
+            + ']';
 $else$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
 $endif$

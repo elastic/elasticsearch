@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.data.PointVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -32,8 +31,8 @@ abstract class ValueExtractorForPoint implements ValueExtractor {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
     }
 
-    protected final void actualWriteValue(BreakingBytesRefBuilder values, SpatialPoint value) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodePoint(value, values);
+    protected final void actualWriteValue(BreakingBytesRefBuilder values, double x, double y) {
+        TopNEncoder.DEFAULT_UNSORTABLE.encodePoint(x, y, values);
     }
 
     static class ForVector extends ValueExtractorForPoint {
@@ -51,7 +50,7 @@ abstract class ValueExtractorForPoint implements ValueExtractor {
                 // will read results from the key
                 return;
             }
-            actualWriteValue(values, vector.getPoint(position));
+            actualWriteValue(values, vector.getX(position), vector.getY(position));
         }
     }
 
@@ -74,7 +73,7 @@ abstract class ValueExtractorForPoint implements ValueExtractor {
             int start = block.getFirstValueIndex(position);
             int end = start + size;
             for (int i = start; i < end; i++) {
-                actualWriteValue(values, block.getPoint(i));
+                actualWriteValue(values, block.getX(i), block.getY(i));
             }
         }
     }

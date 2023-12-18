@@ -162,8 +162,8 @@ public class MultivalueDedupeBytesRef {
                         builder.appendInt(0);
                     }
                     case 1 -> {
-                        BytesRef v = block.getBytesRef(first, work[0]);
-                        hash(builder, hash, v);
+                        BytesRef value = block.getBytesRef(first, work[0]);
+                        hash(builder, hash, value);
                     }
                     default -> {
                         if (count < ALWAYS_COPY_MISSING) {
@@ -204,13 +204,13 @@ public class MultivalueDedupeBytesRef {
                     switch (count) {
                         case 0 -> encodeNull();
                         case 1 -> {
-                            BytesRef v = block.getBytesRef(first, work[0]);
-                            if (hasCapacity(v.length, 1)) {
+                            BytesRef value = block.getBytesRef(first, work[0]);
+                            if (hasCapacity(value.length, 1)) {
                                 startPosition();
-                                encode(v);
+                                encode(value);
                                 endPosition();
                             } else {
-                                work[0] = v;
+                                work[0] = value;
                                 w = 1;
                                 return;
                             }
@@ -391,7 +391,7 @@ public class MultivalueDedupeBytesRef {
         }
     }
 
-    private void hash(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v))));
+    private void hash(IntBlock.Builder builder, BytesRefHash hash, BytesRef value) {
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(value))));
     }
 }

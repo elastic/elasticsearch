@@ -54,8 +54,8 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
         if (valueCount == 1) {
             vector = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
+            if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                growValuesArray(valueCount);
             }
             vector = blockFactory.newIntArrayVector(values, valueCount, estimatedBytes);
         }

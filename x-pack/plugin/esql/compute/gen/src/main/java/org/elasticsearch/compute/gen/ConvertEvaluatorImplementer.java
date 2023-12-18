@@ -32,6 +32,7 @@ import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
+import static org.elasticsearch.compute.gen.Types.POINT;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -130,11 +131,19 @@ public class ConvertEvaluatorImplementer {
         {
             catchingWarnExceptions(builder, () -> {
                 var constVectType = blockType(resultType);
-                builder.addStatement(
-                    "return driverContext.blockFactory().newConstant$TWith($N, positionCount)",
-                    constVectType,
-                    evalValueCall("vector", "0", scratchPadName)
-                );
+                if (resultType.equals(POINT)) {
+                    builder.addStatement("$T point = $N", resultType, evalValueCall("vector", "0", scratchPadName));
+                    builder.addStatement(
+                        "return driverContext.blockFactory().newConstant$TWith(point.getX(), point.getY(), positionCount)",
+                        constVectType
+                    );
+                } else {
+                    builder.addStatement(
+                        "return driverContext.blockFactory().newConstant$TWith($N, positionCount)",
+                        constVectType,
+                        evalValueCall("vector", "0", scratchPadName)
+                    );
+                }
             }, () -> builder.addStatement("return driverContext.blockFactory().newConstantNullBlock(positionCount)"));
         }
         builder.endControlFlow();
@@ -148,11 +157,14 @@ public class ConvertEvaluatorImplementer {
         {
             builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
             {
-                catchingWarnExceptions(
-                    builder,
-                    () -> builder.addStatement("builder.$L($N)", appendMethod(resultType), evalValueCall("vector", "p", scratchPadName)),
-                    () -> builder.addStatement("builder.appendNull()")
-                );
+                catchingWarnExceptions(builder, () -> {
+                    if (resultType.equals(POINT)) {
+                        builder.addStatement("$T point = $N", resultType, evalValueCall("vector", "p", scratchPadName));
+                        builder.addStatement("builder.$L(point.getX(), point.getY())", appendMethod(resultType));
+                    } else {
+                        builder.addStatement("builder.$L($N)", appendMethod(resultType), evalValueCall("vector", "p", scratchPadName));
+                    }
+                }, () -> builder.addStatement("builder.appendNull()"));
             }
             builder.endControlFlow();
             builder.addStatement("return builder.build()");
@@ -215,7 +227,11 @@ public class ConvertEvaluatorImplementer {
                         builder.addStatement("positionOpened = true");
                     }
                     builder.endControlFlow();
-                    builder.addStatement("builder.$N(value)", appendMethod);
+                    if (resultType.equals(POINT)) {
+                        builder.addStatement("builder.$N(value.getX(), value.getY())", appendMethod);
+                    } else {
+                        builder.addStatement("builder.$N(value)", appendMethod);
+                    }
                     builder.addStatement("valuesAppended = true");
                 }, () -> {});
             }
@@ -265,6 +281,10 @@ public class ConvertEvaluatorImplementer {
         if (argumentType.equals(BYTES_REF)) {
             builder.addParameter(BYTES_REF, "scratchPad");
             builder.addStatement("$T value = container.$N(index, scratchPad)", argumentType, getMethod(argumentType));
+        } else if (argumentType.equals(POINT)) {
+            builder.addStatement("double x = container.getX(index)");
+            builder.addStatement("double y = container.getY(index)");
+            builder.addStatement("$T value = new $T(x, y)", argumentType, argumentType);
         } else {
             builder.addStatement("$T value = container.$N(index)", argumentType, getMethod(argumentType));
         }

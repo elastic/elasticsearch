@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.geo.SpatialPoint;
-
 import java.util.Arrays;
 
 /**
@@ -17,19 +15,21 @@ import java.util.Arrays;
  */
 final class PointVectorBuilder extends AbstractVectorBuilder implements PointVector.Builder {
 
-    private SpatialPoint[] values;
+    private double[] xValues, yValues;
 
     PointVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
         adjustBreaker(initialSize);
-        values = new SpatialPoint[Math.max(estimatedSize, 2)];
+        xValues = new double[Math.max(estimatedSize, 2)];
+        yValues = new double[Math.max(estimatedSize, 2)];
     }
 
     @Override
-    public PointVectorBuilder appendPoint(SpatialPoint value) {
+    public PointVectorBuilder appendPoint(double x, double y) {
         ensureCapacity();
-        values[valueCount] = value;
+        xValues[valueCount] = x;
+        yValues[valueCount] = y;
         valueCount++;
         return this;
     }
@@ -41,12 +41,13 @@ final class PointVectorBuilder extends AbstractVectorBuilder implements PointVec
 
     @Override
     protected int valuesLength() {
-        return values.length;
+        return xValues.length;
     }
 
     @Override
     protected void growValuesArray(int newSize) {
-        values = Arrays.copyOf(values, newSize);
+        xValues = Arrays.copyOf(xValues, newSize);
+        yValues = Arrays.copyOf(yValues, newSize);
     }
 
     @Override
@@ -54,12 +55,12 @@ final class PointVectorBuilder extends AbstractVectorBuilder implements PointVec
         finish();
         PointVector vector;
         if (valueCount == 1) {
-            vector = blockFactory.newConstantPointBlockWith(values[0], 1, estimatedBytes).asVector();
+            vector = blockFactory.newConstantPointBlockWith(xValues[0], yValues[0], 1, estimatedBytes).asVector();
         } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
+            if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                growValuesArray(valueCount);
             }
-            vector = blockFactory.newPointArrayVector(values, valueCount, estimatedBytes);
+            vector = blockFactory.newPointArrayVector(xValues, yValues, valueCount, estimatedBytes);
         }
         built();
         return vector;

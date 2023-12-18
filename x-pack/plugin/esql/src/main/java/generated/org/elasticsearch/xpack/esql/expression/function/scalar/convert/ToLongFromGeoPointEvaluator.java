@@ -47,7 +47,9 @@ public final class ToLongFromGeoPointEvaluator extends AbstractConvertFunction.A
   }
 
   private static long evalValue(PointVector container, int index) {
-    SpatialPoint value = container.getPoint(index);
+    double x = container.getX(index);
+    double y = container.getY(index);
+    SpatialPoint value = new SpatialPoint(x, y);
     return ToLong.fromGeoPoint(value);
   }
 
@@ -82,7 +84,9 @@ public final class ToLongFromGeoPointEvaluator extends AbstractConvertFunction.A
   }
 
   private static long evalValue(PointBlock container, int index) {
-    SpatialPoint value = container.getPoint(index);
+    double x = container.getX(index);
+    double y = container.getY(index);
+    SpatialPoint value = new SpatialPoint(x, y);
     return ToLong.fromGeoPoint(value);
   }
 

@@ -159,8 +159,8 @@ public class MultivalueDedupeDouble {
                         builder.appendInt(0);
                     }
                     case 1 -> {
-                        double v = block.getDouble(first);
-                        hash(builder, hash, v);
+                        double value = block.getDouble(first);
+                        hash(builder, hash, value);
                     }
                     default -> {
                         if (count < ALWAYS_COPY_MISSING) {
@@ -201,13 +201,13 @@ public class MultivalueDedupeDouble {
                     switch (count) {
                         case 0 -> encodeNull();
                         case 1 -> {
-                            double v = block.getDouble(first);
+                            double value = block.getDouble(first);
                             if (hasCapacity(1)) {
                                 startPosition();
-                                encode(v);
+                                encode(value);
                                 endPosition();
                             } else {
-                                work[0] = v;
+                                work[0] = value;
                                 w = 1;
                                 return;
                             }
@@ -369,7 +369,7 @@ public class MultivalueDedupeDouble {
         work = ArrayUtil.grow(work, size);
     }
 
-    private void hash(IntBlock.Builder builder, LongHash hash, double v) {
-        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(v)))));
+    private void hash(IntBlock.Builder builder, LongHash hash, double value) {
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(Double.doubleToLongBits(value)))));
     }
 }

@@ -7,13 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-$if(Point)$
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
-
-$else$
-import org.apache.lucene.util.RamUsageEstimator;
-$endif$
 
 /**
  * Builder for {@link $Type$Vector}s that never grows. Prefer this to
@@ -23,7 +17,7 @@ $endif$
  */
 final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     private final BlockFactory blockFactory;
-    private final $type$[] values;
+    private final $type$[] $arrayValues$;
     private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
@@ -35,28 +29,38 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes, false);
         this.blockFactory = blockFactory;
+$if(Point)$
+        this.xValues = new $type$[size];
+        this.yValues = new $type$[size];
+$else$
         this.values = new $type$[size];
+$endif$
     }
 
     @Override
-    public $Type$VectorFixedBuilder append$Type$($type$ value) {
+    public $Type$VectorFixedBuilder append$Type$($typeValue$) {
+$if(Point)$
+        xValues[nextIndex++] = x;
+        yValues[nextIndex++] = y;
+$else$
         values[nextIndex++] = value;
+$endif$
         return this;
     }
 
     private static long ramBytesUsed(int size) {
-$if(Point)$
-        return size == 1
-            ? ConstantPointVector.RAM_BYTES_USED
-            : PointArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * ($BYTES$ + RamUsageEstimator.NUM_BYTES_OBJECT_REF)
-            );
-$else$
         return size == 1
             ? Constant$Type$Vector.RAM_BYTES_USED
             : $Type$ArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
                 (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * $BYTES$
             );
+    }
+
+    private int valuesLength() {
+$if(Point)$
+        return xValues.length;
+$else$
+        return values.length;
 $endif$
     }
 
@@ -65,15 +69,15 @@ $endif$
         if (nextIndex < 0) {
             throw new IllegalStateException("already closed");
         }
-        if (nextIndex != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
+        if (nextIndex != valuesLength()) {
+            throw new IllegalStateException("expected to write [" + valuesLength() + "] entries but wrote [" + nextIndex + "]");
         }
         nextIndex = -1;
         $Type$Vector vector;
-        if (values.length == 1) {
-            vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, preAdjustedBytes).asVector();
+        if (valuesLength() == 1) {
+            vector = blockFactory.newConstant$Type$BlockWith($if(Point)$xValues[0], yValues[0]$else$values[0]$endif$, 1, preAdjustedBytes).asVector();
         } else {
-            vector = blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
+            vector = blockFactory.new$Type$ArrayVector($arrayValues$, valuesLength(), preAdjustedBytes);
         }
         assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         return vector;

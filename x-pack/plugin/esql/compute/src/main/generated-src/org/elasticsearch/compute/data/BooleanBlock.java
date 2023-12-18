@@ -15,7 +15,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.io.IOException;
 
 /**
- * Block that stores boolean values.
+ * Block that stores Boolean values.
  * This class is generated. Do not edit it.
  */
 public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock {
@@ -236,14 +236,14 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         Builder appendAllValuesToCurrentPosition(BooleanBlock block);

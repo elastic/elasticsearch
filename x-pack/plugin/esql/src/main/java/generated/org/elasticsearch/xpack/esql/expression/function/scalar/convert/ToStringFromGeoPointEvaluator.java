@@ -48,7 +48,9 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
   }
 
   private static BytesRef evalValue(PointVector container, int index) {
-    SpatialPoint value = container.getPoint(index);
+    double x = container.getX(index);
+    double y = container.getY(index);
+    SpatialPoint value = new SpatialPoint(x, y);
     return ToString.fromGeoPoint(value);
   }
 
@@ -83,7 +85,9 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
   }
 
   private static BytesRef evalValue(PointBlock container, int index) {
-    SpatialPoint value = container.getPoint(index);
+    double x = container.getX(index);
+    double y = container.getY(index);
+    SpatialPoint value = new SpatialPoint(x, y);
     return ToString.fromGeoPoint(value);
   }
 

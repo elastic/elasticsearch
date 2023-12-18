@@ -54,8 +54,8 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
         if (valueCount == 1) {
             vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
+            if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                growValuesArray(valueCount);
             }
             vector = blockFactory.newDoubleArrayVector(values, valueCount, estimatedBytes);
         }

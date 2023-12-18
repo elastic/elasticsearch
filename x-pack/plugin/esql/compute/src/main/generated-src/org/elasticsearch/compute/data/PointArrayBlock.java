@@ -8,31 +8,34 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.util.Arrays;
 import java.util.BitSet;
 
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
-
 /**
- * Block implementation that stores an array of SpatialPoint.
+ * Block implementation that stores an array of double.
  * This class is generated. Do not edit it.
  */
 public final class PointArrayBlock extends AbstractArrayBlock implements PointBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PointArrayBlock.class);
 
-    private final SpatialPoint[] values;
+    private final double[] xValues, yValues;
 
-    public PointArrayBlock(SpatialPoint[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
+    public PointArrayBlock(
+        double[] xValues,
+        double[] yValues,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering
+    ) {
+        this(xValues, yValues, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
     }
 
     public PointArrayBlock(
-        SpatialPoint[] values,
+        double[] xValues,
+        double[] yValues,
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,
@@ -40,7 +43,8 @@ public final class PointArrayBlock extends AbstractArrayBlock implements PointBl
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.xValues = xValues;
+        this.yValues = yValues;
     }
 
     @Override
@@ -49,8 +53,13 @@ public final class PointArrayBlock extends AbstractArrayBlock implements PointBl
     }
 
     @Override
-    public SpatialPoint getPoint(int valueIndex) {
-        return values[valueIndex];
+    public double getX(int valueIndex) {
+        return xValues[valueIndex];
+    }
+
+    @Override
+    public double getY(int valueIndex) {
+        return yValues[valueIndex];
     }
 
     @Override
@@ -64,11 +73,11 @@ public final class PointArrayBlock extends AbstractArrayBlock implements PointBl
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendPoint(getPoint(getFirstValueIndex(pos)));
+                    builder.appendPoint(getX(getFirstValueIndex(pos)), getY(getFirstValueIndex(pos)));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {
-                        builder.appendPoint(getPoint(first + c));
+                        builder.appendPoint(getX(first + c), getY(first + c));
                     }
                     builder.endPositionEntry();
                 }
@@ -98,22 +107,21 @@ public final class PointArrayBlock extends AbstractArrayBlock implements PointBl
                 int first = getFirstValueIndex(pos);
                 int end = first + getValueCount(pos);
                 for (int i = first; i < end; i++) {
-                    builder.appendPoint(getPoint(i));
+                    builder.appendPoint(getX(i), getY(i));
                 }
             }
             return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
     }
 
-    public static long ramBytesEstimated(SpatialPoint[] values, int[] firstValueIndexes, BitSet nullsMask) {
-        long valuesEstimate = (long) NUM_BYTES_ARRAY_HEADER + ((long) Long.BYTES * 2 + (long) NUM_BYTES_OBJECT_REF) * values.length;
-        return BASE_RAM_BYTES_USED + alignObjectSize(valuesEstimate) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+    public static long ramBytesEstimated(double[] values, int[] firstValueIndexes, BitSet nullsMask) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) * 2 + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+        return ramBytesEstimated(xValues, firstValueIndexes, nullsMask);
     }
 
     @Override
@@ -136,8 +144,10 @@ public final class PointArrayBlock extends AbstractArrayBlock implements PointBl
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-            + ", values="
-            + Arrays.toString(values)
+            + ", x="
+            + Arrays.toString(xValues)
+            + ", y="
+            + Arrays.toString(yValues)
             + ']';
     }
 

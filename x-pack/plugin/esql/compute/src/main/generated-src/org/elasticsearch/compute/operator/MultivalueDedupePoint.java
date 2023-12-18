@@ -31,6 +31,7 @@ public class MultivalueDedupePoint {
      */
     private static final int ALWAYS_COPY_MISSING = 110;
     private final PointBlock block;
+    // TODO: figure out a way to remove this object array, currently needed for Arrays.sort() below
     private SpatialPoint[] work = new SpatialPoint[ArrayUtil.oversize(2, 16)];
     private int w;
 
@@ -53,7 +54,7 @@ public class MultivalueDedupePoint {
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-                    case 1 -> builder.appendPoint(block.getPoint(first));
+                    case 1 -> builder.appendPoint(block.getX(first), block.getY(first));
                     default -> {
                         /*
                          * It's better to copyMissing when there are few unique values
@@ -103,7 +104,7 @@ public class MultivalueDedupePoint {
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-                    case 1 -> builder.appendPoint(block.getPoint(first));
+                    case 1 -> builder.appendPoint(block.getX(first), block.getY(first));
                     default -> {
                         copyAndSort(first, count);
                         writeSortedWork(builder);
@@ -133,7 +134,7 @@ public class MultivalueDedupePoint {
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
                     case 0 -> builder.appendNull();
-                    case 1 -> builder.appendPoint(block.getPoint(first));
+                    case 1 -> builder.appendPoint(block.getX(first), block.getY(first));
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
@@ -160,8 +161,9 @@ public class MultivalueDedupePoint {
                         builder.appendInt(0);
                     }
                     case 1 -> {
-                        SpatialPoint v = block.getPoint(first);
-                        hash(builder, hash, v);
+                        double x = block.getX(first);
+                        double y = block.getY(first);
+                        hash(builder, hash, x, y);
                     }
                     default -> {
                         if (count < ALWAYS_COPY_MISSING) {
@@ -202,13 +204,15 @@ public class MultivalueDedupePoint {
                     switch (count) {
                         case 0 -> encodeNull();
                         case 1 -> {
-                            SpatialPoint v = block.getPoint(first);
+                            double x = block.getX(first);
+                            double y = block.getY(first);
                             if (hasCapacity(1)) {
                                 startPosition();
-                                encode(v);
+                                encode(x, y);
                                 endPosition();
                             } else {
-                                work[0] = v;
+                                // We should be able to replace this with two double[] if we can figure out the sorting below
+                                work[0] = new SpatialPoint(x, y);
                                 w = 1;
                                 return;
                             }
@@ -245,7 +249,7 @@ public class MultivalueDedupePoint {
 
         w = 0;
         for (int i = first; i < end; i++) {
-            work[w++] = block.getPoint(i);
+            work[w++] = new SpatialPoint(block.getX(i), block.getY(i));
         }
 
         Arrays.sort(work, 0, w);
@@ -259,10 +263,10 @@ public class MultivalueDedupePoint {
         grow(count);
         int end = first + count;
 
-        work[0] = block.getPoint(first);
+        work[0] = new SpatialPoint(block.getX(first), block.getY(first));
         w = 1;
         i: for (int i = first + 1; i < end; i++) {
-            SpatialPoint v = block.getPoint(i);
+            SpatialPoint v = new SpatialPoint(block.getX(i), block.getY(i));
             for (int j = 0; j < w; j++) {
                 if (v.equals(work[j])) {
                     continue i;
@@ -277,12 +281,12 @@ public class MultivalueDedupePoint {
      */
     private void writeUniquedWork(PointBlock.Builder builder) {
         if (w == 1) {
-            builder.appendPoint(work[0]);
+            builder.appendPoint(work[0].getX(), work[0].getY());
             return;
         }
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
-            builder.appendPoint(work[i]);
+            builder.appendPoint(work[i].getX(), work[i].getY());
         }
         builder.endPositionEntry();
     }
@@ -292,16 +296,16 @@ public class MultivalueDedupePoint {
      */
     private void writeSortedWork(PointBlock.Builder builder) {
         if (w == 1) {
-            builder.appendPoint(work[0]);
+            builder.appendPoint(work[0].getX(), work[0].getY());
             return;
         }
         builder.beginPositionEntry();
         SpatialPoint prev = work[0];
-        builder.appendPoint(prev);
+        builder.appendPoint(prev.getX(), prev.getY());
         for (int i = 1; i < w; i++) {
             if (false == prev.equals(work[i])) {
                 prev = work[i];
-                builder.appendPoint(prev);
+                builder.appendPoint(prev.getX(), prev.getY());
             }
         }
         builder.endPositionEntry();
@@ -312,12 +316,12 @@ public class MultivalueDedupePoint {
      */
     private void hashUniquedWork(LongHash hash, IntBlock.Builder builder) {
         if (w == 1) {
-            hash(builder, hash, work[0]);
+            hash(builder, hash, work[0].getX(), work[0].getY());
             return;
         }
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
-            hash(builder, hash, work[i]);
+            hash(builder, hash, work[i].getX(), work[i].getY());
         }
         builder.endPositionEntry();
     }
@@ -327,16 +331,16 @@ public class MultivalueDedupePoint {
      */
     private void hashSortedWork(LongHash hash, IntBlock.Builder builder) {
         if (w == 1) {
-            hash(builder, hash, work[0]);
+            hash(builder, hash, work[0].getX(), work[0].getY());
             return;
         }
         builder.beginPositionEntry();
         SpatialPoint prev = work[0];
-        hash(builder, hash, prev);
+        hash(builder, hash, prev.getX(), prev.getY());
         for (int i = 1; i < w; i++) {
             if (false == prev.equals(work[i])) {
                 prev = work[i];
-                hash(builder, hash, prev);
+                hash(builder, hash, prev.getX(), prev.getY());
             }
         }
         builder.endPositionEntry();
@@ -347,7 +351,7 @@ public class MultivalueDedupePoint {
      */
     private void encodeUniquedWork(BatchEncoder.Points encoder) {
         for (int i = 0; i < w; i++) {
-            encoder.encode(work[i]);
+            encoder.encode(work[i].getX(), work[i].getY());
         }
     }
 
@@ -370,7 +374,7 @@ public class MultivalueDedupePoint {
         work = ArrayUtil.grow(work, size);
     }
 
-    private void hash(IntBlock.Builder builder, LongHash hash, SpatialPoint v) {
-        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v.hashCode()))));
+    private void hash(IntBlock.Builder builder, LongHash hash, double x, double y) {
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(31L * Double.hashCode(x) + Double.hashCode(y)))));
     }
 }

@@ -153,7 +153,7 @@ public class VectorBuilderTests extends ESTestCase {
             }
             case POINT -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
-                    ((PointVector.Builder) builder).appendPoint(((PointVector) from).getPoint(p));
+                    ((PointVector.Builder) builder).appendPoint(((PointVector) from).getX(p), ((PointVector) from).getY(p));
                 }
             }
         }

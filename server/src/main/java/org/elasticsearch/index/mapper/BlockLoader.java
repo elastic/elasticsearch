@@ -461,9 +461,9 @@ public interface BlockLoader {
 
     interface PointBuilder extends Builder {
         /**
-         * Appends a SpatialPoint to the current entry.
+         * Appends a spatial point to the current entry.
          */
-        PointBuilder appendPoint(SpatialPoint value);
+        PointBuilder appendPoint(double x, double y);
     }
 
     interface DoubleBuilder extends Builder {

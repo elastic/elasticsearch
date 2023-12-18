@@ -12,7 +12,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import java.util.Arrays;
 
 /**
- * Vector implementation that stores an array of int values.
+ * Vector implementation that stores an array of Int values.
  * This class is generated. Do not edit it.
  */
 public final class IntArrayVector extends AbstractVector implements IntVector {

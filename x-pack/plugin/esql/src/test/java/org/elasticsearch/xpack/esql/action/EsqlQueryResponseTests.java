@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -129,8 +130,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     new BytesRef(UnsupportedValueSource.UNSUPPORTED_OUTPUT)
                 );
                 case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
-                case "geo_point" -> ((PointBlock.Builder) builder).appendPoint(randomGeoPoint());
-                case "cartesian_point" -> ((PointBlock.Builder) builder).appendPoint(randomCartesianPoint());
+                case "geo_point" -> appendPoint((PointBlock.Builder) builder, randomGeoPoint());
+                case "cartesian_point" -> appendPoint((PointBlock.Builder) builder, randomCartesianPoint());
                 case "null" -> builder.appendNull();
                 case "_source" -> {
                     try {
@@ -150,6 +151,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
             return builder.build();
         }).toArray(Block[]::new));
+    }
+
+    private void appendPoint(PointBlock.Builder builder, SpatialPoint point) {
+        builder.appendPoint(point.getX(), point.getY());
     }
 
     @Override

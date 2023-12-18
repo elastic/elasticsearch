@@ -211,7 +211,7 @@ public final class BlockUtils {
             case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
-            case POINT -> ((PointBlock.Builder) builder).appendPoint((SpatialPoint) val);
+            case POINT -> ((PointBlock.Builder) builder).appendPoint(((SpatialPoint) val).getX(), ((SpatialPoint) val).getY());
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
@@ -232,7 +232,7 @@ public final class BlockUtils {
             case BYTES_REF -> BytesRefBlock.newConstantBlockWith(toBytesRef(val), size, blockFactory);
             case DOUBLE -> DoubleBlock.newConstantBlockWith((double) val, size, blockFactory);
             case BOOLEAN -> BooleanBlock.newConstantBlockWith((boolean) val, size, blockFactory);
-            case POINT -> PointBlock.newConstantBlockWith((SpatialPoint) val, size, blockFactory);
+            case POINT -> PointBlock.newConstantBlockWith(((SpatialPoint) val).getX(), ((SpatialPoint) val).getY(), size, blockFactory);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -275,7 +275,7 @@ public final class BlockUtils {
                 DocVector v = ((DocBlock) block).asVector();
                 yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
-            case POINT -> ((PointBlock) block).getPoint(offset);
+            case POINT -> new SpatialPoint(((PointBlock) block).getX(offset), ((PointBlock) block).getY(offset));
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

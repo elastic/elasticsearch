@@ -21,7 +21,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.io.IOException;
 
 /**
- * Block that stores $type$ values.
+ * Block that stores $Type$ values.
  * This class is generated. Do not edit it.
  */
 public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock {
@@ -31,7 +31,7 @@ $if(BytesRef)$
 
 $endif$
     /**
-     * Retrieves the $type$ value stored at the given value index.
+     * Retrieves the $typeValue$ stored at the given value index.
      *
      * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
      * getFirstValueIndex(position) + getValueCount(position) (exclusive).
@@ -44,6 +44,15 @@ $endif$
      */
 $if(BytesRef)$
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
+
+$elseif(Point)$
+    $type$ getX(int valueIndex);
+
+    $type$ getY(int valueIndex);
+
+    default SpatialPoint get$Type$(int valueIndex) {
+        return new SpatialPoint(getX(valueIndex), getY(valueIndex));
+    }
 
 $else$
     $type$ get$Type$(int valueIndex);
@@ -81,7 +90,7 @@ $endif$
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
 $if(Point)$
-                        builder.appendPoint(new SpatialPoint(in.readDouble(), in.readDouble()));
+                        builder.appendPoint(in.readDouble(), in.readDouble());
 $else$
                         builder.append$Type$(in.read$Type$());
 $endif$
@@ -113,9 +122,8 @@ $endif$
 $if(BytesRef)$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
 $elseif(Point)$
-                        SpatialPoint point = getPoint(getFirstValueIndex(pos) + valueIndex);
-                        out.writeDouble(point.getX());
-                        out.writeDouble(point.getY());
+                        out.writeDouble(getX(getFirstValueIndex(pos) + valueIndex));
+                        out.writeDouble(getY(getFirstValueIndex(pos) + valueIndex));
 $else$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
 $endif$
@@ -167,7 +175,8 @@ $if(BytesRef)$
                     if (block1.getBytesRef(b1ValueIdx + valueIndex, new BytesRef())
                         .equals(block2.getBytesRef(b2ValueIdx + valueIndex, new BytesRef())) == false) {
 $elseif(Point)$
-                    if (block1.get$Type$(b1ValueIdx + valueIndex).equals(block2.get$Type$(b2ValueIdx + valueIndex)) == false) {
+                    if (block1.getX(b1ValueIdx + valueIndex) != block2.getX(b2ValueIdx + valueIndex)
+                        || block1.getY(b1ValueIdx + valueIndex) != block2.getY(b2ValueIdx + valueIndex)) {
 $else$
                     if (block1.get$Type$(b1ValueIdx + valueIndex) != block2.get$Type$(b2ValueIdx + valueIndex)) {
 $endif$
@@ -209,10 +218,9 @@ $elseif(double)$
                     long element = Double.doubleToLongBits(block.getDouble(firstValueIdx + valueIndex));
                     result = 31 * result + (int) (element ^ (element >>> 32));
 $elseif(Point)$
-                    $type$ value = block.get$Type$(firstValueIdx + valueIndex);
-                    long element = Double.doubleToLongBits(value.getX());
+                    long element = Double.doubleToLongBits(block.getX(firstValueIdx + valueIndex));
                     result = 31 * result + (int) (element ^ (element >>> 32));
-                    element = Double.doubleToLongBits(value.getY());
+                    element = Double.doubleToLongBits(block.getY(firstValueIdx + valueIndex));
                     result = 31 * result + (int) (element ^ (element >>> 32));
 $endif$
                 }
@@ -246,8 +254,8 @@ $endif$
      */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     @Deprecated
-    static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    static $Type$Block newConstantBlockWith($typeValue$, int positions) {
+        return newConstantBlockWith($value$, positions, BlockFactory.getNonBreakingInstance());
     }
 
     /**
@@ -255,8 +263,8 @@ $endif$
      * @deprecated use {@link BlockFactory#newConstant$Type$BlockWith}
      */
     @Deprecated
-    static $Type$Block newConstantBlockWith($type$ value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstant$Type$BlockWith(value, positions);
+    static $Type$Block newConstantBlockWith($typeValue$, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstant$Type$BlockWith($value$, positions);
     }
 
     /**
@@ -267,7 +275,7 @@ $endif$
          * Appends a $type$ to the current entry.
          */
         @Override
-        Builder append$Type$($type$ value);
+        Builder append$Type$($typeValue$);
 
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to
@@ -291,14 +299,14 @@ $endif$
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         Builder appendAllValuesToCurrentPosition($Type$Block block);

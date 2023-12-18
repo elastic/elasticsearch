@@ -90,4 +90,11 @@ public enum SpatialCoordinateTypes {
     public SpatialPoint pointAsPoint(SpatialPoint point) {
         return point;
     }
+
+    /**
+     * Convert point to the correct class for the upper column type. For example, create a GeoPoint from a cartesian point.
+     */
+    public SpatialPoint pointAsPoint(double x, double y) {
+        return pointAsPoint(new SpatialPoint(x, y));
+    }
 }

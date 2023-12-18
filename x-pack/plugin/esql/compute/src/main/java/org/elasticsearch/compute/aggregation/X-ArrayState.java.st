@@ -57,7 +57,7 @@ final class $Type$ArrayState extends AbstractArrayState implements GroupingAggre
         return groupId < values.size() ? values.get(groupId) : init;
     }
 
-    void set(int groupId, $type$ value) {
+    void set(int groupId, $typeValue$) {
         ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);

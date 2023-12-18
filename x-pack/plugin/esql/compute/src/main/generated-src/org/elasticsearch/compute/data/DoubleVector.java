@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Vector that stores double values.
+ * Vector that stores Double values.
  * This class is generated. Do not edit it.
  */
 public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector,

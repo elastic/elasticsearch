@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.PointArrayVector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -24,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
+import static org.elasticsearch.xpack.esql.formatter.TextFormatTests.makePointArrayVector;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -61,7 +61,7 @@ public class TextFormatterTests extends ESTestCase {
                     2
                 ).asBlock(),
                 new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                new PointArrayVector(new SpatialPoint[] { new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611) }, 2).asBlock(),
+                makePointArrayVector(new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611)).asBlock(),
                 Block.constantNullBlock(2)
             )
         ),
@@ -125,7 +125,7 @@ public class TextFormatterTests extends ESTestCase {
                         2
                     ).asBlock(),
                     new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                    new PointArrayVector(new SpatialPoint[] { new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611) }, 2).asBlock(),
+                    makePointArrayVector(new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611)).asBlock(),
                     Block.constantNullBlock(2)
                 )
             ),

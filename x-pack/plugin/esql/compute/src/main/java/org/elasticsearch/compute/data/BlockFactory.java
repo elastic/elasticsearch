@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -392,24 +391,26 @@ public class BlockFactory {
     }
 
     public final PointBlock newPointArrayBlock(
-        SpatialPoint[] values,
+        double[] xValues,
+        double[] yValues,
         int pc,
         int[] firstValueIndexes,
         BitSet nulls,
         MvOrdering mvOrdering
     ) {
-        return newPointArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, 0L);
+        return newPointArrayBlock(xValues, yValues, pc, firstValueIndexes, nulls, mvOrdering, 0L);
     }
 
     public PointBlock newPointArrayBlock(
-        SpatialPoint[] values,
+        double[] xValues,
+        double[] yValues,
         int pc,
         int[] fvi,
         BitSet nulls,
         MvOrdering mvOrdering,
         long preAdjustedBytes
     ) {
-        var b = new PointArrayBlock(values, pc, fvi, nulls, mvOrdering, this);
+        var b = new PointArrayBlock(xValues, yValues, pc, fvi, nulls, mvOrdering, this);
         adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
         return b;
     }
@@ -425,29 +426,29 @@ public class BlockFactory {
         return new PointVectorFixedBuilder(size, this);
     }
 
-    public final PointVector newPointArrayVector(SpatialPoint[] values, int positionCount) {
-        return newPointArrayVector(values, positionCount, 0L);
+    public final PointVector newPointArrayVector(double[] xValues, double[] yValues, int positionCount) {
+        return newPointArrayVector(xValues, yValues, positionCount, 0L);
     }
 
-    public PointVector newPointArrayVector(SpatialPoint[] values, int positionCount, long preAdjustedBytes) {
-        var b = new PointArrayVector(values, positionCount, this);
+    public PointVector newPointArrayVector(double[] xValues, double[] yValues, int positionCount, long preAdjustedBytes) {
+        var b = new PointArrayVector(xValues, yValues, positionCount, this);
         adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
         return b;
     }
 
-    public final PointBlock newConstantPointBlockWith(SpatialPoint value, int positions) {
-        return newConstantPointBlockWith(value, positions, 0L);
+    public final PointBlock newConstantPointBlockWith(double x, double y, int positions) {
+        return newConstantPointBlockWith(x, y, positions, 0L);
     }
 
-    public PointBlock newConstantPointBlockWith(SpatialPoint value, int positions, long preAdjustedBytes) {
-        var b = new ConstantPointVector(value, positions, this).asBlock();
+    public PointBlock newConstantPointBlockWith(double x, double y, int positions, long preAdjustedBytes) {
+        var b = new ConstantPointVector(x, y, positions, this).asBlock();
         adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
         return b;
     }
 
-    public PointVector newConstantPointVector(SpatialPoint value, int positions) {
+    public PointVector newConstantPointVector(double x, double y, int positions) {
         adjustBreaker(ConstantPointVector.RAM_BYTES_USED, false);
-        var v = new ConstantPointVector(value, positions, this);
+        var v = new ConstantPointVector(x, y, positions, this);
         assert v.ramBytesUsed() == ConstantPointVector.RAM_BYTES_USED;
         return v;
     }

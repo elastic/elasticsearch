@@ -28,7 +28,13 @@ $endif$
     /**
      * The value previously set by {@link #decodeKey}.
      */
+$if(Point)$
+    // TODO: we should be able to get rid of this object
+    private SpatialPoint key;
+
+$else$
     private $type$ key;
+$endif$
 
     ResultBuilderFor$Type$(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
 $if(BytesRef)$
@@ -45,6 +51,8 @@ $endif$
         assert inKey;
 $if(BytesRef)$
         key = encoder.toSortable().decodeBytesRef(keys, scratch);
+$elseif(Point)$
+        key = TopNEncoder.DEFAULT_SORTABLE.decode$Type$(keys);
 $else$
         key = TopNEncoder.DEFAULT_SORTABLE.decode$Type$(keys);
 $endif$
@@ -57,18 +65,34 @@ $endif$
             case 0 -> {
                 builder.appendNull();
             }
+$if(Point)$
+            case 1 -> {
+                SpatialPoint value = inKey ? key : readValueFromValues(values);
+                builder.appendPoint(value.getX(), value.getY());
+            }
+$else$
             case 1 -> builder.append$Type$(inKey ? key : readValueFromValues(values));
+$endif$
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
+$if(Point)$
+                    SpatialPoint point = readValueFromValues(values);
+                    builder.appendPoint(point.getX(), point.getY());
+$else$
                     builder.append$Type$(readValueFromValues(values));
+$endif$
                 }
                 builder.endPositionEntry();
             }
         }
     }
 
+$if(Point)$
+    private SpatialPoint readValueFromValues(BytesRef values) {
+$else$
     private $type$ readValueFromValues(BytesRef values) {
+$endif$
 $if(BytesRef)$
         return encoder.toUnsortable().decodeBytesRef(values, scratch);
 $else$

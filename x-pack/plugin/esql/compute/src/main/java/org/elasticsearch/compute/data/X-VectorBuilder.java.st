@@ -13,11 +13,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
-$elseif(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
-
-import java.util.Arrays;
-
 $else$
 import java.util.Arrays;
 $endif$
@@ -40,8 +35,19 @@ $if(BytesRef)$
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
+$elseif(Point)$
+    private $type$[] $arrayValues$;
+
+    $Type$VectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
+        xValues = new $type$[Math.max(estimatedSize, 2)];
+        yValues = new $type$[Math.max(estimatedSize, 2)];
+    }
+
 $else$
-    private $type$[] values;
+    private $type$[] $arrayValues$;
 
     $Type$VectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
@@ -52,10 +58,13 @@ $else$
 $endif$
 
     @Override
-    public $Type$VectorBuilder append$Type$($type$ value) {
+    public $Type$VectorBuilder append$Type$($typeValue$) {
         ensureCapacity();
 $if(BytesRef)$
         values.append(value);
+$elseif(Point)$
+        xValues[valueCount] = x;
+        yValues[valueCount] = y;
 $else$
         values[valueCount] = value;
 $endif$
@@ -72,6 +81,8 @@ $endif$
     protected int valuesLength() {
 $if(BytesRef)$
         return Integer.MAX_VALUE; // allow the BytesRefArray through its own append
+$elseif(Point)$
+        return xValues.length;
 $else$
         return values.length;
 $endif$
@@ -81,6 +92,9 @@ $endif$
     protected void growValuesArray(int newSize) {
 $if(BytesRef)$
         throw new AssertionError("should not reach here");
+$elseif(Point)$
+        xValues = Arrays.copyOf(xValues, newSize);
+        yValues = Arrays.copyOf(yValues, newSize);
 $else$
         values = Arrays.copyOf(values, newSize);
 $endif$
@@ -117,14 +131,23 @@ $if(BytesRef)$
             blockFactory.adjustBreaker(vector.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
         }
         values = null;
+$elseif(Point)$
+        if (valueCount == 1) {
+            vector = blockFactory.newConstant$Type$BlockWith(xValues[0], yValues[0], 1, estimatedBytes).asVector();
+        } else {
+            if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                growValuesArray(valueCount);
+            }
+            vector = blockFactory.new$Type$ArrayVector($arrayValues$, valueCount, estimatedBytes);
+        }
 $else$
         if (valueCount == 1) {
             vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
+            if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                growValuesArray(valueCount);
             }
-            vector = blockFactory.new$Type$ArrayVector(values, valueCount, estimatedBytes);
+            vector = blockFactory.new$Type$ArrayVector($arrayValues$, valueCount, estimatedBytes);
         }
 $endif$
         built();

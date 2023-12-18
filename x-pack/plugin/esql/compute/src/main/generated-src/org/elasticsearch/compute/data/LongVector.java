@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Vector that stores long values.
+ * Vector that stores Long values.
  * This class is generated. Do not edit it.
  */
 public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector {

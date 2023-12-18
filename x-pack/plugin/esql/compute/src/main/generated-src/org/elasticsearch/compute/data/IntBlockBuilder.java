@@ -108,8 +108,8 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             for (int p = 0; p < positionCount; p++) {
                 int count = block.getValueCount(p);
                 int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendInt(block.getInt(i++));
+                for (int v = 0; v < count; v++, i++) {
+                    appendInt(block.getInt(i));
                 }
             }
         }
@@ -158,8 +158,8 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
                 beginPositionEntry();
             }
             int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendInt(block.getInt(i++));
+            for (int v = 0; v < count; v++, i++) {
+                appendInt(block.getInt(i));
             }
             if (count > 1) {
                 endPositionEntry();
@@ -187,8 +187,8 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes);
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
+                if (valuesLength() - valueCount > 1024 || valueCount < (valuesLength() / 2)) {
+                    growValuesArray(valueCount);
                 }
                 if (isDense() && singleValued()) {
                     theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();

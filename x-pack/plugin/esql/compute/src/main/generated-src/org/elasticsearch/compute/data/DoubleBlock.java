@@ -15,7 +15,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.io.IOException;
 
 /**
- * Block that stores double values.
+ * Block that stores Double values.
  * This class is generated. Do not edit it.
  */
 public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock {
@@ -237,14 +237,14 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         Builder appendAllValuesToCurrentPosition(DoubleBlock block);

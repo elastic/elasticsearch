@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -230,7 +229,13 @@ public final class ConstantNullBlock extends AbstractBlock
     }
 
     @Override
-    public SpatialPoint getPoint(int valueIndex) {
+    public double getX(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public double getY(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

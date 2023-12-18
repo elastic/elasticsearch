@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Vector that stores $type$ values.
+ * Vector that stores $Type$ values.
  * This class is generated. Do not edit it.
  */
 $if(BytesRef)$
@@ -36,6 +36,15 @@ $endif$
 
 $if(BytesRef)$
     BytesRef getBytesRef(int position, BytesRef dest);
+
+$elseif(Point)$
+    double getX(int position);
+
+    double getY(int position);
+
+    default SpatialPoint get$Type$(int valueIndex) {
+        return new SpatialPoint(getX(valueIndex), getY(valueIndex));
+    }
 
 $else$
     $type$ get$Type$(int position);
@@ -73,7 +82,7 @@ $endif$
 $if(BytesRef)$
             if (vector1.getBytesRef(pos, new BytesRef()).equals(vector2.getBytesRef(pos, new BytesRef())) == false) {
 $elseif(Point)$
-            if (vector1.getPoint(pos).equals(vector2.getPoint(pos)) == false) {
+            if (vector1.getX(pos) != vector2.getY(pos) || vector1.getY(pos) != vector2.getY(pos)) {
 $else$
             if (vector1.get$Type$(pos) != vector2.get$Type$(pos)) {
 $endif$
@@ -106,10 +115,11 @@ $elseif(double)$
             long element = Double.doubleToLongBits(vector.getDouble(pos));
             result = 31 * result + (int) (element ^ (element >>> 32));
 $elseif(Point)$
-            SpatialPoint point = vector.getPoint(pos);
-            long element = Double.doubleToLongBits(point.getX());
+            double x = vector.getX(pos);
+            double y = vector.getY(pos);
+            long element = Double.doubleToLongBits(x);
             result = 31 * result + (int) (element ^ (element >>> 32));
-            element = Double.doubleToLongBits(point.getY());
+            element = Double.doubleToLongBits(y);
             result = 31 * result + (int) (element ^ (element >>> 32));
 $endif$
         }
@@ -122,7 +132,7 @@ $endif$
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
 $if(Point)$
-            return blockFactory.newConstantPointVector(new SpatialPoint(in.readDouble(), in.readDouble()), positions);
+            return blockFactory.newConstant$Type$Vector(in.readDouble(), in.readDouble(), positions);
 $else$
             return blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
 $endif$
@@ -130,7 +140,7 @@ $endif$
             try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
                 for (int i = 0; i < positions; i++) {
 $if(Point)$
-                    builder.appendPoint(new SpatialPoint(in.readDouble(), in.readDouble()));
+                    builder.append$Type$(in.readDouble(), in.readDouble());
 $else$
                     builder.append$Type$(in.read$Type$());
 $endif$
@@ -149,9 +159,8 @@ $endif$
 $if(BytesRef)$
             out.write$Type$(get$Type$(0, new BytesRef()));
 $elseif(Point)$
-            SpatialPoint point = getPoint(0);
-            out.writeDouble(point.getX());
-            out.writeDouble(point.getY());
+            out.writeDouble(getX(0));
+            out.writeDouble(getY(0));
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
@@ -160,9 +169,8 @@ $endif$
 $if(BytesRef)$
                 out.write$Type$(get$Type$(i, new BytesRef()));
 $elseif(Point)$
-                SpatialPoint point = getPoint(i);
-                out.writeDouble(point.getX());
-                out.writeDouble(point.getY());
+                out.writeDouble(getX(i));
+                out.writeDouble(getY(i));
 $else$
                 out.write$Type$(get$Type$(i));
 $endif$
@@ -228,7 +236,7 @@ $endif$
         /**
          * Appends a $type$ to the current entry.
          */
-        Builder append$Type$($type$ value);
+        Builder append$Type$($typeValue$);
 
         @Override
         $Type$Vector build();
@@ -243,7 +251,7 @@ $else$
         /**
          * Appends a $type$ to the current entry.
          */
-        FixedBuilder append$Type$($type$ value);
+        FixedBuilder append$Type$($typeValue$);
 
         @Override
         $Type$Vector build();

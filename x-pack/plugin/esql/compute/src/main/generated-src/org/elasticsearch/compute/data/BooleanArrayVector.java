@@ -12,7 +12,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import java.util.Arrays;
 
 /**
- * Vector implementation that stores an array of boolean values.
+ * Vector implementation that stores an array of Boolean values.
  * This class is generated. Do not edit it.
  */
 public final class BooleanArrayVector extends AbstractVector implements BooleanVector {

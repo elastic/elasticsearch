@@ -9,8 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$elseif(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
 $endif$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
@@ -46,11 +44,11 @@ $endif$
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
     }
 
-    protected final void actualWriteValue(BreakingBytesRefBuilder values, $type$ value) {
+    protected final void actualWriteValue(BreakingBytesRefBuilder values, $typeValue$) {
 $if(BytesRef)$
         encoder.encodeBytesRef(value, values);
 $else$
-        TopNEncoder.DEFAULT_UNSORTABLE.encode$Type$(value, values);
+        TopNEncoder.DEFAULT_UNSORTABLE.encode$Type$($value$, values);
 $endif$
     }
 
@@ -71,6 +69,8 @@ $endif$
             }
 $if(BytesRef)$
             actualWriteValue(values, vector.get$Type$(position, scratch));
+$elseif(Point)$
+            actualWriteValue(values, vector.getX(position), vector.getY(position));
 $else$
             actualWriteValue(values, vector.get$Type$(position));
 $endif$
@@ -98,6 +98,8 @@ $endif$
             for (int i = start; i < end; i++) {
 $if(BytesRef)$
                 actualWriteValue(values, block.getBytesRef(i, scratch));
+$elseif(Point)$
+                actualWriteValue(values, block.getX(i), block.getY(i));
 $else$
                 actualWriteValue(values, block.get$Type$(i));
 $endif$

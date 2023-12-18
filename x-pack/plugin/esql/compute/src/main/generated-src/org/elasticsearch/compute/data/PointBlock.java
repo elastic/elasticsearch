@@ -16,21 +16,27 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.io.IOException;
 
 /**
- * Block that stores SpatialPoint values.
+ * Block that stores Point values.
  * This class is generated. Do not edit it.
  */
 public sealed interface PointBlock extends Block permits PointArrayBlock, PointVectorBlock, ConstantNullBlock {
 
     /**
-     * Retrieves the SpatialPoint value stored at the given value index.
+     * Retrieves the double x, double y stored at the given value index.
      *
      * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
      * getFirstValueIndex(position) + getValueCount(position) (exclusive).
      *
      * @param valueIndex the value index
-     * @return the data value (as a SpatialPoint)
+     * @return the data value (as a double)
      */
-    SpatialPoint getPoint(int valueIndex);
+    double getX(int valueIndex);
+
+    double getY(int valueIndex);
+
+    default SpatialPoint getPoint(int valueIndex) {
+        return new SpatialPoint(getX(valueIndex), getY(valueIndex));
+    }
 
     @Override
     PointVector asVector();
@@ -63,7 +69,7 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
                     final int valueCount = in.readVInt();
                     builder.beginPositionEntry();
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        builder.appendPoint(new SpatialPoint(in.readDouble(), in.readDouble()));
+                        builder.appendPoint(in.readDouble(), in.readDouble());
                     }
                     builder.endPositionEntry();
                 }
@@ -89,9 +95,8 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
                     final int valueCount = getValueCount(pos);
                     out.writeVInt(valueCount);
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        SpatialPoint point = getPoint(getFirstValueIndex(pos) + valueIndex);
-                        out.writeDouble(point.getX());
-                        out.writeDouble(point.getY());
+                        out.writeDouble(getX(getFirstValueIndex(pos) + valueIndex));
+                        out.writeDouble(getY(getFirstValueIndex(pos) + valueIndex));
                     }
                 }
             }
@@ -136,7 +141,8 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
                 final int b1ValueIdx = block1.getFirstValueIndex(pos);
                 final int b2ValueIdx = block2.getFirstValueIndex(pos);
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    if (block1.getPoint(b1ValueIdx + valueIndex).equals(block2.getPoint(b2ValueIdx + valueIndex)) == false) {
+                    if (block1.getX(b1ValueIdx + valueIndex) != block2.getX(b2ValueIdx + valueIndex)
+                        || block1.getY(b1ValueIdx + valueIndex) != block2.getY(b2ValueIdx + valueIndex)) {
                         return false;
                     }
                 }
@@ -162,10 +168,9 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
                 result = 31 * result + valueCount;
                 final int firstValueIdx = block.getFirstValueIndex(pos);
                 for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    SpatialPoint value = block.getPoint(firstValueIdx + valueIndex);
-                    long element = Double.doubleToLongBits(value.getX());
+                    long element = Double.doubleToLongBits(block.getX(firstValueIdx + valueIndex));
                     result = 31 * result + (int) (element ^ (element >>> 32));
-                    element = Double.doubleToLongBits(value.getY());
+                    element = Double.doubleToLongBits(block.getY(firstValueIdx + valueIndex));
                     result = 31 * result + (int) (element ^ (element >>> 32));
                 }
             }
@@ -198,8 +203,8 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
      */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     @Deprecated
-    static PointBlock newConstantBlockWith(SpatialPoint value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    static PointBlock newConstantBlockWith(double x, double y, int positions) {
+        return newConstantBlockWith(x, y, positions, BlockFactory.getNonBreakingInstance());
     }
 
     /**
@@ -207,8 +212,8 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
      * @deprecated use {@link BlockFactory#newConstantPointBlockWith}
      */
     @Deprecated
-    static PointBlock newConstantBlockWith(SpatialPoint value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantPointBlockWith(value, positions);
+    static PointBlock newConstantBlockWith(double x, double y, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantPointBlockWith(x, y, positions);
     }
 
     /**
@@ -216,10 +221,10 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
      */
     sealed interface Builder extends Block.Builder, BlockLoader.PointBuilder permits PointBlockBuilder {
         /**
-         * Appends a SpatialPoint to the current entry.
+         * Appends a double to the current entry.
          */
         @Override
-        Builder appendPoint(SpatialPoint value);
+        Builder appendPoint(double x, double y);
 
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to
@@ -243,14 +248,14 @@ public sealed interface PointBlock extends Block permits PointArrayBlock, PointV
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**
-         * Appends the all values of the given block into a the current position
+         * Appends the all values of the given block into the current position
          * in this builder.
          */
         Builder appendAllValuesToCurrentPosition(PointBlock block);

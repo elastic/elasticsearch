@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Vector that stores int values.
+ * Vector that stores Int values.
  * This class is generated. Do not edit it.
  */
 public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, ConstantNullVector {

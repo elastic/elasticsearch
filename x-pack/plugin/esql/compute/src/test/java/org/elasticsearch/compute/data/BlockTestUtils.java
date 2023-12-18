@@ -63,7 +63,7 @@ public class BlockTestUtils {
         } else if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
         } else if (builder instanceof PointBlock.Builder b && value instanceof SpatialPoint v) {
-            b.appendPoint(v);
+            b.appendPoint(v.getX(), v.getY());
         } else {
             throw new IllegalArgumentException("Can't append [" + value + "/" + value.getClass() + "] to [" + builder + "]");
         }

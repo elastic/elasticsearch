@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
 
 /**
  * Builder for {@link PointVector}s that never grows. Prefer this to
@@ -18,7 +17,7 @@ import org.elasticsearch.common.geo.SpatialPoint;
  */
 final class PointVectorFixedBuilder implements PointVector.FixedBuilder {
     private final BlockFactory blockFactory;
-    private final SpatialPoint[] values;
+    private final double[] xValues, yValues;
     private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
@@ -30,12 +29,14 @@ final class PointVectorFixedBuilder implements PointVector.FixedBuilder {
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes, false);
         this.blockFactory = blockFactory;
-        this.values = new SpatialPoint[size];
+        this.xValues = new double[size];
+        this.yValues = new double[size];
     }
 
     @Override
-    public PointVectorFixedBuilder appendPoint(SpatialPoint value) {
-        values[nextIndex++] = value;
+    public PointVectorFixedBuilder appendPoint(double x, double y) {
+        xValues[nextIndex++] = x;
+        yValues[nextIndex++] = y;
         return this;
     }
 
@@ -43,8 +44,12 @@ final class PointVectorFixedBuilder implements PointVector.FixedBuilder {
         return size == 1
             ? ConstantPointVector.RAM_BYTES_USED
             : PointArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * (16 + RamUsageEstimator.NUM_BYTES_OBJECT_REF)
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * 16
             );
+    }
+
+    private int valuesLength() {
+        return xValues.length;
     }
 
     @Override
@@ -52,15 +57,15 @@ final class PointVectorFixedBuilder implements PointVector.FixedBuilder {
         if (nextIndex < 0) {
             throw new IllegalStateException("already closed");
         }
-        if (nextIndex != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
+        if (nextIndex != valuesLength()) {
+            throw new IllegalStateException("expected to write [" + valuesLength() + "] entries but wrote [" + nextIndex + "]");
         }
         nextIndex = -1;
         PointVector vector;
-        if (values.length == 1) {
-            vector = blockFactory.newConstantPointBlockWith(values[0], 1, preAdjustedBytes).asVector();
+        if (valuesLength() == 1) {
+            vector = blockFactory.newConstantPointBlockWith(xValues[0], yValues[0], 1, preAdjustedBytes).asVector();
         } else {
-            vector = blockFactory.newPointArrayVector(values, values.length, preAdjustedBytes);
+            vector = blockFactory.newPointArrayVector(xValues, yValues, valuesLength(), preAdjustedBytes);
         }
         assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         return vector;

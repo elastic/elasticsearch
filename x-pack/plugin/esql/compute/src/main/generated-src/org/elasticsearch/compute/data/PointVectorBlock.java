@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -32,8 +31,13 @@ public final class PointVectorBlock extends AbstractVectorBlock implements Point
     }
 
     @Override
-    public SpatialPoint getPoint(int valueIndex) {
-        return vector.getPoint(valueIndex);
+    public double getX(int valueIndex) {
+        return vector.getX(valueIndex);
+    }
+
+    @Override
+    public double getY(int valueIndex) {
+        return vector.getY(valueIndex);
     }
 
     @Override

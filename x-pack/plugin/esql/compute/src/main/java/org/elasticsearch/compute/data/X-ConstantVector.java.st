@@ -9,15 +9,8 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
-
-$elseif(Point)$
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
-
-$else$
-import org.apache.lucene.util.RamUsageEstimator;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Vector implementation that stores a constant $type$ value.
@@ -32,27 +25,45 @@ $else$
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Constant$Type$Vector.class);
 $endif$
 
-    private final $type$ value;
+$if(Point)$
+    private final double x, y;
+$else$
+    private final $typeValue$;
+$endif$
 
     private final $Type$Block block;
 
-    public Constant$Type$Vector($type$ value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    public Constant$Type$Vector($typeValue$, int positionCount) {
+        this($value$, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
-    public Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
+    public Constant$Type$Vector($typeValue$, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
+$if(Point)$
+        this.x = x;
+        this.y = y;
+$else$
         this.value = value;
+$endif$
         this.block = new $Type$VectorBlock(this);
     }
 
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int position, BytesRef ignore) {
+        return value;
+$elseif(Point)$
+    public double getX(int position) {
+        return x;
+    }
+
+    @Override
+    public double getY(int position) {
+        return y;
 $else$
     public $type$ get$Type$(int position) {
-$endif$
         return value;
+$endif$
     }
 
     @Override
@@ -62,7 +73,7 @@ $endif$
 
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Constant$Type$Vector(value, positions.length);
+        return new Constant$Type$Vector($value$, positions.length);
     }
 
     @Override
@@ -106,7 +117,11 @@ $endif$
     }
 
     public String toString() {
+$if(Point)$
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", x=" + x + ", y=" + y + ']';
+$else$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+$endif$
     }
 
     @Override

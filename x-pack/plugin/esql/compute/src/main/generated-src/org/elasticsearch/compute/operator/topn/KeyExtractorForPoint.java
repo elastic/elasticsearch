@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.data.PointVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -37,9 +36,9 @@ abstract class KeyExtractorForPoint implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, SpatialPoint value) {
+    protected final int nonNul(BreakingBytesRefBuilder key, double x, double y) {
         key.append(nonNul);
-        TopNEncoder.DEFAULT_SORTABLE.encodePoint(value, key);
+        TopNEncoder.DEFAULT_SORTABLE.encodePoint(x, y, key);
         return 16 + 1;
     }
 
@@ -58,7 +57,7 @@ abstract class KeyExtractorForPoint implements KeyExtractor {
 
         @Override
         public int writeKey(BreakingBytesRefBuilder key, int position) {
-            return nonNul(key, vector.getPoint(position));
+            return nonNul(key, vector.getX(position), vector.getY(position));
         }
     }
 
@@ -75,7 +74,8 @@ abstract class KeyExtractorForPoint implements KeyExtractor {
             if (block.isNull(position)) {
                 return nul(key);
             }
-            return nonNul(key, block.getPoint(block.getFirstValueIndex(position)));
+            int index = block.getFirstValueIndex(position);
+            return nonNul(key, block.getX(index), block.getY(index));
         }
     }
 
@@ -92,7 +92,8 @@ abstract class KeyExtractorForPoint implements KeyExtractor {
             if (block.isNull(position)) {
                 return nul(key);
             }
-            return nonNul(key, block.getPoint(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+            int index = block.getFirstValueIndex(position) + block.getValueCount(position) - 1;
+            return nonNul(key, block.getX(index), block.getY(index));
         }
     }
 
@@ -112,14 +113,19 @@ abstract class KeyExtractorForPoint implements KeyExtractor {
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
-            SpatialPoint min = block.getPoint(start);
+            double minX = block.getX(start);
+            double minY = block.getY(start);
             for (int i = start + 1; i < end; i++) {
-                SpatialPoint other = block.getPoint(i);
-                if (other.compareTo(min) < 0) {
-                    min = other;
+                double x = block.getX(i);
+                double y = block.getY(i);
+                if (x < minX) {
+                    minX = x;
+                }
+                if (y < minY) {
+                    minY = y;
                 }
             }
-            return nonNul(key, min);
+            return nonNul(key, minX, minY);
         }
     }
 
@@ -139,14 +145,19 @@ abstract class KeyExtractorForPoint implements KeyExtractor {
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
-            SpatialPoint max = block.getPoint(start);
+            double maxX = block.getX(start);
+            double maxY = block.getY(start);
             for (int i = start + 1; i < end; i++) {
-                SpatialPoint other = block.getPoint(i);
-                if (other.compareTo(max) > 0) {
-                    max = other;
+                double x = block.getX(i);
+                double y = block.getY(i);
+                if (x > maxX) {
+                    maxX = x;
+                }
+                if (y > maxY) {
+                    maxY = y;
                 }
             }
-            return nonNul(key, max);
+            return nonNul(key, maxX, maxY);
         }
     }
 }

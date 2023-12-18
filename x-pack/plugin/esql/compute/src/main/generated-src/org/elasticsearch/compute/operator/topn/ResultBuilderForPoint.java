@@ -20,6 +20,7 @@ class ResultBuilderForPoint implements ResultBuilder {
     /**
      * The value previously set by {@link #decodeKey}.
      */
+    // TODO: we should be able to get rid of this object
     private SpatialPoint key;
 
     ResultBuilderForPoint(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
@@ -41,11 +42,15 @@ class ResultBuilderForPoint implements ResultBuilder {
             case 0 -> {
                 builder.appendNull();
             }
-            case 1 -> builder.appendPoint(inKey ? key : readValueFromValues(values));
+            case 1 -> {
+                SpatialPoint value = inKey ? key : readValueFromValues(values);
+                builder.appendPoint(value.getX(), value.getY());
+            }
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.appendPoint(readValueFromValues(values));
+                    SpatialPoint point = readValueFromValues(values);
+                    builder.appendPoint(point.getX(), point.getY());
                 }
                 builder.endPositionEntry();
             }

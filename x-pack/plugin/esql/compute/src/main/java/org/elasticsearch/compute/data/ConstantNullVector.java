@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -66,7 +65,13 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
-    public SpatialPoint getPoint(int position) {
+    public double getX(int position) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public double getY(int position) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }

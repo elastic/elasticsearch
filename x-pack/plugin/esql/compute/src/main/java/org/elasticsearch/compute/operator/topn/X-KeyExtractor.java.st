@@ -9,8 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$elseif(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
 $endif$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
@@ -49,15 +47,15 @@ $endif$
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, $type$ value) {
+    protected final int nonNul(BreakingBytesRefBuilder key, $typeValue$) {
         key.append(nonNul);
 $if(BytesRef)$
-        return encoder.encodeBytesRef(value, key) + 1;
+        return encoder.encodeBytesRef($value$, key) + 1;
 $elseif(boolean)$
-        TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value, key);
+        TopNEncoder.DEFAULT_SORTABLE.encodeBoolean($value$, key);
         return Byte.BYTES + 1;
 $else$
-        TopNEncoder.DEFAULT_SORTABLE.encode$Type$(value, key);
+        TopNEncoder.DEFAULT_SORTABLE.encode$Type$($value$, key);
         return $BYTES$ + 1;
 $endif$
     }
@@ -79,6 +77,8 @@ $endif$
         public int writeKey(BreakingBytesRefBuilder key, int position) {
 $if(BytesRef)$
             return nonNul(key, vector.get$Type$(position, scratch));
+$elseif(Point)$
+            return nonNul(key, vector.getX(position), vector.getY(position));
 $else$
             return nonNul(key, vector.get$Type$(position));
 $endif$
@@ -100,6 +100,9 @@ $endif$
             }
 $if(BytesRef)$
             return nonNul(key, block.get$Type$(block.getFirstValueIndex(position), scratch));
+$elseif(Point)$
+            int index = block.getFirstValueIndex(position);
+            return nonNul(key, block.getX(index), block.getY(index));
 $else$
             return nonNul(key, block.get$Type$(block.getFirstValueIndex(position)));
 $endif$
@@ -121,6 +124,9 @@ $endif$
             }
 $if(BytesRef)$
             return nonNul(key, block.get$Type$(block.getFirstValueIndex(position) + block.getValueCount(position) - 1, scratch));
+$elseif(Point)$
+            int index = block.getFirstValueIndex(position) + block.getValueCount(position) - 1;
+            return nonNul(key, block.getX(index), block.getY(index));
 $else$
             return nonNul(key, block.get$Type$(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
 $endif$
@@ -166,14 +172,19 @@ $elseif(boolean)$
             }
             return nonNul(key, true);
 $elseif(Point)$
-            $type$ min = block.get$Type$(start);
+            double minX = block.getX(start);
+            double minY = block.getY(start);
             for (int i = start + 1; i < end; i++) {
-                SpatialPoint other = block.getPoint(i);
-                if (other.compareTo(min) < 0) {
-                    min = other;
+                double x = block.getX(i);
+                double y = block.getY(i);
+                if (x < minX) {
+                    minX = x;
+                }
+                if (y < minY) {
+                    minY = y;
                 }
             }
-            return nonNul(key, min);
+            return nonNul(key, minX, minY);
 $else$
             $type$ min = block.get$Type$(start);
             for (int i = start + 1; i < end; i++) {
@@ -223,14 +234,19 @@ $elseif(boolean)$
             }
             return nonNul(key, false);
 $elseif(Point)$
-            $type$ max = block.get$Type$(start);
+            double maxX = block.getX(start);
+            double maxY = block.getY(start);
             for (int i = start + 1; i < end; i++) {
-                SpatialPoint other = block.getPoint(i);
-                if (other.compareTo(max) > 0) {
-                    max = other;
+                double x = block.getX(i);
+                double y = block.getY(i);
+                if (x > maxX) {
+                    maxX = x;
+                }
+                if (y > maxY) {
+                    maxY = y;
                 }
             }
-            return nonNul(key, max);
+            return nonNul(key, maxX, maxY);
 $else$
             $type$ max = block.get$Type$(start);
             for (int i = start + 1; i < end; i++) {

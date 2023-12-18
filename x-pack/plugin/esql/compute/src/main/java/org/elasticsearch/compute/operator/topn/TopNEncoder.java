@@ -59,7 +59,7 @@ public interface TopNEncoder {
 
     double decodeDouble(BytesRef bytes);
 
-    void encodePoint(SpatialPoint value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodePoint(double x, double y, BreakingBytesRefBuilder bytesRefBuilder);
 
     SpatialPoint decodePoint(BytesRef bytes);
 

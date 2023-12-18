@@ -13,23 +13,12 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
-$elseif(Point)$
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
-
-import java.util.Arrays;
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 $endif$
 import java.util.BitSet;
-
-$if(Point)$
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
-import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
-$endif$
 
 /**
  * Block implementation that stores an array of $type$.
@@ -42,16 +31,38 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
 $if(BytesRef)$
     private final BytesRefArray values;
 
+$elseif(Point)$
+    private final double[] xValues, yValues;
+
 $else$
     private final $type$[] values;
 $endif$
 
+$if(Point)$
+    public $Type$ArrayBlock(
+        double[] xValues,
+        double[] yValues,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering
+    ) {
+        this(xValues, yValues, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
+    }
+
+$else$
     public $Type$ArrayBlock($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
     }
+$endif$
 
     public $Type$ArrayBlock(
+$if(Point)$
+        double[] xValues,
+        double[] yValues,
+$else$
         $if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values,
+$endif$
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,
@@ -59,7 +70,12 @@ $endif$
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
+$if(Point)$
+        this.xValues = xValues;
+        this.yValues = yValues;
+$else$
         this.values = values;
+$endif$
     }
 
     @Override
@@ -71,6 +87,14 @@ $endif$
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return values.get(valueIndex, dest);
+$elseif(Point)$
+    public double getX(int valueIndex) {
+        return xValues[valueIndex];
+    }
+
+    @Override
+    public double getY(int valueIndex) {
+        return yValues[valueIndex];
 $else$
     public $type$ get$Type$(int valueIndex) {
         return values[valueIndex];
@@ -91,11 +115,19 @@ $endif$
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
+$if(Point)$
+                    builder.append$Type$(getX(getFirstValueIndex(pos)), getY(getFirstValueIndex(pos)));
+$else$
                     builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+$endif$
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {
+$if(Point)$
+                        builder.appendPoint(getX(first + c), getY(first + c));
+$else$
                         builder.append$Type$(get$Type$(first + c$if(BytesRef)$, scratch$endif$));
+$endif$
                     }
                     builder.endPositionEntry();
                 }
@@ -130,6 +162,8 @@ $endif$
                 for (int i = first; i < end; i++) {
 $if(BytesRef)$
                     builder.append$Type$(get$Type$(i, scratch));
+$elseif(Point)$
+                    builder.append$Type$(getX(i), getY(i));
 $else$
                     builder.append$Type$(get$Type$(i));
 $endif$
@@ -140,19 +174,13 @@ $endif$
     }
 
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
-    $if(Point)$
-        long valuesEstimate = (long) NUM_BYTES_ARRAY_HEADER + ((long) Long.BYTES * 2 + (long) NUM_BYTES_OBJECT_REF) * values.length;
-        return BASE_RAM_BYTES_USED + alignObjectSize(valuesEstimate) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values)$if(Point)$ * 2$endif$ + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
-    $else$
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
-    $endif$
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+        return ramBytesEstimated($if(Point)$xValues$else$values$endif$, firstValueIndexes, nullsMask);
     }
 
     @Override
@@ -178,6 +206,11 @@ $endif$
 $if(BytesRef)$
             + ", values="
             + values.size()
+$elseif(Point)$
+            + ", x="
+            + Arrays.toString(xValues)
+            + ", y="
+            + Arrays.toString(yValues)
 $else$
             + ", values="
             + Arrays.toString(values)

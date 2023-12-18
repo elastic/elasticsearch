@@ -318,7 +318,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (block instanceof LongBlock longBlock) {
             return spatial.longAsPoint(longBlock.getLong(offset));
         } else if (block instanceof PointBlock pointBlock) {
-            return spatial.pointAsPoint(pointBlock.getPoint(offset));
+            return spatial.pointAsPoint(pointBlock.getX(offset), pointBlock.getY(offset));
         } else {
             throw new IllegalArgumentException("Unsupported block type for " + dataType + ": " + block.getWriteableName());
         }
@@ -366,12 +366,13 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                         }
                     }
                     case "geo_point" -> {
+                        // TODO: check that we are not serializing/deserializing unnecessarily here
                         SpatialPoint pointVal = GEO.stringAsPoint(value.toString());
-                        ((PointBlock.Builder) builder).appendPoint(pointVal);
+                        ((PointBlock.Builder) builder).appendPoint(pointVal.getX(), pointVal.getY());
                     }
                     case "cartesian_point" -> {
                         SpatialPoint pointVal = CARTESIAN.stringAsPoint(value.toString());
-                        ((PointBlock.Builder) builder).appendPoint(pointVal);
+                        ((PointBlock.Builder) builder).appendPoint(pointVal.getX(), pointVal.getY());
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

@@ -167,7 +167,7 @@ public class MultivalueDedupeBenchmark {
                     Randomness.shuffle(values);
                     builder.beginPositionEntry();
                     for (SpatialPoint v : values) {
-                        builder.appendPoint(v);
+                        builder.appendPoint(v.getX(), v.getY());
                     }
                     builder.endPositionEntry();
                 }

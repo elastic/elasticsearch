@@ -24,7 +24,6 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -155,7 +154,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             .put(FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
             .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 100, ByteSizeUnit.BYTES)
             .put(REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
-            .put(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 100, ByteSizeUnit.BYTES)
+            .put(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 175, ByteSizeUnit.BYTES)
             .put(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
             .put(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 150, ByteSizeUnit.BYTES)
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
@@ -206,34 +205,15 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             .get(0);
         return Measurement.combine(
             Stream.of(
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL)
+                dataNodeTelemetryPlugin.getLongUpDownCounterMeasurement(
+                    CircuitBreakerMetrics.ES_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL
+                ).stream(),
+                dataNodeTelemetryPlugin.getLongUpDownCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL)
                     .stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL).stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_REQUEST_TRIP_COUNT_TOTAL).stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_PARENT_TRIP_COUNT_TOTAL).stream()
+                dataNodeTelemetryPlugin.getLongUpDownCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_REQUEST_TRIP_COUNT_TOTAL).stream(),
+                dataNodeTelemetryPlugin.getLongUpDownCounterMeasurement(CircuitBreakerMetrics.ES_BREAKER_PARENT_TRIP_COUNT_TOTAL).stream()
             ).flatMap(Function.identity()).toList()
         );
-    }
-
-    // Make sure circuit breaker telemetry on trip count reports the same values as circuit breaker stats
-    private void assertCircuitBreakerTripCount(
-        final HierarchyCircuitBreakerService circuitBreakerService,
-        final String circuitBreakerName,
-        int firstBytesEstimate,
-        int secondBytesEstimate,
-        long expectedTripCountValue
-    ) {
-        try {
-            circuitBreakerService.getBreaker(circuitBreakerName).addEstimateBytesAndMaybeBreak(firstBytesEstimate, randomAlphaOfLength(5));
-            circuitBreakerService.getBreaker(circuitBreakerName).addEstimateBytesAndMaybeBreak(secondBytesEstimate, randomAlphaOfLength(5));
-        } catch (final CircuitBreakingException cbex) {
-            final CircuitBreakerStats circuitBreakerStats = Arrays.stream(circuitBreakerService.stats().getAllStats())
-                .filter(stats -> circuitBreakerName.equals(stats.getName()))
-                .findAny()
-                .get();
-            assertThat(circuitBreakerService.getBreaker(circuitBreakerName).getTrippedCount(), Matchers.equalTo(expectedTripCountValue));
-            assertThat(circuitBreakerStats.getTrippedCount(), Matchers.equalTo(expectedTripCountValue));
-        }
     }
 
 }

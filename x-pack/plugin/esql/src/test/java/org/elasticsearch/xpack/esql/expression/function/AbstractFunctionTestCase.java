@@ -895,6 +895,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(
             Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.UNSIGNED_LONG, DataTypes.NULL),
             "geo_point or long or string or unsigned_long"
+        ),
+        Map.entry(
+            Set.of(
+                EsqlDataTypes.CARTESIAN_POINT,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "cartesian_point or long or string or unsigned_long"
         )
     );
 

@@ -938,7 +938,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
     }
 
-    private static List<TypedDataSupplier> cartesianPointCases() {
+    public static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(
             new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsLong(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
         );

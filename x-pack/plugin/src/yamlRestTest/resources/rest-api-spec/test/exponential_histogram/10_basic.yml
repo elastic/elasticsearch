@@ -1,0 +1,57 @@
+setup:
+
+  - skip:
+      version: " - 8.12.99"
+      reason: "exponential_histogram was added in 8.13"
+
+  - do:
+      indices.create:
+        index: test-histogram
+        body:
+          mappings:
+            properties:
+              histogram:
+                type: exponential_histogram
+
+  - do:
+      index:
+        index: test-histogram-scale1
+        body:
+          histogram:
+            scale: 1
+            positive:
+              counts: [1, 0, 0, 2]
+
+  - do:
+      index:
+        index: test-histogram-scale2
+        body:
+          histogram:
+            scale: 2
+            positive:
+              counts: [1, 0, 0, 2]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Merge exponential histograms":
+
+  - do:
+      search:
+        index: test-histogram-*
+        body:
+          size: 0
+          aggs:
+            histogram_of_histograms:
+              # TODO(axw) exponential_histogram aggregation
+              histogram:
+                field: histogram
+#
+#  - match: { aggregations.event_terms.buckets.0.key: "b" }
+#  - match: { aggregations.event_terms.buckets.0.doc_count: 4 }
+#  - match: { aggregations.event_terms.buckets.1.key: "a" }
+#  - match: { aggregations.event_terms.buckets.1.doc_count: 3 }
+#  - match: { aggregations.event_terms.buckets.2.key: "c" }
+#  - match: { aggregations.event_terms.buckets.2.doc_count: 2 }
+#  - length: { aggregations.event_terms.buckets: 3 }

@@ -96,6 +96,9 @@ public class UpdateVersionsTask extends DefaultTask {
         if (addVersion == null && removeVersion == null) {
             throw new IllegalArgumentException("No versions to add or remove specified");
         }
+        if (setCurrent && addVersion == null) {
+            throw new IllegalArgumentException("No new version added to set as the current version");
+        }
         if (Objects.equals(addVersion, removeVersion)) {
             throw new IllegalArgumentException("Same version specified to add and remove");
         }

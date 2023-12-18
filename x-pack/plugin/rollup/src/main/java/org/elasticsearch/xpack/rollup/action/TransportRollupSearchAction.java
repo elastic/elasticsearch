@@ -158,7 +158,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         } else if (rollupContext.hasLiveIndices()) {
             // Only live
             assert msearchResponse.getResponses().length == 1;
-            return RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            var res = RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            res.mustIncRef();
+            return res;
         } else if (rollupContext.hasRollupIndices()) {
             // Only rollup
             return RollupResponseTranslator.translateResponse(msearchResponse, reduceContextBuilder);

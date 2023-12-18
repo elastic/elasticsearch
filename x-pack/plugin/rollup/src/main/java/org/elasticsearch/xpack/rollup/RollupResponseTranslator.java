@@ -243,6 +243,7 @@ public class RollupResponseTranslator {
 
         // If we only have a live index left, just return it directly. We know it can't be an error already
         if (rolledResponses.isEmpty() && liveResponse != null) {
+            liveResponse.mustIncRef();
             return liveResponse;
         } else if (rolledResponses.isEmpty()) {
             throw new ResourceNotFoundException("No indices (live or rollup) found during rollup search");

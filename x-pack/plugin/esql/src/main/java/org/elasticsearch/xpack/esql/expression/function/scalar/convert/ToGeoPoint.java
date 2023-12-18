@@ -64,7 +64,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
         return NodeInfo.create(this, ToGeoPoint::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { RuntimeException.class })
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
         return GEO.pointAsLong(GEO.stringAsPoint(in.utf8ToString()));
     }

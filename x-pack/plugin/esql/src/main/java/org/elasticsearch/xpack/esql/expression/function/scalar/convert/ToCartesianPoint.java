@@ -64,7 +64,7 @@ public class ToCartesianPoint extends AbstractConvertFunction {
         return NodeInfo.create(this, ToCartesianPoint::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { RuntimeException.class })
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
         return CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(in.utf8ToString()));
     }

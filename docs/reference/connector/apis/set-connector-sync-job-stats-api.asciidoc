@@ -38,7 +38,7 @@ This API is mainly used by the connector service for updating sync job informati
 (Required, int) The number of documents the sync job deleted.
 
 `indexed_document_count`::
-(Required, int) The document count the sync job indexed.
+(Required, int) The number of documents the sync job indexed.
 
 `indexed_document_volume`::
 (Required, int) The document volume the sync job indexed.

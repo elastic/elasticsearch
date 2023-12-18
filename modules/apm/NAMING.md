@@ -67,7 +67,7 @@ For **pluralization**, when an attribute represents an entity, the attribute nam
 
 
 ### List of previously registered metric names
-You can run all previously registered metrics names with
+You can inspect all previously registered metrics names with
 `./gradlew run -Dtests.es.logger.org.elasticsearch.telemetry.apm=debug`
 This should help you find out the already registered group that your meteric
 might fit

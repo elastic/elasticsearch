@@ -210,7 +210,7 @@ public class APMMeterRegistry implements MeterRegistry {
 
     private <T extends AbstractInstrument<?>> T register(Registrar<T> registrar, T adapter) {
         assert registrars.contains(registrar) : "usage of unknown registrar";
-        logger.debug("Registering an instrument "+adapter.getName());
+        logger.debug("Registering an instrument with name: " + adapter.getName());
         return registrar.register(adapter);
     }
 

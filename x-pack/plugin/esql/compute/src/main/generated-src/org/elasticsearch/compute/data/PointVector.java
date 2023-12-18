@@ -81,11 +81,11 @@ public sealed interface PointVector extends Vector permits ConstantPointVector, 
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return blockFactory.newConstantPointVector(in.readPoint(), positions);
+            return blockFactory.newConstantPointVector(new SpatialPoint(in.readDouble(), in.readDouble()), positions);
         } else {
             try (var builder = blockFactory.newPointVectorFixedBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    builder.appendPoint(in.readPoint());
+                    builder.appendPoint(new SpatialPoint(in.readDouble(), in.readDouble()));
                 }
                 return builder.build();
             }
@@ -98,10 +98,14 @@ public sealed interface PointVector extends Vector permits ConstantPointVector, 
         out.writeVInt(positions);
         out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
-            out.writePoint(getPoint(0));
+            SpatialPoint point = getPoint(0);
+            out.writeDouble(point.getX());
+            out.writeDouble(point.getY());
         } else {
             for (int i = 0; i < positions; i++) {
-                out.writePoint(getPoint(i));
+                SpatialPoint point = getPoint(i);
+                out.writeDouble(point.getX());
+                out.writeDouble(point.getY());
             }
         }
     }

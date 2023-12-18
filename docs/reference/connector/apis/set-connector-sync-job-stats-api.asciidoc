@@ -47,7 +47,7 @@ This API is mainly used by the connector service for updating sync job informati
 (Optional, int) The total number of documents in the target index after the sync job finished.
 
 `last_seen`::
-(Optional, instant) The timestamp to set `last_seen` of the connector sync job to.
+(Optional, instant) The timestamp to set the connector sync job's `last_seen` property.
 
 [[set-connector-sync-job-stats-api-response-codes]]
 ==== {api-response-codes-title}

@@ -19,7 +19,7 @@ public class DeleteIndexRequestBuilder extends AcknowledgedRequestBuilder<
     DeleteIndexRequestBuilder> {
 
     public DeleteIndexRequestBuilder(ElasticsearchClient client, String... indices) {
-        super(client, DeleteIndexAction.INSTANCE, new DeleteIndexRequest(indices));
+        super(client, TransportDeleteIndexAction.TYPE, new DeleteIndexRequest(indices));
     }
 
     /**

@@ -14,6 +14,10 @@ import org.elasticsearch.compute.data.BooleanArrayBlock;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.DoubleArrayBlock;
+import org.elasticsearch.compute.data.DoubleArrayVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -132,6 +136,49 @@ public class BlockBenchmark {
 
                     BooleanBlock block = (BooleanBlock) blocks[blockIndex];
                     checkSums[blockIndex] = computeBooleanCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
+                }
+            }
+            case "double" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    double[] values = new double[totalPositions];
+                    for (int i = 0; i < totalPositions; i++) {
+                        values[i] = random.nextDouble() * 1000000.0;
+                    }
+
+                    switch (blockKind) {
+                        case "array" -> {
+                            blocks[blockIndex] = new DoubleArrayBlock(
+                                values,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+                            );
+                        }
+                        case "array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            blocks[blockIndex] = new DoubleArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                        }
+                        case "vector" -> {
+                            DoubleVector vector = new DoubleArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock();
+                        }
+                        default -> {
+                            throw new IllegalStateException();
+                        }
+                    }
+
+                    DoubleBlock block = (DoubleBlock) blocks[blockIndex];
+                    checkSums[blockIndex] = computeDoubleCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
             }
             case "int" -> {
@@ -285,6 +332,13 @@ public class BlockBenchmark {
                     resultCheckSums[blockIndex] = computeBooleanCheckSum(block, traversalOrders[blockIndex]);
                 }
             }
+            case "double" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    DoubleBlock block = (DoubleBlock) data.blocks[blockIndex];
+
+                    resultCheckSums[blockIndex] = computeDoubleCheckSum(block, traversalOrders[blockIndex]);
+                }
+            }
             case "int" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     IntBlock block = (IntBlock) data.blocks[blockIndex];
@@ -330,8 +384,25 @@ public class BlockBenchmark {
         return sum;
     }
 
+    private static long computeDoubleCheckSum(DoubleBlock block, int[] traversalOrder) {
+        double sum = 0;
+
+        for (int position : traversalOrder) {
+            if (block.isNull(position)) {
+                continue;
+            }
+            int start = block.getFirstValueIndex(position);
+            int end = start + block.getValueCount(position);
+            for (int i = start; i < end; i++) {
+                sum += block.getDouble(i);
+            }
+        }
+
+        return (long) sum;
+    }
+
     private static long computeIntCheckSum(IntBlock block, int[] traversalOrder) {
-        long sum = 0;
+        int sum = 0;
 
         for (int position : traversalOrder) {
             if (block.isNull(position)) {
@@ -377,7 +448,7 @@ public class BlockBenchmark {
 
     // TODO other types
     // TODO: add DocBlocks/DocVectors
-    @Param({ "boolean", "int", "long" })
+    @Param({ "boolean", "double", "int", "long" })
     public String dataType;
 
     @Param({ "array", "array-multivalue-null", "vector" })

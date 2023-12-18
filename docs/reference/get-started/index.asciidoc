@@ -22,5 +22,6 @@ Learn how to:
 * <<endpoints-keys, Connect to your endpoints>>
 
 include::get-started-cloud.asciidoc[]
+include::get-started-cloud-marketplace.asciidoc[]
 include::get-started-local-dev.asciidoc[]
 include::endpoints-keys.asciidoc[]

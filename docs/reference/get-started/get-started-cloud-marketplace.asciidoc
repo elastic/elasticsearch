@@ -1,0 +1,13 @@
+[[get-started-elasticsearch-cloud-marketplace]]
+== Get started with {es} using Cloud provider marketplaces
+++++
+<titleabbrev>{ecloud} via marketplaces</titleabbrev>
+++++
+
+You can deploy {ecloud} instances directly via the major cloud provider marketplaces.
+
+Learn more:
+
+* https://aws.amazon.com/marketplace/pp/prodview-voru33wi6xs7k[Amazon Web Services]
+* https://console.cloud.google.com/marketplace/product/elastic-prod/elastic-cloud[Google Cloud]
+* https://azuremarketplace.microsoft.com/en-us/marketplace/apps/elastic.ec-azure-pp[Microsoft Azure]

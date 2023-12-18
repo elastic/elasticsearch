@@ -80,10 +80,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testSkipOs() {
         var osList = List.of("windows95", "debian-5");
-        SkipSection section = new SkipSection(
-            List.of(new OsSkipCriteria(osList)), Collections.emptyList(),
-            "foobar"
-        );
+        SkipSection section = new SkipSection(List.of(new OsSkipCriteria(osList)), Collections.emptyList(), "foobar");
         assertTrue(section.skip(osOnlyContext("windows95")));
         assertTrue(section.skip(osOnlyContext("debian-5")));
         assertFalse(section.skip(osOnlyContext("ms-dos")));
@@ -91,11 +88,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testSkipOsWithTestFeatures() {
         var osList = List.of("windows95", "debian-5");
-        SkipSection section = new SkipSection(
-            List.of(new OsSkipCriteria(osList)),
-            Collections.singletonList("warnings"),
-            "foobar"
-        );
+        SkipSection section = new SkipSection(List.of(new OsSkipCriteria(osList)), Collections.singletonList("warnings"), "foobar");
         assertTrue(section.skip(osOnlyContext("windows95")));
         assertTrue(section.skip(osOnlyContext("debian-5")));
         assertFalse(section.skip(osOnlyContext("ms-dos")));

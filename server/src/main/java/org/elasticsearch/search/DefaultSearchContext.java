@@ -910,9 +910,8 @@ final class DefaultSearchContext extends SearchContext {
             IndexRouting indexRouting = indexService.getIndexSettings().getIndexRouting();
             List<String> routingPaths = indexService.getMetadata().getRoutingPaths();
             if (indexService.getIndexSettings().getValue(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES)) {
-                // If the TSDS supports dynamic metrics and dimensions, some dimensions (or even all of them) may not be included in the
-                // routing path. In this case, they can be retrieved from the index mapping as they're initialized through dynamic template
-                // fields with `time_series_dimension` annotations.
+                // If a time-series index supports dynamic metrics and dimensions, its `routing_path` setting is empty.
+                // In this case, the routing path includes all non-metric fields, as retrieved from the index mapping.
                 assert routingPaths.isEmpty();
                 List<String> dynamicDimensions = indexService.mapperService().mappingLookup().getNonMetricFieldsWithDocValues();
                 if (dynamicDimensions.isEmpty() == false) {

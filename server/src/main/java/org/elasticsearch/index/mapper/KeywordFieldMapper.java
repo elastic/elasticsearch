@@ -909,6 +909,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
 
+        // Keyword fields are included in routing path calculations if they are marked as dimensions.
+        // When 'time_series_dynamic_templates' is set, all non-metric fields (including all keyword fields) are considered dimensions.
         if (fieldType().isDimension() || context.indexSettings().getIndexMetadata().supportsTimesSeriesDynamicTemplates()) {
             context.getDimensions().addString(fieldType().name(), binaryValue);
         }

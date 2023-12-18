@@ -46,7 +46,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public abstract class IndexRouting {
     /**
-     * Build the routing from {@link IndexMetadata} and dimensions fields from dynamic templates.
+     * Build the routing from {@link IndexMetadata} and the dynamic template fields.
+     * The latter are only used for time-series indexes with 'time_series_dynamic_templates' setting.
+     * In this case, the assumption is that the dynamic template spec includes all the metric fields, so the
+     * rest are considered dimension fields and are thus used for routing.
      */
     public static IndexRouting fromIndexMetadataAndDynamicTemplates(IndexMetadata metadata, Map<String, String> dynamicTemplates) {
         if (false == metadata.getRoutingPaths().isEmpty()
@@ -67,7 +70,9 @@ public abstract class IndexRouting {
     }
 
     /**
-     * Build the routing from {@link IndexMetadata} and provided dynamic dimensions.
+     * Build the routing from {@link IndexMetadata} and provided dimension fields.
+     * The latter are populated and used only for time-series indexes with ''time_series_dynamic_templates' setting.
+     * In this case, it's expected that the 'routing_path' setting is empty.
      */
     public static IndexRouting fromIndexMetadataAndDynamicDimensions(IndexMetadata metadata, List<String> dynamicDimensions) {
         return new ExtractFromSource(metadata, Set.of(), dynamicDimensions);

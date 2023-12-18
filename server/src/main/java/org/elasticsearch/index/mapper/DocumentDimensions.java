@@ -22,7 +22,7 @@ import java.util.Set;
 public interface DocumentDimensions {
 
     /**
-     * Build an index's DocumentDimensions using its settings and provided dynamic templates, if any.
+     * Build an index's DocumentDimensions using its settings, the dynamic template spec (if any) and the index mapping.
      */
     static DocumentDimensions from(IndexSettings indexSettings, Map<String, String> dynamicTemplates, MappingLookup mappingLookup) {
         return indexSettings.getMode().buildDocumentDimensions(indexSettings, dynamicTemplates, mappingLookup);

@@ -214,8 +214,8 @@ public enum IndexMode {
             } else if (dynamicTemplates.isEmpty() == false) {
                 routing = IndexRouting.fromIndexMetadataAndDynamicTemplates(settings.getIndexMetadata(), dynamicTemplates);
             } else {
-                // The information about dynamic templates is not available during translog replay. At this point, the mapping is
-                // expected to contain all fields marked as dimensions.
+                // The dynamic template spec is not available during translog replay. At this point, the mapping is
+                // expected to contain the fields from dynamic templates, so the non-metric fields are used for routing.
                 List<String> dimensions = mappingLookup.getNonMetricFieldsWithDocValues();
                 if (dimensions.isEmpty() == false) {
                     routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(settings.getIndexMetadata(), dimensions);

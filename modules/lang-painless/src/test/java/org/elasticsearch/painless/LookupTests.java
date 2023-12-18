@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -26,7 +27,9 @@ public class LookupTests extends ESTestCase {
     @Before
     public void setup() {
         painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
-            Collections.singletonList(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.lookup"))
+            Collections.singletonList(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.lookup")),
+            new HashMap<>(),
+            new HashMap<>()
         );
     }
 

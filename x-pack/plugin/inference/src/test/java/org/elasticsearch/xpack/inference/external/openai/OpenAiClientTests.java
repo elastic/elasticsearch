@@ -12,16 +12,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.junit.After;
 import org.junit.Before;
@@ -29,18 +29,18 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequestTests.createRequest;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -99,20 +99,12 @@ public class OpenAiClientTests extends ESTestCase {
 
             OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
+            var result = listener.actionGet(TIMEOUT);
 
-            assertThat(
-                result.asMap(),
-                is(
-                    Map.of(
-                        TextEmbeddingResults.TEXT_EMBEDDING,
-                        List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
-                    )
-                )
-            );
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -158,20 +150,12 @@ public class OpenAiClientTests extends ESTestCase {
 
             OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", null), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
+            var result = listener.actionGet(TIMEOUT);
 
-            assertThat(
-                result.asMap(),
-                is(
-                    Map.of(
-                        TextEmbeddingResults.TEXT_EMBEDDING,
-                        List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
-                    )
-                )
-            );
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -216,20 +200,12 @@ public class OpenAiClientTests extends ESTestCase {
 
             OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), null, "secret", "abc", "model", null), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
+            var result = listener.actionGet(TIMEOUT);
 
-            assertThat(
-                result.asMap(),
-                is(
-                    Map.of(
-                        TextEmbeddingResults.TEXT_EMBEDDING,
-                        List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
-                    )
-                )
-            );
+            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -278,11 +254,16 @@ public class OpenAiClientTests extends ESTestCase {
                     threadPool,
                     mockThrottlerManager(),
                     // timeout as zero for no retries
-                    buildSettingsWithRetryFields(TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), TimeValue.timeValueSeconds(0))
+                    buildSettingsWithRetryFields(
+                        TimeValue.timeValueMillis(1),
+                        TimeValue.timeValueMinutes(1),
+                        TimeValue.timeValueSeconds(0)
+                    ),
+                    TruncatorTests.createTruncator()
                 )
             );
 
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
             var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -307,7 +288,7 @@ public class OpenAiClientTests extends ESTestCase {
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
 
         OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
-        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

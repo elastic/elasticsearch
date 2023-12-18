@@ -60,13 +60,12 @@ public class BooleanTermsIT extends ESIntegTestCase {
                 }
                 default -> throw new AssertionError();
             }
-            builders[i] = client().prepareIndex("idx")
-                .setSource(
-                    jsonBuilder().startObject()
-                        .field(SINGLE_VALUED_FIELD_NAME, singleValue)
-                        .array(MULTI_VALUED_FIELD_NAME, multiValue)
-                        .endObject()
-                );
+            builders[i] = prepareIndex("idx").setSource(
+                jsonBuilder().startObject()
+                    .field(SINGLE_VALUED_FIELD_NAME, singleValue)
+                    .array(MULTI_VALUED_FIELD_NAME, multiValue)
+                    .endObject()
+            );
         }
         indexRandom(true, builders);
     }

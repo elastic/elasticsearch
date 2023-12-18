@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -132,6 +132,10 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         PreviewDatafeedAction.Request request,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
+        final QueryBuilder extraFilters = request.getStartTime().isPresent() || request.getEndTime().isPresent()
+            ? null
+            : QueryBuilders.boolQuery().mustNot(QueryBuilders.termsQuery(DataTierFieldMapper.NAME, "data_frozen", "data_cold"));
+
         DatafeedConfig.Builder previewDatafeedBuilder = buildPreviewDatafeed(datafeedConfig);
         useSecondaryAuthIfAvailable(securityContext, () -> {
             previewDatafeedBuilder.setHeaders(
@@ -144,6 +148,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             DataExtractorFactory.create(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 previewDatafeedConfig,
+                extraFilters,
                 job,
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
@@ -158,9 +163,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                             final long start = request.getStartTime().orElse(0);
                             final long end = request.getEndTime()
                                 .orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
-                            DataExtractor dataExtractor = request.getStartTime().isPresent() || request.getEndTime().isPresent()
-                                ? dataExtractorFactory.newExtractor(start, end)
-                                : dataExtractorFactory.newExtractor(start, end, hotOnly);
+                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
                             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, l));
                         })
                     )
@@ -194,7 +197,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             datafeed.getHeaders(),
             ML_ORIGIN,
             client,
-            FieldCapabilitiesAction.INSTANCE,
+            TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(fieldCapsResponse -> {
                 Map<String, FieldCapabilities> timeFieldCaps = fieldCapsResponse.getField(timeField);
@@ -226,7 +229,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {
-            dataExtractor.cancel();
+            dataExtractor.destroy();
         }
     }
 }

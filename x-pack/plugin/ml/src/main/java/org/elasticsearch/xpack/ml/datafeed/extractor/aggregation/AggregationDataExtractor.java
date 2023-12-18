@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -30,7 +29,7 @@ class AggregationDataExtractor extends AbstractAggregationDataExtractor<SearchRe
 
     @Override
     protected SearchRequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
-        return new SearchRequestBuilder(client, SearchAction.INSTANCE).setSource(searchSourceBuilder)
+        return new SearchRequestBuilder(client).setSource(searchSourceBuilder)
             .setIndicesOptions(context.indicesOptions)
             .setAllowPartialSearchResults(false)
             .setIndices(context.indices);

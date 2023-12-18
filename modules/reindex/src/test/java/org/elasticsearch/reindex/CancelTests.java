@@ -97,7 +97,7 @@ public class CancelTests extends ReindexTestCase {
             false,
             true,
             IntStream.range(0, numDocs)
-                .mapToObj(i -> client().prepareIndex().setIndex(INDEX).setId(String.valueOf(i)).setSource("n", i))
+                .mapToObj(i -> prepareIndex(INDEX).setId(String.valueOf(i)).setSource("n", i))
                 .collect(Collectors.toList())
         );
 

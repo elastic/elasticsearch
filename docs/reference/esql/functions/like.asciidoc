@@ -2,6 +2,7 @@
 [[esql-like-operator]]
 === `LIKE`
 
+// tag::body[]
 Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
 usually acts on a field placed on the left-hand side of the operator, but it can
 also act on a constant (literal) expression. The right-hand side of the operator
@@ -12,9 +13,12 @@ The following wildcard characters are supported:
 * `*` matches zero or more characters.
 * `?` matches one character.
 
-[source,esql]
+[source.merge.styled,esql]
 ----
-FROM employees
-| WHERE first_name LIKE "?b*"
-| KEEP first_name, last_name
+include::{esql-specs}/docs.csv-spec[tag=like]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=like-result]
+|===
+// end::body[]

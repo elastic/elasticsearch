@@ -15,10 +15,10 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -126,7 +126,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
-            SearchShardsAction.INSTANCE,
+            TransportSearchShardsAction.TYPE,
             searchShardsRequest,
             ActionListener.wrap(searchShardsResponse -> {
                 Map<String, Set<ShardId>> filteredNodesAndShards = filterOutSkippedShards(nodesAndShards, searchShardsResponse);

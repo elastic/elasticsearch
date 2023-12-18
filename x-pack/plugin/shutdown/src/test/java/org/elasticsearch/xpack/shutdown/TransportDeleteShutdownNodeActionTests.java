@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.test.ESTestCase;
@@ -57,6 +58,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         var threadPool = mock(ThreadPool.class);
         var transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         clusterService = mock(ClusterService.class);
+        var rerouteService = mock(RerouteService.class);
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<DeleteShutdownNodeTask>>any())).thenReturn(
@@ -65,6 +67,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         action = new TransportDeleteShutdownNodeAction(
             transportService,
             clusterService,
+            rerouteService,
             threadPool,
             actionFilters,
             indexNameExpressionResolver

@@ -54,13 +54,14 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
             );
             openRequest.maxConcurrentShardRequests(maxConcurrentShardRequests);
         }
+
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
                 PARSER.parse(parser, openRequest, null);
             }
         });
 
-        return channel -> client.execute(OpenPointInTimeAction.INSTANCE, openRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportOpenPointInTimeAction.TYPE, openRequest, new RestToXContentListener<>(channel));
     }
 
     private static final ObjectParser<OpenPointInTimeRequest, Void> PARSER = new ObjectParser<>("open_point_in_time_request");

@@ -96,6 +96,13 @@ final class S3ClientSettings {
         key -> Setting.intSetting(key, 80, 0, 1 << 16, Property.NodeScope)
     );
 
+    /** The proxy scheme for connecting to S3 through a proxy. */
+    static final Setting.AffixSetting<Protocol> PROXY_SCHEME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.scheme",
+        key -> new Setting<>(key, "http", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
+    );
+
     /** The username of a proxy to connect to s3 through. */
     static final Setting.AffixSetting<SecureString> PROXY_USERNAME_SETTING = Setting.affixKeySetting(
         PREFIX,
@@ -174,6 +181,9 @@ final class S3ClientSettings {
     /** The port number the proxy host should be connected on. */
     final int proxyPort;
 
+    /** The proxy scheme to use for connecting to s3 through a proxy. */
+    final Protocol proxyScheme;
+
     // these should be "secure" yet the api for the s3 client only takes String, so storing them
     // as SecureString here won't really help with anything
     /** An optional username for the proxy host, for basic authentication. */
@@ -209,6 +219,7 @@ final class S3ClientSettings {
         Protocol protocol,
         String proxyHost,
         int proxyPort,
+        Protocol proxyScheme,
         String proxyUsername,
         String proxyPassword,
         int readTimeoutMillis,
@@ -224,6 +235,7 @@ final class S3ClientSettings {
         this.protocol = protocol;
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
+        this.proxyScheme = proxyScheme;
         this.proxyUsername = proxyUsername;
         this.proxyPassword = proxyPassword;
         this.readTimeoutMillis = readTimeoutMillis;
@@ -252,6 +264,7 @@ final class S3ClientSettings {
         final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxyHost);
         final int newProxyPort = getRepoSettingOrDefault(PROXY_PORT_SETTING, normalizedSettings, proxyPort);
+        final Protocol newProxyScheme = getRepoSettingOrDefault(PROXY_SCHEME_SETTING, normalizedSettings, proxyScheme);
         final int newReadTimeoutMillis = Math.toIntExact(
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis()
         );
@@ -275,6 +288,7 @@ final class S3ClientSettings {
             && protocol == newProtocol
             && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort
+            && proxyScheme == newProxyScheme
             && newReadTimeoutMillis == readTimeoutMillis
             && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
@@ -291,6 +305,7 @@ final class S3ClientSettings {
             newProtocol,
             newProxyHost,
             newProxyPort,
+            newProxyScheme,
             proxyUsername,
             proxyPassword,
             newReadTimeoutMillis,
@@ -398,6 +413,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, PROTOCOL_SETTING),
                 getConfigValue(settings, clientName, PROXY_HOST_SETTING),
                 getConfigValue(settings, clientName, PROXY_PORT_SETTING),
+                getConfigValue(settings, clientName, PROXY_SCHEME_SETTING),
                 proxyUsername.toString(),
                 proxyPassword.toString(),
                 Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
@@ -428,6 +444,7 @@ final class S3ClientSettings {
             && Objects.equals(endpoint, that.endpoint)
             && protocol == that.protocol
             && Objects.equals(proxyHost, that.proxyHost)
+            && proxyScheme == that.proxyScheme
             && Objects.equals(proxyUsername, that.proxyUsername)
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
@@ -443,6 +460,7 @@ final class S3ClientSettings {
             protocol,
             proxyHost,
             proxyPort,
+            proxyScheme,
             proxyUsername,
             proxyPassword,
             readTimeoutMillis,

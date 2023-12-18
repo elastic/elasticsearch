@@ -81,33 +81,26 @@ public final class MultivalueDedupe {
      */
     public static ExpressionEvaluator.Factory evaluator(ElementType elementType, ExpressionEvaluator.Factory field) {
         return switch (elementType) {
-            case BOOLEAN -> new EvaluatorFactory(field, (blockFactory, ref) -> {
-                try (ref) {
-                    return Block.Ref.floating(new MultivalueDedupeBoolean((BooleanBlock) ref.block()).dedupeToBlock(blockFactory));
-                }
-            });
-            case BYTES_REF -> new EvaluatorFactory(field, (blockFactory, ref) -> {
-                try (ref) {
-                    return Block.Ref.floating(
-                        new MultivalueDedupeBytesRef((BytesRefBlock) ref.block()).dedupeToBlockAdaptive(blockFactory)
-                    );
-                }
-            });
-            case INT -> new EvaluatorFactory(field, (blockFactory, ref) -> {
-                try (ref) {
-                    return Block.Ref.floating(new MultivalueDedupeInt((IntBlock) ref.block()).dedupeToBlockAdaptive(blockFactory));
-                }
-            });
-            case LONG -> new EvaluatorFactory(field, (blockFactory, ref) -> {
-                try (ref) {
-                    return Block.Ref.floating(new MultivalueDedupeLong((LongBlock) ref.block()).dedupeToBlockAdaptive(blockFactory));
-                }
-            });
-            case DOUBLE -> new EvaluatorFactory(field, (blockFactory, ref) -> {
-                try (ref) {
-                    return Block.Ref.floating(new MultivalueDedupeDouble((DoubleBlock) ref.block()).dedupeToBlockAdaptive(blockFactory));
-                }
-            });
+            case BOOLEAN -> new EvaluatorFactory(
+                field,
+                (blockFactory, block) -> new MultivalueDedupeBoolean((BooleanBlock) block).dedupeToBlock(blockFactory)
+            );
+            case BYTES_REF -> new EvaluatorFactory(
+                field,
+                (blockFactory, block) -> new MultivalueDedupeBytesRef((BytesRefBlock) block).dedupeToBlockAdaptive(blockFactory)
+            );
+            case INT -> new EvaluatorFactory(
+                field,
+                (blockFactory, block) -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockAdaptive(blockFactory)
+            );
+            case LONG -> new EvaluatorFactory(
+                field,
+                (blockFactory, block) -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockAdaptive(blockFactory)
+            );
+            case DOUBLE -> new EvaluatorFactory(
+                field,
+                (blockFactory, block) -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockAdaptive(blockFactory)
+            );
             case NULL -> field; // The page is all nulls and when you dedupe that it's still all nulls
             default -> throw new IllegalArgumentException("unsupported type [" + elementType + "]");
         };
@@ -123,13 +116,12 @@ public final class MultivalueDedupe {
      * and then encodes the results into a {@link byte[]} which can be used for
      * things like hashing many fields together.
      */
-    public static BatchEncoder batchEncoder(Block.Ref ref, int batchSize, boolean allowDirectEncoder) {
-        if (ref.block().areAllValuesNull()) {
-            return new BatchEncoder.DirectNulls(ref.block());
+    public static BatchEncoder batchEncoder(Block block, int batchSize, boolean allowDirectEncoder) {
+        if (block.areAllValuesNull()) {
+            return new BatchEncoder.DirectNulls(block);
         }
-        var elementType = ref.block().elementType();
-        var block = ref.block();
-        if (allowDirectEncoder && ref.block().mvDeduplicated()) {
+        var elementType = block.elementType();
+        if (allowDirectEncoder && block.mvDeduplicated()) {
             return switch (elementType) {
                 case BOOLEAN -> new BatchEncoder.DirectBooleans((BooleanBlock) block);
                 case BYTES_REF -> new BatchEncoder.DirectBytesRefs((BytesRefBlock) block);
@@ -150,7 +142,7 @@ public final class MultivalueDedupe {
         }
     }
 
-    private record EvaluatorFactory(ExpressionEvaluator.Factory field, BiFunction<BlockFactory, Block.Ref, Block.Ref> dedupe)
+    private record EvaluatorFactory(ExpressionEvaluator.Factory field, BiFunction<BlockFactory, Block, Block> dedupe)
         implements
             ExpressionEvaluator.Factory {
         @Override
@@ -167,17 +159,19 @@ public final class MultivalueDedupe {
     private static class Evaluator implements ExpressionEvaluator {
         private final BlockFactory blockFactory;
         private final ExpressionEvaluator field;
-        private final BiFunction<BlockFactory, Block.Ref, Block.Ref> dedupe;
+        private final BiFunction<BlockFactory, Block, Block> dedupe;
 
-        protected Evaluator(BlockFactory blockFactory, ExpressionEvaluator field, BiFunction<BlockFactory, Block.Ref, Block.Ref> dedupe) {
+        protected Evaluator(BlockFactory blockFactory, ExpressionEvaluator field, BiFunction<BlockFactory, Block, Block> dedupe) {
             this.blockFactory = blockFactory;
             this.field = field;
             this.dedupe = dedupe;
         }
 
         @Override
-        public Block.Ref eval(Page page) {
-            return dedupe.apply(blockFactory, field.eval(page));
+        public Block eval(Page page) {
+            try (Block block = field.eval(page)) {
+                return dedupe.apply(blockFactory, block);
+            }
         }
 
         @Override

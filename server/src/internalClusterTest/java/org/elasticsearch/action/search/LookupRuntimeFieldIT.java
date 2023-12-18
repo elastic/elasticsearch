@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LookupRuntimeFieldIT extends ESIntegTestCase {
@@ -40,7 +42,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             Map.of("author", "jack", "first_name", "Jack", "last_name", "Austin", "joined", "1999-11-03")
         );
         for (Map<String, String> author : authors) {
-            client().prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
+            prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
         indicesAdmin().prepareRefresh("authors").get();
 
@@ -126,96 +128,98 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             Map.of("title", "the fifth book", "genre", "science", "author_id", "mike", "publisher_id", "p2", "published_date", "2021-06-30")
         );
         for (Map<String, Object> book : books) {
-            client().prepareIndex("books").setSource(book).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
+            prepareIndex("books").setSource(book).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
         indicesAdmin().prepareRefresh("books").get();
     }
 
     public void testBasic() {
-        SearchResponse searchResponse = prepareSearch("books").addFetchField("author")
-            .addFetchField("title")
-            .addSort("published_date", SortOrder.DESC)
-            .setSize(3)
-            .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        ElasticsearchAssertions.assertHitCount(searchResponse, 5);
+        assertNoFailuresAndResponse(
+            prepareSearch("books").addFetchField("author").addFetchField("title").addSort("published_date", SortOrder.DESC).setSize(3),
+            searchResponse -> {
+                ElasticsearchAssertions.assertHitCount(searchResponse, 5);
 
-        SearchHit hit0 = searchResponse.getHits().getHits()[0];
-        assertThat(hit0.field("title").getValues(), equalTo(List.of("the fifth book")));
-        assertThat(
-            hit0.field("author").getValues(),
-            equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
-        );
+                SearchHit hit0 = searchResponse.getHits().getHits()[0];
+                assertThat(hit0.field("title").getValues(), equalTo(List.of("the fifth book")));
+                assertThat(
+                    hit0.field("author").getValues(),
+                    equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
+                );
 
-        SearchHit hit1 = searchResponse.getHits().getHits()[1];
-        assertThat(hit1.field("title").getValues(), equalTo(List.of("the forth book")));
-        assertThat(
-            hit1.field("author").getValues(),
-            equalTo(
-                List.of(
-                    Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")),
-                    Map.of("first_name", List.of("Jack"), "last_name", List.of("Austin"))
-                )
-            )
-        );
+                SearchHit hit1 = searchResponse.getHits().getHits()[1];
+                assertThat(hit1.field("title").getValues(), equalTo(List.of("the forth book")));
+                assertThat(
+                    hit1.field("author").getValues(),
+                    equalTo(
+                        List.of(
+                            Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")),
+                            Map.of("first_name", List.of("Jack"), "last_name", List.of("Austin"))
+                        )
+                    )
+                );
 
-        SearchHit hit2 = searchResponse.getHits().getHits()[2];
-        assertThat(hit2.field("title").getValues(), equalTo(List.of("the third book")));
-        assertThat(
-            hit2.field("author").getValues(),
-            equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
+                SearchHit hit2 = searchResponse.getHits().getHits()[2];
+                assertThat(hit2.field("title").getValues(), equalTo(List.of("the third book")));
+                assertThat(
+                    hit2.field("author").getValues(),
+                    equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
+                );
+            }
         );
     }
 
     public void testLookupMultipleIndices() throws IOException {
-        SearchResponse searchResponse = prepareSearch("books").setRuntimeMappings(parseMapping("""
-            {
-                "publisher": {
-                    "type": "lookup",
-                    "target_index": "publishers",
-                    "input_field": "publisher_id",
-                    "target_field": "_id",
-                    "fetch_fields": ["name", "city"]
+        assertResponse(
+            prepareSearch("books").setRuntimeMappings(parseMapping("""
+                {
+                    "publisher": {
+                        "type": "lookup",
+                        "target_index": "publishers",
+                        "input_field": "publisher_id",
+                        "target_field": "_id",
+                        "fetch_fields": ["name", "city"]
+                    }
                 }
-            }
-            """))
-            .setFetchSource(false)
-            .addFetchField("title")
-            .addFetchField("author")
-            .addFetchField("publisher")
-            .addSort("published_date", SortOrder.DESC)
-            .setSize(2)
-            .get();
-        SearchHit hit0 = searchResponse.getHits().getHits()[0];
-        assertThat(hit0.field("title").getValues(), equalTo(List.of("the fifth book")));
-        assertThat(
-            hit0.field("author").getValues(),
-            equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
-        );
-        assertThat(
-            hit0.field("publisher").getValues(),
-            equalTo(List.of(Map.of("name", List.of("The second publisher"), "city", List.of("Toronto"))))
-        );
+                """))
+                .setFetchSource(false)
+                .addFetchField("title")
+                .addFetchField("author")
+                .addFetchField("publisher")
+                .addSort("published_date", SortOrder.DESC)
+                .setSize(2),
+            searchResponse -> {
+                SearchHit hit0 = searchResponse.getHits().getHits()[0];
+                assertThat(hit0.field("title").getValues(), equalTo(List.of("the fifth book")));
+                assertThat(
+                    hit0.field("author").getValues(),
+                    equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
+                );
+                assertThat(
+                    hit0.field("publisher").getValues(),
+                    equalTo(List.of(Map.of("name", List.of("The second publisher"), "city", List.of("Toronto"))))
+                );
 
-        SearchHit hit1 = searchResponse.getHits().getHits()[1];
-        assertThat(hit1.field("title").getValues(), equalTo(List.of("the forth book")));
-        assertThat(
-            hit1.field("author").getValues(),
-            equalTo(
-                List.of(
-                    Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")),
-                    Map.of("first_name", List.of("Jack"), "last_name", List.of("Austin"))
-                )
-            )
-        );
-        assertThat(
-            hit1.field("publisher").getValues(),
-            equalTo(List.of(Map.of("name", List.of("The first publisher"), "city", List.of("Montreal", "Vancouver"))))
+                SearchHit hit1 = searchResponse.getHits().getHits()[1];
+                assertThat(hit1.field("title").getValues(), equalTo(List.of("the forth book")));
+                assertThat(
+                    hit1.field("author").getValues(),
+                    equalTo(
+                        List.of(
+                            Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")),
+                            Map.of("first_name", List.of("Jack"), "last_name", List.of("Austin"))
+                        )
+                    )
+                );
+                assertThat(
+                    hit1.field("publisher").getValues(),
+                    equalTo(List.of(Map.of("name", List.of("The first publisher"), "city", List.of("Montreal", "Vancouver"))))
+                );
+            }
         );
     }
 
     public void testFetchField() throws Exception {
-        SearchResponse searchResponse = prepareSearch("books").setRuntimeMappings(parseMapping("""
+        assertNoFailuresAndResponse(prepareSearch("books").setRuntimeMappings(parseMapping("""
             {
                 "author": {
                     "type": "lookup",
@@ -225,12 +229,15 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                     "fetch_fields": ["first_name", {"field": "joined", "format": "MM/yyyy"}]
                 }
             }
-            """)).addFetchField("author").addFetchField("title").addSort("published_date", SortOrder.ASC).setSize(1).get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
-        SearchHit hit0 = searchResponse.getHits().getHits()[0];
-        // "author", "john", "first_name", "John", "last_name", "New York", "joined", "2020-03-01"
-        assertThat(hit0.field("title").getValues(), equalTo(List.of("the first book")));
-        assertThat(hit0.field("author").getValues(), equalTo(List.of(Map.of("first_name", List.of("John"), "joined", List.of("03/2020")))));
+            """)).addFetchField("author").addFetchField("title").addSort("published_date", SortOrder.ASC).setSize(1), searchResponse -> {
+            SearchHit hit0 = searchResponse.getHits().getHits()[0];
+            // "author", "john", "first_name", "John", "last_name", "New York", "joined", "2020-03-01"
+            assertThat(hit0.field("title").getValues(), equalTo(List.of("the first book")));
+            assertThat(
+                hit0.field("author").getValues(),
+                equalTo(List.of(Map.of("first_name", List.of("John"), "joined", List.of("03/2020"))))
+            );
+        });
     }
 
     private Map<String, Object> parseMapping(String mapping) throws IOException {

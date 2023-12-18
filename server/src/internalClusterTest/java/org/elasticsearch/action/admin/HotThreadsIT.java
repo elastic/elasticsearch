@@ -7,19 +7,24 @@
  */
 package org.elasticsearch.action.admin;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -29,6 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -36,38 +42,26 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 public class HotThreadsIT extends ESIntegTestCase {
 
-    public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
-        /**
-         * This test just checks if nothing crashes or gets stuck etc.
-         */
+    public void testHotThreadsDontFail() throws InterruptedException {
+        // This test just checks if nothing crashes or gets stuck etc.
         createIndex("test");
         final int iters = scaledRandomIntBetween(2, 20);
         final AtomicBoolean hasErrors = new AtomicBoolean(false);
         for (int i = 0; i < iters; i++) {
-            final String type;
-            NodesHotThreadsRequestBuilder nodesHotThreadsRequestBuilder = clusterAdmin().prepareNodesHotThreads();
+            final NodesHotThreadsRequest request = new NodesHotThreadsRequest();
             if (randomBoolean()) {
                 TimeValue timeValue = new TimeValue(rarely() ? randomIntBetween(500, 5000) : randomIntBetween(20, 500));
-                nodesHotThreadsRequestBuilder.setInterval(timeValue);
+                request.interval(timeValue);
             }
             if (randomBoolean()) {
-                nodesHotThreadsRequestBuilder.setThreads(rarely() ? randomIntBetween(500, 5000) : randomIntBetween(1, 500));
+                request.threads(rarely() ? randomIntBetween(500, 5000) : randomIntBetween(1, 500));
             }
-            nodesHotThreadsRequestBuilder.setIgnoreIdleThreads(randomBoolean());
+            request.ignoreIdleThreads(randomBoolean());
             if (randomBoolean()) {
-                type = switch (randomIntBetween(0, 3)) {
-                    case 3 -> "mem";
-                    case 2 -> "cpu";
-                    case 1 -> "wait";
-                    default -> "block";
-                };
-                assertThat(type, notNullValue());
-                nodesHotThreadsRequestBuilder.setType(HotThreads.ReportType.of(type));
-            } else {
-                type = null;
+                request.type(HotThreads.ReportType.of(randomFrom("block", "mem", "cpu", "wait")));
             }
             final CountDownLatch latch = new CountDownLatch(1);
-            nodesHotThreadsRequestBuilder.execute(new ActionListener<NodesHotThreadsResponse>() {
+            client().execute(TransportNodesHotThreadsAction.TYPE, request, new ActionListener<>() {
                 @Override
                 public void onResponse(NodesHotThreadsResponse nodeHotThreads) {
                     boolean success = false;
@@ -78,7 +72,6 @@ public class HotThreadsIT extends ESIntegTestCase {
                         assertThat(nodesMap.size(), equalTo(cluster().size()));
                         for (NodeHotThreads ht : nodeHotThreads.getNodes()) {
                             assertNotNull(ht.getHotThreads());
-                            // logger.info(ht.getHotThreads());
                         }
                         success = true;
                     } finally {
@@ -100,9 +93,9 @@ public class HotThreadsIT extends ESIntegTestCase {
 
             indexRandom(
                 true,
-                client().prepareIndex("test").setId("1").setSource("field1", "value1"),
-                client().prepareIndex("test").setId("2").setSource("field1", "value2"),
-                client().prepareIndex("test").setId("3").setSource("field1", "value3")
+                prepareIndex("test").setId("1").setSource("field1", "value1"),
+                prepareIndex("test").setId("2").setSource("field1", "value2"),
+                prepareIndex("test").setId("3").setSource("field1", "value3")
             );
             ensureSearchable();
             while (latch.getCount() > 0) {
@@ -115,40 +108,39 @@ public class HotThreadsIT extends ESIntegTestCase {
                     3L
                 );
             }
-            latch.await();
+            safeAwait(latch);
             assertThat(hasErrors.get(), is(false));
         }
     }
 
-    public void testIgnoreIdleThreads() throws ExecutionException, InterruptedException {
+    public void testIgnoreIdleThreads() {
         assumeTrue("no support for hot_threads on FreeBSD", Constants.FREE_BSD == false);
 
         // First time, don't ignore idle threads:
-        NodesHotThreadsRequestBuilder builder = clusterAdmin().prepareNodesHotThreads();
-        builder.setIgnoreIdleThreads(false);
-        builder.setThreads(Integer.MAX_VALUE);
-        NodesHotThreadsResponse response = builder.execute().get();
+        final NodesHotThreadsResponse firstResponse = client().execute(
+            TransportNodesHotThreadsAction.TYPE,
+            new NodesHotThreadsRequest().ignoreIdleThreads(false).threads(Integer.MAX_VALUE)
+        ).actionGet(10, TimeUnit.SECONDS);
 
         final Matcher<String> containsCachedTimeThreadRunMethod = containsString(
             "org.elasticsearch.threadpool.ThreadPool$CachedTimeThread.run"
         );
 
         int totSizeAll = 0;
-        for (NodeHotThreads node : response.getNodesMap().values()) {
+        for (NodeHotThreads node : firstResponse.getNodesMap().values()) {
             totSizeAll += node.getHotThreads().length();
             assertThat(node.getHotThreads(), containsCachedTimeThreadRunMethod);
         }
 
         // Second time, do ignore idle threads:
-        builder = clusterAdmin().prepareNodesHotThreads();
-        builder.setThreads(Integer.MAX_VALUE);
-
+        final var request = new NodesHotThreadsRequest().threads(Integer.MAX_VALUE);
         // Make sure default is true:
-        assertEquals(true, builder.request().ignoreIdleThreads());
-        response = builder.execute().get();
+        assertTrue(request.ignoreIdleThreads());
+        final NodesHotThreadsResponse secondResponse = client().execute(TransportNodesHotThreadsAction.TYPE, request)
+            .actionGet(10, TimeUnit.SECONDS);
 
         int totSizeIgnoreIdle = 0;
-        for (NodeHotThreads node : response.getNodesMap().values()) {
+        for (NodeHotThreads node : secondResponse.getNodesMap().values()) {
             totSizeIgnoreIdle += node.getHotThreads().length();
             assertThat(node.getHotThreads(), not(containsCachedTimeThreadRunMethod));
         }
@@ -157,23 +149,48 @@ public class HotThreadsIT extends ESIntegTestCase {
         assertThat(totSizeIgnoreIdle, lessThan(totSizeAll));
     }
 
-    public void testTimestampAndParams() throws ExecutionException, InterruptedException {
+    public void testTimestampAndParams() {
 
-        NodesHotThreadsResponse response = clusterAdmin().prepareNodesHotThreads().execute().get();
+        final NodesHotThreadsResponse response = client().execute(TransportNodesHotThreadsAction.TYPE, new NodesHotThreadsRequest())
+            .actionGet(10, TimeUnit.SECONDS);
 
         if (Constants.FREE_BSD) {
             for (NodeHotThreads node : response.getNodesMap().values()) {
-                String result = node.getHotThreads();
-                assertTrue(result.indexOf("hot_threads is not supported") != -1);
+                assertThat(node.getHotThreads(), containsString("hot_threads is not supported"));
             }
         } else {
             for (NodeHotThreads node : response.getNodesMap().values()) {
-                String result = node.getHotThreads();
-                assertTrue(result.indexOf("Hot threads at") != -1);
-                assertTrue(result.indexOf("interval=500ms") != -1);
-                assertTrue(result.indexOf("busiestThreads=3") != -1);
-                assertTrue(result.indexOf("ignoreIdleThreads=true") != -1);
+                assertThat(
+                    node.getHotThreads(),
+                    allOf(
+                        containsString("Hot threads at"),
+                        containsString("interval=500ms"),
+                        containsString("busiestThreads=3"),
+                        containsString("ignoreIdleThreads=true")
+                    )
+                );
             }
         }
+    }
+
+    @TestLogging(reason = "testing logging at various levels", value = "org.elasticsearch.action.admin.HotThreadsIT:TRACE")
+    public void testLogLocalHotThreads() {
+        final var level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        assertThat(
+            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+                logger,
+                level,
+                getTestName(),
+                ReferenceDocs.LOGGING,
+                () -> HotThreads.logLocalHotThreads(logger, level, getTestName(), ReferenceDocs.LOGGING)
+            ).utf8ToString(),
+            allOf(
+                containsString("Hot threads at"),
+                containsString("interval=500ms"),
+                containsString("busiestThreads=500"),
+                containsString("ignoreIdleThreads=false"),
+                containsString("cpu usage by thread")
+            )
+        );
     }
 }

@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -96,7 +97,30 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
                     IntStream slots = convertTopDocsToSlots(topDocs, pc.rootDocsBySlot);
                     // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
-                    hitContext.hit().setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                    List<Object> docSlots = slots.boxed().collect(Collectors.toList());
+                    hitContext.hit().setDocumentField(fieldName, new DocumentField(fieldName, docSlots));
+
+                    // Add info what sub-queries of percolator query matched this each percolated document
+                    if (fetchContext.getSearchExecutionContext().hasNamedQueries()) {
+                        List<LeafReaderContext> leafContexts = percolatorIndexSearcher.getLeafContexts();
+                        assert leafContexts.size() == 1 : "Expected single leaf, but got [" + leafContexts.size() + "]";
+                        LeafReaderContext memoryReaderContext = leafContexts.get(0);
+                        Weight weight = percolatorIndexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1);
+                        for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                            List<NamedMatches> namedMatchesList = NamedMatches.findNamedMatches(
+                                weight.matches(memoryReaderContext, topDocs.scoreDocs[i].doc)
+                            );
+                            if (namedMatchesList.isEmpty()) {
+                                continue;
+                            }
+                            List<Object> matchedQueries = new ArrayList<>(namedMatchesList.size());
+                            for (NamedMatches match : namedMatchesList) {
+                                matchedQueries.add(match.getName());
+                            }
+                            String matchedFieldName = fieldName + "_" + docSlots.get(i) + "_matched_queries";
+                            hitContext.hit().setDocumentField(matchedFieldName, new DocumentField(matchedFieldName, matchedQueries));
+                        }
+                    }
                 }
             }
         };

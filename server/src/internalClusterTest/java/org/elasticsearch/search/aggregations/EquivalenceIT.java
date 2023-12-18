@@ -126,7 +126,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(docs[i][j]);
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx").setSource(source).get();
+            prepareIndex("idx").setSource(source).get();
         }
         assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
 
@@ -250,7 +250,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(Integer.toString(values[j]));
             }
             source = source.endArray().endObject();
-            indexingRequests.add(client().prepareIndex("idx").setSource(source));
+            indexingRequests.add(prepareIndex("idx").setSource(source));
         }
         indexRandom(true, indexingRequests);
 
@@ -353,7 +353,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(randomFrom(values));
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx").setSource(source).get();
+            prepareIndex("idx").setSource(source).get();
         }
         assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
@@ -400,7 +400,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         logger.info("Indexing [{}] docs", numDocs);
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            indexingRequests.add(client().prepareIndex("idx").setId(Integer.toString(i)).setSource("double_value", randomDouble()));
+            indexingRequests.add(prepareIndex("idx").setId(Integer.toString(i)).setSource("double_value", randomDouble()));
         }
         indexRandom(true, indexingRequests);
 
@@ -421,7 +421,7 @@ public class EquivalenceIT extends ESIntegTestCase {
     public void testReduce() throws Exception {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);
-        indexRandom(true, client().prepareIndex("idx").setSource("f", value));
+        indexRandom(true, prepareIndex("idx").setSource("f", value));
         assertNoFailuresAndResponse(
             prepareSearch("idx").addAggregation(
                 filter("filter", QueryBuilders.matchAllQuery()).subAggregation(
@@ -480,7 +480,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             final int v1 = randomInt(1 << randomInt(7));
             final int v2 = randomInt(1 << randomInt(7));
             final int v3 = randomInt(1 << randomInt(7));
-            reqs.add(client().prepareIndex("idx").setSource("f1", v1, "f2", v2, "f3", v3));
+            reqs.add(prepareIndex("idx").setSource("f1", v1, "f2", v2, "f3", v3));
         }
         indexRandom(true, reqs);
 
@@ -494,37 +494,34 @@ public class EquivalenceIT extends ESIntegTestCase {
                             .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.DEPTH_FIRST))
                     )
             ),
-            response1 -> {
-                assertNoFailuresAndResponse(
-                    prepareSearch("idx").addAggregation(
-                        terms("f1").field("f1")
-                            .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                            .subAggregation(
-                                terms("f2").field("f2")
-                                    .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                                    .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.BREADTH_FIRST))
-                            )
-                    ),
-                    response2 -> {
-
-                        final Terms t1 = response1.getAggregations().get("f1");
-                        final Terms t2 = response2.getAggregations().get("f1");
-                        assertEquals(t1, t2);
-                        for (Terms.Bucket b1 : t1.getBuckets()) {
-                            final Terms.Bucket b2 = t2.getBucketByKey(b1.getKeyAsString());
-                            final Terms sub1 = b1.getAggregations().get("f2");
-                            final Terms sub2 = b2.getAggregations().get("f2");
-                            assertEquals(sub1, sub2);
-                            for (Terms.Bucket subB1 : sub1.getBuckets()) {
-                                final Terms.Bucket subB2 = sub2.getBucketByKey(subB1.getKeyAsString());
-                                final Terms subSub1 = subB1.getAggregations().get("f3");
-                                final Terms subSub2 = subB2.getAggregations().get("f3");
-                                assertEquals(subSub1, subSub2);
-                            }
+            response1 -> assertNoFailuresAndResponse(
+                prepareSearch("idx").addAggregation(
+                    terms("f1").field("f1")
+                        .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                        .subAggregation(
+                            terms("f2").field("f2")
+                                .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                                .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.BREADTH_FIRST))
+                        )
+                ),
+                response2 -> {
+                    final Terms t1 = response1.getAggregations().get("f1");
+                    final Terms t2 = response2.getAggregations().get("f1");
+                    assertEquals(t1, t2);
+                    for (Terms.Bucket b1 : t1.getBuckets()) {
+                        final Terms.Bucket b2 = t2.getBucketByKey(b1.getKeyAsString());
+                        final Terms sub1 = b1.getAggregations().get("f2");
+                        final Terms sub2 = b2.getAggregations().get("f2");
+                        assertEquals(sub1, sub2);
+                        for (Terms.Bucket subB1 : sub1.getBuckets()) {
+                            final Terms.Bucket subB2 = sub2.getBucketByKey(subB1.getKeyAsString());
+                            final Terms subSub1 = subB1.getAggregations().get("f3");
+                            final Terms subSub2 = subB2.getAggregations().get("f3");
+                            assertEquals(subSub1, subSub2);
                         }
                     }
-                );
-            }
+                }
+            )
         );
     }
 

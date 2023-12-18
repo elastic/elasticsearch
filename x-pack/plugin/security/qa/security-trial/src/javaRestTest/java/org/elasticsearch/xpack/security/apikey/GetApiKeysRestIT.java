@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.apikey;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.Before;
@@ -37,6 +39,8 @@ import javax.annotation.Nullable;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
@@ -192,6 +196,41 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
             manageOwnApiKeyUserApiKeyId,
             manageApiKeyUserApiKeyId
         );
+    }
+
+    public void testInvalidateApiKey() throws Exception {
+        final String apiKeyId0 = createApiKey(MANAGE_SECURITY_USER, "key-2");
+
+        Request request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+        setUserForRequest(request, MANAGE_SECURITY_USER);
+        GetApiKeyResponse getApiKeyResponse = GetApiKeyResponse.fromXContent(getParser(client().performRequest(request)));
+
+        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
+        ApiKey apiKey = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(apiKey.isInvalidated(), equalTo(false));
+        assertThat(apiKey.getInvalidation(), nullValue());
+        assertThat(apiKey.getId(), equalTo(apiKeyId0));
+
+        request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key/");
+        setUserForRequest(request, MANAGE_SECURITY_USER);
+        request.setJsonEntity(XContentTestUtils.convertToXContent(Map.of("ids", List.of(apiKeyId0)), XContentType.JSON).utf8ToString());
+
+        InvalidateApiKeyResponse invalidateApiKeyResponse = InvalidateApiKeyResponse.fromXContent(
+            getParser(client().performRequest(request))
+        );
+
+        assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys().size(), equalTo(1));
+        assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys().get(0), equalTo(apiKey.getId()));
+
+        request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+        setUserForRequest(request, MANAGE_SECURITY_USER);
+        getApiKeyResponse = GetApiKeyResponse.fromXContent(getParser(client().performRequest(request)));
+
+        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
+        apiKey = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(apiKey.isInvalidated(), equalTo(true));
+        assertThat(apiKey.getInvalidation(), notNullValue());
+        assertThat(apiKey.getId(), equalTo(apiKeyId0));
     }
 
     private GetApiKeyResponse getApiKeysWithRequestParams(Map<String, String> requestParams) throws IOException {

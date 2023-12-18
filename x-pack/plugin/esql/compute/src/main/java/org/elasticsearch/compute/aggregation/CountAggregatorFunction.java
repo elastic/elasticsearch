@@ -97,13 +97,13 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset) {
-        state.toIntermediate(blocks, offset);
+    public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        state.toIntermediate(blocks, offset, driverContext);
     }
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-        blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1, driverContext.blockFactory());
+        blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
     }
 
     @Override

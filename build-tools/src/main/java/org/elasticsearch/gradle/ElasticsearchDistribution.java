@@ -55,7 +55,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Boolean> failIfUnavailable;
     private final Property<Boolean> preferArchive;
     private final ConfigurableFileCollection extracted;
-    private Action<ElasticsearchDistribution> distributionFinalizer;
+    private transient Action<ElasticsearchDistribution> distributionFinalizer;
     private boolean frozen = false;
 
     ElasticsearchDistribution(

@@ -16,14 +16,16 @@ import org.elasticsearch.core.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 
-public class DesiredNodesSettingsValidator {
+public class DesiredNodesSettingsValidator implements Consumer<List<DesiredNode>> {
     private record DesiredNodeValidationError(int position, @Nullable String externalId, RuntimeException exception) {}
 
-    public void validate(List<DesiredNode> nodes) {
+    @Override
+    public void accept(List<DesiredNode> nodes) {
         final List<DesiredNodeValidationError> validationErrors = new ArrayList<>();
         for (int i = 0; i < nodes.size(); i++) {
             final DesiredNode node = nodes.get(i);

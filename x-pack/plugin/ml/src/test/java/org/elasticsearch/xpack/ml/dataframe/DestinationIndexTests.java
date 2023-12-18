@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -21,9 +20,9 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -294,7 +293,7 @@ public class DestinationIndexTests extends ESTestCase {
         });
 
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
-            .execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
+            .execute(eq(TransportFieldCapabilitiesAction.TYPE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         String errorMessage = "";
         switch (expectedError) {
@@ -628,7 +627,7 @@ public class DestinationIndexTests extends ESTestCase {
         });
 
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
-            .execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
+            .execute(eq(TransportFieldCapabilitiesAction.TYPE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         DestinationIndex.updateMappingsToDestIndex(
             client,
@@ -638,7 +637,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         verify(client, atLeastOnce()).threadPool();
-        verify(client, atMost(1)).execute(eq(FieldCapabilitiesAction.INSTANCE), any(), any());
+        verify(client, atMost(1)).execute(eq(TransportFieldCapabilitiesAction.TYPE), any(), any());
         verify(client).execute(eq(PutMappingAction.INSTANCE), any(), any());
         verifyNoMoreInteractions(client);
 
@@ -783,7 +782,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         assertThat(metadata.hasMetadata(), is(true));
         assertThat(metadata.isCompatible(), is(false));
-        assertThat(metadata.getVersion(), equalTo(Version.V_7_9_3.toString()));
+        assertThat(metadata.getVersion(), equalTo(MlConfigVersion.V_7_9_3.toString()));
     }
 
     private static <Response> Answer<Response> callListenerOnResponse(Response response) {

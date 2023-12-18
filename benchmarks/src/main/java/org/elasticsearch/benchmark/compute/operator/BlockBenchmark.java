@@ -317,6 +317,9 @@ public class BlockBenchmark {
         long sum = 0;
 
         for (int position : traversalOrder) {
+            if (block.isNull(position)) {
+                continue;
+            }
             int start = block.getFirstValueIndex(position);
             int end = start + block.getValueCount(position);
             for (int i = start; i < end; i++) {
@@ -331,6 +334,9 @@ public class BlockBenchmark {
         long sum = 0;
 
         for (int position : traversalOrder) {
+            if (block.isNull(position)) {
+                continue;
+            }
             int start = block.getFirstValueIndex(position);
             int end = start + block.getValueCount(position);
             for (int i = start; i < end; i++) {
@@ -345,6 +351,9 @@ public class BlockBenchmark {
         long sum = 0;
 
         for (int position : traversalOrder) {
+            if (block.isNull(position)) {
+                continue;
+            }
             int start = block.getFirstValueIndex(position);
             int end = start + block.getValueCount(position);
             for (int i = start; i < end; i++) {

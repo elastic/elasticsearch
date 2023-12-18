@@ -64,13 +64,14 @@ This action is used for analytics and monitoring.
 
 
 The value of `ConnectorSyncStatus` is one of the following lowercase strings representing different sync states:
-  - `canceling`: The sync process is in the process of being canceled.
-  - `canceled`: The sync process has been canceled.
-  - `completed`: The sync process completed successfully.
-  - `error`: An error occurred during the sync process.
-  - `in_progress`: The sync process is currently underway.
-  - `pending`: The sync is pending and has not yet started.
-  - `suspended`: The sync process has been temporarily suspended.
+
+* `canceling`: The sync process is in the process of being canceled.
+* `canceled`: The sync process has been canceled.
+* `completed`: The sync process completed successfully.
+* `error`: An error occurred during the sync process.
+* `in_progress`: The sync process is currently underway.
+* `pending`: The sync is pending and has not yet started.
+* `suspended`: The sync process has been temporarily suspended.
 
 
 [[update-connector-last-sync-api-response-codes]]

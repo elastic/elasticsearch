@@ -498,7 +498,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500")
             );
             TimeValue lockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis);
-            // TODO: consider a separate property for the lock timeout under full GC and/or a ratio
             TimeValue fullGCLockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis);
             // hardcode interval, do not want any tuning of it outside code changes.
             return new G1OverLimitStrategy(

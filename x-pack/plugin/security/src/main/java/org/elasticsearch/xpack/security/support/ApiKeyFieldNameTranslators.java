@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
@@ -36,10 +39,14 @@ public class ApiKeyFieldNameTranslators {
      * Translate the query level field name to index level field names.
      * It throws an exception if the field name is not explicitly allowed.
      */
-    public static String translate(String fieldName) {
+    public static String translate(String fieldName, @Nullable Set<String> visitedMappingFieldNames) {
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
             if (translator.supports(fieldName)) {
-                return translator.translate(fieldName);
+                String mappingFieldName = translator.translate(fieldName);
+                if (visitedMappingFieldNames != null) {
+                    visitedMappingFieldNames.add(mappingFieldName);
+                }
+                return mappingFieldName;
             }
         }
         throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");

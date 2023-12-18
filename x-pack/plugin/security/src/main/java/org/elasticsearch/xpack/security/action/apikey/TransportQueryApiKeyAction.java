@@ -66,7 +66,6 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
             .version(false)
             .fetchSource(true)
             .trackTotalHits(true);
-        searchSourceBuilder.runtimeMappings(API_KEY_TYPE_RUNTIME_MAPPING);
 
         if (request.getFrom() != null) {
             searchSourceBuilder.from(request.getFrom());
@@ -75,11 +74,14 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
             searchSourceBuilder.size(request.getSize());
         }
 
-        final ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder = ApiKeyBoolQueryBuilder.build(
+        final var apiKeyBoolQueryBuilderAndMappingFields = ApiKeyBoolQueryBuilder.build(
             request.getQueryBuilder(),
             request.isFilterForCurrentUser() ? authentication : null
         );
-        searchSourceBuilder.query(apiKeyBoolQueryBuilder);
+        searchSourceBuilder.query(apiKeyBoolQueryBuilderAndMappingFields.v1());
+        if (apiKeyBoolQueryBuilderAndMappingFields.v2().contains(API_KEY_TYPE_RUNTIME_MAPPING_FIELD)) {
+            searchSourceBuilder.runtimeMappings(API_KEY_TYPE_RUNTIME_MAPPING);
+        }
 
         if (request.getFieldSortBuilders() != null) {
             translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder);
@@ -102,7 +104,7 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
             if (FieldSortBuilder.DOC_FIELD_NAME.equals(fieldSortBuilder.getFieldName())) {
                 searchSourceBuilder.sort(fieldSortBuilder);
             } else {
-                final String translatedFieldName = ApiKeyFieldNameTranslators.translate(fieldSortBuilder.getFieldName());
+                final String translatedFieldName = ApiKeyFieldNameTranslators.translate(fieldSortBuilder.getFieldName(), null);
                 if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
                     searchSourceBuilder.sort(fieldSortBuilder);
                 } else {

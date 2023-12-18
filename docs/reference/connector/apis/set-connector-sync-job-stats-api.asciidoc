@@ -41,7 +41,7 @@ This API is mainly used by the connector service for updating sync job informati
 (Required, int) The number of documents the sync job indexed.
 
 `indexed_document_volume`::
-(Required, int) The document volume the sync job indexed.
+(Required, int) The total size of the data (in MiB) the sync job indexed.
 
 `total_document_count`::
 (Optional, int) The total number of documents in the target index after the sync job finished.

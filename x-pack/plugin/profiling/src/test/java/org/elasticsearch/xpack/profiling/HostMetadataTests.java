@@ -48,9 +48,7 @@ public class HostMetadataTests extends ESTestCase {
             "/",
             "projects/123456789/zones/" + regions[2] + "-b",
             "projects/123456789/zones/" + regions[3],
-            "projects/123456789/zones/" + regions[4] + "-b-c",
-            randomAlphaOfLength(10) // keep the random value as last array entry
-        };
+            "projects/123456789/zones/" + regions[4] + "-b-c" };
 
         for (int i = 0; i < regions.length; i++) {
             String region = regions[i];
@@ -69,10 +67,43 @@ public class HostMetadataTests extends ESTestCase {
             assertEquals(hostID, host.hostID);
             assertEquals(machine, host.profilingHostMachine);
             assertEquals(provider, host.instanceType.provider);
-            if (i < zones.length - 1) {
-                assertEquals(region, host.instanceType.region);
-            }
+            assertEquals(region, host.instanceType.region);
             assertEquals("", host.instanceType.name);
+        }
+    }
+
+    public void testCreateFromSourceGCPZoneFuzzer() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+        final String provider = "gcp";
+        final Character[] chars = new Character[] { '/', '-', 'a' };
+
+        for (int zoneLength = 1; zoneLength <= 5; zoneLength++) {
+            CarthesianCombinator<Character> combinator = new CarthesianCombinator<>(chars, zoneLength);
+
+            combinator.forEach((result) -> {
+                StringBuilder sb = new StringBuilder();
+                for (Character c : result) {
+                    sb.append(c);
+                }
+                String zone = sb.toString();
+
+                // tag::noformat
+                HostMetadata host = HostMetadata.fromSource(
+                    Map.of(
+                        "host.id", hostID,
+                        "profiling.host.machine", machine,
+                        "gce.instance.zone", zone
+                    )
+                );
+                // end::noformat
+
+                assertEquals(hostID, host.hostID);
+                assertEquals(machine, host.profilingHostMachine);
+                assertEquals(provider, host.instanceType.provider);
+                assertEquals("", host.instanceType.name);
+                // region isn't tested because of the combinatorial nature of this test
+            });
         }
     }
 

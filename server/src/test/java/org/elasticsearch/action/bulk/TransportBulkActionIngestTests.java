@@ -235,7 +235,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ingestService = spy(
             new IngestService(
                 clusterService,
-                createThreadPool(),
+                threadPool,
                 null,
                 null,
                 null,

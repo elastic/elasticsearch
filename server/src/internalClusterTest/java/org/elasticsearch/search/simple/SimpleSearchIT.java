@@ -459,10 +459,11 @@ public class SimpleSearchIT extends ESIntegTestCase {
             .get();
 
         String queryJson = "{ \"field\" : { \"value\" : 80315953321748200608 } }";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
-        parser.nextToken();
-        TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
-        assertHitCount(prepareSearch("idx").setQuery(query), 1);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson)) {
+            parser.nextToken();
+            TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
+            assertHitCount(prepareSearch("idx").setQuery(query), 1);
+        }
     }
 
     public void testTooLongRegexInRegexpQuery() throws Exception {

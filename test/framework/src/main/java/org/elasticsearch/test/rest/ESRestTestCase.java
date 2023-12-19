@@ -1228,7 +1228,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
         Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
         Response response = client.performRequest(refreshRequest);
-        return RefreshResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return RefreshResponse.fromXContent(parser);
+        }
     }
 
     private static void waitForPendingRollupTasks() throws Exception {
@@ -1685,7 +1687,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         entity += "}";
         request.setJsonEntity(entity);
         Response response = client.performRequest(request);
-        return CreateIndexResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return CreateIndexResponse.fromXContent(parser);
+        }
     }
 
     protected static AcknowledgedResponse deleteIndex(String name) throws IOException {
@@ -1695,7 +1699,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static AcknowledgedResponse deleteIndex(RestClient restClient, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
         Response response = restClient.performRequest(request);
-        return AcknowledgedResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return AcknowledgedResponse.fromXContent(parser);
+        }
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1818,7 +1824,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return responseEntity;
     }
 
-    protected static XContentParser responseAsParser(Response response) throws IOException {
+    public static XContentParser responseAsParser(Response response) throws IOException {
         return XContentHelper.createParser(XContentParserConfiguration.EMPTY, responseAsBytes(response), XContentType.JSON);
     }
 

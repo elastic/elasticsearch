@@ -388,8 +388,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(limit.child(), ExchangeExec.class);
         var query = as(exchange.child(), EsQueryExec.class);
         assertThat(query.limit().fold(), is(500));
-        var source = new Source(1, 18, "emp_no is not null");
-        var expected = wrapWithSingleQuery(QueryBuilders.existsQuery("emp_no"), "emp_no", source);
+        var expected = QueryBuilders.existsQuery("emp_no");
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -400,8 +399,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(limit.child(), ExchangeExec.class);
         var query = as(exchange.child(), EsQueryExec.class);
         assertThat(query.limit().fold(), is(500));
-        var source = new Source(1, 18, "emp_no is null");
-        var expected = wrapWithSingleQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no")), "emp_no", source);
+        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 

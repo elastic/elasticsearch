@@ -184,20 +184,6 @@ public class SetProcessorTests extends ESTestCase {
         }
     }
 
-    private static void assertMapEquals(Object actual, Object expected) {
-        if (expected instanceof Map<?, ?> expectedMap) {
-            Map<?, ?> actualMap = (Map<?, ?>) actual;
-            assertThat(actualMap.keySet().toArray(), arrayContainingInAnyOrder(expectedMap.keySet().toArray()));
-            for (Map.Entry<?, ?> entry : actualMap.entrySet()) {
-                if (entry.getValue() instanceof Map) {
-                    assertMapEquals(entry.getValue(), expectedMap.get(entry.getKey()));
-                } else {
-                    assertThat(entry.getValue(), equalTo(expectedMap.get(entry.getKey())));
-                }
-            }
-        }
-    }
-
     public void testCopyFromDeepCopiesNonPrimitiveMutableTypes() throws Exception {
         final String originalField = "originalField";
         final String targetField = "targetField";
@@ -272,5 +258,19 @@ public class SetProcessorTests extends ESTestCase {
             overrideEnabled,
             ignoreEmptyValue
         );
+    }
+
+    private static void assertMapEquals(Object actual, Object expected) {
+        if (expected instanceof Map<?, ?> expectedMap) {
+            Map<?, ?> actualMap = (Map<?, ?>) actual;
+            assertThat(actualMap.keySet().toArray(), arrayContainingInAnyOrder(expectedMap.keySet().toArray()));
+            for (Map.Entry<?, ?> entry : actualMap.entrySet()) {
+                if (entry.getValue() instanceof Map) {
+                    assertMapEquals(entry.getValue(), expectedMap.get(entry.getKey()));
+                } else {
+                    assertThat(entry.getValue(), equalTo(expectedMap.get(entry.getKey())));
+                }
+            }
+        }
     }
 }

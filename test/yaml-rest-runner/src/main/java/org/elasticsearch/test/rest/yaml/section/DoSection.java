@@ -87,7 +87,7 @@ public class DoSection implements ExecutableSection {
 
         DoSection doSection = new DoSection(parser.getTokenLocation());
         ApiCallSection apiCallSection = null;
-        ContextNodeSelector nodeSelector = ContextNodeSelector.ANY;
+        ClientYamlNodeSelector nodeSelector = ClientYamlNodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
         List<Pattern> expectedWarningsRegex = new ArrayList<>();
@@ -172,9 +172,9 @@ public class DoSection implements ExecutableSection {
                             selectorName = parser.currentName();
                         } else {
                             var newSelector = buildNodeSelector(selectorName, parser);
-                            nodeSelector = nodeSelector == ContextNodeSelector.ANY
+                            nodeSelector = nodeSelector == ClientYamlNodeSelector.ANY
                                 ? newSelector
-                                : ContextNodeSelector.compose(nodeSelector, newSelector);
+                                : ClientYamlNodeSelector.compose(nodeSelector, newSelector);
                         }
                     }
                 } else if (currentFieldName != null) { // must be part of API call then
@@ -584,7 +584,7 @@ public class DoSection implements ExecutableSection {
         )
     );
 
-    private static ContextNodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
+    private static ClientYamlNodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
         return switch (name) {
             case "attribute" -> parseAttributeValuesSelector(parser);
             case "version" -> parseVersionSelector(parser);
@@ -593,13 +593,13 @@ public class DoSection implements ExecutableSection {
         };
     }
 
-    private static ContextNodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
+    private static ClientYamlNodeSelector parseAttributeValuesSelector(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new XContentParseException(parser.getTokenLocation(), "expected START_OBJECT");
         }
         String key = null;
         XContentParser.Token token;
-        var result = ContextNodeSelector.ANY;
+        var result = ClientYamlNodeSelector.ANY;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 key = parser.currentName();
@@ -613,7 +613,7 @@ public class DoSection implements ExecutableSection {
                  * can assert that the data is sniffed.
                  */
                 var delegate = new HasAttributeNodeSelector(key, parser.text());
-                var newSelector = ContextNodeSelector.withoutContext(delegate.toString(), nodes -> {
+                var newSelector = ClientYamlNodeSelector.withoutContext(delegate.toString(), nodes -> {
                     for (Node node : nodes) {
                         if (node.getAttributes() == null) {
                             throw new IllegalStateException("expected [attributes] metadata to be set but got " + node);
@@ -621,7 +621,7 @@ public class DoSection implements ExecutableSection {
                     }
                     delegate.select(nodes);
                 });
-                result = result == ContextNodeSelector.ANY ? newSelector : ContextNodeSelector.compose(result, newSelector);
+                result = result == ClientYamlNodeSelector.ANY ? newSelector : ClientYamlNodeSelector.compose(result, newSelector);
             } else {
                 throw new XContentParseException(parser.getTokenLocation(), "expected [" + key + "] to be a value");
             }
@@ -642,7 +642,7 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private static ContextNodeSelector parseVersionSelector(XContentParser parser) throws IOException {
+    private static ClientYamlNodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
@@ -658,7 +658,7 @@ public class DoSection implements ExecutableSection {
             versionSelectorString = "version ranges " + acceptedVersionRange;
         }
 
-        return ContextNodeSelector.withoutContext(versionSelectorString, nodes -> {
+        return ClientYamlNodeSelector.withoutContext(versionSelectorString, nodes -> {
             for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                 Node node = itr.next();
                 String versionString = node.getVersion();
@@ -672,7 +672,7 @@ public class DoSection implements ExecutableSection {
         });
     }
 
-    private static ContextNodeSelector parseFeatureSelector(XContentParser parser) throws IOException {
+    private static ClientYamlNodeSelector parseFeatureSelector(XContentParser parser) throws IOException {
         var token = parser.currentToken();
         var features = new ArrayList<String>();
         if (token.isValue()) {
@@ -685,7 +685,7 @@ public class DoSection implements ExecutableSection {
             throw new XContentParseException(parser.getTokenLocation(), "expected [feature] to be a value or an array");
         }
 
-        return ContextNodeSelector.withContext("features " + String.join(",", features), (nodes, context) -> {
+        return ClientYamlNodeSelector.withContext("features " + String.join(",", features), (nodes, context) -> {
             for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                 Node node = itr.next();
                 String nodeName = node.getName();

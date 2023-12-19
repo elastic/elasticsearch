@@ -24,7 +24,7 @@ public class ApiCallSection {
     private final Map<String, String> params = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
-    private ContextNodeSelector nodeSelector = ContextNodeSelector.ANY;
+    private ClientYamlNodeSelector nodeSelector = ClientYamlNodeSelector.ANY;
 
     public ApiCallSection(String api) {
         this.api = api;
@@ -70,14 +70,14 @@ public class ApiCallSection {
     /**
      * Selects the node on which to run this request.
      */
-    ContextNodeSelector getNodeSelector() {
+    ClientYamlNodeSelector getNodeSelector() {
         return nodeSelector;
     }
 
     /**
      * Set the selector that decides which node can run this request.
      */
-    void setNodeSelector(ContextNodeSelector nodeSelector) {
+    void setNodeSelector(ClientYamlNodeSelector nodeSelector) {
         this.nodeSelector = nodeSelector;
     }
 }

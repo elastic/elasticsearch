@@ -227,7 +227,7 @@ public class ClientYamlTestSuite {
             sections.stream()
                 .filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)
-                .filter(section -> ContextNodeSelector.ANY != section.getApiCallSection().getNodeSelector())
+                .filter(section -> ClientYamlNodeSelector.ANY != section.getApiCallSection().getNodeSelector())
                 .filter(section -> false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection))
                 .map(section -> String.format(Locale.ROOT, """
                     attempted to add a [do] with a [node_selector] section without a corresponding \

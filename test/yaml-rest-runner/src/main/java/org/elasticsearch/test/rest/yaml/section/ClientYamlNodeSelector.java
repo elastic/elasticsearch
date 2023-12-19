@@ -14,22 +14,22 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.util.Objects;
 
-interface ContextNodeSelector {
+interface ClientYamlNodeSelector {
 
     interface NodeSelectorWithContext {
         void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context);
     }
 
-    static ContextNodeSelector withoutContext(String selectorDescription, NodeSelector nodeSelector) {
+    static ClientYamlNodeSelector withoutContext(String selectorDescription, NodeSelector nodeSelector) {
         return new NoContextNodeSelector(nodeSelector, selectorDescription);
     }
 
-    static ContextNodeSelector withoutContext(NodeSelector nodeSelector) {
+    static ClientYamlNodeSelector withoutContext(NodeSelector nodeSelector) {
         return new NoContextNodeSelector(nodeSelector, nodeSelector.toString());
     }
 
-    static ContextNodeSelector withContext(String selectorDescription, NodeSelectorWithContext nodeSelector) {
-        return new ContextNodeSelector() {
+    static ClientYamlNodeSelector withContext(String selectorDescription, NodeSelectorWithContext nodeSelector) {
+        return new ClientYamlNodeSelector() {
             @Override
             public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
                 nodeSelector.select(nodes, context);
@@ -52,19 +52,29 @@ interface ContextNodeSelector {
      * first and then running the "left" selector on the results of the "right"
      * selector.
      */
-    static ContextNodeSelector compose(ContextNodeSelector lhs, ContextNodeSelector rhs) {
+    static ClientYamlNodeSelector compose(ClientYamlNodeSelector lhs, ClientYamlNodeSelector rhs) {
         Objects.requireNonNull(lhs, "lhs is required");
         Objects.requireNonNull(rhs, "rhs is required");
 
         // . as in haskell's "compose" operator
         var description = lhs + "." + rhs;
-        return withContext(description, (nodes, context) -> {
-            rhs.select(nodes, context);
-            lhs.select(nodes, context);
-        });
+
+        var needsContext = lhs instanceof NoContextNodeSelector == false || rhs instanceof NoContextNodeSelector == false;
+
+        if (needsContext) {
+            return withContext(description, (nodes, context) -> {
+                rhs.select(nodes, context);
+                lhs.select(nodes, context);
+            });
+        } else {
+            return withoutContext(description, (nodes) -> {
+                rhs.select(nodes, null);
+                lhs.select(nodes, null);
+            });
+        }
     }
 
-    class NoContextNodeSelector implements ContextNodeSelector {
+    class NoContextNodeSelector implements ClientYamlNodeSelector {
         private final NodeSelector nodeSelector;
         private final String nodeSelectorString;
 
@@ -89,7 +99,7 @@ interface ContextNodeSelector {
         }
     }
 
-    ContextNodeSelector ANY = withoutContext(NodeSelector.ANY);
+    ClientYamlNodeSelector ANY = withoutContext(NodeSelector.ANY);
 
     void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context);
 

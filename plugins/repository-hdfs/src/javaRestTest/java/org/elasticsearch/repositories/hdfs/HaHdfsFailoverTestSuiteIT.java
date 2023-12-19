@@ -23,8 +23,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.fixtures.hdfs.HdfsFixture;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Assert;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -41,30 +47,53 @@ import java.util.List;
  */
 public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
 
+    public static HdfsFixture hdfsFixture = new HdfsFixture();
+
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .plugin("repository-hdfs")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "false")
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(hdfsFixture).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+//    @Override
+    protected int getHdfsPort() {
+        return hdfsFixture.getPort();
+    }
+
+
     public void testHAFailoverWithRepository() throws Exception {
         RestClient client = client();
 
         String esKerberosPrincipal = System.getProperty("test.krb5.principal.es");
         String hdfsKerberosPrincipal = System.getProperty("test.krb5.principal.hdfs");
         String kerberosKeytabLocation = System.getProperty("test.krb5.keytab.hdfs");
-        String ports = System.getProperty("test.hdfs-fixture.ports");
-        String nn1Port = "10001";
-        String nn2Port = "10002";
-        if (ports.length() > 0) {
-            final Path path = PathUtils.get(ports);
-            final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
-                return Files.readAllLines(path);
-            });
-            nn1Port = lines.get(0);
-            nn2Port = lines.get(1);
-        }
+//        String ports = System.getProperty("test.hdfs-fixture.ports");
+//        String nn1Port = "10001";
+//        String nn2Port = "10002";
+//        if (ports.length() > 0) {
+//            final Path path = PathUtils.get(ports);
+//            final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
+//                return Files.readAllLines(path);
+//            });
+//            nn1Port = lines.get(0);
+//            nn2Port = lines.get(1);
+//        }
         boolean securityEnabled = hdfsKerberosPrincipal != null;
 
         Configuration hdfsConfiguration = new Configuration();
         hdfsConfiguration.set("dfs.nameservices", "ha-hdfs");
         hdfsConfiguration.set("dfs.ha.namenodes.ha-hdfs", "nn1,nn2");
-        hdfsConfiguration.set("dfs.namenode.rpc-address.ha-hdfs.nn1", "localhost:" + nn1Port);
-        hdfsConfiguration.set("dfs.namenode.rpc-address.ha-hdfs.nn2", "localhost:" + nn2Port);
+        hdfsConfiguration.set("dfs.namenode.rpc-address.ha-hdfs.nn1", "localhost:" + hdfsFixture.getPort());
+        hdfsConfiguration.set("dfs.namenode.rpc-address.ha-hdfs.nn2", "localhost:" + hdfsFixture.getPort());
         hdfsConfiguration.set(
             "dfs.client.failover.proxy.provider.ha-hdfs",
             "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
@@ -116,7 +145,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
                     "conf.dfs.client.failover.proxy.provider.ha-hdfs": \
                 "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
                   }
-                }""", securityCredentials(securityEnabled, esKerberosPrincipal), nn1Port, nn2Port));
+                }""", securityCredentials(securityEnabled, esKerberosPrincipal), getHdfsPort(), getHdfsPort()));
             Response response = client.performRequest(request);
 
             Assert.assertEquals(200, response.getStatusLine().getStatusCode());

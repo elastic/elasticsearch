@@ -35,4 +35,5 @@ public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTest
         assertOK(client().performRequest(request));
     }
 
+
 }

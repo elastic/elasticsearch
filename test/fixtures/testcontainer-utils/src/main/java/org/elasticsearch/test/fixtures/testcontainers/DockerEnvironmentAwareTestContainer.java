@@ -62,9 +62,13 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
 
     @Override
     public void start() {
+//        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+//        Logger rootLogger = loggerContext.getLogger("org.example.YourClass");
+//        rootLogger.setLevel(Level.DEBUG);
+
         Assume.assumeFalse("Docker support excluded on OS", EXCLUDED_OS);
         Assume.assumeTrue("Docker probing succesful", DOCKER_PROBING_SUCCESSFUL);
-        withLogConsumer(new Slf4jLogConsumer(logger()));
+        withLogConsumer(new Slf4jLogConsumer(LOGGER));
         super.start();
     }
 

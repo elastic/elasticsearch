@@ -79,9 +79,13 @@ cat << EOF > /etc/krb5kdc/kadm5.acl
 */*@$REALM_NAME		i
 EOF
 
+echo "CAT kadm5.acl "
+echo $(cat /etc/krb5kdc/kadm5.acl)
+
 # Create admin principal
 kadmin.local -q "addprinc -pw elastic admin/admin@$REALM_NAME"
 kadmin.local -q "ktadd -k /etc/admin.keytab admin/admin@$REALM_NAME"
 
 # Create a link so addprinc.sh is on path
 ln -s $PROV_DIR/addprinc.sh /usr/bin/
+chmod +x $PROV_DIR/addprinc.sh

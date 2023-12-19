@@ -7,7 +7,92 @@
  */
 
 apply plugin: 'elasticsearch.java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+configurations.all {
+    transitive = true
+}
 
 dependencies {
-  api "org.apache.hadoop:hadoop-minicluster:2.8.5"
+  api("org.apache.hadoop:hadoop-minicluster:2.8.5")
+  compileOnly("junit:junit:${versions.junit}")
+//  implementation "commons-io:commons-io:2.8.0"
+//  compileOnly("org.apache.hadoop:hadoop-hdfs:2.8.5")
+//  compileOnly("org.apache.hadoop:hadoop-auth:2.8.5")
+//  compileOnly("org.apache.hadoop:hadoop-hdfs:2.8.5:tests")
+//  implementation(project(path: ':plugins:repository-hdfs:hadoop-client-api', configuration: 'shadow'))
+//  compileOnly("org.apache.hadoop:hadoop-hdfs-client:2.8.5")
+//  compileOnly("org.apache.hadoop:hadoop-common:2.8.5")
+//  compileOnly("org.apache.hadoop:hadoop-annotations:2.8.5")
+//  compileOnly("org.apache.hadoop:hadoop-common:2.8.5:tests")
+//  runtimeOnly "com.google.guava:guava:16.0.1"
+//  runtimeOnly "commons-collections:commons-collections:3.2.2"
+//  runtimeOnly "commons-configuration:commons-configuration:1.6"
+//  runtimeOnly "commons-lang:commons-lang:2.6"
+//  runtimeOnly "commons-cli:commons-cli:1.2"
+//  runtimeOnly "com.google.protobuf:protobuf-java:2.5.0"
+//  runtimeOnly "org.apache.htrace:htrace-core4:4.0.1-incubating"
+//  runtimeOnly "io.netty:netty:3.7.0.Final"
+//  //runtimeOnly "javax.servlet:servlet-api:2.5"
+//  runtimeOnly "org.mortbay.jetty:jetty:6.1.26"
+//  runtimeOnly "org.mortbay.jetty:jetty-util:6.1.26"
+//  runtimeOnly "org.mortbay.jetty:jetty-sslengine:6.1.26"
+//  runtimeOnly "org.codehaus.jackson:jackson-core-asl:1.9.13"
+//  runtimeOnly "org.codehaus.jackson:jackson-mapper-asl:1.9.13"
+//  runtimeOnly "org.codehaus.jackson:jackson-xc:1.9.13"
+//  runtimeOnly "org.codehaus.jackson:jackson-jaxrs:1.9.13"
+//  runtimeOnly "com.sun.jersey:jersey-core:1.9"
+//  runtimeOnly "com.sun.jersey:jersey-client:1.9"
+//  runtimeOnly "com.sun.jersey:jersey-json:1.9"
+//  runtimeOnly "com.sun.jersey:jersey-server:1.9"
+//  runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
+
+}
+
+tasks.named("shadowJar").configure {
+
+//    enableRelocation true
+//    relocationPrefix "fixture.hdfs2"
+    //minimize()
+  relocate("org.apache.hadoop", "fixture.hdfs2.org.apache.hadoop") {
+    exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
+  }
+
+    dependencies {
+      exclude(dependency('commons-io:commons-io:2.8.0'))
+      exclude(dependency("junit:junit:.*"))
+//      exclude(dependency("org.slf4j:slf4j-api:2.0.6"))
+      exclude(dependency("org.slf4j:slf4j-api:.*"))
+      exclude(dependency("com.google.guava:guava:.*"))
+      exclude(dependency("org.apache.commons:commons-compress:.*"))
+      exclude(dependency("commons-logging:commons-logging:.*"))
+      exclude(dependency("commons-codec:commons-codec:.*"))
+      exclude(dependency("org.apache.httpcomponents:httpclient:.*"))
+      exclude(dependency("org.apache.httpcomponents:httpcore:.*"))
+      exclude(dependency("org.apache.logging.log4j:log4j-1.2-api:.*"))
+      exclude(dependency("log4j:log4j:.*"))
+      exclude(dependency("io.netty:netty-buffer:.*"))
+      exclude(dependency("io.netty:netty-all:.*"))
+      exclude(dependency("com.nimbusds:nimbus-jose-jwt:.*"))
+//      exclude(dependency("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"))
+//      exclude(dependency("org.apache.hadoop:hadoop-common:2.8.5"))
+//      //exclude(dependency("org.apache.hadoop:hadoop-auth:2.8.5"))
+//      //exclude(dependency("org.apache.hadoop:hadoop-annotations:2.8.5"))
+//      //exclude(dependency("com.google.protobuf:protobuf-java:2.5.0"))
+      exclude(dependency("commons-cli:commons-cli:1.2"))
+//      exclude(dependency("org.apache.hadoop:hadoop-client-api:.*"))
+//      exclude(dependency("org.apache.hadoop:hadoop-hdfs-client:2.8.5"))
+//      exclude(project(path: ':plugins:repository-hdfs:hadoop-client-api', configuration: 'shadow'))
+//      exclude(project(path: ':plugins:repository-hdfs:hadoop-client-api', configuration: 'shadow'))
+    }
+
+    transform(org.elasticsearch.gradle.internal.shadow.XmlClassRelocationTransformer.class) {
+      resource = "core-default.xml"
+      enabled = true
+    }
+
+    transform(org.elasticsearch.gradle.internal.shadow.XmlClassRelocationTransformer.class) {
+      resource = "hdfs-default.xml"
+      enabled = true
+    }
 }

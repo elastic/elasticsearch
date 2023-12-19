@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -502,7 +502,7 @@ public class ComputeService {
             final var sessionId = request.sessionId();
             final var exchangeSink = exchangeService.getSinkHandler(sessionId);
             parentTask.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException("task cancelled")));
-            final ActionListener<DataNodeResponse> listener = new OwningChannelActionListener<>(channel);
+            final ActionListener<DataNodeResponse> listener = new ChannelActionListener<>(channel);
             final EsqlConfiguration configuration = request.configuration();
             acquireSearchContexts(request.shardIds(), configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 var computeContext = new ComputeContext(sessionId, searchContexts, configuration, null, exchangeSink);

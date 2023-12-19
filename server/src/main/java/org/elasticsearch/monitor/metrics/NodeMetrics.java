@@ -115,10 +115,10 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
-                "es.node.stats.indices.translog.operations.count",
+            registry.registerLongAsyncCounter(
+                "es.node.stats.indices.translog.operation.count",
                 "Number of transaction log operations.",
-                "operation",
+                "count",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
             )
         );
@@ -134,7 +134,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.translog.uncommitted_operations.count",
+                "es.node.stats.indices.translog.uncommitted_operation.count",
                 "Number of uncommitted transaction log operations.",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedOperations())
@@ -152,7 +152,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.translog.earliest_last_modified_age.time",
+                "es.node.stats.indices.translog.earliest_last_modified.time",
                 "Earliest last modified age for the transaction log.",
                 "time",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge())
@@ -224,8 +224,8 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.docs.total",
-                "Current number of indexing documents",
+                "es.node.stats.indices.indexing.docs.current.total",
+                "Current number of in-flight indexing documents",
                 "documents",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getIndexCurrent())
             )
@@ -250,7 +250,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncCounter(
                 "es.node.stats.indices.deletion.docs.total",
                 "Current number of deleting documents",
                 "documents",
@@ -296,7 +296,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.coordinating_operations.memory.size.total",
+                "es.node.stats.indices.indexing.coordinating_operations.memory.size",
                 "Total number of memory bytes consumed by coordinating operations",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalCoordinatingBytes())
@@ -305,7 +305,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.coordinating_operations.count.total",
+                "es.node.stats.indices.indexing.coordinating_operations.count",
                 "Total number of coordinating operations",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalCoordinatingOps())
@@ -314,7 +314,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.coordinating_operations.memory.size.total",
+                "es.node.stats.indices.indexing.coordinating_operations.memory.size",
                 "Current number of memory bytes consumed by coordinating operations",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentCoordinatingBytes())
@@ -341,7 +341,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.primary_operations.memory.size.total",
+                "es.node.stats.indices.indexing.primary_operations.memory.size",
                 "Total number of memory bytes consumed by primary operations",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalPrimaryBytes())
@@ -350,7 +350,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.indexing.primary_operations.count.total",
+                "es.node.stats.indices.indexing.primary_operations.count",
                 "Total number of primary operations",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getTotalPrimaryOps())
@@ -359,7 +359,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.primary_operations.memory.size.total",
+                "es.node.stats.indices.indexing.primary_operations.memory.size",
                 "Current number of memory bytes consumed by primary operations",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryBytes())
@@ -368,7 +368,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.primary_operations.count.total",
+                "es.node.stats.indices.indexing.primary_operations.count",
                 "Current number of primary operations",
                 "operations",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getCurrentPrimaryOps())
@@ -386,7 +386,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.node.stats.indices.indexing.memory.limit.total",
+                "es.node.stats.indices.indexing.memory_limit.total",
                 "Current memory limit for primary and coordinating operations",
                 "bytes",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndexingPressureStats().getMemoryLimit())

@@ -15,6 +15,12 @@ import static org.elasticsearch.telemetry.apm.internal.MetricNameValidator.MAX_E
 public class MetricNameValidatorTests extends ESTestCase {
     MetricNameValidator nameValidator = new MetricNameValidator();
 
+    public void testMaxMetricNameLength() {
+        nameValidator.validate(metricNameWithLength(255));
+
+        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate(metricNameWithLength(256)));
+    }
+
     public void testESPrefixAndDotSeparator() {
         nameValidator.validate("es.somemodule.somemetric.count");
 
@@ -58,15 +64,31 @@ public class MetricNameValidatorTests extends ESTestCase {
     }
 
     public void testLastElementAllowList() {
-        MetricNameValidator nameValidator = new MetricNameValidator();
-        nameValidator.validate("es.somemodule.somemetric.size");
-        nameValidator.validate("es.somemodule.somemetric.total");
-        nameValidator.validate("es.somemodule.somemetric.count");
-        nameValidator.validate("es.somemodule.somemetric.usage");
-        nameValidator.validate("es.somemodule.somemetric.utilization");
-        nameValidator.validate("es.somemodule.somemetric.histogram");
-        nameValidator.validate("es.somemodule.somemetric.ratio");
-        nameValidator.validate("es.somemodule.somemetric.status");
+        for (String suffix : MetricNameValidator.ALLOWED_SUFFIXES) {
+            nameValidator.validate("es.somemodule.somemetric." + suffix);
+        }
         expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.somemodule.somemetric.some_other_suffix"));
+    }
+
+    public static String metricNameWithLength(int length) {
+        int prefixAndSuffix = "es.".length() + ".utilization".length();
+        assert length > prefixAndSuffix : "length too short";
+
+        var remainingChars = length - prefixAndSuffix;
+        StringBuilder metricName = new StringBuilder("es.");
+        var i = 0;
+        while (i < remainingChars) {
+            metricName.append("a");
+            i++;
+            for (int j = 0; j < MetricNameValidator.MAX_ELEMENT_LENGTH - 1 && i < remainingChars; j++) {
+                metricName.append("x");
+                i++;
+            }
+            metricName.append(".");
+            i++;
+
+        }
+        metricName.append("utilization");
+        return metricName.toString();
     }
 }

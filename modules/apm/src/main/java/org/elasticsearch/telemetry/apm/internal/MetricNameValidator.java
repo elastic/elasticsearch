@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class MetricNameValidator {
-    private final Pattern ALLOWED_CHARACTERS = Pattern.compile("[a-z][a-z0-9_]*");
-    private final Set<String> ALLOWED_SUFFIXES = Set.of(
+    private static final Pattern ALLOWED_CHARACTERS = Pattern.compile("[a-z][a-z0-9_]*");
+    static final Set<String> ALLOWED_SUFFIXES = Set.of(
         "size",
         "total",
         "count",
@@ -26,18 +26,39 @@ public class MetricNameValidator {
         "status" /*a workaround for enums */,
         "time"
     );
+    static final int MAX_METRIC_NAME_LENGTH = 255;
 
     public static final int MAX_ELEMENT_LENGTH = 30;
     public static final int MAX_NUMBER_OF_ELEMENTS = 10;
 
-    public void validate(String name) {
-        String[] elements = name.split("\\.");
-        hasESPrefix(elements, name);
-        hasAtLeast3Elements(elements, name);
-        hasNotBreachNumberOfElementsLimit(elements, name);
-        lastElementIsFromAllowList(elements, name);
+    /**
+     * Validates a metric name as per guidelines in Naming.md
+     *
+     * @param metricName metric name to be validated
+     * @throws IllegalArgumentException an exception indicating an incorrect metric name
+     */
+    public void validate(String metricName) {
+        validateMaxMetricNameLength(metricName);
 
-        perElementValidations(elements, name);
+        String[] elements = metricName.split("\\.");
+        hasESPrefix(elements, metricName);
+        hasAtLeast3Elements(elements, metricName);
+        hasNotBreachNumberOfElementsLimit(elements, metricName);
+        lastElementIsFromAllowList(elements, metricName);
+        perElementValidations(elements, metricName);
+    }
+
+    private void validateMaxMetricNameLength(String metricName) {
+        if (metricName.length() > MAX_METRIC_NAME_LENGTH) {
+            throw new IllegalArgumentException(
+                "Metric name length "
+                    + metricName.length()
+                    + "is longer than max metric name length:"
+                    + MAX_METRIC_NAME_LENGTH
+                    + " Name was: "
+                    + metricName
+            );
+        }
     }
 
     private void lastElementIsFromAllowList(String[] elements, String name) {

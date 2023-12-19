@@ -32,7 +32,7 @@ public class BlobCacheMetrics {
             meterRegistry.registerLongHistogram(
                 "es.blob_cache.cache_miss_load.time",
                 "The timing data for populating entries in the blob store resulting from a cache miss.",
-                "count"
+                "Milliseconds"
             )
         );
     }

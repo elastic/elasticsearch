@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
-import org.elasticsearch.telemetry.apm.internal.MetricNameValidator;
 import org.elasticsearch.telemetry.apm.internal.TestAPMMeterService;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
@@ -36,10 +35,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class APMMeterRegistryTests extends ESTestCase {
@@ -102,41 +99,6 @@ public class APMMeterRegistryTests extends ESTestCase {
 
         meter = apmMeter.getMeterRegistry().getMeter();
         assertThat(meter, sameInstance(noopOtel));
-    }
-
-    public void testMaxNameLength() {
-        APMMeterService apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
-        apmMeter.start();
-        var counter = apmMeter.getMeterRegistry().registerLongCounter(metricNameWithLength(255), "desc", "count");
-        assertThat(counter, instanceOf(LongCounter.class));
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> apmMeter.getMeterRegistry().registerLongCounter(metricNameWithLength(266), "desc", "count")
-        );
-        assertThat(iae.getMessage(), containsString("exceeds maximum length [255]"));
-    }
-
-    // note this method will create more groups than allowed to test error scenarios
-    private String metricNameWithLength(int length) {
-        int prefixAndSuffix = "es.".length() + ".utilization".length();
-        assert length > prefixAndSuffix : "length too short";
-
-        var remainingChars = length - prefixAndSuffix;
-        StringBuilder metricName = new StringBuilder("es.");
-        var i = 0;
-        while (i < remainingChars) {
-            metricName.append("a");
-            i++;
-            for (int j = 0; j < MetricNameValidator.MAX_ELEMENT_LENGTH - 1 && i < remainingChars; j++) {
-                metricName.append("x");
-                i++;
-            }
-            metricName.append(".");
-            i++;
-
-        }
-        metricName.append("utilization");
-        return metricName.toString();
     }
 
     public void testAllInstrumentsSwitchProviders() {

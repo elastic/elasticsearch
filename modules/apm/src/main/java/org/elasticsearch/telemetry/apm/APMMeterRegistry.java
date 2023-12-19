@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.telemetry.apm.internal.MetricNameValidator;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleAsyncCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
@@ -62,7 +61,6 @@ public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<LongGaugeAdapter> longGauges = new Registrar<>();
     private final Registrar<LongHistogramAdapter> longHistograms = new Registrar<>();
 
-    private MetricNameValidator metricNameValidator = new MetricNameValidator();
     private Meter meter;
 
     public APMMeterRegistry(Meter meter) {
@@ -213,7 +211,6 @@ public class APMMeterRegistry implements MeterRegistry {
     private <T extends AbstractInstrument<?>> T register(Registrar<T> registrar, T adapter) {
         assert registrars.contains(registrar) : "usage of unknown registrar";
         logger.debug("Registering an instrument with name: " + adapter.getName());
-        metricNameValidator.validate(adapter.getName());
         return registrar.register(adapter);
     }
 

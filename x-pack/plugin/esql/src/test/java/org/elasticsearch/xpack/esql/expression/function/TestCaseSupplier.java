@@ -926,11 +926,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    public static List<TypedDataSupplier> geoPointCases() {
+    private static List<TypedDataSupplier> geoPointCases() {
         return List.of(new TypedDataSupplier("<geo_point>", () -> randomGeoPoint(), EsqlDataTypes.GEO_POINT));
     }
 
-    public static List<TypedDataSupplier> cartesianPointCases() {
+    private static List<TypedDataSupplier> cartesianPointCases() {
         return List.of(new TypedDataSupplier("<cartesian_point>", () -> randomCartesianPoint(), EsqlDataTypes.CARTESIAN_POINT));
     }
 

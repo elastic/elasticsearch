@@ -259,6 +259,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/DoubleBigArrayBlock.java"
   }
   template {
+    it.properties = pointProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/PointBigArrayBlock.java"
+  }
+  template {
     it.properties = booleanProperties
     it.inputFile =  bigArrayBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanBigArrayBlock.java"

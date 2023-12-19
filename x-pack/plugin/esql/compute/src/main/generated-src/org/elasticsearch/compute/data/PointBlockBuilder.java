@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.common.util.ObjectArray;
 
 import java.util.Arrays;
 
@@ -180,6 +181,29 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
         return this;
     }
 
+    private PointBlock buildBigArraysBlock() {
+        final PointBlock theBlock;
+        final ObjectArray<SpatialPoint> array = blockFactory.bigArrays().newObjectArray(valueCount);
+        for (int i = 0; i < valueCount; i++) {
+            array.set(i, values[i]);
+        }
+        if (isDense() && singleValued()) {
+            theBlock = new PointBigArrayVector(array, positionCount, blockFactory).asBlock();
+        } else {
+            theBlock = new PointBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+        }
+        /*
+        * Update the breaker with the actual bytes used.
+        * We pass false below even though we've used the bytes. That's weird,
+        * but if we break here we will throw away the used memory, letting
+        * it be deallocated. The exception will bubble up and the builder will
+        * still technically be open, meaning the calling code should close it
+        * which will return all used memory to the breaker.
+        */
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed(), false);
+        return theBlock;
+    }
+
     @Override
     public PointBlock build() {
         try {
@@ -188,20 +212,26 @@ final class PointBlockBuilder extends AbstractBlockBuilder implements PointBlock
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantPointBlockWith(values[0], 1, estimatedBytes);
             } else {
-                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                    values = Arrays.copyOf(values, valueCount);
-                }
-                if (isDense() && singleValued()) {
-                    theBlock = blockFactory.newPointArrayVector(values, positionCount, estimatedBytes).asBlock();
+                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                    theBlock = buildBigArraysBlock();
                 } else {
-                    theBlock = blockFactory.newPointArrayBlock(
-                        values,
-                        positionCount,
-                        firstValueIndexes,
-                        nullsMask,
-                        mvOrdering,
-                        estimatedBytes
-                    );
+                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                        adjustBreaker(valueCount * elementSize());
+                        values = Arrays.copyOf(values, valueCount);
+                        adjustBreaker(-values.length * elementSize());
+                    }
+                    if (isDense() && singleValued()) {
+                        theBlock = blockFactory.newPointArrayVector(values, positionCount, estimatedBytes).asBlock();
+                    } else {
+                        theBlock = blockFactory.newPointArrayBlock(
+                            values,
+                            positionCount,
+                            firstValueIndexes,
+                            nullsMask,
+                            mvOrdering,
+                            estimatedBytes
+                        );
+                    }
                 }
             }
             built();

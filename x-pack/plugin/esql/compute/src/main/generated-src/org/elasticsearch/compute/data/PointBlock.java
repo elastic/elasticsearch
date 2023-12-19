@@ -19,7 +19,7 @@ import java.io.IOException;
  * Block that stores SpatialPoint values.
  * This class is generated. Do not edit it.
  */
-public sealed interface PointBlock extends Block permits PointArrayBlock, PointVectorBlock, ConstantNullBlock {
+public sealed interface PointBlock extends Block permits PointArrayBlock, PointVectorBlock, ConstantNullBlock, PointBigArrayBlock {
 
     /**
      * Retrieves the SpatialPoint value stored at the given value index.

@@ -41,9 +41,13 @@ public enum SpatialCoordinateTypes {
     },
     CARTESIAN {
         public SpatialPoint longAsPoint(long encoded) {
-            final double x = XYEncodingUtils.decode((int) (encoded >>> 32));
-            final double y = XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF));
-            return new SpatialPoint(x, y);
+            try {
+                final double x = XYEncodingUtils.decode((int) (encoded >>> 32));
+                final double y = XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF));
+                return new SpatialPoint(x, y);
+            } catch (Error e) {
+                throw new IllegalArgumentException("Failed to convert invalid encoded value to cartesian point");
+            }
         }
 
         public long pointAsLong(double x, double y) {

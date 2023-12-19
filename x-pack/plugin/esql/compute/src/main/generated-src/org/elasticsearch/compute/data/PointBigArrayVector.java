@@ -18,7 +18,7 @@ import org.elasticsearch.core.Releasable;
  */
 public final class PointBigArrayVector extends AbstractVector implements PointVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PointBigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final ObjectArray<SpatialPoint> values;
 

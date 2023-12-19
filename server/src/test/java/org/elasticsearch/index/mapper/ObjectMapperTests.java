@@ -551,10 +551,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).enabled(false).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> objectMapper.flatten(rootContext));
-        assertEquals(
-            "cannot flatten object [parent] because the value of [enabled] is [false]",
-            exception.getMessage()
-        );
+        assertEquals("cannot flatten object [parent] because the value of [enabled] is [false]", exception.getMessage());
     }
 
     public void testFlattenExplicitSubobjectsTrue() {
@@ -562,9 +559,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.EXPLICIT_TRUE).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> objectMapper.flatten(rootContext));
-        assertEquals(
-            "cannot flatten object [parent] because the value of [subobjects] is [true]",
-            exception.getMessage()
-        );
+        assertEquals("cannot flatten object [parent] because the value of [subobjects] is [true]", exception.getMessage());
     }
 }

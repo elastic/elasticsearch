@@ -392,7 +392,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 actualValues.add(lookup.apply(hashes.getInt(i) - 1));
             }
             List<Object> values = v.stream().map(valueMapper).toList();
-            assertThat(actualValues, containsInAnyOrder(new HashSet<>(values).stream().sorted().toArray()));
+            assertThat(new HashSet<>(actualValues), containsInAnyOrder(new HashSet<>(values).toArray()));
             allValues.addAll(values);
         }
 

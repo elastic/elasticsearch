@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,11 +38,28 @@ public class ResolveClusterActionResponse extends ActionResponse implements ToXC
     }
 
     public ResolveClusterActionResponse(StreamInput in) throws IOException {
+        super(in);
+        if (in.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+            throw new UnsupportedOperationException(
+                "ResolveClusterAction requires at least Transport Version "
+                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                    + " but was "
+                    + in.getTransportVersion()
+            );
+        }
         this.infoMap = in.readImmutableMap(ResolveClusterInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+            throw new UnsupportedOperationException(
+                "ResolveClusterAction requires at least Transport Version "
+                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                    + " but was "
+                    + out.getTransportVersion()
+            );
+        }
         out.writeMap(infoMap, StreamOutput::writeWriteable);
     }
 

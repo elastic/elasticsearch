@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -36,12 +37,28 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     public ResolveClusterActionRequest(StreamInput in) throws IOException {
         super(in);
+        if (in.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+            throw new UnsupportedOperationException(
+                "ResolveClusterAction requires at least Transport Version "
+                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                    + " but was "
+                    + in.getTransportVersion()
+            );
+        }
         this.names = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+            throw new UnsupportedOperationException(
+                "ResolveClusterAction requires at least Transport Version "
+                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                    + " but was "
+                    + out.getTransportVersion()
+            );
+        }
         out.writeStringArray(names);
     }
 

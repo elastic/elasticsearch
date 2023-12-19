@@ -1051,7 +1051,7 @@ public class MachineLearning extends Plugin
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
             memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
-            pyTorchProcessFactory = (task, executorService, onProcessCrash) -> new BlackHolePyTorchProcess();
+            pyTorchProcessFactory = (task, executorService, afterInputStreamClose, onProcessCrash) -> new BlackHolePyTorchProcess();
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(
             normalizerProcessFactory,

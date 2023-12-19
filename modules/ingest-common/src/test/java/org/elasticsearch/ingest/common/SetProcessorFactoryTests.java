@@ -169,8 +169,8 @@ public class SetProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithEmptyField() throws Exception {
-        // edge case: it's perfectly legal to *create* a set processor that has an empty string as its 'field'.
-        // it will fail at ingest execution time, but we don't reject it at pipeline creation time
+        // edge case: it's valid (according to the current validation) to *create* a set processor that has an empty string as its 'field'.
+        // it will fail at ingest execution time, but we don't reject it at pipeline creation time.
         Map<String, Object> config = new HashMap<>();
         config.put("field", "");
         config.put("value", "value1");

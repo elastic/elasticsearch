@@ -239,8 +239,8 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetEmptyField() {
-        // edge case: while it's perfectly legal to *create* a set processor that has an empty string as its 'field'.
-        // it will fail at ingest execution time
+        // edge case: it's valid (according to the current validation) to *create* a set processor that has an empty string as its 'field',
+        // but it will fail at ingest execution time.
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Processor processor = createSetProcessor("", "some_value", null, false, false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));

@@ -26,6 +26,13 @@ Use the following APIs to manage connectors:
 * <<delete-connector-api>>
 * <<get-connector-api>>
 * <<list-connector-api>>
+* <<check-in-connector-api>>
+* <<update-connector-configuration-api>>
+* <<update-connector-error-api>>
+* <<update-connector-last-sync-api>>
+* <<update-connector-name-description-api>>
+* <<update-connector-pipeline-api>>
+* <<update-connector-scheduling-api>>
 
 
 [discrete]
@@ -44,9 +51,11 @@ Use the following APIs to manage sync jobs:
 * <<get-connector-sync-job-api>>
 * <<list-connector-sync-jobs-api>>
 * <<set-connector-sync-job-error-api>>
+* <<set-connector-sync-job-stats-api>>
 
 
 include::cancel-connector-sync-job-api.asciidoc[]
+include::check-in-connector-api.asciidoc[]
 include::check-in-connector-sync-job-api.asciidoc[]
 include::create-connector-api.asciidoc[]
 include::create-connector-sync-job-api.asciidoc[]
@@ -57,3 +66,10 @@ include::get-connector-sync-job-api.asciidoc[]
 include::list-connectors-api.asciidoc[]
 include::list-connector-sync-jobs-api.asciidoc[]
 include::set-connector-sync-job-error-api.asciidoc[]
+include::set-connector-sync-job-stats-api.asciidoc[]
+include::update-connector-configuration-api.asciidoc[]
+include::update-connector-error-api.asciidoc[]
+include::update-connector-last-sync-api.asciidoc[]
+include::update-connector-name-description-api.asciidoc[]
+include::update-connector-pipeline-api.asciidoc[]
+include::update-connector-scheduling-api.asciidoc[]

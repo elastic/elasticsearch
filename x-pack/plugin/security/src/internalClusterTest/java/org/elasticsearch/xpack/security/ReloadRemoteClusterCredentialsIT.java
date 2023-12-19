@@ -126,7 +126,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             configureRemoteCluster(remoteAddress);
 
             // Run search to trigger header capturing on the receiving side
-            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
+            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get().decRef();
 
             assertHeadersContainCredentialsThenClear(credentials, capturedHeaders);
 
@@ -135,7 +135,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             writeCredentialsToKeyStore(updatedCredentials);
             reloadSecureSettings();
 
-            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
+            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get().decRef();
 
             assertHeadersContainCredentialsThenClear(updatedCredentials, capturedHeaders);
         }

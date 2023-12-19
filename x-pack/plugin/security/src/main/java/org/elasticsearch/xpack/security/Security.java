@@ -13,6 +13,7 @@ import io.netty.handler.codec.http.HttpUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -111,6 +113,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
@@ -245,6 +248,7 @@ import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccoun
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
+import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
@@ -365,7 +369,6 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
-import org.elasticsearch.xpack.security.transport.RemoteClusterCredentialsResolver;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -387,6 +390,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -555,6 +559,7 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
     private final SetOnce<WorkflowService> workflowService = new SetOnce<>();
     private final SetOnce<Realms> realms = new SetOnce<>();
+    private final SetOnce<Client> client = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -574,23 +579,28 @@ public class Security extends Plugin
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
         } else {
-            final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
-                settings
-            ).map(Setting::getKey).sorted().toList();
-            if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
-                throw new IllegalArgumentException(
-                    format(
-                        "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
-                            + "Please either enable security or remove these settings from the keystore.",
-                        remoteClusterCredentialsSettingKeys.size(),
-                        Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
-                        XPackSettings.SECURITY_ENABLED.getKey()
-                    )
-                );
-            }
+            ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
             this.bootstrapChecks.set(Collections.emptyList());
         }
         this.securityExtensions.addAll(extensions);
+    }
+
+    private void ensureNoRemoteClusterCredentialsOnDisabledSecurity(Settings settings) {
+        assert false == enabled;
+        final List<String> remoteClusterCredentialsSettingKeys = RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getAllConcreteSettings(
+            settings
+        ).map(Setting::getKey).sorted().toList();
+        if (false == remoteClusterCredentialsSettingKeys.isEmpty()) {
+            throw new IllegalArgumentException(
+                format(
+                    "Found [%s] remote clusters with credentials [%s]. Security [%s] must be enabled to connect to them. "
+                        + "Please either enable security or remove these settings from the keystore.",
+                    remoteClusterCredentialsSettingKeys.size(),
+                    Strings.collectionToCommaDelimitedString(remoteClusterCredentialsSettingKeys),
+                    XPackSettings.SECURITY_ENABLED.getKey()
+                )
+            );
+        }
     }
 
     private static void runStartupChecks(Settings settings) {
@@ -615,6 +625,14 @@ public class Security extends Plugin
 
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
+    }
+
+    protected Client getClient() {
+        return client.get();
+    }
+
+    protected Realms getRealms() {
+        return realms.get();
     }
 
     @Override
@@ -656,6 +674,8 @@ public class Security extends Plugin
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
         }
+
+        this.client.set(client);
 
         // The settings in `environment` may have additional values over what was provided during construction
         // See Plugin#additionalSettings()
@@ -984,8 +1004,6 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
-        final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(settings);
-
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
         components.add(crossClusterAccessAuthcService.get());
@@ -999,7 +1017,6 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService.get(),
-                remoteClusterCredentialsResolver,
                 getLicenseState()
             )
         );
@@ -1352,6 +1369,7 @@ public class Security extends Plugin
             new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
             new ActionHandler<>(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
             new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
+            new ActionHandler<>(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -1891,14 +1909,54 @@ public class Security extends Plugin
     @Override
     public void reload(Settings settings) throws Exception {
         if (enabled) {
-            realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
-                if (realm instanceof JwtRealm jwtRealm) {
-                    jwtRealm.rotateClientSecret(
-                        CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settings)
-                    );
-                }
-            });
+            final List<Exception> reloadExceptions = new ArrayList<>();
+            try {
+                reloadRemoteClusterCredentials(settings);
+            } catch (Exception ex) {
+                reloadExceptions.add(ex);
+            }
+
+            try {
+                reloadSharedSecretsForJwtRealms(settings);
+            } catch (Exception ex) {
+                reloadExceptions.add(ex);
+            }
+
+            if (false == reloadExceptions.isEmpty()) {
+                final var combinedException = new ElasticsearchException(
+                    "secure settings reload failed for one or more security components"
+                );
+                reloadExceptions.forEach(combinedException::addSuppressed);
+                throw combinedException;
+            }
+        } else {
+            ensureNoRemoteClusterCredentialsOnDisabledSecurity(settings);
         }
+    }
+
+    private void reloadSharedSecretsForJwtRealms(Settings settingsWithKeystore) {
+        getRealms().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
+            if (realm instanceof JwtRealm jwtRealm) {
+                jwtRealm.rotateClientSecret(
+                    CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settingsWithKeystore)
+                );
+            }
+        });
+    }
+
+    /**
+     * This method uses a transport action internally to access classes that are injectable but not part of the plugin contract.
+     * See {@link TransportReloadRemoteClusterCredentialsAction} for more context.
+     */
+    private void reloadRemoteClusterCredentials(Settings settingsWithKeystore) {
+        final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
+        getClient().execute(
+            ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
+            new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
+            future
+        );
+        assert future.isDone() : "expecting local-only action call to return immediately on invocation";
+        future.actionGet(0, TimeUnit.NANOSECONDS);
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

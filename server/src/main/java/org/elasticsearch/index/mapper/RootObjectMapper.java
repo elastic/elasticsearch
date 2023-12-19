@@ -111,7 +111,7 @@ public class RootObjectMapper extends ObjectMapper {
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(context),
+                buildMappers(context.createChildContext(null, dynamic)),
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -194,7 +194,7 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
         assert Objects.equals(mapperBuilderContext.buildFullName("foo"), "foo");
-        return mapperBuilderContext;
+        return mapperBuilderContext.createChildContext(null, dynamic);
     }
 
     @Override

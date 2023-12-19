@@ -24,7 +24,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public abstract static class Builder {
 
-        protected final String name;
+        protected String name;
 
         protected Builder(String name) {
             this.name = internFieldName(name);

@@ -473,7 +473,7 @@ public abstract class FieldMapper extends Mapper {
                     return empty();
                 } else {
                     FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
-                    context = context.createChildContext(mainFieldBuilder.name());
+                    context = context.createChildContext(mainFieldBuilder.name(), null);
                     int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         mappers[i++] = entry.getValue().apply(context);
@@ -1224,7 +1224,7 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperBuilderContext childContext = mapperBuilderContext.createChildContext(in.simpleName());
+            MapperBuilderContext childContext = mapperBuilderContext.createChildContext(in.simpleName(), null);
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }

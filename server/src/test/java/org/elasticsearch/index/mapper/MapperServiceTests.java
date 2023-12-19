@@ -555,10 +555,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
-        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
-
-        assertEquals("""
+        assertMergeEquals(List.of(mapping1, mapping2), """
             {
               "_doc" : {
                 "_meta" : {
@@ -575,7 +572,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""");
     }
 
     public void testMergeMultipleRootsWithRootType() throws IOException {
@@ -629,10 +626,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
-        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
-
-        assertEquals("""
+        assertMergeEquals(List.of(mapping1, mapping2), """
             {
               "_doc" : {
                 "_meta" : {
@@ -644,7 +638,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""");
     }
 
     public void testValidMappingSubstitution() throws IOException {
@@ -668,10 +662,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
-        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
-
-        assertEquals("""
+        assertMergeEquals(List.of(mapping1, mapping2), """
             {
               "_doc" : {
                 "properties" : {
@@ -681,7 +672,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""");
     }
 
     public void testValidMappingSubtreeSubstitution() throws IOException {
@@ -758,10 +749,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
-        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
-
-        assertEquals("""
+        assertMergeEquals(List.of(mapping1, mapping2), """
             {
               "_doc" : {
                 "properties" : {
@@ -776,7 +764,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""");
     }
 
     public void testObjectAndNestedTypeSubstitution() throws IOException {
@@ -862,10 +850,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
-        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
-
-        assertEquals("""
+        assertMergeEquals(List.of(mapping1, mapping2), """
             {
               "_doc" : {
                 "properties" : {
@@ -883,7 +868,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""");
     }
 
     public void testImplicitObjectHierarchy() throws IOException {
@@ -900,10 +885,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
-        DocumentMapper bulkMerge = mapperService.merge("_doc", List.of(mapping1), MergeReason.INDEX_TEMPLATE);
-
-        assertEquals("""
+        assertMergeEquals(List.of(mapping1), """
             {
               "_doc" : {
                 "properties" : {
@@ -920,10 +902,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
-
-        DocumentMapper sequentialMerge = mapperService.merge("_doc", mapping1, MergeReason.INDEX_TEMPLATE);
-        assertEquals(bulkMerge.mappingSource(), sequentialMerge.mappingSource());
+            }""");
     }
 
     public void testSubobjectsMerge() throws IOException {
@@ -953,7 +932,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
         mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
 
-        assertEquals("""
+        assertMergeEquals(List.of(mapping1, mapping2), """
             {
               "_doc" : {
                 "properties" : {
@@ -967,7 +946,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""");
     }
 
     public void testContradictingSubobjects() throws IOException {
@@ -1027,7 +1006,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         mapperService = createMapperService(mapping(b -> {}));
         mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
 
-        assertEquals("""
+        assertMergeEquals(List.of(mapping2, mapping1), """
             {
               "_doc" : {
                 "properties" : {
@@ -1041,7 +1020,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
                   }
                 }
               }
-            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+            }""");
     }
 
     public void testSubobjectsImplicitObjectsMerge() throws IOException {
@@ -1064,12 +1043,21 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE)
-        );
-        assertThat(e.getMessage(), containsString("Tried to add subobject [child] to object [parent] which does not support subobjects"));
+        assertMergeEquals(List.of(mapping1, mapping2), """
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "subobjects" : false,
+                    "properties" : {
+                      "child.grandchild" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
     }
 
     public void testMultipleTypeMerges() throws IOException {
@@ -1236,5 +1224,222 @@ public class MapperServiceTests extends MapperServiceTestCase {
         Mapper grandchildMapper = ((ObjectMapper) childMapper).getMapper("grandchild");
         assertThat(grandchildMapper, instanceOf(FieldMapper.class));
         assertEquals("keyword", grandchildMapper.typeName());
+    }
+
+    public void testAutoFlattenObjectsSubobjectsTopLevelMerge() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "subobjects": false
+            }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent": {
+                  "properties": {
+                    "child": {
+                    "dynamic": true,
+                      "properties": {
+                        "grandchild": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        assertMergeEquals(List.of(mapping1, mapping2), """
+            {
+              "_doc" : {
+                "subobjects" : false,
+                "properties" : {
+                  "parent.child.grandchild" : {
+                    "type" : "keyword"
+                  }
+                }
+              }
+            }""");
+    }
+
+    public void testAutoFlattenObjectsSubobjectsMerge() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties" : {
+                "parent" : {
+                  "properties" : {
+                    "child" : {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties" : {
+                "parent" : {
+                  "subobjects" : false,
+                  "properties" : {
+                    "child" : {
+                      "properties" : {
+                        "grandchild" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        assertMergeEquals(List.of(mapping1, mapping2), """
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "subobjects" : false,
+                    "properties" : {
+                      "child.grandchild" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        assertMergeEquals(List.of(mapping2, mapping1), """
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "subobjects" : false,
+                    "properties" : {
+                      "child.grandchild" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+    }
+
+    public void testAutoFlattenObjectsSubobjectsMergeConflictingMappingParameter() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "subobjects": false
+            }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent": {
+                  "dynamic": "false",
+                  "properties": {
+                    "child": {
+                      "properties": {
+                        "grandchild": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Failed to parse mapping: cannot flatten object [parent] because the value of [dynamic] (FALSE) is not compatible "
+                    + "with the value from its parent context (TRUE)"
+            )
+        );
+    }
+
+    public void testAutoFlattenObjectsSubobjectsMergeConflictingMappingParameterRoot() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "subobjects": false,
+              "dynamic": false
+            }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent": {
+                  "dynamic": "true",
+                  "properties": {
+                    "child": {
+                      "properties": {
+                        "grandchild": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Failed to parse mapping: cannot flatten object [parent] because the value of [dynamic] (TRUE) is not compatible "
+                    + "with the value from its parent context (FALSE)"
+            )
+        );
+    }
+
+    public void testExpand() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent.child": {
+                  "type": "keyword"
+                }
+              }
+            }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("{}");
+
+        assertMergeEquals(List.of(mapping1, mapping2), """
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "properties" : {
+                      "child" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+    }
+
+    private void assertMergeEquals(List<CompressedXContent> mappingSources, String expected) throws IOException {
+        final MapperService mapperServiceBulk = createMapperService(mapping(b -> {}));
+        mapperServiceBulk.merge("_doc", mappingSources, MergeReason.INDEX_TEMPLATE);
+        assertEquals(expected, Strings.toString(mapperServiceBulk.documentMapper().mapping(), true, true));
+
+        MapperService mapperServiceSequential = createMapperService(mapping(b -> {}));
+        mappingSources.forEach(m -> mapperServiceSequential.merge("_doc", m, MergeReason.INDEX_TEMPLATE));
+        assertEquals(expected, Strings.toString(mapperServiceSequential.documentMapper().mapping(), true, true));
     }
 }

@@ -198,6 +198,8 @@ import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 /**
  * A utility class that consists solely of static methods that describe how to serialize and
@@ -1622,7 +1624,7 @@ public final class PlanNamedTypes {
         }
         if (value instanceof byte[] bytes) {
             if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
-                return wkbAsPoint(bytes);
+                return wkbAsPoint(dataType, bytes);
             }
         }
         return value;
@@ -1632,9 +1634,9 @@ public final class PlanNamedTypes {
         return WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN);
     }
 
-    private static SpatialPoint wkbAsPoint(byte[] bytes) {
+    private static SpatialPoint wkbAsPoint(DataType dataType, byte[] bytes) {
         Point point = (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, bytes);
-        return new SpatialPoint(point.getX(), point.getY());
+        return dataType == GEO_POINT ? GEO.pointAsPoint(point) : CARTESIAN.pointAsPoint(point);
     }
 
     static Order readOrder(PlanStreamInput in) throws IOException {

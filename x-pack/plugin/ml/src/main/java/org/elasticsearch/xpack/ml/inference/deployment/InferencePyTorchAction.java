@@ -112,6 +112,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
             // The request builder expect a list of inputs which are then batched.
             // TODO batching was implemented for expected use-cases such as zero-shot classification but is not used here.
+            logger.info("Inference Text: [" + inputText + "]");
             var inputs = List.of(inputText);
 
             NlpTask.Processor processor = getProcessContext().getNlpTaskProcessor().get();
@@ -120,7 +121,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             NlpConfig nlpConfig = (NlpConfig) config;
             NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
                 .buildRequest(inputs, requestIdStr, nlpConfig.getTokenization().getTruncate(), nlpConfig.getTokenization().getSpan());
-            logger.debug(() -> format("handling request [%s]", requestIdStr));
+            logger.info(() -> format("handling request [%s]", requestIdStr));
 
             // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process
             if (isCancelled()) {
@@ -135,6 +136,9 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
                         this::onFailure
                     )
                 );
+
+            logger.info("Process input: [" + request.processInput().utf8ToString() + "]");
+            logger.info("Process input tokens: [" + request.tokenization().getTokens() + "]");
             getProcessContext().getProcess().get().writeInferenceRequest(request.processInput());
         } catch (IOException e) {
             logger.error(() -> "[" + getDeploymentId() + "] error writing to inference process", e);

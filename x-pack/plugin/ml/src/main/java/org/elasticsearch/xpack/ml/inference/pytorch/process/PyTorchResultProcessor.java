@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.AckResult;
@@ -148,6 +149,8 @@ public class PyTorchResultProcessor {
     }
 
     void processInferenceResult(PyTorchResult result) {
+        logger.info(() -> format("[%s] Got result with id [%s]", modelId, result.requestId()));
+        logger.info("Result: " + Strings.toString(result));
         PyTorchInferenceResult inferenceResult = result.inferenceResult();
         assert inferenceResult != null;
         Long timeMs = result.timeMs();
@@ -156,7 +159,8 @@ public class PyTorchResultProcessor {
             timeMs = 0L;
         }
 
-        logger.debug(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
+        logger.info(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
+        logger.info(() -> format("Is cache hit [" + result.isCacheHit() + " ]"));
         updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {

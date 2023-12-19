@@ -38,3 +38,71 @@ teardown:
         index: test
         id: "1"
   - match: { _source.message: "test" }
+---
+"Test Rename Processor with template snippets":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "{{message}}",
+                  "target_field": "event.original"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          message: "test"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.event.original: "test" }
+---
+"Test Rename Processor with template snippets and override":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "{{message}}",
+                  "target_field": "event.original",
+                  "override": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          message: "overridden original message",
+          event: {
+            original: "original message"
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.event.original: "overridden original message" }

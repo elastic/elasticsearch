@@ -37,6 +37,7 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         assertThat(renameProcessor.getField().newInstance(Map.of()).execute(), equalTo("old_field"));
         assertThat(renameProcessor.getTargetField().newInstance(Map.of()).execute(), equalTo("new_field"));
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(false));
+        assertThat(renameProcessor.isOverrideEnabled(), equalTo(false));
     }
 
     public void testCreateWithIgnoreMissing() throws Exception {
@@ -50,6 +51,19 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         assertThat(renameProcessor.getField().newInstance(Map.of()).execute(), equalTo("old_field"));
         assertThat(renameProcessor.getTargetField().newInstance(Map.of()).execute(), equalTo("new_field"));
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(true));
+    }
+
+    public void testCreateWithEnableOverride() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "old_field");
+        config.put("target_field", "new_field");
+        config.put("override", true);
+        String processorTag = randomAlphaOfLength(10);
+        RenameProcessor renameProcessor = factory.create(null, processorTag, null, config);
+        assertThat(renameProcessor.getTag(), equalTo(processorTag));
+        assertThat(renameProcessor.getField().newInstance(Map.of()).execute(), equalTo("old_field"));
+        assertThat(renameProcessor.getTargetField().newInstance(Map.of()).execute(), equalTo("new_field"));
+        assertThat(renameProcessor.isOverrideEnabled(), equalTo(true));
     }
 
     public void testCreateNoFieldPresent() throws Exception {

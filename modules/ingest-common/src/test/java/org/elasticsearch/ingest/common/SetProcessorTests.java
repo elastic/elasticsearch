@@ -238,6 +238,15 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedDate));
     }
 
+    public void testSetEmptyField() {
+        // edge case: while it's perfectly legal to *create* a set processor that has an empty string as its 'field'.
+        // it will fail at ingest execution time
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Processor processor = createSetProcessor("", "some_value", null, false, false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path cannot be null nor empty"));
+    }
+
     private static Processor createSetProcessor(
         String fieldName,
         Object fieldValue,

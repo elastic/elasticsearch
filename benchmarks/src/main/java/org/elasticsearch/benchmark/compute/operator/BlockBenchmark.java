@@ -8,12 +8,19 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanArrayBlock;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefArrayBlock;
+import org.elasticsearch.compute.data.BytesRefArrayVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -61,6 +68,7 @@ public class BlockBenchmark {
     private static final double MV_PERCENTAGE = 0.3;
     private static final double NULL_PERCENTAGE = 0.1;
     private static final int MAX_MV_ELEMENTS = 100;
+    private static final int MAX_BYTES_REF_LENGTH = 255;
 
     private static final Random random = new Random();
 
@@ -102,6 +110,7 @@ public class BlockBenchmark {
                     }
 
                     switch (blockKind) {
+                        // TODO: add also BigArrayBlocks
                         case "array" -> {
                             blocks[blockIndex] = new BooleanArrayBlock(
                                 values,
@@ -136,6 +145,52 @@ public class BlockBenchmark {
 
                     BooleanBlock block = (BooleanBlock) blocks[blockIndex];
                     checkSums[blockIndex] = computeBooleanCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
+                }
+            }
+            case "BytesRef" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    BytesRefArray values = new BytesRefArray(totalPositions, BigArrays.NON_RECYCLING_INSTANCE);
+                    byte[] bytes;
+                    for (int i = 0; i < totalPositions; i++) {
+                        bytes = new byte[random.nextInt(MAX_BYTES_REF_LENGTH)];
+                        random.nextBytes(bytes);
+                        values.append(new BytesRef(bytes));
+                    }
+
+                    switch (blockKind) {
+                        case "array" -> {
+                            blocks[blockIndex] = new BytesRefArrayBlock(
+                                values,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+                            );
+                        }
+                        case "array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            blocks[blockIndex] = new BytesRefArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                        }
+                        case "vector" -> {
+                            BytesRefVector vector = new BytesRefArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock();
+                        }
+                        default -> {
+                            throw new IllegalStateException();
+                        }
+                    }
+
+                    BytesRefBlock block = (BytesRefBlock) blocks[blockIndex];
+                    checkSums[blockIndex] = computeBytesRefCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
             }
             case "double" -> {
@@ -332,6 +387,13 @@ public class BlockBenchmark {
                     resultCheckSums[blockIndex] = computeBooleanCheckSum(block, traversalOrders[blockIndex]);
                 }
             }
+            case "BytesRef" -> {
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    BytesRefBlock block = (BytesRefBlock) data.blocks[blockIndex];
+
+                    resultCheckSums[blockIndex] = computeBytesRefCheckSum(block, traversalOrders[blockIndex]);
+                }
+            }
             case "double" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     DoubleBlock block = (DoubleBlock) data.blocks[blockIndex];
@@ -378,6 +440,25 @@ public class BlockBenchmark {
             int end = start + block.getValueCount(position);
             for (int i = start; i < end; i++) {
                 sum += block.getBoolean(i) ? 1 : 0;
+            }
+        }
+
+        return sum;
+    }
+
+    private static long computeBytesRefCheckSum(BytesRefBlock block, int[] traversalOrder) {
+        long sum = 0;
+        BytesRef currentValue = new BytesRef();
+
+        for (int position : traversalOrder) {
+            if (block.isNull(position)) {
+                continue;
+            }
+            int start = block.getFirstValueIndex(position);
+            int end = start + block.getValueCount(position);
+            for (int i = start; i < end; i++) {
+                block.getBytesRef(i, currentValue);
+                sum += currentValue.length > 0 ? currentValue.bytes[0] : 0;
             }
         }
 
@@ -448,7 +529,7 @@ public class BlockBenchmark {
 
     // TODO other types
     // TODO: add DocBlocks/DocVectors
-    @Param({ "boolean", "double", "int", "long" })
+    @Param({ "boolean", "BytesRef", "double", "int", "long" })
     public String dataType;
 
     @Param({ "array", "array-multivalue-null", "vector" })

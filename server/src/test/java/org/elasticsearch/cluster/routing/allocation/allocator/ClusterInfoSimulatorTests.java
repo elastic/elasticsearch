@@ -46,6 +46,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOUR
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
@@ -283,7 +284,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var shardSize = 100;
         var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //
             .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
-            .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+            .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+            .put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings)))
@@ -317,7 +319,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 new ClusterInfoTestBuilder() //
                     .withNode("node-0", new DiskUsageBuilder(1000, 1000))
                     .withNode("node-1", new DiskUsageBuilder(1000, 1000))
-                    .withShard(shard, shardSize)
+                    .withShard(shard, 0) // partial searchable snapshot uses DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS resulting
+                                         // in a 0 size reported
                     .build()
             )
         );

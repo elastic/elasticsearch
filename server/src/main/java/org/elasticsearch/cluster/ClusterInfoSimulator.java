@@ -17,9 +17,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
-import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForRelocatingShard;
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 
 public class ClusterInfoSimulator {
@@ -65,30 +65,18 @@ public class ClusterInfoSimulator {
         if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {
                 // relocation
-                if (shouldReserveSpaceForRelocatingShard(shard, allocation.metadata())) {
-                    modifyDiskUsage(shard.relocatingNodeId(), size);
-                    modifyDiskUsage(shard.currentNodeId(), -size);
-                }
+                modifyDiskUsage(shard.relocatingNodeId(), size);
+                modifyDiskUsage(shard.currentNodeId(), -size);
             } else {
                 // new shard
                 if (shouldReserveSpaceForInitializingShard(shard, allocation.metadata())) {
                     modifyDiskUsage(shard.currentNodeId(), -size);
                 }
-                shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
+                shardSizes.put(
+                    shardIdentifierFromRouting(shard),
+                    allocation.metadata().getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
+                );
             }
-        }
-    }
-
-    private Long getEstimatedShardSize(ShardRouting shard) {
-        if (shard.relocatingNodeId() != null) {
-            // relocation existing shard, get size of the source shard
-            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard));
-        } else if (shard.primary() == false) {
-            // initializing new replica, get size of the source primary shard
-            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard.shardId(), true));
-        } else {
-            // initializing new (empty?) primary
-            return shard.getExpectedShardSize();
         }
     }
 

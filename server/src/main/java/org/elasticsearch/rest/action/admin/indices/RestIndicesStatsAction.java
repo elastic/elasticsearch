@@ -12,8 +12,10 @@ import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.support.DataStreamOptions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
@@ -88,6 +90,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed()
             : "IndicesStats default indices options changed";
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
+        if (DataStream.isFailureStoreEnabled()) {
+            indicesStatsRequest.dataStreamOptions(DataStreamOptions.fromRequest(request, indicesStatsRequest.dataStreamOptions()));
+        }
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         // level parameter validation
         ClusterStatsLevel.of(request, ClusterStatsLevel.INDICES);

@@ -29,16 +29,6 @@ final class InstanceType implements ToXContentObject {
     }
 
     /**
-     * Creates a {@link InstanceType} from a {@link Map} of source data provided from JSON or profiling-costs.
-     *
-     * @param source the source data
-     * @return the {@link InstanceType}
-     */
-    public static InstanceType fromCostSource(Map<String, Object> source) {
-        return new InstanceType((String) source.get("provider"), (String) source.get("region"), (String) source.get("instance_type"));
-    }
-
-    /**
      * Creates a {@link InstanceType} from a {@link Map} of source data provided from profiling-hosts.
      *
      * @param source the source data

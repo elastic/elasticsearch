@@ -73,10 +73,8 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-//@Warmup(iterations = 5)
-//@Measurement(iterations = 7)
-@Warmup(iterations = 0)
-@Measurement(iterations = 3)
+@Warmup(iterations = 5)
+@Measurement(iterations = 7)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
@@ -764,8 +762,7 @@ public class BlockBenchmark {
     )
     public String dataTypeAndBlockKind;
 
-    // @Param({ "sequential", "random" })
-    @Param({ "sequential" })
+    @Param({ "sequential", "random" })
     public String accessType;
 
     private BenchmarkBlocks data;

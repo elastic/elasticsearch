@@ -83,6 +83,8 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
      */
     private static boolean isSupportDuplicateCheck(IndexSettings indexSettings) {
         var idxVersion = indexSettings.getIndexVersionCreated();
+        // Explicitly exclude the range of versions greater than NORI_DUPLICATES, that
+        // are also in 8.12. The only version in this range is UPGRADE_LUCENE_9_9_1.
         return idxVersion.onOrAfter(IndexVersions.NORI_DUPLICATES) && idxVersion != UPGRADE_LUCENE_9_9_1;
     }
 

@@ -194,10 +194,14 @@ public class RenameProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("foo.bar", Map.class), equalTo(Map.of("baz", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("bar"));
 
-        // for fun lets try to restore it (which don't allow today)
+        // Let's try to restore it (which we don't allow today without the override flag)
         Processor processor3 = createRenameProcessor("foo.bar.baz", "foo", false, false);
         Exception e = expectThrows(IllegalArgumentException.class, () -> processor3.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("field [foo] already exists"));
+
+        //  Let's try to restore it using the override flag
+        Processor processor4 = createRenameProcessor("foo.bar.baz", "foo", false, true);
+        assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("foo"));
     }
 
     private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing, boolean overrideEnabled) {

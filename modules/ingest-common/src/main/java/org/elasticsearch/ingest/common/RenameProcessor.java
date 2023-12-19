@@ -78,7 +78,6 @@ public final class RenameProcessor extends AbstractProcessor {
         if (document.hasField(target, true) && overrideEnabled == false) {
             throw new IllegalArgumentException("field [" + target + "] already exists");
         } else {
-
             Object value = document.getFieldValue(path, Object.class);
             document.removeField(path);
             try {

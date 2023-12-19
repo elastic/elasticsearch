@@ -284,6 +284,18 @@
                       "ignore_above": 1024
                     }
                   }
+                },
+                "retry_error_msg": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "retry_until": {
+                  "type": "date"
                 }
               }
             }

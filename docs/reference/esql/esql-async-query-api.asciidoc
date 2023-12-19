@@ -56,8 +56,7 @@ requests.
   "is_running": true
 }
 ----
-// TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
-// TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
+// TEST[skip: no access to search ID - may return response values]
 
 To check the progress of an async search, use the <<get-async-esql-query-api,get
 async ES|QL query API>> with the search ID. Specify how long you'd like for
@@ -65,9 +64,9 @@ complete results in the `wait_for_completion_timeout` parameter.
 
 [source,console]
 ----
-GET /_query/async/get/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=2s
+GET /_query/async/get/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=30s
 ----
-// TEST[skip: no access to search ID]
+// TEST[skip: no access to search ID - may return response values]
 
 If the response's `is_running` value is `false`, the async search has
 finished, and the results are returned.
@@ -80,5 +79,4 @@ finished, and the results are returned.
   "columns": ...
 }
 ----
-// TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
-// TESTRESPONSE[s/"columns": \.\.\./"columns": $body.hits/]
+// TEST[skip: no access to search ID - may return response values]

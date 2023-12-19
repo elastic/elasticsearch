@@ -1950,7 +1950,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         switch (name) {
             case ".watches":
             case "security_audit_log":
-            case ".slm-history-6":
+            case ".slm-history-7":
             case ".async-search":
             case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
@@ -1965,7 +1965,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
-            case "ilm-history-6":
+            case "ilm-history-7":
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":

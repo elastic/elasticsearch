@@ -51,23 +51,6 @@ public class ClusterInfoSimulator {
      * This assumes the worst case (all shards are placed on a single most used disk) and prevents node overflow.
      * Balance is later recalculated with a refreshed cluster info containing actual shards placement.
      */
-    public void simulateShardStarted1(ShardRouting shard) {
-        assert shard.initializing();
-
-        var size = getEstimatedShardSize(shard);
-        if (size != null && size > 0) {
-            if (shard.relocatingNodeId() != null) {
-                // relocation
-                modifyDiskUsage(shard.relocatingNodeId(), size);
-                modifyDiskUsage(shard.currentNodeId(), -size);
-            } else {
-                // new shard
-                modifyDiskUsage(shard.currentNodeId(), -size);
-                shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
-            }
-        }
-    }
-
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
@@ -141,6 +124,7 @@ public class ClusterInfoSimulator {
     }
 
     public ClusterInfo getClusterInfo() {
+        // TODO account for initial reserved space
         var clusterInfo = new ClusterInfo(
             leastAvailableSpaceUsage,
             mostAvailableSpaceUsage,

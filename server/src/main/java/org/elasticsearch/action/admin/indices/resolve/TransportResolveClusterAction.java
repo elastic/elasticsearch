@@ -139,7 +139,9 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         searchCoordinationExecutor
                     );
                     ResolveClusterActionRequest remoteRequest = new ResolveClusterActionRequest(originalIndices.indices());
-                    remoteRequest.setParentTask(task.getParentTaskId());
+                    // allow cancellation requests to propagate to remote clusters
+                    remoteRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+
                     ActionListener<ResolveClusterActionResponse> remoteListener = new ActionListener<>() {
                         @Override
                         public void onResponse(ResolveClusterActionResponse response) {
@@ -197,7 +199,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 }
             }
         } else {
-            // executes on remote cluster (or local cluster if no remote clusters were specified in the user's index expression)
+            // this block executes on remote cluster (or local cluster if no remote clusters are specified in the user's index expression)
             resolveClusterTask.ensureNotCancelled();
             clusterInfoMap.put(
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,

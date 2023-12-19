@@ -7,13 +7,22 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -23,6 +32,8 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,8 +53,22 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         var rules = new ArrayList<Batch<LogicalPlan>>();
         rules.add(local);
         // TODO: if the local rules haven't touched the tree, the rest of the rules can be skipped
-        rules.addAll(LogicalPlanOptimizer.rules());
+        var logicalRules = LogicalPlanOptimizer.rules();
+        // replace PropagateLocalRelation with its local variant
+        rules.addAll(replaceRules(logicalRules));
         return rules;
+    }
+
+    private List<Batch<LogicalPlan>> replaceRules(List<Batch<LogicalPlan>> listOfRules) {
+        for (Batch<LogicalPlan> batch : listOfRules) {
+            var rules = batch.rules();
+            for (int i = 0; i < rules.length; i++) {
+                if (rules[i] instanceof PropagateEmptyRelation) {
+                    rules[i] = new LocalPropagateEmptyRelation();
+                }
+            }
+        }
+        return listOfRules;
     }
 
     public LogicalPlan localOptimize(LogicalPlan plan) {
@@ -113,6 +138,30 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             }
 
             return plan;
+        }
+    }
+
+    /**
+     * Local aggregation can only produce intermediate state that get wired into the global agg.
+     */
+    private static class LocalPropagateEmptyRelation extends PropagateEmptyRelation {
+        @Override
+        protected void aggOutput(NamedExpression agg, AggregateFunction aggFunc, BlockFactory blockFactory, List<Block> blocks) {
+            List<Attribute> output = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(agg), List.of());
+            for (Attribute o : output) {
+                DataType dataType = o.dataType();
+                // fill the boolean block later in LocalExecutionPlanner
+                if (dataType != DataTypes.BOOLEAN) {
+                    // look for count(literal) with literal != null
+                    var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(dataType), 1);
+                    if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
+                        wrapper.accept(0L);
+                    } else {
+                        wrapper.accept(null);
+                    }
+                    blocks.add(wrapper.builder().build());
+                }
+            }
         }
     }
 

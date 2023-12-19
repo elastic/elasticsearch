@@ -251,8 +251,8 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.node.stats.indices.deletion.docs.total",
-                "Current number of deleting documents",
+                "es.node.stats.indices.deletion.docs.current.total",
+                "Current number of in-flight deleting documents",
                 "documents",
                 () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getIndexing().getTotal().getDeleteCurrent())
             )

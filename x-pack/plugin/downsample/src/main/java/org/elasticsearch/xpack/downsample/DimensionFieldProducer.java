@@ -70,7 +70,7 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
     @Override
     public void collect(FormattedDocValues docValues, int docId) throws IOException {
         if (docValues.advanceExact(docId) == false) {
-            throw new IllegalArgumentException("Unable to collect dimension [" + this.dimension.name + "]");
+            return;
         }
         int docValueCount = docValues.docValueCount();
         for (int i = 0; i < docValueCount; i++) {

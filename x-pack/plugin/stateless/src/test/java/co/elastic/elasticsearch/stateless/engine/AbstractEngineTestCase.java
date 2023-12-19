@@ -110,12 +110,15 @@ import static org.mockito.Mockito.when;
 public abstract class AbstractEngineTestCase extends ESTestCase {
 
     private Map<String, ThreadPool> threadPools;
+    protected SharedBlobCacheService<FileCacheKey> sharedBlobCacheService;
 
+    @SuppressWarnings("unchecked")
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPools = ConcurrentCollections.newConcurrentMap();
+        sharedBlobCacheService = mock(SharedBlobCacheService.class);
     }
 
     @Override
@@ -352,7 +355,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][search]"));
-        var directory = new SearchDirectory(null, shardId);
+        var directory = new SearchDirectory(sharedBlobCacheService, shardId);
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         return new EngineConfig(
             shardId,

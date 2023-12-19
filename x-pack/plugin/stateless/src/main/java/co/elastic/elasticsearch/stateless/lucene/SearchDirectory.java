@@ -334,11 +334,19 @@ public class SearchDirectory extends ByteSizeDirectory {
     @Override
     public void close() throws IOException {
         // do not close EmptyDirectory
+        if (isMarkedAsCorrupted()) {
+            forceEvict();
+        }
     }
 
     @Override
     public Set<String> getPendingDeletions() {
         throw unsupportedException();
+    }
+
+    public void forceEvict() {
+        final int n = cacheService.forceEvict(fileCacheKey -> shardId.equals(fileCacheKey.shardId()));
+        logger.warn("[{}] force evicted [{}] blob cache entries for ShardId {}", this, n, shardId);
     }
 
     public BlobContainer getBlobContainer(long primaryTerm) {

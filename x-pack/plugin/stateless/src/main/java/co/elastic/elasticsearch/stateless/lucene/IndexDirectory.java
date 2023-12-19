@@ -59,6 +59,7 @@ import java.util.function.IntConsumer;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSlice;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.store.Store.CORRUPTED_MARKER_NAME_PREFIX;
 
 public class IndexDirectory extends ByteSizeDirectory {
 
@@ -247,7 +248,17 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(cacheDirectory, super::close);
+        try {
+            final String[] files = listAll();
+            for (String file : files) {
+                if (file.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
+                    cacheDirectory.forceEvict();
+                    break;
+                }
+            }
+        } finally {
+            IOUtils.close(cacheDirectory, super::close);
+        }
     }
 
     public SearchDirectory getSearchDirectory() {

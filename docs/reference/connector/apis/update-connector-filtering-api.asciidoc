@@ -61,7 +61,7 @@ Contains the set of rules that are actively used for sync jobs. The `active` obj
     The timestamp when the rule was last edited.
 
   * `advanced_snippet` (Optional, object) +
-  Used for advanced filtering at query time, with the following sub-attributes:
+  Used for {enterprise-search-ref}/sync-rules.html#sync-rules-advanced[advanced filtering] at query time, with the following sub-attributes:
     ** `value` (Required, object) +
     A JSON object passed directly to the connector for advanced filtering.
     ** `created_at` (Optional, datetime) +

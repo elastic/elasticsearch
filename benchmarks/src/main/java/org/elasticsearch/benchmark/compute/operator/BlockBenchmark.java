@@ -86,8 +86,7 @@ public class BlockBenchmark {
      * It is important to be exhaustive here so that all implementers of {@link IntBlock#getInt(int)} are actually loaded when we benchmark
      * {@link IntBlock}s etc.
      */
-    // We could also consider DocBlocks/DocVectors.
-    // TODO: add constant vectors as well.
+    // We could also consider DocBlocks/DocVectors but they do not implement any of the typed block interfaces like IntBlock etc.
     public static final String[] RELEVANT_TYPE_BLOCK_COMBINATIONS = {
         "boolean/array",
         "boolean/array-multivalue-null",

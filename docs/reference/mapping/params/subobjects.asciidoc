@@ -138,7 +138,7 @@ PUT my-index-000002
           "time": {
             "type": "object", <1>
             "properties": {
-              "min": { "type": "long" } <2>
+              "min": { "type": "long" }, <2>
               "max": { "type": "long" }
             }
           }

@@ -374,10 +374,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             // Term queries can be neither fuzzy nor lenient, so don't rewrite under these conditions
             return this;
         }
-        // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
-        // and possibly shortcut
+        // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder and possibly shortcut
+        // If no analyzer is set then we can rewrite this to a TermQueryBuilder and possibly shortcut
         NamedAnalyzer configuredAnalyzer = configuredAnalyzer(context);
-        if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
+        if (configuredAnalyzer == null || configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
             return termQueryBuilder.rewrite(context);
         }

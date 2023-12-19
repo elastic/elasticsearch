@@ -61,15 +61,11 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("field", "value");
         Processor processor = createSetProcessor("field.inner", "value", null, true, false);
-        try {
-            processor.execute(ingestDocument);
-            fail("processor execute should have failed");
-        } catch (IllegalArgumentException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("cannot set [inner] with parent object of type [java.lang.String] as " + "part of path [field.inner]")
-            );
-        }
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(
+            exception.getMessage(),
+            equalTo("cannot set [inner] with parent object of type [java.lang.String] as part of path [field.inner]")
+        );
     }
 
     public void testSetNewFieldWithOverrideDisabled() throws Exception {

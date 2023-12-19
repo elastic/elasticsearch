@@ -1405,6 +1405,48 @@ public class MapperServiceTests extends MapperServiceTestCase {
         );
     }
 
+    public void testAutoFlattenObjectsSubobjectsMergeNonConflictingMappingParameter() throws IOException {
+        CompressedXContent mapping = new CompressedXContent("""
+            {
+              "dynamic": false,
+              "properties": {
+                "parent": {
+                  "dynamic": true,
+                  "enabled": false,
+                  "subobjects": false,
+                  "properties": {
+                    "child": {
+                      "properties": {
+                        "grandchild": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        assertMergeEquals(List.of(mapping), """
+            {
+              "_doc" : {
+                "dynamic" : "false",
+                "properties" : {
+                  "parent" : {
+                    "dynamic" : "true",
+                    "enabled" : false,
+                    "subobjects" : false,
+                    "properties" : {
+                      "child.grandchild" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+    }
+
     public void testExpand() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {

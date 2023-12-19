@@ -624,9 +624,14 @@ public class ObjectMapper extends Mapper {
                     + ")"
             );
         }
-        if (Boolean.FALSE.equals(enabled.value())) {
+        if (isEnabled() == false) {
             throw new IllegalArgumentException(
                 "cannot flatten object [" + path.pathAsText(simpleName()) + "] because the value of [enabled] is [false]"
+            );
+        }
+        if (subobjects.explicit() && subobjects()) {
+            throw new IllegalArgumentException(
+                "cannot flatten object [" + path.pathAsText(simpleName()) + "] because the value of [subobjects] is [true]"
             );
         }
     }

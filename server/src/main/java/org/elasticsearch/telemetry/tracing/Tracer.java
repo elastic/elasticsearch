@@ -48,15 +48,8 @@ public interface Tracer {
     /**
      * @see Tracer#startTrace(ThreadContext, SpanId, String, Map)
      */
-    default void startTrace(ThreadContext threadContext, Task task, String name, Map<String, Object> attributes) {
-        startTrace(threadContext, SpanId.forTask(task), name, attributes);
-    }
-
-    /**
-     * @see Tracer#startTrace(ThreadContext, SpanId, String, Map)
-     */
-    default void startTrace(ThreadContext threadContext, RestRequest restRequest, String name, Map<String, Object> attributes) {
-        startTrace(threadContext, SpanId.forRestRequest(restRequest), name, attributes);
+    default void startTrace(ThreadContext threadContext, Traceable traceable, String name, Map<String, Object> attributes) {
+        startTrace(threadContext, traceable.getSpanId(), name, attributes);
     }
 
     /**
@@ -111,8 +104,8 @@ public interface Tracer {
     /**
      * @see Tracer#addError(SpanId, Throwable)
      */
-    default void addError(RestRequest restRequest, Throwable throwable) {
-        addError(SpanId.forRestRequest(restRequest), throwable);
+    default void addError(Traceable traceable, Throwable throwable) {
+        addError(traceable.getSpanId(), throwable);
     }
 
     /**
@@ -186,10 +179,7 @@ public interface Tracer {
         public void startTrace(ThreadContext threadContext, SpanId spanId, String name, Map<String, Object> attributes) {}
 
         @Override
-        public void startTrace(ThreadContext threadContext, Task task, String name, Map<String, Object> attributes) {}
-
-        @Override
-        public void startTrace(ThreadContext threadContext, RestRequest restRequest, String name, Map<String, Object> attributes) {}
+        public void startTrace(ThreadContext threadContext, Traceable traceable, String name, Map<String, Object> attributes) {}
 
         @Override
         public void startTrace(String name, Map<String, Object> attributes) {}
@@ -213,7 +203,7 @@ public interface Tracer {
         public void addError(SpanId spanId, Throwable throwable) {}
 
         @Override
-        public void addError(RestRequest restRequest, Throwable throwable) {}
+        public void addError(Traceable traceable, Throwable throwable) {}
 
         @Override
         public void setAttribute(SpanId spanId, String key, boolean value) {}

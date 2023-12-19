@@ -9,7 +9,6 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
@@ -64,6 +63,7 @@ import java.util.stream.IntStream;
 @Fork(1)
 public class BlockBenchmark {
     public static final int NUM_BLOCKS_PER_ITERATION = 1024;
+    public static final int BLOCK_TOTAL_POSITIONS = 8096;
 
     private static final double MV_PERCENTAGE = 0.3;
     private static final double NULL_PERCENTAGE = 0.1;
@@ -516,19 +516,11 @@ public class BlockBenchmark {
         return sum;
     }
 
-    private static int totalPositions(String blockLength) {
-        return (int) ByteSizeValue.parseBytesSizeValue(blockLength, "block length").getBytes();
-    }
-
     private static boolean isRandom(String accessType) {
         return accessType.equalsIgnoreCase("random");
     }
 
-    @Param({ "1K", "8K" })
-    public String blockLength;
-
-    // TODO other types
-    // TODO: add DocBlocks/DocVectors
+    // We could also consider DocBlocks/DocVectors.
     @Param({ "boolean", "BytesRef", "double", "int", "long" })
     public String dataType;
 
@@ -546,12 +538,12 @@ public class BlockBenchmark {
 
     @Setup
     public void setup() {
-        data = buildBlocks(dataType, blockKind, totalPositions(blockLength));
+        data = buildBlocks(dataType, blockKind, BLOCK_TOTAL_POSITIONS);
         traversalOrders = createTraversalOrders(data.blocks, isRandom(accessType));
     }
 
     @Benchmark
-    @OperationsPerInvocation(BlockBenchmark.NUM_BLOCKS_PER_ITERATION)
+    @OperationsPerInvocation(NUM_BLOCKS_PER_ITERATION * BLOCK_TOTAL_POSITIONS)
     public void run() {
         run(dataType, data, traversalOrders, actualCheckSums);
     }

@@ -31,6 +31,7 @@ public final class DefaultJdkTrustConfig implements SslTrustConfig {
 
     private final BiFunction<String, String, String> systemProperties;
     private final char[] trustStorePassword;
+    private X509ExtendedTrustManager x509ExtendedTrustManager;
 
     /**
      * Create a trust config that uses System properties to determine the TrustStore type, and the relevant password.
@@ -61,8 +62,15 @@ public final class DefaultJdkTrustConfig implements SslTrustConfig {
 
     @Override
     public X509ExtendedTrustManager createTrustManager() {
+        if (x509ExtendedTrustManager != null) {
+            return x509ExtendedTrustManager;
+        }
         try {
-            return KeyStoreUtil.createTrustManager(getSystemTrustStore(), TrustManagerFactory.getDefaultAlgorithm());
+            x509ExtendedTrustManager = KeyStoreUtil.createTrustManager(
+                getPasswordProtectedSystemTrustStore(),
+                TrustManagerFactory.getDefaultAlgorithm()
+            );
+            return x509ExtendedTrustManager;
         } catch (GeneralSecurityException e) {
             throw new SslConfigException("failed to initialize a TrustManager for the system keystore", e);
         }
@@ -75,7 +83,7 @@ public final class DefaultJdkTrustConfig implements SslTrustConfig {
      *
      * @return the KeyStore used as truststore for PKCS#11 initialized with the password, null otherwise
      */
-    private KeyStore getSystemTrustStore() {
+    private KeyStore getPasswordProtectedSystemTrustStore() {
         if (isPkcs11Truststore(systemProperties) && trustStorePassword != null) {
             try {
                 KeyStore keyStore = KeyStore.getInstance("PKCS11");
@@ -104,6 +112,15 @@ public final class DefaultJdkTrustConfig implements SslTrustConfig {
     @Override
     public Collection<? extends StoredCertificate> getConfiguredCertificates() {
         return List.of();
+    }
+
+    /**
+     * @return the certificates found in the JVM default trust store.
+     */
+    public Collection<? extends StoredCertificate> getDefaultCertificates() {
+        return Arrays.stream(x509ExtendedTrustManager.getAcceptedIssuers())
+            .map(cert -> new StoredCertificate(cert, "default", cert.getType(), null, false))
+            .toList();
     }
 
     @Override

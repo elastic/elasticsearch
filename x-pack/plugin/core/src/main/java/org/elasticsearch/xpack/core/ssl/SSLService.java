@@ -28,7 +28,6 @@ import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -63,6 +62,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -690,7 +690,7 @@ public class SSLService {
 
     /**
      * Returns information about each certificate that is referenced by any SSL configuration.
-     * This includes certificates used for identity (with a private key) and those used for trust, but excludes
+     * This includes certificates used for identity (with a private key) and those used for trust, but <b>excludes</b>
      * certificates that are provided by the JRE.
      * Due to the nature of KeyStores, this may include certificates that are available, but never used
      * such as a CA certificate that is no longer in use, or a server certificate for an unrelated host.
@@ -703,7 +703,30 @@ public class SSLService {
             .map(SslConfiguration::getConfiguredCertificates)
             .flatMap(Collection::stream)
             .map(cert -> new CertificateInfo(cert.path(), cert.format(), cert.alias(), cert.hasPrivateKey(), cert.certificate()))
-            .collect(Sets.toUnmodifiableSortedSet());
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Returns information about each certificate that is referenced by any SSL configuration.
+     * This includes certificates used for identity (with a private key) and those used for trust, <b>includes</b>
+     * certificates that are provided by the JRE if any SSL configuration could use the default.
+     * Due to the nature of KeyStores, this may include certificates that are available, but never used
+     * such as a CA certificate that is no longer in use, or a server certificate for an unrelated host.
+     *
+     * @see SslTrustConfig#getConfiguredCertificates()
+     */
+    public Collection<CertificateInfo> getAllCertificates() throws GeneralSecurityException, IOException {
+        return this.getLoadedSslConfigurations()
+            .stream()
+            .map(
+                sslConfiguration -> Stream.concat(
+                    sslConfiguration.getConfiguredCertificates().stream(),
+                    sslConfiguration.getDefaultCertificates().stream()
+                ).collect(Collectors.toSet())
+            )
+            .flatMap(Collection::stream)
+            .map(cert -> new CertificateInfo(cert.path(), cert.format(), cert.alias(), cert.hasPrivateKey(), cert.certificate()))
+            .collect(Collectors.toSet());
     }
 
     /**

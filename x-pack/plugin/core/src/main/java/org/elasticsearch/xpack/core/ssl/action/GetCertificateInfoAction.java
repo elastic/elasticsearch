@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.core.ssl.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -37,10 +35,19 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
 
     public static class Request extends ActionRequest {
 
-        Request() {}
+        private final boolean includeDefaults;
 
-        Request(StreamInput in) throws IOException {
+        public Request(boolean includeDefaults) {
+            this.includeDefaults = includeDefaults;
+        }
+
+        public Request(StreamInput in) throws IOException {
             super(in);
+            this.includeDefaults = in.readBoolean();
+        }
+
+        public boolean includeDefaults() {
+            return includeDefaults;
         }
 
         @Override
@@ -85,11 +92,4 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
         }
 
     }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, GetCertificateInfoAction.INSTANCE, new Request());
-        }
-    }
-
 }

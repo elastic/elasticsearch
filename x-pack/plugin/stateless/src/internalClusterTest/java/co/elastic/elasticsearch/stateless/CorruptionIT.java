@@ -17,14 +17,17 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -38,9 +41,10 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
@@ -50,6 +54,7 @@ import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -65,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -73,8 +79,9 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_U
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.createFullSnapshot;
-import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.createRepository;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * An IT aiming at reproducing corruption-related issues such as:
@@ -94,7 +101,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
  * TODO: Increase network delay disruption and maybe use other NetworkDisruption types.
  * TODO: Add random object store failures beyond max retries (https://elasticco.atlassian.net/browse/ES-6453)
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-6563")
 public class CorruptionIT extends AbstractStatelessIntegTestCase {
 
     private static final boolean TEST_HARDER = RandomizedTest.systemPropertyAsBoolean("tests.harder", false);
@@ -110,7 +116,11 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), SlowRepositoryPlugin.class);
+        final var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(TestStateless.class);
+        plugins.add(SlowRepositoryPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -122,6 +132,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
      * Run indexing, searching, force merge and snapshotting operations on the cluster while
      * moving indexing and search shards around.
      */
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-6563")
     public void testConcurrentOperations() throws Exception {
         startMasterOnlyNode();
         var smallCache = randomBoolean();
@@ -291,6 +302,49 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    public void testWillEvictCacheOnCorruptionError() throws Exception {
+        final String indexNodeName = startMasterAndIndexNode();
+        final String searchNodeName = startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+
+        for (int i = 0; i < between(3, 5); i++) {
+            indexDocs(indexName, between(5, 10));
+            refresh(indexName);
+        }
+
+        // search node
+        assertCacheEvictedOnCorruption(
+            findSearchShard(indexName),
+            (TestSharedBlobCacheService) internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, searchNodeName).get()
+        );
+
+        // index node
+        assertCacheEvictedOnCorruption(
+            findIndexShard(indexName),
+            (TestSharedBlobCacheService) internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNodeName).get()
+        );
+    }
+
+    private void assertCacheEvictedOnCorruption(IndexShard shard, TestSharedBlobCacheService sharedBlobCacheService) throws Exception {
+        Exception e = new CorruptIndexException("test", shard.toString());
+        if (randomBoolean()) {
+            e = new IOException("io error", e);
+        }
+
+        shard.failShard("test", e);
+
+        assertBusy(() -> {
+            assertThat(sharedBlobCacheService.cacheKeyPredicates.size(), equalTo(1));
+            assertThat(
+                sharedBlobCacheService.cacheKeyPredicates.get(0)
+                    .test(new FileCacheKey(shard.shardId(), randomNonNegativeLong(), randomAlphaOfLengthBetween(3, 15))),
+                is(true)
+            );
+        });
+    }
+
     private ServiceDisruptionScheme addNetworkDisruptions() {
         final NetworkDisruption.DisruptedLinks disruptedLinks;
         if (randomBoolean()) {
@@ -304,6 +358,49 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         );
         internalCluster().setDisruptionScheme(scheme);
         return scheme;
+    }
+
+    public static class TestStateless extends Stateless {
+        public TestStateless(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected SharedBlobCacheService<FileCacheKey> createSharedBlobCacheService(
+            PluginServices services,
+            NodeEnvironment nodeEnvironment,
+            Settings settings,
+            ThreadPool threadPool
+        ) {
+            return new TestSharedBlobCacheService(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                SHARD_READ_THREAD_POOL,
+                new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
+            );
+        }
+    }
+
+    public static class TestSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
+
+        List<Predicate<FileCacheKey>> cacheKeyPredicates = Collections.synchronizedList(new ArrayList<>());
+
+        public TestSharedBlobCacheService(
+            NodeEnvironment environment,
+            Settings settings,
+            ThreadPool threadPool,
+            String ioExecutor,
+            BlobCacheMetrics blobCacheMetrics
+        ) {
+            super(environment, settings, threadPool, ioExecutor, blobCacheMetrics);
+        }
+
+        @Override
+        public int forceEvict(Predicate<FileCacheKey> cacheKeyPredicate) {
+            cacheKeyPredicates.add(cacheKeyPredicate);
+            return super.forceEvict(cacheKeyPredicate);
+        }
     }
 
     public static class SlowRepositoryPlugin extends MockRepository.Plugin {

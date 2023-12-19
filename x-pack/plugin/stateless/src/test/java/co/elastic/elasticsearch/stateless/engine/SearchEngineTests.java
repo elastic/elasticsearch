@@ -56,6 +56,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 
 public class SearchEngineTests extends AbstractEngineTestCase {
 
@@ -148,7 +150,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
     }
 
     public void testFailEngineWithCorruption() throws IOException {
-        try (SearchEngine searchEngine = newSearchEngine()) {
+        final SearchEngine searchEngine = newSearchEngine();
+        try (searchEngine) {
             assertThat(searchEngine.segments(), empty());
             var store = searchEngine.config().getStore();
             assertThat(store.isMarkedCorrupted(), is(false));
@@ -163,10 +166,12 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             assertThat(((CapturingEngineEventListener) listener).reason.get(), equalTo("test"));
             assertThat(((CapturingEngineEventListener) listener).exception.get(), sameInstance(exception));
         }
+        verify(sharedBlobCacheService).forceEvict(any());
     }
 
     public void testMarkedStoreCorrupted() throws IOException {
-        try (SearchEngine searchEngine = newSearchEngine()) {
+        final SearchEngine searchEngine = newSearchEngine();
+        try (searchEngine) {
             var store = searchEngine.config().getStore();
             assertThat(store.isMarkedCorrupted(), is(false));
             var directory = SearchDirectory.unwrapDirectory(store.directory());
@@ -181,6 +186,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             assertThat(directory.listAll(), arrayWithSize(files.length + 1));
             assertThat(Stream.of(directory.listAll()).filter(s -> s.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)).count(), equalTo(1L));
         }
+        verify(sharedBlobCacheService).forceEvict(any());
     }
 
     private Exception randomCorruptionException() {

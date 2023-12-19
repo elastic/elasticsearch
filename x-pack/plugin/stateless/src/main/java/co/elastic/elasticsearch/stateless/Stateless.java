@@ -375,16 +375,7 @@ public class Stateless extends Plugin
         );
         components.add(objectStoreService);
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(
-            setAndGet(
-                this.sharedBlobCacheService,
-                new SharedBlobCacheService<>(
-                    nodeEnvironment,
-                    settings,
-                    threadPool,
-                    SHARD_READ_THREAD_POOL,
-                    new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
-                )
-            )
+            setAndGet(this.sharedBlobCacheService, createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool))
         );
         components.add(sharedBlobCacheServiceSupplier);
         var statelessElectionStrategy = setAndGet(
@@ -506,6 +497,21 @@ public class Stateless extends Plugin
         ClusterService clusterService
     ) {
         return new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService);
+    }
+
+    protected SharedBlobCacheService<FileCacheKey> createSharedBlobCacheService(
+        PluginServices services,
+        NodeEnvironment nodeEnvironment,
+        Settings settings,
+        ThreadPool threadPool
+    ) {
+        return new SharedBlobCacheService<>(
+            nodeEnvironment,
+            settings,
+            threadPool,
+            SHARD_READ_THREAD_POOL,
+            new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
+        );
     }
 
     @Override

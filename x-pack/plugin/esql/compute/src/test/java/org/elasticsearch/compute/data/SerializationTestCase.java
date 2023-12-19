@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class SerializationTestCase extends ESTestCase {
     BigArrays bigArrays;
-    private BlockFactory blockFactory;
+    protected BlockFactory blockFactory;
     NamedWriteableRegistry registry = new NamedWriteableRegistry(Block.getNamedWriteables());
 
     @Before

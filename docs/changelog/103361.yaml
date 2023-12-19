@@ -1,0 +1,5 @@
+pr: 103361
+summary: Prevent attempts to access non-existent node information during rebalancing
+area: Machine Learning
+type: bug
+issues: [ ]

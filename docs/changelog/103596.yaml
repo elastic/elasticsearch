@@ -1,0 +1,5 @@
+pr: 103596
+summary: Support optional parameter to return the JVM default trust info via _ssl/certificates
+area: FIPS
+type: enhancement
+issues: []

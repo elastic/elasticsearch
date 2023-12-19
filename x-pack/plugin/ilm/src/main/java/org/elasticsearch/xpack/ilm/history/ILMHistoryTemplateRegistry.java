@@ -38,7 +38,7 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     public static final int INDEX_TEMPLATE_VERSION = 6;
 
     public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";
-    public static final String ILM_TEMPLATE_NAME = "ilm-history";
+    public static final String ILM_TEMPLATE_NAME = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String ILM_POLICY_NAME = "ilm-history-ilm-policy";
 

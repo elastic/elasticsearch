@@ -45,7 +45,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     public static final int INDEX_TEMPLATE_VERSION = 6;
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
-    public static final String SLM_TEMPLATE_NAME = ".slm-history";
+    public static final String SLM_TEMPLATE_NAME = ".slm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
 

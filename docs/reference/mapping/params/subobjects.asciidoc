@@ -26,8 +26,8 @@ PUT my-index-000001
         "type":  "object",
         "subobjects": false, <1>
         "properties": {
-          "time": { "type": "long" }
-          "time.min": { "type": "long" }
+          "time": { "type": "long" },
+          "time.min": { "type": "long" },
           "time.max": { "type": "long" }
         }
       }

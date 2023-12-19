@@ -27,6 +27,11 @@ import org.elasticsearch.compute.data.BytesRefArrayBlock;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantBooleanVector;
+import org.elasticsearch.compute.data.ConstantBytesRefVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBigArrayBlock;
@@ -91,24 +96,29 @@ public class BlockBenchmark {
         "boolean/big-array-multivalue-null",
         "boolean/vector",
         "boolean/vector-big-array",
+        "boolean/vector-const",
         "BytesRef/array",
         "BytesRef/array-multivalue-null",
         "BytesRef/vector",
+        "BytesRef/vector-const",
         "double/array",
         "double/array-multivalue-null",
         "double/big-array-multivalue-null",
         "double/vector",
         "double/vector-big-array",
+        "double/vector-const",
         "int/array",
         "int/array-multivalue-null",
         "int/big-array-multivalue-null",
         "int/vector",
         "int/vector-big-array",
+        "int/vector-const",
         "long/array",
         "long/array-multivalue-null",
         "long/big-array-multivalue-null",
         "long/vector",
-        "long/vector-big-array" };
+        "long/vector-big-array",
+        "long/vector-const" };
     public static final int NUM_BLOCKS_PER_ITERATION = 1024;
     public static final int BLOCK_TOTAL_POSITIONS = 8096;
 
@@ -145,6 +155,12 @@ public class BlockBenchmark {
         switch (dataType) {
             case "boolean" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    if (blockKind.equalsIgnoreCase("vector-const")) {
+                        BooleanVector vector = new ConstantBooleanVector(random.nextBoolean(), totalPositions);
+                        blocks[blockIndex] = vector.asBlock();
+                        continue;
+                    }
+
                     boolean[] values = new boolean[totalPositions];
                     for (int i = 0; i < totalPositions; i++) {
                         values[i] = random.nextBoolean();
@@ -211,13 +227,24 @@ public class BlockBenchmark {
                             throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
+                }
 
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     BooleanBlock block = (BooleanBlock) blocks[blockIndex];
                     checkSums[blockIndex] = computeBooleanCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
             }
             case "BytesRef" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    if (blockKind.equalsIgnoreCase("vector-const")) {
+                        byte[] bytes = new byte[random.nextInt(MAX_BYTES_REF_LENGTH)];
+                        random.nextBytes(bytes);
+
+                        BytesRefVector vector = new ConstantBytesRefVector(new BytesRef(bytes), totalPositions);
+                        blocks[blockIndex] = vector.asBlock();
+                        continue;
+                    }
+
                     BytesRefArray values = new BytesRefArray(totalPositions, BigArrays.NON_RECYCLING_INSTANCE);
                     byte[] bytes;
                     for (int i = 0; i < totalPositions; i++) {
@@ -257,13 +284,21 @@ public class BlockBenchmark {
                             throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
+                }
 
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     BytesRefBlock block = (BytesRefBlock) blocks[blockIndex];
                     checkSums[blockIndex] = computeBytesRefCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
             }
             case "double" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    if (blockKind.equalsIgnoreCase("vector-const")) {
+                        DoubleVector vector = new ConstantDoubleVector(random.nextDouble() * 1000000.0, totalPositions);
+                        blocks[blockIndex] = vector.asBlock();
+                        continue;
+                    }
+
                     double[] values = new double[totalPositions];
                     for (int i = 0; i < totalPositions; i++) {
                         values[i] = random.nextDouble() * 1000000.0;
@@ -330,13 +365,21 @@ public class BlockBenchmark {
                             throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
+                }
 
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     DoubleBlock block = (DoubleBlock) blocks[blockIndex];
                     checkSums[blockIndex] = computeDoubleCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
             }
             case "int" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    if (blockKind.equalsIgnoreCase("vector-const")) {
+                        IntVector vector = new ConstantIntVector(random.nextInt(), totalPositions);
+                        blocks[blockIndex] = vector.asBlock();
+                        continue;
+                    }
+
                     int[] values = new int[totalPositions];
                     for (int i = 0; i < totalPositions; i++) {
                         values[i] = random.nextInt();
@@ -399,13 +442,21 @@ public class BlockBenchmark {
                             throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
+                }
 
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     IntBlock block = (IntBlock) blocks[blockIndex];
                     checkSums[blockIndex] = computeIntCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
             }
             case "long" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
+                    if (blockKind.equalsIgnoreCase("vector-const")) {
+                        LongVector vector = new ConstantLongVector(random.nextLong(), totalPositions);
+                        blocks[blockIndex] = vector.asBlock();
+                        continue;
+                    }
+
                     long[] values = new long[totalPositions];
                     for (int i = 0; i < totalPositions; i++) {
                         values[i] = random.nextLong();
@@ -472,7 +523,9 @@ public class BlockBenchmark {
                             throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
+                }
 
+                for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     LongBlock block = (LongBlock) blocks[blockIndex];
                     checkSums[blockIndex] = computeLongCheckSum(block, IntStream.range(0, block.getPositionCount()).toArray());
                 }
@@ -685,24 +738,29 @@ public class BlockBenchmark {
             "boolean/big-array-multivalue-null",
             "boolean/vector",
             "boolean/vector-big-array",
+            "boolean/vector-const",
             "BytesRef/array",
             "BytesRef/array-multivalue-null",
             "BytesRef/vector",
+            "BytesRef/vector-const",
             "double/array",
             "double/array-multivalue-null",
             "double/big-array-multivalue-null",
             "double/vector",
             "double/vector-big-array",
+            "double/vector-const",
             "int/array",
             "int/array-multivalue-null",
             "int/big-array-multivalue-null",
             "int/vector",
             "int/vector-big-array",
+            "int/vector-const",
             "long/array",
             "long/array-multivalue-null",
             "long/big-array-multivalue-null",
             "long/vector",
-            "long/vector-big-array" }
+            "long/vector-big-array",
+            "long/vector-const" }
     )
     public String dataTypeAndBlockKind;
 

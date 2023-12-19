@@ -1921,23 +1921,25 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
                 final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
                 mappingUpdatedAction.setClient(client);
+                IngestService ingestService = new IngestService(
+                    clusterService,
+                    threadPool,
+                    environment,
+                    scriptService,
+                    new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
+                    Collections.emptyList(),
+                    client,
+                    null,
+                    () -> DocumentParsingObserver.EMPTY_INSTANCE
+                );
+                ingestService.applyClusterState(new ClusterChangedEvent("test", ClusterState.EMPTY_STATE, ClusterState.EMPTY_STATE));
                 actions.put(
                     BulkAction.INSTANCE,
                     new TransportBulkAction(
                         threadPool,
                         transportService,
                         clusterService,
-                        new IngestService(
-                            clusterService,
-                            threadPool,
-                            environment,
-                            scriptService,
-                            new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
-                            Collections.emptyList(),
-                            client,
-                            null,
-                            () -> DocumentParsingObserver.EMPTY_INSTANCE
-                        ),
+                        ingestService,
                         client,
                         actionFilters,
                         indexNameExpressionResolver,

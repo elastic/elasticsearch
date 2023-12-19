@@ -112,6 +112,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // processor factories rely on other node services. Custom metadata is statically registered when classes
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
+    // Plugin contributed pipelines, that are executed after the default and final pipelines.
     private volatile Map<String, List<Pipeline>> pluginPipelines = Map.of();
 
     private final ThreadPool threadPool;
@@ -1137,6 +1138,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         updatePluginPipelines(event);
     }
 
+    /**
+     * Updates plugin pipelines based on the current cluster state. It will ask plugins for pipelines
+     * for each index in the cluster state and update the pluginPipelines map with new / removed pipelines.
+     *
+     * @param event cluster changed event
+     */
     synchronized void updatePluginPipelines(ClusterChangedEvent event) {
 
         Map<String, List<Pipeline>> updatedPluginPipelines = new HashMap<>(pluginPipelines);
@@ -1439,7 +1446,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         defaultPipeline = Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME);
         finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
 
-        // TODO We can't resolve yet the plugins pipeline as we don't have the IndexMetadata. Check if we can do it.
+        // TODO We're not adding plugin pipelines here yet - we could have a separate method that contains the ComposableIndextemplate
+        // so plugins can decide to add pipelines based on template information
         return Optional.of(new Pipelines(defaultPipeline, finalPipeline, NOOP_PIPELINE_NAME));
     }
 

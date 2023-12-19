@@ -2109,7 +2109,7 @@ public class IngestServiceTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
-        Metadata metadata = Metadata.builder().put(builder).build();
+        setIndexMetadataForIngestService(Metadata.builder().put(builder));
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
@@ -2129,7 +2129,7 @@ public class IngestServiceTests extends ESTestCase {
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
             .patterns(List.of("id*"))
             .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
-        metadata = Metadata.builder().put(templateBuilder).build();
+        setIndexMetadataForIngestService(Metadata.builder().put(templateBuilder));
         indexRequest = new IndexRequest("idx");
         ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
         assertTrue(IngestService.hasPipeline(indexRequest));
@@ -2143,7 +2143,7 @@ public class IngestServiceTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
-        Metadata metadata = Metadata.builder().put(builder).build();
+        setIndexMetadataForIngestService(Metadata.builder().put(builder));
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
@@ -2165,7 +2165,7 @@ public class IngestServiceTests extends ESTestCase {
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
             .patterns(List.of("id*"))
             .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
-        metadata = Metadata.builder().put(templateBuilder).build();
+        setIndexMetadataForIngestService(Metadata.builder().put(templateBuilder));
         indexRequest = new IndexRequest("idx");
         ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
         assertTrue(IngestService.hasPipeline(indexRequest));
@@ -2181,7 +2181,7 @@ public class IngestServiceTests extends ESTestCase {
             .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0);
-        Metadata metadata = Metadata.builder().put(builder).build();
+        setIndexMetadataForIngestService(Metadata.builder().put(builder));
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
@@ -2195,7 +2195,8 @@ public class IngestServiceTests extends ESTestCase {
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
         // no pipeline:
         {
-            Metadata metadata = Metadata.builder().build();
+            setIndexMetadataForIngestService(Metadata.builder());
+
             IndexRequest indexRequest = new IndexRequest("idx");
             ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
             assertFalse(IngestService.hasPipeline(indexRequest));
@@ -2206,7 +2207,8 @@ public class IngestServiceTests extends ESTestCase {
 
         // request pipeline:
         {
-            Metadata metadata = Metadata.builder().build();
+            setIndexMetadataForIngestService(Metadata.builder());
+
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
             ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
             assertTrue(IngestService.hasPipeline(indexRequest));
@@ -2221,7 +2223,8 @@ public class IngestServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
-            Metadata metadata = Metadata.builder().put(builder).build();
+            setIndexMetadataForIngestService(Metadata.builder().put(builder));
+
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
             ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
             assertTrue(IngestService.hasPipeline(indexRequest));
@@ -2236,7 +2239,8 @@ public class IngestServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
-            Metadata metadata = Metadata.builder().put(builder).build();
+            setIndexMetadataForIngestService(Metadata.builder().put(builder));
+
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
             ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
             assertTrue(IngestService.hasPipeline(indexRequest));
@@ -2245,6 +2249,12 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
             assertThat(indexRequest.getPluginsPipeline(), equalTo(NOOP_PIPELINE_NAME));
         }
+    }
+
+    private void setIndexMetadataForIngestService(Metadata.Builder builder) {
+        Metadata metadata = builder.build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
     }
 
     public void testUpdatingRandomPipelineWithoutChangesIsNoOp() throws Exception {
@@ -2455,7 +2465,7 @@ public class IngestServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
-            Metadata metadata = Metadata.builder().put(builder).build();
+            setIndexMetadataForIngestService(Metadata.builder().put(builder));
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
             ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
             assertTrue(IngestService.hasPipeline(indexRequest));
@@ -2470,7 +2480,7 @@ public class IngestServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
-            Metadata metadata = Metadata.builder().put(builder).build();
+            setIndexMetadataForIngestService(Metadata.builder().put(builder));
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
             ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
             assertTrue(IngestService.hasPipeline(indexRequest));
@@ -2544,7 +2554,7 @@ public class IngestServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
-            Metadata metadata = Metadata.builder().put(builder).build();
+            setIndexMetadataForIngestService(Metadata.builder().put(builder));
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME);
             ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
             assertTrue(IngestService.hasPipeline(indexRequest));
@@ -2560,7 +2570,7 @@ public class IngestServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
-            Metadata metadata = Metadata.builder().put(builder).build();
+            setIndexMetadataForIngestService(Metadata.builder().put(builder));
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("pipeline1");
             ingestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest);
             assertTrue(IngestService.hasPipeline(indexRequest));

@@ -135,7 +135,23 @@ downsampled.
 * For
 <<search-aggregations-bucket-datehistogram-aggregation,date histogram aggregations>>,
 only `fixed_intervals` (and not calendar-aware intervals) are supported.
-* Only Coordinated Universal Time (UTC) date-times are supported.
+* Timezone support comes with caveats:
+
+** Date histograms at intervals that are multiples of an hour are based on
+values generated at UTC. This works for timezones that are on the hour, e.g.
++5:00 or -3:00, but can be inaccurate otherwise, e.g. +5:30 for India, if
+downsampling aggregates values per hour. To get accurate results in this case,
+it's recommended to use a downsampling interval of 15 minutes.
+
+** Date histograms at intervals that are multiples of a day are similarly
+affected, in case downsampling aggregates values per day: the beginning of
+each day is always calculated at UTC so reported daily values will be
+inaccurate at different timezones. To minimize this effect, it's recommended
+to use a downsampling interval of 1 hour.
+
+** Daylight savings and similar peculiarities around timezones affect
+reported results, as <<datehistogram-aggregation-time-zone,documented>>
+for date histogram aggregation.
 
 [discrete]
 [[downsampling-restrictions]]

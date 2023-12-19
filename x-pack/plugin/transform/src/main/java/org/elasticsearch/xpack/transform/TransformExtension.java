@@ -22,5 +22,9 @@ public interface TransformExtension {
      */
     Settings getTransformDestinationIndexSettings();
 
-    TimeValue getMinFrequency();
+    // TODO(jkuipers): remove this default implementation after the ServerlessTransformPlugin
+    //                 in the elasticsearch-serverless project is updated.
+    default TimeValue getMinFrequency() {
+        return TimeValue.timeValueSeconds(1);
+    }
 }

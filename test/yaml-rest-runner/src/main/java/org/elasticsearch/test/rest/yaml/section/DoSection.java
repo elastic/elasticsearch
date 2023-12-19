@@ -37,7 +37,6 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
@@ -175,7 +174,7 @@ public class DoSection implements ExecutableSection {
                             var newSelector = buildNodeSelector(selectorName, parser);
                             nodeSelector = nodeSelector == ContextNodeSelector.ANY
                                 ? newSelector
-                                : new ComposeNodeSelector(nodeSelector, newSelector);
+                                : ContextNodeSelector.compose(nodeSelector, newSelector);
                         }
                     }
                 } else if (currentFieldName != null) { // must be part of API call then
@@ -614,23 +613,15 @@ public class DoSection implements ExecutableSection {
                  * can assert that the data is sniffed.
                  */
                 var delegate = new HasAttributeNodeSelector(key, parser.text());
-                var newSelector = new ContextNodeSelector() {
-                    @Override
-                    public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
-                        for (Node node : nodes) {
-                            if (node.getAttributes() == null) {
-                                throw new IllegalStateException("expected [attributes] metadata to be set but got " + node);
-                            }
+                var newSelector = ContextNodeSelector.withoutContext(delegate.toString(), nodes -> {
+                    for (Node node : nodes) {
+                        if (node.getAttributes() == null) {
+                            throw new IllegalStateException("expected [attributes] metadata to be set but got " + node);
                         }
-                        delegate.select(nodes);
                     }
-
-                    @Override
-                    public String toString() {
-                        return delegate.toString();
-                    }
-                };
-                result = result == ContextNodeSelector.ANY ? newSelector : new ComposeNodeSelector(result, newSelector);
+                    delegate.select(nodes);
+                });
+                result = result == ContextNodeSelector.ANY ? newSelector : ContextNodeSelector.compose(result, newSelector);
             } else {
                 throw new XContentParseException(parser.getTokenLocation(), "expected [" + key + "] to be a value");
             }
@@ -667,26 +658,18 @@ public class DoSection implements ExecutableSection {
             versionSelectorString = "version ranges " + acceptedVersionRange;
         }
 
-        return new ContextNodeSelector() {
-            @Override
-            public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
-                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
-                    Node node = itr.next();
-                    String versionString = node.getVersion();
-                    if (versionString == null) {
-                        throw new IllegalStateException("expected [version] metadata to be set but got " + node);
-                    }
-                    if (nodeMatcher.test(versionString) == false) {
-                        itr.remove();
-                    }
+        return ContextNodeSelector.withoutContext(versionSelectorString, nodes -> {
+            for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                Node node = itr.next();
+                String versionString = node.getVersion();
+                if (versionString == null) {
+                    throw new IllegalStateException("expected [version] metadata to be set but got " + node);
+                }
+                if (nodeMatcher.test(versionString) == false) {
+                    itr.remove();
                 }
             }
-
-            @Override
-            public String toString() {
-                return versionSelectorString;
-            }
-        };
+        });
     }
 
     private static ContextNodeSelector parseFeatureSelector(XContentParser parser) throws IOException {
@@ -702,50 +685,18 @@ public class DoSection implements ExecutableSection {
             throw new XContentParseException(parser.getTokenLocation(), "expected [feature] to be a value or an array");
         }
 
-        return new ContextNodeSelector() {
-            @Override
-            public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
-                for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
-                    Node node = itr.next();
-                    String nodeName = node.getName();
-                    if (nodeName == null) {
-                        throw new IllegalStateException("expected [name] metadata to be set but got " + node);
-                    }
-                    var nodeHasFeatures = features.stream().allMatch(id -> context.nodeHasFeature(node.getName(), id));
-                    if (nodeHasFeatures == false) {
-                        itr.remove();
-                    }
+        return ContextNodeSelector.withContext("features " + String.join(",", features), (nodes, context) -> {
+            for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
+                Node node = itr.next();
+                String nodeName = node.getName();
+                if (nodeName == null) {
+                    throw new IllegalStateException("expected [name] metadata to be set but got " + node);
+                }
+                var nodeHasFeatures = features.stream().allMatch(id -> context.nodeHasFeature(node.getName(), id));
+                if (nodeHasFeatures == false) {
+                    itr.remove();
                 }
             }
-
-            @Override
-            public String toString() {
-                return "features " + String.join(",", features);
-            }
-        };
-    }
-
-    /**
-     * Selector that composes two selectors, running the "right" most selector
-     * first and then running the "left" selector on the results of the "right"
-     * selector.
-     */
-    private record ComposeNodeSelector(ContextNodeSelector lhs, ContextNodeSelector rhs) implements ContextNodeSelector {
-        private ComposeNodeSelector {
-            Objects.requireNonNull(lhs, "lhs is required");
-            Objects.requireNonNull(rhs, "rhs is required");
-        }
-
-        @Override
-        public void select(Iterable<Node> nodes, ClientYamlTestExecutionContext context) {
-            rhs.select(nodes, context);
-            lhs.select(nodes, context);
-        }
-
-        @Override
-        public String toString() {
-            // . as in haskell's "compose" operator
-            return lhs + "." + rhs;
-        }
+        });
     }
 }

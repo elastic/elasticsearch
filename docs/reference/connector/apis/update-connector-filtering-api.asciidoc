@@ -35,10 +35,10 @@ Updates the `filtering` configuration of a connector.
 
 Each entry in the `filtering` array represents a set of filtering rules for a specific data domain and includes the following attributes:
 
-* `domain` (Required, string) +
+- `domain` (Required, string) +
 Specifies the data domain to which these filtering rules apply.
 
-* `active` (Required, object) +
+- `active` (Required, object) +
 Contains the set of rules that are actively used for sync jobs. The `active` object includes:
 
   * `rules` (Required, array of objects) +
@@ -80,10 +80,8 @@ Contains the set of rules that are actively used for sync jobs. The `active` obj
       *** `messages` (Required, string) +
       Messages explaining what is invalid about the rules.
 
-* `draft` (Optional, object) +
+- `draft` (Optional, object) +
 An object identical in structure to the `active` object, but used for drafting and editing filtering rules before they become active.
-
-This filtering configuration provides a robust framework for managing data filtering rules, ensuring precise and effective control over the data synchronization process.
 
 
 [[update-connector-filtering-api-response-codes]]

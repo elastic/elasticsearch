@@ -405,24 +405,25 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             oldVersionString = currentVersionString.replace(",\"index_version\":" + IndexVersion.current(), "")
                 .replace(",\"version\":\"8.11.0\"", ",\"version\":\"" + Version.fromId(version.id()) + "\"");
         }
-        final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
-            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, oldVersionString),
-            repositoryData.getGenId(),
-            randomBoolean()
-        );
+        final RepositoryData downgradedRepoData;
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, oldVersionString)) {
+            downgradedRepoData = RepositoryData.snapshotsFromXContent(parser, repositoryData.getGenId(), randomBoolean());
+        }
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
             BytesReference.toBytes(BytesReference.bytes(downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
             StandardOpenOption.TRUNCATE_EXISTING
         );
-        final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
-            repoName,
-            JsonXContent.jsonXContent.createParser(
+        final SnapshotInfo downgradedSnapshotInfo;
+        try (
+            var parser = JsonXContent.jsonXContent.createParser(
                 XContentParserConfiguration.EMPTY,
                 Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
                     .replace(IndexVersion.current().toString(), version.toString())
             )
-        );
+        ) {
+            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(repoName, parser);
+        }
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
         PlainActionFuture.get(
             f -> blobStoreRepository.threadPool()

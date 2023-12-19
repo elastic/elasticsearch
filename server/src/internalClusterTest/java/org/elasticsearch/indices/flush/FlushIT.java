@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -49,7 +50,9 @@ public class FlushIT extends ESIntegTestCase {
         final int numIters = scaledRandomIntBetween(10, 30);
         for (int i = 0; i < numIters; i++) {
             for (int j = 0; j < 10; j++) {
-                prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setSource("{}", XContentType.JSON);
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
             }
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
@@ -87,7 +90,9 @@ public class FlushIT extends ESIntegTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(0, 10);
         for (int i = 0; i < numDocs; i++) {
-            prepareIndex("test").setSource("{}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         assertThat(
             expectThrows(
@@ -124,7 +129,7 @@ public class FlushIT extends ESIntegTestCase {
         ensureGreen(indexName);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            prepareIndex(indexName).setSource("f", "v").get();
+            indexDoc(indexName, null, "f", "v");
         }
         if (randomBoolean()) {
             internalCluster().restartNode(randomFrom(dataNodes));

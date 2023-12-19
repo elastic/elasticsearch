@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -135,10 +136,14 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         int numberOfKeys = randomIntBetween(1, 10);
 
         logger.info("--> Indexing initial doc for {} keys", numberOfKeys);
-        List<Partition> partitions = IntStream.range(0, numberOfKeys)
-            .mapToObj(i -> prepareIndex("test").setId("ID:" + i).setSource("value", -1).get())
-            .map(response -> new Partition(response.getId(), new Version(response.getPrimaryTerm(), response.getSeqNo())))
-            .toList();
+        List<Partition> partitions = IntStream.range(0, numberOfKeys).mapToObj(i -> {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("ID:" + i).setSource("value", -1);
+            try {
+                return indexRequestBuilder.get();
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
+        }).map(response -> new Partition(response.getId(), new Version(response.getPrimaryTerm(), response.getSeqNo()))).toList();
 
         int threadCount = randomIntBetween(3, 20);
         CyclicBarrier roundBarrier = new CyclicBarrier(threadCount + 1); // +1 for main thread.
@@ -231,11 +236,11 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             version = version.previousTerm();
                         }
 
+                        Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         IndexRequest indexRequest = new IndexRequest("test").id(partition.id)
                             .source("value", random.nextInt())
                             .setIfPrimaryTerm(version.primaryTerm)
                             .setIfSeqNo(version.seqNo);
-                        Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         try {
                             // we should be able to remove timeout or fail hard on timeouts
                             DocWriteResponse indexResponse = client().index(indexRequest).actionGet(timeout, TimeUnit.SECONDS);
@@ -269,6 +274,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                                 // interrupt often comes as a RuntimeException so check to stop here too.
                                 return;
                             }
+                        } finally {
+                            indexRequest.decRef();
                         }
                     }
                 } catch (InterruptedException e) {

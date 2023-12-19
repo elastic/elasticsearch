@@ -60,6 +60,9 @@ public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
             indexRequestBuilderList.add(prepareIndex("test").setSource("{\"int_field\":1}", XContentType.JSON));
         }
         indexRandom(true, indexRequestBuilderList);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilderList) {
+            indexRequestBuilder.request().decRef();
+        }
 
         IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
         // now search for the documents and see if we get a reply

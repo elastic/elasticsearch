@@ -10,10 +10,12 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -127,7 +129,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing a simple document");
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        indexDoc("test", "1", "field1", "value1");
 
         logger.info("--> closing test index...");
         assertAcked(indicesAdmin().prepareClose("test"));
@@ -141,14 +143,14 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            prepareIndex("test").setId("1").setSource("field1", "value1").get();
+            indexDoc("test", "1", "field1", "value1");
             fail();
         } catch (IndexClosedException e) {
             // all is well
         }
 
         logger.info("--> creating another index (test2) by indexing into it");
-        prepareIndex("test2").setId("1").setSource("field1", "value1").get();
+        indexDoc("test2", "1", "field1", "value1");
         logger.info("--> verifying that the state is green");
         ensureGreen();
 
@@ -187,7 +189,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            prepareIndex("test").setId("1").setSource("field1", "value1").get();
+            indexDoc("test", "1", "field1", "value1");
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -212,7 +214,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> indexing a simple document");
-        prepareIndex("test").setId("2").setSource("field1", "value1").get();
+        indexDoc("test", "2", "field1", "value1");
     }
 
     public void testJustMasterNode() throws Exception {
@@ -251,7 +253,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         indicesAdmin().prepareCreate("test").get();
 
-        prepareIndex("test").setSource("field1", "value1").get();
+        indexDoc("test", null, "field1", "value1");
     }
 
     public void testTwoNodesSingleDoc() throws Exception {
@@ -261,7 +263,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().startNodes(2);
 
         logger.info("--> indexing a simple document");
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1");
 
         logger.info("--> waiting for green status");
         ClusterHealthResponse health = clusterAdmin().prepareHealth()
@@ -365,7 +367,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> starting one node");
         internalCluster().startNode();
         logger.info("--> indexing a simple document");
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1");
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -442,7 +444,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
               }
             }""").get();
         logger.info("--> indexing a simple document");
-        prepareIndex("test").setId("1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value one");
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -490,7 +492,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
     public void testArchiveBrokenClusterSettings() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
-        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1");
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -583,5 +585,14 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
+    }
+
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

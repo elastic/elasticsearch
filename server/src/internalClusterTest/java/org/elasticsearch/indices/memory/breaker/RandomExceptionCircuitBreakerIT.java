@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
@@ -125,12 +126,15 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             numDocs = between(10, 100);
         }
         for (int i = 0; i < numDocs; i++) {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test");
             try {
-                prepareIndex("test").setId("" + i)
+                indexRequestBuilder.setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test-str", randomUnicodeOfLengthBetween(5, 25), "test-num", i)
                     .get();
-            } catch (ElasticsearchException ex) {}
+            } catch (ElasticsearchException ex) {} finally {
+                indexRequestBuilder.request().decRef();
+            }
         }
         logger.info("Start Refresh");
         // don't assert on failures here

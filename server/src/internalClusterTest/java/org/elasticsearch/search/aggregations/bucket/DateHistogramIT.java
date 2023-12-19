@@ -135,7 +135,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 indexDoc(3, 23, 6)
             )
         ); // date: Mar 23, dates: Mar 23, Apr 24
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
         ensureSearchable();
     }
 
@@ -999,7 +999,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             reqs[i] = prepareIndex("idx2").setId("" + i).setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(1);
         }
-        indexRandom(true, reqs);
+        indexRandomAndDecRefRequests(true, reqs);
 
         assertNoFailuresAndResponse(
             prepareSearch("idx2").setQuery(matchAllQuery())
@@ -1058,7 +1058,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 docCounts[i] = docCount;
             }
         }
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
         ensureSearchable("idx2");
 
         ZonedDateTime lastDataBucketKey = baseKey.plusDays((numOfBuckets - 1) * interval);
@@ -1155,7 +1155,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         ZonedDateTime timeZoneNoonToday = parser.parse("now/d+12h", System::currentTimeMillis, false, timezone).atZone(ZoneOffset.UTC);
         builders.add(indexDoc(index, timeZoneStartToday, 1));
         builders.add(indexDoc(index, timeZoneNoonToday, 2));
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
         ensureSearchable(index);
 
         // retrieve those docs with the same time zone and extended bounds
@@ -1217,7 +1217,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-03T08:00:00.000Z")), 2));
         builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-06T08:00:00.000Z")), 3));
         builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-06T08:00:00.000Z")), 4));
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
         ensureSearchable(index);
 
         // retrieve those docs with the same time zone and extended bounds
@@ -1273,7 +1273,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         for (int i = 0; i < reqs.length; i++) {
             reqs[i] = prepareIndex("idx2").setId("" + i).setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());
         }
-        indexRandom(true, reqs);
+        indexRandomAndDecRefRequests(true, reqs);
 
         assertNoFailuresAndResponse(
             prepareSearch("idx2").setQuery(matchAllQuery())
@@ -1340,7 +1340,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     public void testDSTBoundaryIssue9491() throws InterruptedException, ExecutionException {
         assertAcked(indicesAdmin().prepareCreate("test9491").setMapping("d", "type=date").get());
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test9491").setSource("d", "2014-10-08T13:00:00Z"),
             prepareIndex("test9491").setSource("d", "2014-11-08T13:00:00Z")
@@ -1364,7 +1364,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     public void testIssue8209() throws InterruptedException, ExecutionException {
         assertAcked(indicesAdmin().prepareCreate("test8209").setMapping("d", "type=date").get());
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test8209").setSource("d", "2014-01-01T00:00:00Z"),
             prepareIndex("test8209").setSource("d", "2014-04-01T00:00:00Z"),
@@ -1406,7 +1406,7 @@ public class DateHistogramIT extends ESIntegTestCase {
      */
     public void testFormatIndexUnmapped() throws InterruptedException, ExecutionException {
         String indexDateUnmapped = "test31760";
-        indexRandom(true, prepareIndex(indexDateUnmapped).setSource("foo", "bar"));
+        indexRandomAndDecRefRequests(true, prepareIndex(indexDateUnmapped).setSource("foo", "bar"));
         ensureSearchable(indexDateUnmapped);
 
         assertNoFailuresAndResponse(
@@ -1435,7 +1435,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     public void testRewriteTimeZone_EpochMillisFormat() throws InterruptedException, ExecutionException {
         String index = "test31392";
         assertAcked(indicesAdmin().prepareCreate(index).setMapping("d", "type=date,format=epoch_millis").get());
-        indexRandom(true, prepareIndex(index).setSource("d", "1477954800000"));
+        indexRandomAndDecRefRequests(true, prepareIndex(index).setSource("d", "1477954800000"));
         ensureSearchable(index);
         assertNoFailuresAndResponse(
             prepareSearch(index).addAggregation(
@@ -1554,7 +1554,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         );
         String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(1, 1));
         String date2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(2, 1));
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("cache_test_idx").setId("1").setSource("d", date),
             prepareIndex("cache_test_idx").setId("2").setSource("d", date2)
@@ -1709,8 +1709,8 @@ public class DateHistogramIT extends ESIntegTestCase {
      */
     public void testDateNanosHistogram() throws Exception {
         assertAcked(prepareCreate("nanos").setMapping("date", "type=date_nanos").get());
-        indexRandom(true, prepareIndex("nanos").setId("1").setSource("date", "2000-01-01"));
-        indexRandom(true, prepareIndex("nanos").setId("2").setSource("date", "2000-01-02"));
+        indexRandomAndDecRefRequests(true, prepareIndex("nanos").setId("1").setSource("date", "2000-01-01"));
+        indexRandomAndDecRefRequests(true, prepareIndex("nanos").setId("2").setSource("date", "2000-01-02"));
 
         // Search interval 24 hours
         assertNoFailuresAndResponse(
@@ -1776,5 +1776,25 @@ public class DateHistogramIT extends ESIntegTestCase {
                 assertThat(buckets.get(29).getKeyAsString(), equalTo("2012-03-02T00:00:00.000Z"));
             }
         );
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

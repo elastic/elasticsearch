@@ -35,7 +35,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         prepareCreate(indexName, indexSettings(1, 0)).get();
 
         logger.info("--> indexing a simple document");
-        prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
+        indexDoc(indexName, "1", "field1", "value1");
 
         ensureGreen();
 

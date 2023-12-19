@@ -266,7 +266,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
-        updateRequest.decRef();
+        assertThat("Something still has references to the update request", updateRequest.decRef(), equalTo(true));
     }
 
     public void testUpdateDelete() {

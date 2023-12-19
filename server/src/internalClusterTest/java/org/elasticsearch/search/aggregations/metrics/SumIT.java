@@ -72,6 +72,9 @@ public class SumIT extends AbstractNumericTestCase {
         builders.add(prepareIndex("new_index").setSource("transit_mode", "train", "route_length_miles", 100.2));
 
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 
@@ -211,11 +214,14 @@ public class SumIT extends AbstractNumericTestCase {
             prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
         );
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
             prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         // Make sure we are starting with a clear cache
         assertThat(

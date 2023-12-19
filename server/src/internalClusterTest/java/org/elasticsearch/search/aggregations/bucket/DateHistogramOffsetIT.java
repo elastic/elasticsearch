@@ -66,6 +66,9 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
             date = date.plusHours(stepSizeHours);
         }
         indexRandom(true, reqs);
+        for (IndexRequestBuilder indexRequestBuilder : reqs) {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     public void testSingleValueWithPositiveOffset() throws Exception {

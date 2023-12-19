@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
@@ -63,7 +64,9 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
                 }
 
             }, null);
-            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
             assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
             // adding a listener expecting a lower global checkpoint should fire immediately
             final AtomicLong immediateGlobalCheckpint = new AtomicLong();

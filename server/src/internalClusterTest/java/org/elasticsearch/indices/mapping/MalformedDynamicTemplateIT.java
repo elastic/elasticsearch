@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.mapping;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -58,7 +59,9 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
                     .put("index.version.created", IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0))
             ).setMapping(mapping)
         );
-        prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertNoFailures((indicesAdmin().prepareRefresh(indexName)).get());
         assertHitCount(prepareSearch(indexName), 1);
 

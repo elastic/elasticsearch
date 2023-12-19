@@ -79,7 +79,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             source.endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .contexts(
@@ -115,7 +115,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             source.endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
             .regex("sugg.*es")
             .contexts(
@@ -151,7 +151,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             source.endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg", Fuzziness.ONE)
             .contexts(
@@ -168,16 +168,11 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
-        DocWriteResponse indexResponse = prepareIndex(INDEX).setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .startObject(FIELD)
-                    .field("input", "suggestion")
-                    .endObject()
-                    .field("cat", "ctx\\u00e4")
-                    .endObject()
-            )
-            .get();
+        DocWriteResponse indexResponse = index(
+            INDEX,
+            "1",
+            jsonBuilder().startObject().startObject(FIELD).field("input", "suggestion").endObject().field("cat", "ctx\\u00e4").endObject()
+        );
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         assertNoFailures(indicesAdmin().prepareRefresh(INDEX).get());
         CompletionSuggestionBuilder contextSuggestQuery = SuggestBuilders.completionSuggestion(FIELD)
@@ -209,7 +204,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     )
             );
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .contexts(
@@ -240,7 +235,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     )
             );
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .contexts(
@@ -274,7 +269,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
 
         // filter only on context cat
         CompletionSuggestionBuilder catFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
@@ -316,7 +311,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
 
         // boost only on context cat
         CompletionSuggestionBuilder catBoostSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
@@ -389,7 +384,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             source.endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
 
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
@@ -422,7 +417,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
 
         CompletionSuggestionBuilder geoFilteringPrefix = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
@@ -456,7 +451,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
 
         GeoQueryContext context1 = GeoQueryContext.builder().setGeoPoint(geoPoints[0]).setBoost(11).build();
         GeoQueryContext context2 = GeoQueryContext.builder().setGeoPoint(geoPoints[1]).build();
@@ -489,7 +484,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .contexts(
@@ -531,7 +526,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
             indexRequestBuilders.add(prepareIndex(INDEX).setId("" + i).setSource(source));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
 
         CompletionSuggestionBuilder geoNeighbourPrefix = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
@@ -592,7 +587,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             .array("input", "Hotel Amsterdam in Berlin")
             .endObject()
             .endObject();
-        prepareIndex(INDEX).setId("1").setSource(source1).get();
+        index(INDEX, "1", source1);
 
         XContentBuilder source2 = jsonBuilder().startObject()
             .startObject("location")
@@ -602,7 +597,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             .array("input", "Hotel Berlin in Amsterdam")
             .endObject()
             .endObject();
-        prepareIndex(INDEX).setId("2").setSource(source2).get();
+        index(INDEX, "2", source2);
 
         refresh();
 
@@ -650,7 +645,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         for (int i = 0; i < numUnique; i++) {
             expected[i] = "suggestion" + (numUnique - 1 - i);
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
         Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         contextMap.put("cat", Arrays.asList(CategoryQueryContext.builder().setCategory("cat0").build()));
         CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
@@ -725,5 +720,15 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertAcked(
             indicesAdmin().prepareCreate(INDEX).setSettings(Settings.builder().put(indexSettings()).put(settings)).setMapping(mapping)
         );
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            super.indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

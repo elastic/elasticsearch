@@ -98,6 +98,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
             }
         }
         indexRandom(true, cities);
+        for (IndexRequestBuilder builder : cities) {
+            builder.request().decRef();
+        }
 
         cities.clear();
         cities.addAll(
@@ -116,6 +119,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
             cities.add(indexCity("idx-multi", cityName));
         }
         indexRandom(true, cities);
+        for (IndexRequestBuilder builder : cities) {
+            builder.request().decRef();
+        }
         prepareCreate("empty_bucket_idx").setMapping("value", "type=integer", "location", "type=geo_point").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
@@ -125,6 +131,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 

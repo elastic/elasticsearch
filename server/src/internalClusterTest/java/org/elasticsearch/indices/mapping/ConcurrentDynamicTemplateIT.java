@@ -10,6 +10,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -58,7 +59,8 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<>();
                 source.put(fieldName, "test-user");
-                prepareIndex("test").setId(Integer.toString(currentID++)).setSource(source).execute(new ActionListener<DocWriteResponse>() {
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(currentID++)).setSource(source);
+                indexRequestBuilder.execute(ActionListener.runAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(DocWriteResponse response) {
                         latch.countDown();
@@ -69,7 +71,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
                         throwable.add(e);
                         latch.countDown();
                     }
-                });
+                }, () -> indexRequestBuilder.request().decRef()));
             }
             latch.await();
             assertThat(throwable, emptyIterable());

@@ -15,7 +15,9 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,7 +35,9 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);
-        DocWriteResponse indexResponse = prepareIndex("idx").setSource("{}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("idx").setSource("{}", XContentType.JSON);
+        DocWriteResponse indexResponse = indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertShardInfo(indexResponse);
         DeleteResponse deleteResponse = client().prepareDelete("idx", indexResponse.getId()).get();
         assertShardInfo(deleteResponse);
@@ -41,7 +45,9 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testUpdate() throws Exception {
         prepareIndex(1);
-        UpdateResponse updateResponse = client().prepareUpdate("idx", "1").setDoc("{}", XContentType.JSON).setDocAsUpsert(true).get();
+        UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("idx", "1").setDoc("{}", XContentType.JSON).setDocAsUpsert(true);
+        UpdateResponse updateResponse = updateRequestBuilder.get();
+        updateRequestBuilder.request().decRef();
         assertShardInfo(updateResponse);
     }
 
@@ -49,7 +55,9 @@ public class ShardInfoIT extends ESIntegTestCase {
         prepareIndex(1);
         try (BulkRequestBuilder indexBulkRequestBuilder = client().prepareBulk()) {
             for (int i = 0; i < 10; i++) {
-                indexBulkRequestBuilder.add(prepareIndex("idx").setSource("{}", XContentType.JSON));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("idx").setSource("{}", XContentType.JSON);
+                indexBulkRequestBuilder.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
 
             BulkResponse bulkResponse = indexBulkRequestBuilder.get();
@@ -73,9 +81,11 @@ public class ShardInfoIT extends ESIntegTestCase {
         prepareIndex(1);
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             for (int i = 0; i < 10; i++) {
-                bulkRequestBuilder.add(
-                    client().prepareUpdate("idx", Integer.toString(i)).setDoc("{}", XContentType.JSON).setDocAsUpsert(true)
-                );
+                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("idx", Integer.toString(i))
+                    .setDoc("{}", XContentType.JSON)
+                    .setDocAsUpsert(true);
+                bulkRequestBuilder.add(updateRequestBuilder);
+                updateRequestBuilder.request().decRef();
             }
 
             BulkResponse bulkResponse = bulkRequestBuilder.get();

@@ -1508,7 +1508,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         logger.info("--> indexing some data");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test-idx-1").setSource("foo", "bar"),
             prepareIndex("test-idx-2").setSource("foo", "bar"),
@@ -1551,7 +1551,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createRepository(repoName, "fs", repo);
 
         createIndex("test-idx-1", "test-idx-2");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test-idx-1").setSource("foo", "bar"),
             prepareIndex("test-idx-2").setSource("foo", "bar"),
@@ -1618,7 +1618,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             for (int j = 0; j < nbDocs; j++) {
                 documents[j] = client.prepareIndex(indexName).setSource("foo", "bar");
             }
-            indexRandom(true, documents);
+            indexRandomAndDecRefRequests(true, documents);
         }
         flushAndRefresh();
 
@@ -2206,6 +2206,16 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (SnapshotInfo snapshotInfo : response.getSnapshots()) {
             assertEquals(Set.copyOf(indicesPerSnapshot.get(snapshotInfo.snapshotId().getName())), Set.copyOf(snapshotInfo.indices()));
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            super.indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
         }
     }
 }

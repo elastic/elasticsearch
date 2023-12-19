@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -60,7 +61,12 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         getTestFileStore(dataNodeName).setTotalSpace(1L);
         refreshClusterInfo();
         assertBusy(() -> {
-            assertBlocked(prepareIndex(indexName).setId("1").setSource("f", "g"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId("1").setSource("f", "g");
+            try {
+                assertBlocked(indexRequestBuilder, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
             assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 
@@ -112,7 +118,12 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         getTestFileStore(dataNodeName).setTotalSpace(1L);
         refreshClusterInfo();
         assertBusy(() -> {
-            assertBlocked(prepareIndex(indexName).setId("1").setSource("f", "g"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId("1").setSource("f", "g");
+            try {
+                assertBlocked(indexRequestBuilder, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
             assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 

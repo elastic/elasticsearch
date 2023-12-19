@@ -306,8 +306,11 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < count; i++) {
+            IndexRequest indexRequest = new IndexRequest(INDEX_NAME).source(Map.of("foo", "bar"));
             try (BulkRequest bulkRequest = new BulkRequest()) {
-                client.bulk(bulkRequest.add(new IndexRequest(INDEX_NAME).source(Map.of("foo", "bar"))), listener);
+                client.bulk(bulkRequest.add(indexRequest), listener);
+            } finally {
+                indexRequest.decRef();
             }
         }
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

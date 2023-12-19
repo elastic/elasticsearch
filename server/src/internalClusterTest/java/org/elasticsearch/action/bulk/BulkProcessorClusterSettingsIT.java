@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -31,10 +32,16 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         clusterAdmin().prepareHealth("willwork").setWaitForGreenStatus().get();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            bulkRequestBuilder.add(prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
-            bulkRequestBuilder.add(prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
-            bulkRequestBuilder.add(prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
+            IndexRequestBuilder indexRequestBuilder1 = prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON);
+            IndexRequestBuilder indexRequestBuilder2 = prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON);
+            IndexRequestBuilder indexRequestBuilder3 = prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON);
+            bulkRequestBuilder.add(indexRequestBuilder1);
+            bulkRequestBuilder.add(indexRequestBuilder2);
+            bulkRequestBuilder.add(indexRequestBuilder3);
             BulkResponse br = bulkRequestBuilder.get();
+            indexRequestBuilder1.request().decRef();
+            indexRequestBuilder2.request().decRef();
+            indexRequestBuilder3.request().decRef();
             BulkItemResponse[] responses = br.getItems();
             assertEquals(3, responses.length);
             assertFalse("Operation on existing index should succeed", responses[0].isFailed());
@@ -53,9 +60,9 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     public void testIndexWithDisabledAutoCreateIndex() {
         updateClusterSettings(Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")));
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            final BulkItemResponse itemResponse = bulkRequestBuilder.add(prepareIndex("test-index").setSource("foo", "bar"))
-                .get()
-                .getItems()[0];
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test-index").setSource("foo", "bar");
+            final BulkItemResponse itemResponse = bulkRequestBuilder.add(indexRequestBuilder).get().getItems()[0];
+            indexRequestBuilder.request().decRef();
             assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));
         }
     }

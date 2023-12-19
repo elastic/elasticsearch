@@ -48,7 +48,7 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
 
         // Do a single get to enable storing locations in translog. Otherwise, we could get unwanted refreshes that
         // prune the LiveVersionMap and would make the test fail/flaky.
-        var indexResponse = prepareIndex("test").setId("0").setSource("field1", "value2").get();
+        var indexResponse = indexDoc("test", "0", "field1", "value2");
         client().prepareGet("test", indexResponse.getId()).get();
 
         var mgetIds = List.of("1", "2", "3");
@@ -65,7 +65,9 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         try (var bulkRequest = client().prepareBulk()) {
             var idsToIndex = randomSubsetOf(2, mgetIds);
             for (String id : idsToIndex) {
-                bulkRequest.add(new IndexRequest("test").id(id).source("field1", "value1"));
+                IndexRequest indexRequest = new IndexRequest("test").id(id).source("field1", "value1");
+                bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
             bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
             var bulkResponse = bulkRequest.get();
@@ -107,7 +109,7 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
             }
             assertThat(response.segmentGeneration(), equalTo(-1L));
 
-            indexResponse = prepareIndex("test").setSource("field1", "value2").get();
+            indexResponse = indexDoc("test", null, "field1", "value2");
             response = getFromTranslog(indexOrAlias(), List.of(indexResponse.getId()));
             multiGetShardResponse = response.multiGetShardResponse();
             assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
@@ -131,11 +133,11 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
             assertThat(response.segmentGeneration(), equalTo(-1L));
             // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
             // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
-            prepareIndex("test").setSource("field1", "value3").get();
+            indexDoc("test", null, "field1", "value3");
             refresh("test");
             refresh("test");
             // An optimized index operation marks the maps as unsafe
-            prepareIndex("test").setSource("field1", "value4").get();
+            indexDoc("test", null, "field1", "value4");
             response = getFromTranslog(indexOrAlias(), List.of("non-existent"));
             multiGetShardResponse = response.multiGetShardResponse();
             assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));

@@ -9,6 +9,7 @@ package org.elasticsearch.search.source;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -31,7 +32,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("field", "value").get();
+        indexDoc("test", "1", "field", "value");
         refresh();
 
         assertResponse(prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true), response -> {
@@ -50,7 +51,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
     public void testInnerHits() {
         assertAcked(prepareCreate("test").setMapping("nested", "type=nested"));
         ensureGreen();
-        prepareIndex("test").setId("1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
+        indexDoc("test", "1", "field", "value", "nested", Collections.singletonMap("title", "foo"));
         refresh();
 
         assertResponse(
@@ -79,7 +80,9 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
 
         assertResponse(prepareSearch("test").storedFields("_none_").setFetchSource(false), response -> {

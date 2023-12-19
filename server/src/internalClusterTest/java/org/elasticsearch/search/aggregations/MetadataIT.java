@@ -33,6 +33,9 @@ public class MetadataIT extends ESIntegTestCase {
             builders[i] = prepareIndex("idx").setSource("name", name, "value", randomInt());
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
 
         final var nestedMetadata = Map.of("nested", "value");

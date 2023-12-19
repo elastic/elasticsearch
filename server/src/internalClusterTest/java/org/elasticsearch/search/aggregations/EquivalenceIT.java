@@ -126,7 +126,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(docs[i][j]);
             }
             source = source.endArray().endObject();
-            prepareIndex("idx").setSource(source).get();
+            index("idx", null, source);
         }
         assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
 
@@ -252,7 +252,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             source = source.endArray().endObject();
             indexingRequests.add(prepareIndex("idx").setSource(source));
         }
-        indexRandom(true, indexingRequests);
+        indexRandomAndDecrefRequests(true, indexingRequests);
 
         assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
@@ -353,7 +353,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(randomFrom(values));
             }
             source = source.endArray().endObject();
-            prepareIndex("idx").setSource(source).get();
+            index("idx", null, source);
         }
         assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
@@ -402,7 +402,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; ++i) {
             indexingRequests.add(prepareIndex("idx").setId(Integer.toString(i)).setSource("double_value", randomDouble()));
         }
-        indexRandom(true, indexingRequests);
+        indexRandomAndDecrefRequests(true, indexingRequests);
 
         assertResponse(
             prepareSearch("idx").addAggregation(
@@ -421,7 +421,7 @@ public class EquivalenceIT extends ESIntegTestCase {
     public void testReduce() throws Exception {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);
-        indexRandom(true, prepareIndex("idx").setSource("f", value));
+        indexRandomAndDecrefRequests(true, Collections.singletonList(prepareIndex("idx").setSource("f", value)));
         assertNoFailuresAndResponse(
             prepareSearch("idx").addAggregation(
                 filter("filter", QueryBuilders.matchAllQuery()).subAggregation(
@@ -482,7 +482,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             final int v3 = randomInt(1 << randomInt(7));
             reqs.add(prepareIndex("idx").setSource("f1", v1, "f2", v2, "f3", v3));
         }
-        indexRandom(true, reqs);
+        indexRandomAndDecrefRequests(true, reqs);
 
         assertNoFailuresAndResponse(
             prepareSearch("idx").addAggregation(
@@ -525,4 +525,13 @@ public class EquivalenceIT extends ESIntegTestCase {
         );
     }
 
+    private void indexRandomAndDecrefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
 }

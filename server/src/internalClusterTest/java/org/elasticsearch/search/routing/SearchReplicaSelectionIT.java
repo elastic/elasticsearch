@@ -11,6 +11,7 @@ package org.elasticsearch.search.routing;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -44,7 +45,9 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         client.admin().indices().prepareCreate("test").setSettings(indexSettings(1, 2)).get();
         ensureGreen();
 
-        client.prepareIndex("test").setSource("field", "value").get();
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test").setSource("field", "value");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
 
         // Before we've gathered stats for all nodes, we should try each node once.

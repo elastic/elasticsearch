@@ -43,6 +43,9 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
     public void testZeroTermsQuery() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> indexRequests = getIndexRequests();
         indexRandom(true, false, indexRequests);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequests) {
+            indexRequestBuilder.request().decRef();
+        }
 
         MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("name", "the who").analyzer("standard_stopwords");
 

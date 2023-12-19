@@ -42,7 +42,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen("test");
 
-        prepareIndex("test").setId("1").setSource("field", "value1").get();
+        indexDoc("test", "1", "field", "value1");
 
         ExplainResponse response = client().prepareExplain(indexOrAlias(), "1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertNotNull(response);
@@ -99,11 +99,11 @@ public class ExplainActionIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject().startObject("obj1").field("field1", "value1").field("field2", "value2").endObject().endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject().startObject("obj1").field("field1", "value1").field("field2", "value2").endObject().endObject()
+        );
 
         refresh();
         ExplainResponse response = client().prepareExplain(indexOrAlias(), "1")
@@ -157,11 +157,11 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen("test");
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject().startObject("obj1").field("field1", "value1").field("field2", "value2").endObject().endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject().startObject("obj1").field("field1", "value1").field("field2", "value2").endObject().endObject()
+        );
 
         refresh();
         ExplainResponse response = client().prepareExplain(indexOrAlias(), "1")
@@ -194,7 +194,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
-        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").get();
+        indexDoc("test", "1", "field1", "value1", "field2", "value1");
         refresh();
 
         ExplainResponse response = client().prepareExplain("alias1", "1").setQuery(QueryBuilders.matchAllQuery()).get();
@@ -211,7 +211,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
-        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").get();
+        indexDoc("test", "1", "field1", "value1", "field2", "value1");
         refresh();
 
         ExplainResponse response = client().prepareExplain("alias1", "1")
@@ -238,7 +238,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minusMonths(1));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plusMonths(1));
 
-        prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        indexDoc("test", "1", "past", aMonthAgo, "future", aMonthFromNow);
 
         refresh();
 
@@ -288,8 +288,8 @@ public class ExplainActionIT extends ESIntegTestCase {
             .get();
         ensureGreen("twitter");
 
-        prepareIndex("twitter").setId("1").setSource("user", "user1", "followers", new String[] { "user2", "user3" }).get();
-        prepareIndex("twitter").setId("2").setSource("user", "user2", "followers", new String[] { "user1" }).get();
+        indexDoc("twitter", "1", "user", "user1", "followers", new String[] { "user2", "user3" });
+        indexDoc("twitter", "2", "user", "user2", "followers", new String[] { "user1" });
         refresh();
 
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "2", "followers"));

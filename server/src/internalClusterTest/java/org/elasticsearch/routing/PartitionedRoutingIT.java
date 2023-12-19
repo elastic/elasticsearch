@@ -9,6 +9,7 @@
 package org.elasticsearch.routing;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -216,7 +217,12 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 String id = routingValue + "_" + String.valueOf(k);
                 routingToDocumentIds.get(routingValue).add(id);
 
-                prepareIndex(index).setId(id).setRouting(routingValue).setSource("foo", "bar").get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(id).setRouting(routingValue).setSource("foo", "bar");
+                try {
+                    indexRequestBuilder.get();
+                } finally {
+                    indexRequestBuilder.request().decRef();
+                }
             }
         }
 

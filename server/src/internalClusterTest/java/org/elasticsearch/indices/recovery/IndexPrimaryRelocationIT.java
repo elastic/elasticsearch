@@ -41,11 +41,11 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
-                    DocWriteResponse indexResponse = prepareIndex("test").setId("id").setSource("field", "value").get();
+                    DocWriteResponse indexResponse = indexDoc("test", "id", "field", "value");
                     assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
                     assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                    prepareIndex("test").setSource("auto", true).get();
+                    indexDoc("test", null, "auto", true);
                     numAutoGenDocs.incrementAndGet();
                 }
             }

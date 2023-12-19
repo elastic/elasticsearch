@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
@@ -194,8 +195,14 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node2 has 2 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(2));
         }
 
-        prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertSearchHits(prepareSearch("test"), "1");
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
+                .setSource("foo", "bar")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+            assertSearchHits(prepareSearch("test"), "1");
+        }
 
         // Move all nodes above the low watermark so no shard movement can occur, and at least one node above the flood stage watermark so
         // the index is blocked
@@ -207,15 +214,24 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             )
         );
 
-        assertBusy(
-            () -> assertBlocked(prepareIndex("test").setId("1").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-        );
+        assertBusy(() -> {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar");
+            try {
+                assertBlocked(indexRequestBuilder, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
+        });
 
         assertFalse(clusterAdmin().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
-        // Cannot add further documents
-        assertBlocked(prepareIndex("test").setId("2").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
-        assertSearchHits(prepareSearch("test"), "1");
+        {
+            // Cannot add further documents
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("2").setSource("foo", "bar");
+            assertBlocked(indexRequestBuilder, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            indexRequestBuilder.request().decRef();
+            assertSearchHits(prepareSearch("test"), "1");
+        }
 
         logger.info("--> index is confirmed read-only, releasing disk space");
 
@@ -224,10 +240,15 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         // Attempt to create a new document until DiskUsageMonitor unblocks the index
         assertBusy(() -> {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("3")
+                .setSource("foo", "bar")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             try {
-                prepareIndex("test").setId("3").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+                indexRequestBuilder.get();
             } catch (ClusterBlockException e) {
                 throw new AssertionError("retrying", e);
+            } finally {
+                indexRequestBuilder.request().decRef();
             }
         });
         assertSearchHits(prepareSearch("test"), "1", "3");

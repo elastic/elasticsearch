@@ -35,7 +35,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("name", "name").get();
+        indexDoc("test", "1", "name", "name");
         indicesAdmin().prepareRefresh("test").get();
 
         ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();

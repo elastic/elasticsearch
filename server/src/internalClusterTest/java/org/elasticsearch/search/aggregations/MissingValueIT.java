@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -44,11 +45,12 @@ public class MissingValueIT extends ESIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx").setMapping("date", "type=date", "location", "type=geo_point", "str", "type=keyword").get());
-        indexRandom(
-            true,
-            prepareIndex("idx").setId("1").setSource(),
-            prepareIndex("idx").setId("2").setSource("str", "foo", "long", 3L, "double", 5.5, "date", "2015-05-07", "location", "1,2")
-        );
+        IndexRequestBuilder indexRequestBuilder1 = prepareIndex("idx").setId("1").setSource();
+        IndexRequestBuilder indexRequestBuilder2 = prepareIndex("idx").setId("2")
+            .setSource("str", "foo", "long", 3L, "double", 5.5, "date", "2015-05-07", "location", "1,2");
+        indexRandom(true, indexRequestBuilder1, indexRequestBuilder2);
+        indexRequestBuilder1.request().decRef();
+        indexRequestBuilder2.request().decRef();
     }
 
     public void testUnmappedTerms() {

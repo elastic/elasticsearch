@@ -21,6 +21,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
@@ -31,6 +32,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -57,10 +60,11 @@ public class DocumentActionsIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        DocWriteResponse indexResponse = prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource(source("1", "test"))
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        DocWriteResponse indexResponse = indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
@@ -126,9 +130,13 @@ public class DocumentActionsIT extends ESIntegTestCase {
         }
 
         logger.info("Index [type1/1]");
-        client().index(new IndexRequest("test").id("1").source(source("1", "test"))).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id("1").source(source("1", "test"));
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         logger.info("Index [type1/2]");
-        client().index(new IndexRequest("test").id("2").source(source("2", "test2"))).actionGet();
+        indexRequest = new IndexRequest("test").id("2").source(source("2", "test2"));
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         logger.info("Flushing");
         FlushResponse flushResult = indicesAdmin().prepareFlush("test").get();
@@ -180,13 +188,22 @@ public class DocumentActionsIT extends ESIntegTestCase {
         ensureGreen();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource(source("1", "test")))
-                .add(prepareIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
-                .add(prepareIndex("test").setSource(source("3", "test")))
-                .add(prepareIndex("test").setCreate(true).setSource(source("4", "test")))
+            List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+            indexRequestBuilders.add(prepareIndex("test").setId("1").setSource(source("1", "test")));
+            indexRequestBuilders.add(prepareIndex("test").setId("2").setSource(source("2", "test")).setCreate(true));
+            indexRequestBuilders.add(prepareIndex("test").setSource(source("3", "test")));
+            indexRequestBuilders.add(prepareIndex("test").setCreate(true).setSource(source("4", "test")));
+            indexRequestBuilders.add(prepareIndex("test").setSource("{ xxx }", XContentType.JSON));
+            BulkResponse bulkResponse = bulkRequestBuilder.add(indexRequestBuilders.get(0))
+                .add(indexRequestBuilders.get(1))
+                .add(indexRequestBuilders.get(2))
+                .add(indexRequestBuilders.get(3))
                 .add(client().prepareDelete().setIndex("test").setId("1"))
-                .add(prepareIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
+                .add(indexRequestBuilders.get(4)) // failure
                 .get();
+            for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+                indexRequestBuilder.request().decRef();
+            }
 
             assertThat(bulkResponse.hasFailures(), equalTo(true));
             assertThat(bulkResponse.getItems().length, equalTo(6));

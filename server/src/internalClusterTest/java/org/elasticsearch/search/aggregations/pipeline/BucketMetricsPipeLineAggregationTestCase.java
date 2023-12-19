@@ -110,6 +110,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             );
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder indexRequestBuilder : builders) {
+            indexRequestBuilder.request().decRef();
+        }
         ensureSearchable();
         histoName = randomName();
         termsName = randomName();
@@ -470,7 +473,10 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
           .endObject();
         // end::noformat
-        prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("foo_2").setSource(docBuilder)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         indicesAdmin().prepareRefresh();
 

@@ -51,7 +51,11 @@ public class IngestAsyncProcessorIT extends ESSingleNodeTestCase {
         try (BulkRequest bulkRequest = new BulkRequest()) {
             int numDocs = randomIntBetween(8, 256);
             for (int i = 0; i < numDocs; i++) {
-                bulkRequest.add(new IndexRequest("foobar").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("_id"));
+                IndexRequest indexRequest = new IndexRequest("foobar").id(Integer.toString(i))
+                    .source("{}", XContentType.JSON)
+                    .setPipeline("_id");
+                bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(numDocs));

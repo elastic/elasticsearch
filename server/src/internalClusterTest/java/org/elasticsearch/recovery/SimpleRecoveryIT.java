@@ -42,12 +42,16 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
 
         NumShards numShards = getNumShards("test");
 
-        client().index(new IndexRequest("test").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id("1").source(source("1", "test"), XContentType.JSON);
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         FlushResponse flushResponse = indicesAdmin().flush(new FlushRequest("test")).actionGet();
         assertThat(flushResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
         assertThat(flushResponse.getFailedShards(), equalTo(0));
-        client().index(new IndexRequest("test").id("2").source(source("2", "test"), XContentType.JSON)).actionGet();
+        indexRequest = new IndexRequest("test").id("2").source(source("2", "test"), XContentType.JSON);
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));

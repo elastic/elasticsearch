@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.common.settings.Settings;
@@ -240,9 +241,18 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         disruption.startDisrupting();
 
         try (BulkRequestBuilder bulk = client().prepareBulk()) {
-            bulk.add(prepareIndex("test").setId("2").setSource("{ \"f\": 1 }", XContentType.JSON));
-            bulk.add(prepareIndex("test").setId("3").setSource("{ \"g\": 1 }", XContentType.JSON));
-            bulk.add(prepareIndex("test").setId("4").setSource("{ \"f\": 1 }", XContentType.JSON));
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("2").setSource("{ \"f\": 1 }", XContentType.JSON);
+            bulk.add(indexRequestBuilder);
+            indexRequestBuilder.request().decRef();
+
+            indexRequestBuilder = prepareIndex("test").setId("3").setSource("{ \"g\": 1 }", XContentType.JSON);
+            bulk.add(indexRequestBuilder);
+            indexRequestBuilder.request().decRef();
+
+            indexRequestBuilder = prepareIndex("test").setId("4").setSource("{ \"f\": 1 }", XContentType.JSON);
+            bulk.add(indexRequestBuilder);
+            indexRequestBuilder.request().decRef();
+
             BulkResponse bulkResponse = bulk.get();
             assertTrue(bulkResponse.hasFailures());
         }

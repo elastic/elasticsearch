@@ -14,7 +14,9 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +58,11 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
     }
 
     public void testIndex() {
-        DocWriteResponse index = prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
+            .setSource("foo", "bar")
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        DocWriteResponse index = indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertEquals(RestStatus.CREATED, index.status());
         assertFalse("request shouldn't have forced a refresh", index.forcedRefresh());
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
@@ -64,7 +70,9 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
     public void testDelete() throws InterruptedException, ExecutionException {
         // Index normally
-        indexRandom(true, prepareIndex("test").setId("1").setSource("foo", "bar"));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar");
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
 
         // Now delete with blockUntilRefresh
@@ -76,49 +84,65 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
     public void testUpdate() throws InterruptedException, ExecutionException {
         // Index normally
-        indexRandom(true, prepareIndex("test").setId("1").setSource("foo", "bar"));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar");
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
 
-        // Update with RefreshPolicy.WAIT_UNTIL
-        UpdateResponse update = client().prepareUpdate("test", "1")
-            .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz")
-            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-            .get();
-        assertEquals(2, update.getVersion());
-        assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
-        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "baz")), "1");
+        {
+            // Update with RefreshPolicy.WAIT_UNTIL
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "1")
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz")
+                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            UpdateResponse update = updateRequestBuilder.get();
+            updateRequestBuilder.request().decRef();
+            assertEquals(2, update.getVersion());
+            assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
+            assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "baz")), "1");
+        }
 
-        // Upsert with RefreshPolicy.WAIT_UNTIL
-        update = client().prepareUpdate("test", "2")
-            .setDocAsUpsert(true)
-            .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "cat")
-            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-            .get();
-        assertEquals(1, update.getVersion());
-        assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
-        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "cat")), "2");
+        {
+            // Upsert with RefreshPolicy.WAIT_UNTIL
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "2")
+                .setDocAsUpsert(true)
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "cat")
+                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            UpdateResponse update = updateRequestBuilder.get();
+            updateRequestBuilder.request().decRef();
+            assertEquals(1, update.getVersion());
+            assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
+            assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "cat")), "2");
+        }
 
-        // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
-        update = client().prepareUpdate("test", "2")
-            .setScript(new Script(ScriptType.INLINE, "mockscript", "delete_plz", emptyMap()))
-            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-            .get();
-        assertEquals(2, update.getVersion());
-        assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
-        assertNoSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "cat")));
+        {
+            // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "2")
+                .setScript(new Script(ScriptType.INLINE, "mockscript", "delete_plz", emptyMap()))
+                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            UpdateResponse update = updateRequestBuilder.get();
+            updateRequestBuilder.request().decRef();
+            assertEquals(2, update.getVersion());
+            assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
+            assertNoSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "cat")));
+        }
     }
 
     public void testBulk() {
         // Index by bulk with RefreshPolicy.WAIT_UNTIL
         try (BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)) {
-            bulk.add(prepareIndex("test").setId("1").setSource("foo", "bar"));
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar");
+            bulk.add(indexRequestBuilder);
             assertBulkSuccess(bulk.get());
+            indexRequestBuilder.request().decRef();
             assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
         }
 
         // Update by bulk with RefreshPolicy.WAIT_UNTIL
         try (BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)) {
-            bulk.add(client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz"));
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "1")
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz");
+            bulk.add(updateRequestBuilder);
+            updateRequestBuilder.request().decRef();
             assertBulkSuccess(bulk.get());
             assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "baz")), "1");
         }
@@ -143,10 +167,11 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
      */
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
         updateIndexSettings(Settings.builder().put("index.refresh_interval", -1), "test");
-        ActionFuture<DocWriteResponse> index = prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource("foo", "bar")
-            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-            .execute();
+            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        ActionFuture<DocWriteResponse> index = indexRequestBuilder.execute();
+        indexRequestBuilder.request().decRef();
         while (false == index.isDone()) {
             indicesAdmin().prepareRefresh("test").get();
         }

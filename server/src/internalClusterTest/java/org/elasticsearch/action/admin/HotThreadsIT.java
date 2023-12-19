@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
 import org.elasticsearch.core.TimeValue;
@@ -91,12 +92,13 @@ public class HotThreadsIT extends ESIntegTestCase {
                 }
             });
 
-            indexRandom(
-                true,
-                prepareIndex("test").setId("1").setSource("field1", "value1"),
-                prepareIndex("test").setId("2").setSource("field1", "value2"),
-                prepareIndex("test").setId("3").setSource("field1", "value3")
-            );
+            IndexRequestBuilder indexRequestBuilder1 = prepareIndex("test").setId("1").setSource("field1", "value1");
+            IndexRequestBuilder indexRequestBuilder2 = prepareIndex("test").setId("2").setSource("field1", "value2");
+            IndexRequestBuilder indexRequestBuilder3 = prepareIndex("test").setId("3").setSource("field1", "value3");
+            indexRandom(true, indexRequestBuilder1, indexRequestBuilder2, indexRequestBuilder3);
+            indexRequestBuilder1.request().decRef();
+            indexRequestBuilder2.request().decRef();
+            indexRequestBuilder3.request().decRef();
             ensureSearchable();
             while (latch.getCount() > 0) {
                 assertHitCount(

@@ -291,9 +291,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testMoreLikeThisIssue2197() throws Exception {
         indicesAdmin().prepareCreate("foo").get();
-        prepareIndex("foo").setId("1")
-            .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
-            .get();
+        index("foo", "1", jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject());
         indicesAdmin().prepareRefresh("foo").get();
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -306,10 +304,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("foo").get();
         ensureGreen();
 
-        prepareIndex("foo").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("foo").setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
-            .setRouting("2")
-            .get();
+            .setRouting("2");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         indicesAdmin().prepareRefresh("foo").get();
 
         assertNoFailures(prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1").routing("2") })));
@@ -320,10 +319,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertAcked(prepareCreate("foo", 2, indexSettings(2, 0)));
         ensureGreen();
 
-        prepareIndex("foo").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("foo").setId("1")
             .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
-            .setRouting("4000")
-            .get();
+            .setRouting("4000");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         indicesAdmin().prepareRefresh("foo").get();
         assertNoFailures(prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1").routing("4000") })));
     }
@@ -346,12 +346,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .endObject()
         ).get();
         ensureGreen();
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())
-            .get();
-        prepareIndex("test").setId("2")
-            .setSource(jsonBuilder().startObject().field("string_value", "elasticsearch index").field("int_value", 42).endObject())
-            .get();
+        index("test", "1", jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject());
+        index("test", "2", jsonBuilder().startObject().field("string_value", "elasticsearch index").field("int_value", 42).endObject());
 
         refresh();
 
@@ -560,7 +556,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         builders.add(prepareIndex("test").setSource("text", "lucene").setId("1"));
         builders.add(prepareIndex("test").setSource("text", "lucene release").setId("2"));
         builders.add(prepareIndex("test").setSource("text", "apache lucene").setId("3"));
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
 
         logger.info("Running MoreLikeThis");
         Item[] items = new Item[] { new Item(null, "1") };
@@ -588,7 +584,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         for (int i = 0; i < values.length; i++) {
             builders.add(prepareIndex("test").setId(String.valueOf(i + 1)).setSource("text", values[i]));
         }
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
 
         int maxIters = randomIntBetween(10, 20);
         for (int i = 0; i < maxIters; i++) {
@@ -620,7 +616,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             }
             builders.add(prepareIndex("test").setId(i + "").setSource("text", text));
         }
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
 
         logger.info("Testing each minimum_should_match from 0% - 100% with 10% increment ...");
         for (int i = 0; i <= 10; i++) {
@@ -653,7 +649,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             doc.field("field" + i, generateRandomStringArray(5, 10, false) + "a"); // make sure they are not all empty
         }
         doc.endObject();
-        indexRandom(true, prepareIndex("test").setId("0").setSource(doc));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("0").setSource(doc));
 
         logger.info("Checking the document matches ...");
         // routing to ensure we hit the shard with the doc
@@ -670,7 +666,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("text", "Hello World!").field("date", "2009-01-01").endObject())
@@ -719,7 +715,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         for (int i = 0; i < numFields; i++) {
             builders.add(prepareIndex("test").setId(i + "").setSource("field" + i, i + ""));
         }
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
 
         logger.info("First check the document matches all indexed docs.");
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery(new Item[] { new Item("test", doc) }).minTermFreq(0)
@@ -746,7 +742,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping("text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
         ensureGreen("test");
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("text", "hello world").field("text1", "elasticsearch").endObject()),
@@ -768,9 +764,15 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     }
 
     public void testWithRouting() throws IOException {
-        prepareIndex("index").setId("1").setRouting("3").setSource("text", "this is a document").get();
-        prepareIndex("index").setId("2").setRouting("1").setSource("text", "this is another document").get();
-        prepareIndex("index").setId("3").setRouting("4").setSource("text", "this is yet another document").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("1").setRouting("3").setSource("text", "this is a document");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex("index").setId("2").setRouting("1").setSource("text", "this is another document");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex("index").setId("3").setRouting("4").setSource("text", "this is yet another document");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh("index");
 
         Item item = new Item("index", "2").routing("1");
@@ -836,6 +838,26 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             Throwable cause = exception.getCause();
             assertThat(cause, instanceOf(RoutingMissingException.class));
             assertThat(cause.getMessage(), equalTo("routing is required for [test]/[2]"));
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
         }
     }
 }

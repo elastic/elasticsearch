@@ -83,7 +83,12 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
     }
 
     private void index(String id, String nameValue, int age) throws IOException {
-        client().index(new IndexRequest("test").id(id).source(source(id, nameValue, age))).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id(id).source(source(id, nameValue, age));
+        try {
+            client().index(indexRequest).actionGet();
+        } finally {
+            indexRequest.decRef();
+        }
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {

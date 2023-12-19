@@ -192,6 +192,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                             final IndexRequest request = new IndexRequest("source").id(s)
                                 .source("{ \"f\": \"" + s + "\"}", XContentType.JSON);
                             client().index(request).get();
+                            request.decRef();
                             break;
                         } else {
                             id++;

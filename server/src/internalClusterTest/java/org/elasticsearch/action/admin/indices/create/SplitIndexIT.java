@@ -151,28 +151,34 @@ public class SplitIndexIT extends ESIntegTestCase {
         };
         for (int i = 0; i < numDocs; i++) {
             IndexRequestBuilder builder = indexFunc.apply("source", i);
-            if (useRouting) {
-                String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
-                if (useMixedRouting && randomBoolean()) {
-                    routingValue[i] = null;
-                } else {
-                    routingValue[i] = routing;
+            try {
+                if (useRouting) {
+                    String routing = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
+                    if (useMixedRouting && randomBoolean()) {
+                        routingValue[i] = null;
+                    } else {
+                        routingValue[i] = routing;
+                    }
+                    builder.setRouting(routingValue[i]);
                 }
-                builder.setRouting(routingValue[i]);
+                builder.get();
+            } finally {
+                builder.request().decRef();
             }
-            builder.get();
-            builder.request().decRef();
         }
 
         if (randomBoolean()) {
             for (int i = 0; i < numDocs; i++) { // let's introduce some updates / deletes on the index
                 if (randomBoolean()) {
                     IndexRequestBuilder builder = indexFunc.apply("source", i);
-                    if (useRouting) {
-                        builder.setRouting(routingValue[i]);
+                    try {
+                        if (useRouting) {
+                            builder.setRouting(routingValue[i]);
+                        }
+                        builder.get();
+                    } finally {
+                        builder.request().decRef();
                     }
-                    builder.get();
-                    builder.request().decRef();
                 }
             }
         }
@@ -195,10 +201,14 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) { // now update
             IndexRequestBuilder builder = indexFunc.apply("first_split", i);
-            if (useRouting) {
-                builder.setRouting(routingValue[i]);
+            try {
+                if (useRouting) {
+                    builder.setRouting(routingValue[i]);
+                }
+                builder.get();
+            } finally {
+                builder.request().decRef();
             }
-            builder.get();
         }
         flushAndRefresh();
         assertHitCount(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
@@ -227,10 +237,14 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) { // now update
             IndexRequestBuilder builder = indexFunc.apply("second_split", i);
-            if (useRouting) {
-                builder.setRouting(routingValue[i]);
+            try {
+                if (useRouting) {
+                    builder.setRouting(routingValue[i]);
+                }
+                builder.get();
+            } finally {
+                builder.request().decRef();
             }
-            builder.get();
         }
         flushAndRefresh();
         for (int i = 0; i < numDocs; i++) {
@@ -303,6 +317,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                             final IndexRequest request = new IndexRequest("source").id(s)
                                 .source("{ \"f\": \"" + s + "\"}", XContentType.JSON);
                             client().index(request).get();
+                            request.decRef();
                             break;
                         } else {
                             id++;

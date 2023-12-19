@@ -29,7 +29,7 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            prepareIndex("test-blocks").setId("" + i).setSource("test", "init").get();
+            indexDoc("test-blocks", "" + i, "test", "init");
         }
         indicesAdmin().prepareFlush("test-blocks").get();
 

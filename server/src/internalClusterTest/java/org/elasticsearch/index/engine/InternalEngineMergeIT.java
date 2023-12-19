@@ -36,10 +36,10 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             final int numDocs = scaledRandomIntBetween(100, 1000);
             try (BulkRequestBuilder request = client().prepareBulk()) {
                 for (int j = 0; j < numDocs; ++j) {
-                    request.add(
-                        new IndexRequest("test").id(Long.toString(id++))
-                            .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
-                    );
+                    IndexRequest indexRequest = new IndexRequest("test").id(Long.toString(id++))
+                        .source(jsonBuilder().startObject().field("l", randomLong()).endObject());
+                    request.add(indexRequest);
+                    indexRequest.decRef();
                 }
                 BulkResponse response = request.get();
                 refresh();

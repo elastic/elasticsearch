@@ -999,7 +999,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
-        decRefIndexRequests(docs);
+        decRefIndexRequests(requests);
         if (randomBoolean()) {
             flush(indexName);
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction.Response;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +45,11 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         // There hasn't been any switches from unsafe to safe map
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        var indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(RefreshPolicy.NONE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
+            .setSource("field1", "value1")
+            .setRefreshPolicy(RefreshPolicy.NONE);
+        var indexResponse = indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         response = getFromTranslog(indexOrAlias(), "1");
         assertNotNull(response.getResult());
         assertThat(response.getResult().isExists(), equalTo(true));
@@ -57,7 +62,7 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         assertThat(response.getResult().isExists(), equalTo(false));
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        indexResponse = prepareIndex("test").setSource("field1", "value2").get();
+        indexResponse = indexDoc("test", null, "field1", "value2");
         response = getFromTranslog(indexOrAlias(), indexResponse.getId());
         assertNotNull(response.getResult());
         assertThat(response.getResult().isExists(), equalTo(true));
@@ -70,11 +75,11 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
         // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
-        prepareIndex("test").setSource("field1", "value3").get();
+        indexDoc("test", null, "field1", "value3");
         refresh("test");
         refresh("test");
         // An optimized index operation marks the maps as unsafe
-        prepareIndex("test").setSource("field1", "value4").get();
+        indexDoc("test", null, "field1", "value4");
         response = getFromTranslog(indexOrAlias(), "non-existent");
         assertNull(response.getResult());
         assertThat(response.segmentGeneration(), greaterThan(0L));

@@ -170,6 +170,9 @@ public class NestedIT extends ESIntegTestCase {
                 )
         );
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 
@@ -474,6 +477,9 @@ public class NestedIT extends ESIntegTestCase {
               ]
             }""", XContentType.JSON));
         indexRandom(true, indexRequests);
+        for (IndexRequestBuilder builder : indexRequests) {
+            builder.request().decRef();
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("idx2").addAggregation(
@@ -543,44 +549,44 @@ public class NestedIT extends ESIntegTestCase {
         );
         ensureGreen("idx4");
 
-        prepareIndex("idx4").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "product1")
-                    .array("categories", "1", "2", "3", "4")
-                    .startArray("property")
-                    .startObject()
-                    .field("id", 1)
-                    .endObject()
-                    .startObject()
-                    .field("id", 2)
-                    .endObject()
-                    .startObject()
-                    .field("id", 3)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
-        prepareIndex("idx4").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "product2")
-                    .array("categories", "1", "2")
-                    .startArray("property")
-                    .startObject()
-                    .field("id", 1)
-                    .endObject()
-                    .startObject()
-                    .field("id", 5)
-                    .endObject()
-                    .startObject()
-                    .field("id", 4)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "idx4",
+            "1",
+            jsonBuilder().startObject()
+                .field("name", "product1")
+                .array("categories", "1", "2", "3", "4")
+                .startArray("property")
+                .startObject()
+                .field("id", 1)
+                .endObject()
+                .startObject()
+                .field("id", 2)
+                .endObject()
+                .startObject()
+                .field("id", 3)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        index(
+            "idx4",
+            "2",
+            jsonBuilder().startObject()
+                .field("name", "product2")
+                .array("categories", "1", "2")
+                .startArray("property")
+                .startObject()
+                .field("id", 1)
+                .endObject()
+                .startObject()
+                .field("id", 5)
+                .endObject()
+                .startObject()
+                .field("id", 4)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         refresh();
 
         assertNoFailuresAndResponse(
@@ -678,84 +684,84 @@ public class NestedIT extends ESIntegTestCase {
             )
         );
 
-        prepareIndex("classes").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "QueryBuilder")
-                    .startArray("methods")
-                    .startObject()
-                    .field("name", "toQuery")
-                    .field("return_type", "Query")
-                    .startArray("parameters")
-                    .startObject()
-                    .field("name", "context")
-                    .field("type", "SearchExecutionContext")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("name", "queryName")
-                    .field("return_type", "QueryBuilder")
-                    .startArray("parameters")
-                    .startObject()
-                    .field("name", "queryName")
-                    .field("type", "String")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("name", "boost")
-                    .field("return_type", "QueryBuilder")
-                    .startArray("parameters")
-                    .startObject()
-                    .field("name", "boost")
-                    .field("type", "float")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
-        prepareIndex("classes").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "Document")
-                    .startArray("methods")
-                    .startObject()
-                    .field("name", "add")
-                    .field("return_type", "void")
-                    .startArray("parameters")
-                    .startObject()
-                    .field("name", "field")
-                    .field("type", "IndexableField")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("name", "removeField")
-                    .field("return_type", "void")
-                    .startArray("parameters")
-                    .startObject()
-                    .field("name", "name")
-                    .field("type", "String")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("name", "removeFields")
-                    .field("return_type", "void")
-                    .startArray("parameters")
-                    .startObject()
-                    .field("name", "name")
-                    .field("type", "String")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "classes",
+            "1",
+            jsonBuilder().startObject()
+                .field("name", "QueryBuilder")
+                .startArray("methods")
+                .startObject()
+                .field("name", "toQuery")
+                .field("return_type", "Query")
+                .startArray("parameters")
+                .startObject()
+                .field("name", "context")
+                .field("type", "SearchExecutionContext")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("name", "queryName")
+                .field("return_type", "QueryBuilder")
+                .startArray("parameters")
+                .startObject()
+                .field("name", "queryName")
+                .field("type", "String")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("name", "boost")
+                .field("return_type", "QueryBuilder")
+                .startArray("parameters")
+                .startObject()
+                .field("name", "boost")
+                .field("type", "float")
+                .endObject()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        index(
+            "classes",
+            "2",
+            jsonBuilder().startObject()
+                .field("name", "Document")
+                .startArray("methods")
+                .startObject()
+                .field("name", "add")
+                .field("return_type", "void")
+                .startArray("parameters")
+                .startObject()
+                .field("name", "field")
+                .field("type", "IndexableField")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("name", "removeField")
+                .field("return_type", "void")
+                .startArray("parameters")
+                .startObject()
+                .field("name", "name")
+                .field("type", "String")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("name", "removeFields")
+                .field("return_type", "void")
+                .startArray("parameters")
+                .startObject()
+                .field("name", "name")
+                .field("type", "String")
+                .endObject()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         refresh();
 
         assertNoFailuresAndResponse(

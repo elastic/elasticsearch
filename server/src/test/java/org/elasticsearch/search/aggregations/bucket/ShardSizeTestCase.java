@@ -77,6 +77,9 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
         // total docs in shard "2" = 12
 
         indexRandom(true, docs);
+        for (IndexRequestBuilder indexRequestBuilder : docs) {
+            indexRequestBuilder.request().decRef();
+        }
 
         assertNoFailuresAndResponse(prepareSearch("idx").setRouting(routing1).setQuery(matchAllQuery()), resp -> {
             long totalOnOne = resp.getHits().getTotalHits().value;

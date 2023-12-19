@@ -8,6 +8,7 @@
 package org.elasticsearch.indices.template;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -150,7 +152,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getIndexTemplates(), hasSize(2));
 
         // index something into test_index, will match on both templates
-        prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test_index", "1", "field1", "value1", "field2", "value 2");
 
         ensureGreen();
         assertResponse(
@@ -163,7 +165,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             }
         );
 
-        prepareIndex("text_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("text_index", "1", "field1", "value1", "field2", "value 2");
 
         ensureGreen();
         // now only match on one template (template_1)
@@ -488,11 +490,11 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
-        prepareIndex("test_index").setId("1").setSource("type", "type1", "field", "A value").get();
-        prepareIndex("test_index").setId("2").setSource("type", "type2", "field", "B value").get();
-        prepareIndex("test_index").setId("3").setSource("type", "typeX", "field", "C value").get();
-        prepareIndex("test_index").setId("4").setSource("type", "typeY", "field", "D value").get();
-        prepareIndex("test_index").setId("5").setSource("type", "typeZ", "field", "E value").get();
+        indexDoc("test_index", "1", "type", "type1", "field", "A value");
+        indexDoc("test_index", "2", "type", "type2", "field", "B value");
+        indexDoc("test_index", "3", "type", "typeX", "field", "C value");
+        indexDoc("test_index", "4", "type", "typeY", "field", "D value");
+        indexDoc("test_index", "5", "type", "typeZ", "field", "E value");
 
         GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -544,8 +546,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
-        prepareIndex("test_index").setId("1").setSource("field", "value1").get();
-        prepareIndex("test_index").setId("2").setSource("field", "value2").get();
+        indexDoc("test_index", "1", "field", "value1");
+        indexDoc("test_index", "2", "field", "value2");
         refresh();
 
         assertHitCount(prepareSearch("test_index"), 2L);
@@ -580,8 +582,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
 
-        prepareIndex("test_index").setId("1").setSource("field", "value1").get();
-        prepareIndex("test_index").setId("2").setSource("field", "value2").get();
+        indexDoc("test_index", "1", "field", "value1");
+        indexDoc("test_index", "2", "field", "value2");
         refresh();
 
         assertHitCount(prepareSearch("test_index"), 2L);
@@ -717,7 +719,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .addAlias(new Alias("alias4").filter(termQuery("field", "value")))
             .get();
 
-        client().prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             BulkResponse response = bulkRequestBuilder.add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
             assertThat(response.hasFailures(), is(false));
@@ -735,7 +739,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // So the aliases defined in the index template for this index will not fail
         // even though the fields in the alias fields don't exist yet and indexing into
         // an index that doesn't exist yet will succeed
-        prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
+        indexRequestBuilder = prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             BulkResponse response = bulkRequestBuilder.add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
@@ -840,9 +846,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             )
             .get();
 
-        prepareIndex("ax").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("ax", "1", "field1", "value1", "field2", "value2");
 
-        prepareIndex("bx").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("bx", "1", "field1", "value1", "field2", "value2");
 
         ensureGreen();
 
@@ -991,7 +997,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 """, XContentType.JSON)
             .get();
 
-        prepareIndex("test").setSource().get();
+        indexDoc("test", null);
         FieldCapabilitiesResponse fieldCapabilitiesResponse = client().prepareFieldCaps("test").setFields("*location").get();
         {
             Map<String, FieldCapabilities> field = fieldCapabilitiesResponse.getField("kwm.source.geo.location");
@@ -1006,6 +1012,15 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             FieldCapabilities fieldCapabilities = field.get("geo_point");
             assertTrue(fieldCapabilities.isSearchable());
             assertTrue(fieldCapabilities.isAggregatable());
+        }
+    }
+
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
     }
 }

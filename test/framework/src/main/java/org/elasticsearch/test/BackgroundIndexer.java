@@ -183,19 +183,22 @@ public final class BackgroundIndexer implements AutoCloseable {
                                         IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index)
                                             .setTimeout(timeout)
                                             .setSource(generateSource(id, threadRandom));
-                                        DocWriteResponse indexResponse = indexRequestBuilder.get();
-                                        indexRequestBuilder.request().decRef();
-                                        boolean add = ids.add(indexResponse.getId());
-                                        assert add : "ID: " + indexResponse.getId() + " already used";
+                                        try {
+                                            DocWriteResponse indexResponse = indexRequestBuilder.get();
+                                            boolean add = ids.add(indexResponse.getId());
+                                            assert add : "ID: " + indexResponse.getId() + " already used";
+                                        } finally {
+                                            indexRequestBuilder.request().decRef();
+                                        }
                                     } catch (Exception e) {
                                         if (ignoreIndexingFailures == false) {
                                             throw e;
                                         }
                                     }
                                 } else {
+                                    IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
                                     try {
-                                        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index)
-                                            .setId(Long.toString(id))
+                                        indexRequestBuilder.setId(Long.toString(id))
                                             .setTimeout(timeout)
                                             .setSource(generateSource(id, threadRandom));
                                         DocWriteResponse indexResponse = indexRequestBuilder.get();
@@ -205,6 +208,8 @@ public final class BackgroundIndexer implements AutoCloseable {
                                         if (ignoreIndexingFailures == false) {
                                             throw e;
                                         }
+                                    } finally {
+                                        indexRequestBuilder.request().decRef();
                                     }
                                 }
                             }

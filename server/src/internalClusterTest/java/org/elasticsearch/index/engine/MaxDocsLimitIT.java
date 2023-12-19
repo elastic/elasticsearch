@@ -9,6 +9,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -164,13 +165,17 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
             indexers[i] = new Thread(() -> {
                 phaser.arriveAndAwaitAdvance();
                 while (completedRequests.incrementAndGet() <= numRequests) {
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex("test");
                     try {
-                        final DocWriteResponse resp = prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                        indexRequestBuilder.setSource("{}", XContentType.JSON);
+                        final DocWriteResponse resp = indexRequestBuilder.get();
                         numSuccess.incrementAndGet();
                         assertThat(resp.status(), equalTo(RestStatus.CREATED));
                     } catch (IllegalArgumentException e) {
                         numFailure.incrementAndGet();
                         assertThat(e.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
+                    } finally {
+                        indexRequestBuilder.request().decRef();
                     }
                 }
             });

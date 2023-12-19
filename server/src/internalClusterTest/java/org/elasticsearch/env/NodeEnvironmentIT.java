@@ -10,6 +10,7 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -84,7 +85,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().startNode(dataPathSettings);
 
         logger.info("--> indexing a simple document");
-        prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
+        indexDoc(indexName, "1", "field1", "value1");
 
         logger.info("--> restarting the node without the data role");
         ex = expectThrows(
@@ -152,7 +153,9 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
     public void testUpgradeDataFolder() throws IOException, InterruptedException {
         String node = internalCluster().startNode();
         prepareCreate("test").get();
-        indexRandom(true, prepareIndex("test").setId("1").setSource("{}", XContentType.JSON));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("{}", XContentType.JSON);
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
         String nodeId = clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId();
 
         final Settings dataPathSettings = internalCluster().dataPathSettings(node);

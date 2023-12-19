@@ -67,14 +67,14 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
             .get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().get();
 
-        client().index(
-            new IndexRequest("test").id("1")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject())
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("2")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id("1")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-26").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
+        indexRequest = new IndexRequest("test").id("2")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         client().admin().indices().prepareRefresh().get();
         DecayFunctionBuilder<?> gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");

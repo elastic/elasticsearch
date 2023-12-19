@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.configuration.TransportClearVoting
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
@@ -96,21 +97,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         );
         assertAcked(prepareCreate("test").setMapping(mapping));
 
-        prepareIndex("test").setId("10990239")
-            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
-            .get();
-        prepareIndex("test").setId("10990473")
-            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
-            .get();
-        prepareIndex("test").setId("10990513")
-            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
-            .get();
-        prepareIndex("test").setId("10990695")
-            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
-            .get();
-        prepareIndex("test").setId("11026351")
-            .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
-            .get();
+        index("test", "10990239", jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject());
+        index("test", "10990473", jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject());
+        index("test", "10990513", jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject());
+        index("test", "10990695", jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject());
+        index("test", "11026351", jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject());
 
         refresh();
         assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)), 2);
@@ -265,9 +256,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testSingleNodeWithFlush() throws Exception {
         internalCluster().startNode();
-        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        index("test", "1", jsonBuilder().startObject().field("field", "value1").endObject());
         flush();
-        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        index("test", "2", jsonBuilder().startObject().field("field", "value2").endObject());
         refresh();
 
         assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
@@ -302,9 +293,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String firstNode = internalCluster().startNode();
         internalCluster().startNode();
 
-        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        index("test", "1", jsonBuilder().startObject().field("field", "value1").endObject());
         flush();
-        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        index("test", "2", jsonBuilder().startObject().field("field", "value2").endObject());
         refresh();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -352,9 +343,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
         assertAcked(indicesAdmin().prepareCreate("test"));
-        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        index("test", "1", jsonBuilder().startObject().field("field", "value1").endObject());
         indicesAdmin().prepareFlush().get();
-        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        index("test", "2", jsonBuilder().startObject().field("field", "value2").endObject());
         indicesAdmin().prepareRefresh().get();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
@@ -371,7 +362,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> one node is closed - start indexing data into the second one");
-        prepareIndex("test").setId("3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
+        index("test", "3", jsonBuilder().startObject().field("field", "value3").endObject());
         // TODO: remove once refresh doesn't fail immediately if there a master block:
         // https://github.com/elastic/elasticsearch/issues/9997
         // clusterAdmin().prepareHealth("test").setWaitForYellowStatus().get();
@@ -456,7 +447,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> indexing docs");
         int numDocs = randomIntBetween(1, 1024);
         for (int i = 0; i < numDocs; i++) {
-            client(primaryNode).prepareIndex("test").setSource("field", "value").get();
+            IndexRequestBuilder indexRequestBuilder = client(primaryNode).prepareIndex("test").setSource("field", "value");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
@@ -489,7 +482,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // index some more documents; we expect to reuse the files that already exist on the replica
                 for (int i = 0; i < moreDocs; i++) {
-                    client(primaryNode).prepareIndex("test").setSource("field", "value").get();
+                    IndexRequestBuilder indexRequestBuilder = client(primaryNode).prepareIndex("test").setSource("field", "value");
+                    indexRequestBuilder.get();
+                    indexRequestBuilder.request().decRef();
                 }
 
                 // prevent a sequence-number-based recovery from being possible

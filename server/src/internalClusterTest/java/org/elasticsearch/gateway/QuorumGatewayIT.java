@@ -10,6 +10,7 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,11 +43,11 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         final NumShards test = getNumShards("test");
 
         logger.info("--> indexing...");
-        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        index("test", "1", jsonBuilder().startObject().field("field", "value1").endObject());
         // We don't check for failures in the flush response: if we do we might get the following:
         // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
         flush();
-        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        index("test", "2", jsonBuilder().startObject().field("field", "value2").endObject());
         refresh();
 
         for (int i = 0; i < 10; i++) {
@@ -73,10 +74,11 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                     }, 30, TimeUnit.SECONDS);
 
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");
-                    activeClient.prepareIndex("test")
+                    IndexRequestBuilder indexRequestBuilder = activeClient.prepareIndex("test")
                         .setId("3")
-                        .setSource(jsonBuilder().startObject().field("field", "value3").endObject())
-                        .get();
+                        .setSource(jsonBuilder().startObject().field("field", "value3").endObject());
+                    indexRequestBuilder.get();
+                    indexRequestBuilder.request().decRef();
                     assertNoFailures(activeClient.admin().indices().prepareRefresh().get());
                     for (int i = 0; i < 10; i++) {
                         assertHitCount(activeClient.prepareSearch().setSize(0).setQuery(matchAllQuery()), 3L);

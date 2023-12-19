@@ -293,7 +293,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(builder.setMapping(mapping));
         ensureGreen();
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setSource("name", "I like iced tea"),
             prepareIndex("test").setSource("name", "I like tea."),
@@ -779,7 +779,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testDifferentShardSize() throws Exception {
         createIndex("test");
         ensureGreen();
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("field1", "foobar1").setRouting("1"),
             prepareIndex("test").setId("2").setSource("field1", "foobar2").setRouting("2"),
@@ -1121,7 +1121,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             builders.add(prepareIndex("test").setSource("title", title));
         }
 
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
 
         PhraseSuggestionBuilder suggest = phraseSuggestion("title").addCandidateGenerator(
             candidateGenerator("title").suggestMode("always")
@@ -1159,7 +1159,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         builders.add(prepareIndex("test").setSource("text", "apple"));
         builders.add(prepareIndex("test").setSource("text", "mango"));
         builders.add(prepareIndex("test").setSource("text", "papaya"));
-        indexRandom(true, false, builders);
+        indexRandomAndDecRefRequests(true, false, builders);
 
         TermSuggestionBuilder termSuggest = termSuggestion("alias").text("appple");
 
@@ -1185,7 +1185,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         builders.add(prepareIndex("test").setSource("text", "apple"));
         builders.add(prepareIndex("test").setSource("text", "apple"));
         builders.add(prepareIndex("test").setSource("text", "appfle"));
-        indexRandom(true, false, builders);
+        indexRandomAndDecRefRequests(true, false, builders);
 
         PhraseSuggestionBuilder phraseSuggest = phraseSuggestion("text").text("appple")
             .size(2)
@@ -1296,7 +1296,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         for (String title : titles) {
             builders.add(prepareIndex("test").setSource("title", title));
         }
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
 
         // suggest without collate
         PhraseSuggestionBuilder suggest = phraseSuggestion("title").addCandidateGenerator(
@@ -1434,5 +1434,36 @@ public class SuggestSearchIT extends ESIntegTestCase {
             suggest[0] = response.getSuggest();
         });
         return suggest[0];
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders)
+        throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBui
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -308,7 +309,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings(indices).setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("foobar"));
-        prepareIndex("foobar").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("foobar").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         // Verify defaults for wildcards, with one wildcard expression and one existing index
         indices = new String[] { "foo*" };
@@ -394,7 +397,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testAllMissingLenient() throws Exception {
         createIndex("test1");
-        prepareIndex("test1").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test1").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertHitCount(prepareSearch("test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()), 0L);
         assertHitCount(prepareSearch("test2", "test3").setQuery(matchAllQuery()).setIndicesOptions(IndicesOptions.lenientExpandOpen()), 0L);
         // you should still be able to run empty searches without things blowing up

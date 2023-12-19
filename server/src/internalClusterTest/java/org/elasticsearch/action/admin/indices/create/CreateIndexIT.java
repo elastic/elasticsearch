@@ -13,6 +13,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -213,7 +214,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            prepareIndex("test").setSource("index_version", indexVersion.get()).get();
+            indexDoc("test", null, "index_version", indexVersion.get());
         }
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
@@ -226,7 +227,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                     public void run() {
                         try {
                             // recreate that index
-                            prepareIndex("test").setSource("index_version", indexVersion.get()).get();
+                            indexDoc("test", null, "index_version", indexVersion.get());
                             synchronized (indexVersionLock) {
                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before
                                 // we increment the index version otherwise a doc that is in-flight could make it into an index that it
@@ -250,15 +251,19 @@ public class CreateIndexIT extends ESIntegTestCase {
         });
         numDocs = randomIntBetween(100, 200);
         for (int i = 0; i < numDocs; i++) {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test");
             try {
                 synchronized (indexVersionLock) {
-                    prepareIndex("test").setSource("index_version", indexVersion.get()).setTimeout(TimeValue.timeValueSeconds(10)).get();
+                    indexRequestBuilder.setSource("index_version", indexVersion.get()).setTimeout(TimeValue.timeValueSeconds(10));
+                    indexRequestBuilder.get();
                 }
             } catch (IndexNotFoundException inf) {
                 // fine
             } catch (UnavailableShardsException ex) {
                 assertEquals(ex.getCause().getClass(), IndexNotFoundException.class);
                 // fine we run into a delete index while retrying
+            } finally {
+                indexRequestBuilder.request().decRef();
             }
         }
         latch.await();

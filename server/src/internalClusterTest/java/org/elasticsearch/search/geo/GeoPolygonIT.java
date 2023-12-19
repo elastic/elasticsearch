@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -46,7 +47,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        indexRandom(
+        indexRandomAndDecrefRequests(
             true,
             prepareIndex("test").setId("1")
                 .setSource(
@@ -179,5 +180,15 @@ public class GeoPolygonIT extends ESIntegTestCase {
                 .setQuery(boolQuery().must(geoPolygonQuery("alias", points))),
             4L
         );
+    }
+
+    private void indexRandomAndDecrefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

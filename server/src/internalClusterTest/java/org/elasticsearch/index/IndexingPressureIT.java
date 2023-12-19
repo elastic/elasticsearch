@@ -110,6 +110,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 totalRequestSize += request.ramBytesUsed();
                 assertTrue(request.ramBytesUsed() > request.source().length());
                 bulkRequest.add(request);
+                request.decRef();
             }
 
             final long bulkRequestSize = bulkRequest.ramBytesUsed();
@@ -166,6 +167,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                     final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed();
                     final long secondBulkShardRequestSize = request.ramBytesUsed();
                     final long secondBulkOps = secondBulkRequest.numberOfActions();
+                    request.decRef();
 
                     assertBusy(() -> {
                         assertThat(
@@ -247,6 +249,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 totalRequestSize += request.ramBytesUsed();
                 assertTrue(request.ramBytesUsed() > request.source().length());
                 bulkRequest.add(request);
+                request.decRef();
             }
 
             final long bulkRequestSize = bulkRequest.ramBytesUsed();
@@ -316,6 +319,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 totalRequestSize += request.ramBytesUsed();
                 assertTrue(request.ramBytesUsed() > request.source().length());
                 bulkRequest.add(request);
+                request.decRef();
             }
             final long bulkShardRequestSize = totalRequestSize;
             restartNodesWithSettings(
@@ -389,6 +393,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                     .source(Collections.singletonMap("key", randomAlphaOfLength(500)));
                 totalRequestSize += request.ramBytesUsed();
                 responses.add(client(coordinatingOnlyNode).index(request));
+                request.decRef();
             }
 
             replicaRelease.close();

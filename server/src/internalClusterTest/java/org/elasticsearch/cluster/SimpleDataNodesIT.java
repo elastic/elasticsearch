@@ -37,36 +37,50 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
     public void testIndexingBeforeAndAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());
         indicesAdmin().create(new CreateIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
-        try {
-            client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1))).actionGet();
-            fail("no allocation should happen");
-        } catch (UnavailableShardsException e) {
-            // all is well
+        {
+            IndexRequest indexRequest = new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1));
+            try {
+                client().index(indexRequest).actionGet();
+                fail("no allocation should happen");
+            } catch (UnavailableShardsException e) {
+                // all is well
+            } finally {
+                indexRequest.decRef();
+            }
+
+            internalCluster().startNode(nonDataNode());
+            assertThat(
+                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setLocal(true).get().isTimedOut(),
+                equalTo(false)
+            );
         }
 
-        internalCluster().startNode(nonDataNode());
-        assertThat(
-            clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setLocal(true).get().isTimedOut(),
-            equalTo(false)
-        );
+        {
+            // still no shard should be allocated
+            IndexRequest indexRequest = new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1));
+            try {
+                client().index(indexRequest).actionGet();
+                fail("no allocation should happen");
+            } catch (UnavailableShardsException e) {
+                // all is well
+            } finally {
+                indexRequest.decRef();
+            }
 
-        // still no shard should be allocated
-        try {
-            client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1))).actionGet();
-            fail("no allocation should happen");
-        } catch (UnavailableShardsException e) {
-            // all is well
+            // now, start a node data, and see that it gets with shards
+            internalCluster().startNode(dataNode());
+            assertThat(
+                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setLocal(true).get().isTimedOut(),
+                equalTo(false)
+            );
         }
 
-        // now, start a node data, and see that it gets with shards
-        internalCluster().startNode(dataNode());
-        assertThat(
-            clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setLocal(true).get().isTimedOut(),
-            equalTo(false)
-        );
-
-        DocWriteResponse indexResponse = client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON)).actionGet();
-        assertThat(indexResponse.getId(), equalTo("1"));
+        {
+            IndexRequest indexRequest = new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON);
+            DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
+            assertThat(indexResponse.getId(), equalTo("1"));
+            indexRequest.decRef();
+        }
     }
 
     public void testShardsAllocatedAfterDataNodesStart() {

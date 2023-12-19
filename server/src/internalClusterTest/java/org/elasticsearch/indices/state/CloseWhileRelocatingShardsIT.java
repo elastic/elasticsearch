@@ -8,6 +8,7 @@
 package org.elasticsearch.indices.state;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,10 +94,13 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     nbDocs = scaledRandomIntBetween(1, 100);
                     logger.debug("creating index {} with {} documents", indexName, nbDocs);
                     createIndex(indexName);
-                    indexRandom(
-                        randomBoolean(),
-                        IntStream.range(0, nbDocs).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).toList()
-                    );
+                    List<IndexRequestBuilder> builders = IntStream.range(0, nbDocs)
+                        .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+                        .toList();
+                    indexRandom(randomBoolean(), builders);
+                    for (IndexRequestBuilder builder : builders) {
+                        builder.request().decRef();
+                    }
                 }
                 default -> {
                     logger.debug("creating index {} with background indexing", indexName);

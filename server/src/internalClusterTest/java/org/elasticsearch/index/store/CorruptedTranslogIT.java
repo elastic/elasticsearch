@@ -63,6 +63,9 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         }
 
         indexRandom(false, false, false, Arrays.asList(builders));
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         final Path translogPath = internalCluster().getInstance(IndicesService.class)
             .indexService(resolveIndex("test"))

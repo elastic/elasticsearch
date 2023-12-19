@@ -1389,13 +1389,11 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                     logger.info("--> indexing [{}] docs into [{}]", docCount, indexName);
 
                                     for (int i = 0; i < docCount; i++) {
-                                        bulkRequestBuilder.add(
-                                            new IndexRequest().source(
-                                                jsonBuilder().startObject()
-                                                    .field("field-" + between(1, 5), randomAlphaOfLength(10))
-                                                    .endObject()
-                                            )
+                                        IndexRequest indexRequest = new IndexRequest().source(
+                                            jsonBuilder().startObject().field("field-" + between(1, 5), randomAlphaOfLength(10)).endObject()
                                         );
+                                        bulkRequestBuilder.add(indexRequest);
+                                        indexRequest.decRef();
                                     }
 
                                     bulkRequestBuilder.execute(bulkStep);

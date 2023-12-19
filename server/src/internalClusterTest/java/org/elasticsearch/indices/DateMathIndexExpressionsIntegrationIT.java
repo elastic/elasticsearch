@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -83,9 +84,15 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
-        prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
-        prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
 
         dateSensitiveGet(prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3), response -> {
@@ -147,9 +154,15 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
-        prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
-        prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
 
         dateSensitiveGet(prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3), response -> {

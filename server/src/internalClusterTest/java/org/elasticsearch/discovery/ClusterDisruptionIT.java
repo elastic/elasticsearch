@@ -168,11 +168,14 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 } else if (conflictMode == ConflictMode.create) {
                                     indexRequestBuilder.setCreate(true);
                                 }
-
-                                DocWriteResponse response = indexRequestBuilder.get(timeout);
-                                assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
-                                ackedDocs.put(id, node);
-                                logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
+                                try {
+                                    DocWriteResponse response = indexRequestBuilder.get(timeout);
+                                    assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
+                                    ackedDocs.put(id, node);
+                                    logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
+                                } finally {
+                                    indexRequestBuilder.request().decRef();
+                                }
                             } catch (ElasticsearchException e) {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
@@ -292,7 +295,11 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(2, notIsolatedNode);
         assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
 
-        DocWriteResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value").get();
+        IndexRequestBuilder indexRequestBuilder = internalCluster().client(notIsolatedNode)
+            .prepareIndex("test")
+            .setSource("field", "value");
+        DocWriteResponse indexResponse = indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
@@ -481,15 +488,17 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             threads[i] = new Thread(() -> {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(id)
+                        .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON);
                     try {
-                        DocWriteResponse response = prepareIndex(index).setId(id)
-                            .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
-                            .get();
+                        DocWriteResponse response = indexRequestBuilder.get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
                         ackedDocs.add(response.getId());
                     } catch (ElasticsearchException ignore) {
                         logger.info("--> fail to index id={}", id);
+                    } finally {
+                        indexRequestBuilder.request().decRef();
                     }
                 }
             });

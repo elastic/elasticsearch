@@ -10,6 +10,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +50,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setMapping("f", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
         );
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             client.prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
             client.prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z")
@@ -116,7 +117,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                         .put("index.number_of_routing_shards", 5)
                 )
         );
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             client.prepareIndex("index").setId("1").setRouting("1").setSource("s", "2016-03-19"),
             client.prepareIndex("index").setId("2").setRouting("1").setSource("s", "2016-03-20"),
@@ -186,7 +187,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setMapping("s", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
         );
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             client.prepareIndex("index").setId("1").setSource("s", "2016-03-19"),
             client.prepareIndex("index").setId("2").setSource("s", "2016-03-20"),
@@ -253,7 +254,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setMapping("d", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
         );
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             client.prepareIndex("index").setId("1").setSource("d", "2014-01-01T00:00:00"),
             client.prepareIndex("index").setId("2").setSource("d", "2014-02-01T00:00:00"),
@@ -325,7 +326,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("index-3").setMapping("d", "type=date").setSettings(settings).get());
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             client.prepareIndex("index-1").setId("1").setSource("d", formatter.format(now)),
             client.prepareIndex("index-1").setId("2").setSource("d", formatter.format(now.minusDays(1))),
@@ -408,7 +409,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             .put("index.number_of_routing_shards", 2)
             .build();
         assertAcked(indicesAdmin().prepareCreate("index").setMapping("s", "type=date").setSettings(settings).get());
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             client.prepareIndex("index").setId("1").setRouting("1").setSource("s", "2016-03-19"),
             client.prepareIndex("index").setId("2").setRouting("1").setSource("s", "2016-03-20"),
@@ -527,7 +528,12 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
         );
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        client.prepareIndex("index").setId("1").setRouting("1").setSource("created_at", DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex("index")
+            .setId("1")
+            .setRouting("1")
+            .setSource("created_at", DateTimeFormatter.ISO_LOCAL_DATE.format(now));
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
@@ -579,7 +585,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setMapping("k", "type=keyword")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
         );
-        indexRandom(true, client.prepareIndex("index").setSource("k", "hello"));
+        indexRandomAndDecRefRequests(true, client.prepareIndex("index").setSource("k", "hello"));
         ensureSearchable("index");
 
         int expectedHits = 0;
@@ -620,4 +626,13 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         );
     }
 
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
 }

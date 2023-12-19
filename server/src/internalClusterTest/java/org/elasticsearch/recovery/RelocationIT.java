@@ -122,13 +122,13 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            indexDoc("test", Integer.toString(i), "field", "value" + i);
         }
         logger.info("--> flush so we have an actual index");
         indicesAdmin().prepareFlush().get();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            indexDoc("test", Integer.toString(i), "field", "value" + i);
         }
 
         logger.info("--> verifying count");
@@ -337,12 +337,12 @@ public class RelocationIT extends ESIntegTestCase {
             clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, nodes[fromNode], nodes[toNode])).get();
 
             logger.debug("--> index [{}] documents", builders1.size());
-            indexRandom(false, true, builders1);
+            indexRandomAndDecrefRequests(false, true, builders1);
             // wait for shard to reach post recovery
             postRecoveryShards.acquire(1);
 
             logger.debug("--> index [{}] documents", builders2.size());
-            indexRandom(true, true, builders2);
+            indexRandomAndDecrefRequests(true, true, builders2);
 
             // verify cluster was finished.
             assertFalse(
@@ -386,7 +386,7 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
-        indexRandom(true, requests);
+        indexRandomAndDecrefRequests(true, requests);
         assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
         flush();
 
@@ -489,7 +489,7 @@ public class RelocationIT extends ESIntegTestCase {
             ids.add(id);
             docs[i] = prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i));
         }
-        indexRandom(true, docs);
+        indexRandomAndDecrefRequests(true, docs);
         assertHitCount(prepareSearch("test"), numDocs);
 
         logger.info(" --> moving index to new nodes");
@@ -504,7 +504,7 @@ public class RelocationIT extends ESIntegTestCase {
             ids.add(id);
             docs[i] = prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(numDocs + i));
         }
-        indexRandom(true, docs);
+        indexRandomAndDecrefRequests(true, docs);
 
         logger.info(" --> waiting for relocation to complete");
         ensureGreen(TimeValue.timeValueSeconds(60), "test"); // move all shards to the new nodes (it waits on relocation)
@@ -534,16 +534,17 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            indexDoc("test", Integer.toString(i), "field", "value" + i);
         }
         logger.info("--> flush so we have an actual index");
         indicesAdmin().prepareFlush().get();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
-            prepareIndex("test").setId(Integer.toString(i))
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-                .setSource("field", "value" + i)
-                .execute();
+                .setSource("field", "value" + i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         logger.info("--> start another node");
@@ -582,19 +583,22 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            indexDoc("test", Integer.toString(i), "field", "value" + i);
         }
         logger.info("--> flush so we have an actual index");
         indicesAdmin().prepareFlush().get();
         logger.info("--> index more docs so we have something in the translog");
         final List<ActionFuture<DocWriteResponse>> pendingIndexResponses = new ArrayList<>();
+        List<IndexRequestBuilder> buildersToDecRef = new ArrayList<>();
         for (int i = 10; i < 20; i++) {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test");
             pendingIndexResponses.add(
-                prepareIndex("test").setId(Integer.toString(i))
+                indexRequestBuilder.setId(Integer.toString(i))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                     .setSource("field", "value" + i)
                     .execute()
             );
+            buildersToDecRef.add(indexRequestBuilder);
         }
 
         logger.info("--> start another node");
@@ -611,12 +615,14 @@ public class RelocationIT extends ESIntegTestCase {
             .execute();
         logger.info("--> index 100 docs while relocating");
         for (int i = 20; i < 120; i++) {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test");
             pendingIndexResponses.add(
-                prepareIndex("test").setId(Integer.toString(i))
+                indexRequestBuilder.setId(Integer.toString(i))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                     .setSource("field", "value" + i)
                     .execute()
             );
+            buildersToDecRef.add(indexRequestBuilder);
         }
         relocationListener.actionGet();
         clusterHealthResponse = clusterAdmin().prepareHealth()
@@ -631,6 +637,9 @@ public class RelocationIT extends ESIntegTestCase {
             indicesAdmin().prepareRefresh().get();
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
+        for (IndexRequestBuilder builder : buildersToDecRef) {
+            builder.request().decRef();
+        }
 
         assertHitCount(prepareSearch("test").setSize(0), 120);
     }
@@ -717,6 +726,31 @@ public class RelocationIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             } else {
                 connection.sendRequest(requestId, action, request, options);
+            }
+        }
+    }
+
+    private void indexRandomAndDecrefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        indexRandomAndDecrefRequests(forceRefresh, Arrays.asList(builders));
+    }
+
+    private void indexRandomAndDecrefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecrefRequests(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders)
+        throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
             }
         }
     }

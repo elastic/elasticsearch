@@ -80,6 +80,9 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, false, indexRequests);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequests) {
+            indexRequestBuilder.request().decRef();
+        }
 
         logger.info("checking all the documents are there");
         RefreshResponse refreshResponse = indicesAdmin().prepareRefresh().get();

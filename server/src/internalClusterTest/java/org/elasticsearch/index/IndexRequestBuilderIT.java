@@ -35,6 +35,9 @@ public class IndexRequestBuilderIT extends ESIntegTestCase {
             prepareIndex("test").setSource(BytesReference.toBytes(new BytesArray("{\"test_field\" : \"foobar\"}")), XContentType.JSON),
             prepareIndex("test").setSource(map) };
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ElasticsearchAssertions.assertHitCount(
             prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")),
             builders.length
@@ -42,11 +45,14 @@ public class IndexRequestBuilderIT extends ESIntegTestCase {
     }
 
     public void testOddNumberOfSourceObjects() {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test");
         try {
-            prepareIndex("test").setSource("test_field", "foobar", new Object());
+            indexRequestBuilder.setSource("test_field", "foobar", new Object());
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("The number of object passed must be even but was [3]"));
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
     }
 }

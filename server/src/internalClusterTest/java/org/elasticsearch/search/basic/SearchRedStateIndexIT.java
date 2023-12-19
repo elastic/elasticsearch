@@ -109,7 +109,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(indexSettings(numShards, 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
+            indexDoc("test", "" + i, "field1", "value1");
         }
         refresh();
 

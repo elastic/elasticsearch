@@ -179,6 +179,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount)
         throws IOException {
+        assert request.hasReferences() : "Upsert request is already closed";
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
@@ -189,10 +190,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 final BulkRequest bulkRequest = toSingleItemBulkRequest(upsertRequest);
+                final Runnable maybeDecRefIndexRequest = UpdateHelper.getMaybeDecRefUpdateHelerResult(request, result);
                 client.bulk(
                     bulkRequest,
                     ActionListener.runAfter(
-                        ActionListener.releaseAfter(unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
+                        ActionListener.runAfter(unwrappingSingleItemBulkResponse(ActionListener.<IndexResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(
                                 response.getShardInfo(),
                                 response.getShardId(),
@@ -225,13 +227,18 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             }
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
-                        }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest),
-                        upsertRequest::decRef
+                        }, exception -> {
+                            // bulkRequest.incRef(); TODO: Do we need this?
+                            request.incRef();
+                            handleUpdateFailureWithRetry(listener, request, exception, retryCount);
+                        })), bulkRequest::decRef),
+                        maybeDecRefIndexRequest
                     )
                 );
             }
             case UPDATED -> {
                 IndexRequest indexRequest = result.action();
+                final Runnable maybeDecRefIndexRequest = UpdateHelper.getMaybeDecRefUpdateHelerResult(request, result);
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
@@ -263,7 +270,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest),
-                        indexRequest::decRef
+                        maybeDecRefIndexRequest
                     )
                 );
             }

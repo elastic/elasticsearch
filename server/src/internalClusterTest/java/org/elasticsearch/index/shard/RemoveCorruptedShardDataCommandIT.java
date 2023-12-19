@@ -124,7 +124,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
             numDocs += numExtraDocs;
 
-            indexRandom(false, false, false, Arrays.asList(builders));
+            indexRandomAndDecRefRequests(false, false, false, Arrays.asList(builders));
             flush(indexName);
         }
 
@@ -284,7 +284,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = prepareIndex(indexName).setSource("foo", "bar");
         }
-        indexRandom(false, false, false, Arrays.asList(builders));
+        indexRandomAndDecRefRequests(false, false, false, Arrays.asList(builders));
         flush(indexName);
 
         disableTranslogFlush(indexName);
@@ -295,7 +295,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = prepareIndex(indexName).setSource("foo", "bar");
         }
-        indexRandom(false, false, false, Arrays.asList(builders));
+        indexRandomAndDecRefRequests(false, false, false, Arrays.asList(builders));
 
         RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         MockTerminal terminal = MockTerminal.create();
@@ -474,7 +474,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = prepareIndex(indexName).setSource("foo", "bar");
         }
-        indexRandom(false, false, false, Arrays.asList(builders));
+        indexRandomAndDecRefRequests(false, false, false, Arrays.asList(builders));
         flush(indexName);
         disableTranslogFlush(indexName);
         // having no extra docs is an interesting case for seq no based recoveries - test it more often
@@ -484,7 +484,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = prepareIndex(indexName).setSource("foo", "bar");
         }
-        indexRandom(false, false, false, Arrays.asList(builders));
+        indexRandomAndDecRefRequests(false, false, false, Arrays.asList(builders));
         final int totalDocs = numDocsToKeep + numDocsToTruncate;
 
         // sample the replica node translog dirs
@@ -650,5 +650,20 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     private SeqNoStats getSeqNoStats(String index, int shardId) {
         final ShardStats[] shardStats = indicesAdmin().prepareStats(index).get().getIndices().get(index).getShards();
         return shardStats[shardId].getSeqNoStats();
+    }
+
+    private void indexRandomAndDecRefRequests(
+        boolean forceRefresh,
+        boolean dummyDocuments,
+        boolean maybeFlush,
+        List<IndexRequestBuilder> builders
+    ) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, maybeFlush, builders);
+        } finally {
+            for (IndexRequestBuilder indexRequestBuilder : builders) {
+                indexRequestBuilder.request().decRef();
+            }
+        }
     }
 }

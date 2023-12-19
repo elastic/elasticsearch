@@ -128,6 +128,9 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         cardinality = stringTerms.size();
 
         indexRandom(true, indexRequests);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequests) {
+            indexRequestBuilder.request().decRef();
+        }
         ensureSearchable();
     }
 

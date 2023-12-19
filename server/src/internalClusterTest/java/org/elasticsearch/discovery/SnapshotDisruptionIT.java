@@ -222,7 +222,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "index-one";
         createIndex(indexName);
-        prepareIndex(indexName).setSource("foo", "bar").get();
+        indexDoc(indexName, null, "foo", "bar");
 
         blockDataNode(repoName, dataNode);
 
@@ -275,5 +275,8 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             builders[i] = prepareIndex(idxName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
     }
 }

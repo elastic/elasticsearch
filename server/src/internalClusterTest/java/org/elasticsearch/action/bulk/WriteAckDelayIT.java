@@ -38,6 +38,9 @@ public class WriteAckDelayIT extends ESIntegTestCase {
             builders.add(prepareIndex("test").setSource("field", "value_" + j));
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         logger.info("verifying indexed content");
         int numOfChecks = randomIntBetween(8, 12);
         for (int j = 0; j < numOfChecks; j++) {

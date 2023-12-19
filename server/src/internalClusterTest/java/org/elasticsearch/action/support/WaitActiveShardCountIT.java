@@ -38,13 +38,12 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON);
         indexRequestBuilder.get();
         indexRequestBuilder.request().decRef();
+        indexRequestBuilder = prepareIndex("test").setId("1")
+            .setSource(source("1", "test"), XContentType.JSON)
+            .setWaitForActiveShards(2) // wait for 2 active shard copies
+            .setTimeout(timeValueMillis(100));
         try {
-            indexRequestBuilder = prepareIndex("test").setId("1")
-                .setSource(source("1", "test"), XContentType.JSON)
-                .setWaitForActiveShards(2) // wait for 2 active shard copies
-                .setTimeout(timeValueMillis(100));
             indexRequestBuilder.get();
-            indexRequestBuilder.request().decRef();
             fail("can't index, does not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -53,6 +52,8 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
                 startsWith("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request:")
             );
             // but really, all is well
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
 
         allowNodes("test", 2);

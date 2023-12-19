@@ -47,17 +47,17 @@ public class VectorNestedIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .startArray("nested")
-                    .startObject()
-                    .field("vector", new float[] { 1, 1, 1 })
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .startArray("nested")
+                .startObject()
+                .field("vector", new float[] { 1, 1, 1 })
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
         waitForRelocation(ClusterHealthStatus.GREEN);
         GetResponse getResponse = client().prepareGet("test", "1").get();

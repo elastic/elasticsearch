@@ -9,6 +9,7 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -37,6 +38,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
@@ -85,7 +87,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         String nodeWithReplica = internalCluster().startDataOnlyNode();
         Settings nodeWithReplicaSettings = internalCluster().dataPathSettings(nodeWithReplica);
         ensureGreen(indexName);
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -93,7 +95,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         );
         indicesAdmin().prepareFlush(indexName).get();
         if (randomBoolean()) {
-            indexRandom(
+            indexRandomAndDecRefRequests(
                 randomBoolean(),
                 false,
                 randomBoolean(),
@@ -148,7 +150,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         Settings nodeWithReplicaSettings = internalCluster().dataPathSettings(nodeWithReplica);
         ensureGreen(indexName);
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             false,
             randomBoolean(),
@@ -156,7 +158,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         );
         internalCluster().stopNode(nodeWithReplica);
         if (randomBoolean()) {
-            indexRandom(
+            indexRandomAndDecRefRequests(
                 randomBoolean(),
                 false,
                 randomBoolean(),
@@ -180,7 +182,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         String newNode = internalCluster().startDataOnlyNode();
         recoveryStarted.await();
         // Index more documents and flush to destroy sync_id and remove the retention lease (as file_based_recovery_threshold reached).
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -231,14 +233,14 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 )
         );
         ensureGreen(indexName);
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         indicesAdmin().prepareFlush(indexName).get();
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             false,
             randomBoolean(),
@@ -277,7 +279,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 )
         );
         ensureGreen(indexName);
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -289,7 +291,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         internalCluster().stopNode(nodeWithLowerMatching);
         ensureGreen(indexName);
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             false,
             randomBoolean(),
@@ -300,7 +302,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
         internalCluster().stopNode(nodeWithHigherMatching);
         if (usually()) {
-            indexRandom(
+            indexRandomAndDecRefRequests(
                 randomBoolean(),
                 false,
                 randomBoolean(),
@@ -334,7 +336,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                         .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                 )
         );
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -380,7 +382,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                 .build()
         );
-        indexRandom(
+        indexRandomAndDecRefRequests(
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -440,6 +442,21 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
                 assertThat(recovery.getTranslog().totalLocal(), equalTo(recovery.getTranslog().totalOperations()));
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(
+        boolean forceRefresh,
+        boolean dummyDocuments,
+        boolean maybeFlush,
+        List<IndexRequestBuilder> builders
+    ) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, maybeFlush, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
             }
         }
     }

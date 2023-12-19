@@ -55,10 +55,12 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
         try (BulkRequestBuilder bulkBuilder = client().prepareBulk("publishers")) {
-            bulkBuilder.add(new IndexRequest().id("p1").source("name", "The first publisher", "city", List.of("Montreal", "Vancouver")))
-                .add(new IndexRequest().id("p2").source("name", "The second publisher", "city", "Toronto"))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            IndexRequest indexRequest1 = new IndexRequest().id("p1")
+                .source("name", "The first publisher", "city", List.of("Montreal", "Vancouver"));
+            IndexRequest indexRequest2 = new IndexRequest().id("p2").source("name", "The second publisher", "city", "Toronto");
+            bulkBuilder.add(indexRequest1).add(indexRequest2).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            indexRequest1.decRef();
+            indexRequest2.decRef();
         }
         indicesAdmin().prepareCreate("books").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).setMapping("""
             {

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -57,7 +58,9 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
 
         for (int j = 0; j < 10; j++) {
             final String id = Integer.toString(j);
-            prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         assertBusy(() -> {
@@ -157,7 +160,10 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                 }
                 for (int j = 0; j < numberOfDocuments; j++) {
                     final String id = Integer.toString(index * numberOfDocuments + j);
-                    prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(id)
+                        .setSource("{\"foo\": " + id + "}", XContentType.JSON);
+                    indexRequestBuilder.get();
+                    indexRequestBuilder.request().decRef();
                 }
                 try {
                     barrier.await();
@@ -223,7 +229,9 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         }
         int numDocs = randomIntBetween(1, 20);
         for (int i = 0; i < numDocs; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         ensureGreen("test");
         assertBusy(() -> {
@@ -252,7 +260,9 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         logger.info("numDocs {}", numDocs);
         long maxSeqNo = 0;
         for (int i = 0; i < numDocs; i++) {
-            maxSeqNo = prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get().getSeqNo();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON);
+            maxSeqNo = indexRequestBuilder.get().getSeqNo();
+            indexRequestBuilder.request().decRef();
             logger.info("got {}", maxSeqNo);
         }
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {

@@ -107,6 +107,9 @@ public class DateRangeIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, docs);
+        for (IndexRequestBuilder indexRequestBuilder : docs) {
+            indexRequestBuilder.request().decRef();
+        }
         ensureSearchable();
     }
 
@@ -617,12 +620,16 @@ public class DateRangeIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("date", "type=date")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+
         );
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("cache_test_idx").setId("1").setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).endObject()),
             prepareIndex("cache_test_idx").setId("2").setSource(jsonBuilder().startObject().timeField("date", date(2, 1)).endObject())
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder indexRequestBuilder : builders) {
+            indexRequestBuilder.request().decRef();
+        }
 
         // Make sure we are starting with a clear cache
         assertThat(
@@ -709,12 +716,15 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testRangeWithFormatStringValue() throws Exception {
         String indexName = "dateformat_test_idx";
         assertAcked(prepareCreate(indexName).setMapping("date", "type=date,format=strict_hour_minute_second"));
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
             prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
             prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject())
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder indexRequestBuilder : builders) {
+            indexRequestBuilder.request().decRef();
+        }
 
         // using no format should work when to/from is compatible with format in
         // mapping
@@ -776,12 +786,15 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testRangeWithFormatNumericValue() throws Exception {
         String indexName = "dateformat_numeric_test_idx";
         assertAcked(prepareCreate(indexName).setMapping("date", "type=date,format=epoch_second"));
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
             prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
             prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", 3008).endObject())
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder indexRequestBuilder : builders) {
+            indexRequestBuilder.request().decRef();
+        }
 
         // using no format should work when to/from is compatible with format in
         // mapping

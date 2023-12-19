@@ -38,15 +38,23 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_POINT, l -> l, List.of());
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            evaluatorName.apply("FromLong"),
-            EsqlDataTypes.CARTESIAN_POINT,
-            CARTESIAN::longAsPoint,
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            List.of()
-        );
+        TestCaseSupplier.forUnaryLong(suppliers, evaluatorName.apply("FromLong"), EsqlDataTypes.CARTESIAN_POINT, l -> {
+            try {
+                return CARTESIAN.longAsPoint(l);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }, Long.MIN_VALUE, Long.MAX_VALUE, l -> {
+            try {
+                CARTESIAN.longAsPoint(l.longValue());
+                return List.of();
+            } catch (IllegalArgumentException e) {
+                return List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: " + e.getMessage()
+                );
+            }
+        });
         // random strings that don't look like a cartesian point
         TestCaseSupplier.forUnaryStrings(
             suppliers,

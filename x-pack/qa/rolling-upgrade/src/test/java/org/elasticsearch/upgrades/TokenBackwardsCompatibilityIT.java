@@ -8,7 +8,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -17,6 +16,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -440,7 +440,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }""");
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
-        var response = SearchResponse.fromXContent(responseAsParser(searchResponse));
+        var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
         try {
             final SearchHits searchHits = response.getHits();
             assertThat(

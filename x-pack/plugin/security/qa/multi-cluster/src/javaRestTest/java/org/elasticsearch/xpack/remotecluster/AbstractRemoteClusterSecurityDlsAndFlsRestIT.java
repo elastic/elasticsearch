@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -172,7 +173,8 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     ) {
         assertOK(searchResponse);
         try {
-            var response = SearchResponse.fromXContent(responseAsParser(searchResponse));
+            assertOK(searchResponse);
+            var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
             try {
                 final var searchResult = Arrays.stream(response.getHits().getHits())
                     .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
@@ -200,7 +202,8 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     ) {
         assertOK(searchResponse);
         try {
-            var response = SearchResponse.fromXContent(responseAsParser(searchResponse));
+            assertOK(searchResponse);
+            var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
             try {
                 final var searchResult = Arrays.stream(response.getHits().getHits())
                     .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
@@ -221,7 +224,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     protected void assertSearchResponseContainsEmptyResult(Response response) {
         try {
             assertOK(response);
-            SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            SearchResponse searchResponse = SearchResponseUtils.responseAsSearchResponse(response);
             try {
                 assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
             } finally {

@@ -18,6 +18,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -184,12 +185,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        assertResponse(
+        assertHitCount(
             new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
                 .setScript("testTemplate")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams),
-            searchResponse -> assertHitCount(searchResponse.getResponse(), 4)
+            4
         );
 
         assertAcked(clusterAdmin().prepareDeleteStoredScript("testTemplate"));
@@ -282,12 +283,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
 
-        assertResponse(
+        assertHitCount(
             new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
                 .setScript("1a")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams),
-            searchResponse -> assertHitCount(searchResponse.getResponse(), 4)
+            4
         );
 
         expectThrows(
@@ -300,12 +301,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         );
 
         templateParams.put("fieldParam", "bar");
-        assertResponse(
+        assertHitCount(
             new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
                 .setScript("2")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams),
-            searchResponse -> assertHitCount(searchResponse.getResponse(), 1)
+            1
         );
     }
 
@@ -362,13 +363,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .setId("git01")
                     .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
             );
-
-            assertResponse(
+            assertHitCount(
                 new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("testindex"))
+                    .setScript("git01")
                     .setScript("git01")
                     .setScriptType(ScriptType.STORED)
                     .setScriptParams(templateParams),
-                searchResponse -> assertHitCount(searchResponse.getResponse(), 1)
+                1
             );
         }
     }
@@ -405,12 +406,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         String[] fieldParams = { "foo", "bar" };
         arrayTemplateParams.put("fieldParam", fieldParams);
 
-        assertResponse(
+        assertHitCount(
             new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("test"))
                 .setScript("4")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(arrayTemplateParams),
-            searchResponse -> assertHitCount(searchResponse.getResponse(), 5)
+            5
         );
     }
 
@@ -446,5 +447,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             + " send it to node with version XXXXXXX";
         String actualCause = underlying.getMessage().replaceAll("\\d{7,}", "XXXXXXX");
         assertEquals(expectedCause, actualCause);
+    }
+
+    public static void assertHitCount(SearchTemplateRequestBuilder requestBuilder, long expectedHitCount) {
+        assertResponse(requestBuilder, response -> ElasticsearchAssertions.assertHitCount(response.getResponse(), expectedHitCount));
     }
 }

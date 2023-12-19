@@ -117,11 +117,12 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
         } else {
             XContentType contentType = parser.contentType();
             XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
-            XContentParser searchResponseParser = contentType.xContent()
-                .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput());
-
-            SearchResponse searchResponse = SearchResponse.fromXContent(searchResponseParser);
-            searchTemplateResponse.setResponse(searchResponse);
+            try (
+                XContentParser searchResponseParser = contentType.xContent()
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput())
+            ) {
+                searchTemplateResponse.setResponse(SearchResponse.fromXContent(searchResponseParser));
+            }
         }
         return searchTemplateResponse;
     }

@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -85,7 +87,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     public Collection<?> createComponents(PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
         Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
-        BlockFactory blockFactory = new BlockFactory(circuitBreaker, services.indicesService().getBigArrays().withCircuitBreaking());
+        Settings settings = services.clusterService().getSettings();
+        ByteSizeValue maxPrimitiveArrayBlockSize = settings.getAsBytesSize(
+            BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
+            BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
+        );
+        BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
+        BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize, null);
         return List.of(
             new PlanExecutor(
                 new IndexResolver(

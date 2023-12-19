@@ -20,6 +20,7 @@ final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
+        boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
         return Stream.of(
             /*
              * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
@@ -68,7 +69,7 @@ final class SystemJvmOptions {
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
-            setReplayFile(distroType),
+            setReplayFile(distroType, isHotspot),
             // Pass through distribution type
             "-Des.distribution.type=" + distroType
         ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
@@ -95,7 +96,11 @@ final class SystemJvmOptions {
         return "";
     }
 
-    private static String setReplayFile(String distroType) {
+    private static String setReplayFile(String distroType, boolean isHotspot) {
+        if (isHotspot == false) {
+            // the replay file option is only guaranteed for hotspot vms
+            return "";
+        }
         String replayDir = "logs";
         if ("rpm".equals(distroType) || "deb".equals(distroType)) {
             replayDir = "/var/log/elasticsearch";

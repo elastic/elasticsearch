@@ -18,6 +18,8 @@ import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
+    private static final String DISTRO_TYPE = System.getProperty("es.distribution.type");
+
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         return Stream.of(
             /*
@@ -67,6 +69,7 @@ final class SystemJvmOptions {
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
             maybeOverrideDockerCgroup(),
             maybeSetActiveProcessorCount(nodeSettings),
+            setReplayFile(),
             // Pass through distribution type
             "-Des.distribution.type=" + sysprops.get("es.distribution.type")
         ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
@@ -87,10 +90,18 @@ final class SystemJvmOptions {
      * will run in.
      */
     private static String maybeOverrideDockerCgroup() {
-        if ("docker".equals(System.getProperty("es.distribution.type"))) {
+        if ("docker".equals(DISTRO_TYPE)) {
             return "-Des.cgroups.hierarchy.override=/";
         }
         return "";
+    }
+
+    private static String setReplayFile() {
+        String replayDir = "logs";
+        if ("rpm".equals(DISTRO_TYPE) || "deb".equals(DISTRO_TYPE)) {
+            replayDir = "/var/log/elasticsearch";
+        }
+        return "-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log";
     }
 
     /*

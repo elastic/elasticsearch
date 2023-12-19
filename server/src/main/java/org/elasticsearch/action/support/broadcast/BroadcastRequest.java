@@ -39,7 +39,7 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         timeout = in.readOptionalTimeValue();
         if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
-            dataStreamOptions = DataStreamOptions.readDataStreamOptions(in);
+            dataStreamOptions = DataStreamOptions.read(in);
         } else {
             dataStreamOptions = DEFAULT_DATA_STREAM_OPTIONS;
         }
@@ -131,7 +131,7 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalTimeValue(timeout);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
-            dataStreamOptions.writeDataStreamOptions(out);
+            dataStreamOptions.writeTo(out);
         }
     }
 }

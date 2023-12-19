@@ -9,12 +9,12 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -24,7 +24,9 @@ import java.util.Map;
  * Controls how to deal with the backing indices of data streams. Currently, it handles normal backing indices and the failure
  * store indices.
  */
-public record DataStreamOptions(FailureStore failureStore) implements ToXContentFragment {
+public record DataStreamOptions(FailureStore failureStore) implements ToXContentFragment, Writeable {
+
+    private static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
 
     public enum FailureStore {
         INCLUDE,
@@ -57,9 +59,7 @@ public record DataStreamOptions(FailureStore failureStore) implements ToXContent
         }
     }
 
-    public static final DataStreamOptions INCLUDE_FAILURE_STORE = new DataStreamOptions(FailureStore.INCLUDE);
     public static final DataStreamOptions EXCLUDE_FAILURE_STORE = new DataStreamOptions(FailureStore.EXCLUDE);
-    public static final DataStreamOptions ONLY_FAILURE_STORE = new DataStreamOptions(FailureStore.ONLY);
 
     public boolean includeNormalIndices() {
         return FailureStore.includeNormalIndices(failureStore);
@@ -69,11 +69,12 @@ public record DataStreamOptions(FailureStore failureStore) implements ToXContent
         return FailureStore.includeFailureIndices(failureStore);
     }
 
-    public void writeDataStreamOptions(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(failureStore);
     }
 
-    public static DataStreamOptions readDataStreamOptions(StreamInput in) throws IOException {
+    public static DataStreamOptions read(StreamInput in) throws IOException {
         return new DataStreamOptions(in.readEnum(FailureStore.class));
     }
 
@@ -110,16 +111,6 @@ public record DataStreamOptions(FailureStore failureStore) implements ToXContent
             builder.field(FAILURE_STORE_FIELD.getPreferredName(), failureStore.toXContentValue());
         }
         return builder;
-    }
-
-    private static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
-
-    public static DataStreamOptions fromXContent(XContentParser parser) throws IOException {
-        return fromXContent(parser, null);
-    }
-
-    public static DataStreamOptions fromXContent(XContentParser parser, @Nullable DataStreamOptions defaults) throws IOException {
-        throw new IllegalStateException("Not implemented yet [mgouseti]");
     }
 
     @Override

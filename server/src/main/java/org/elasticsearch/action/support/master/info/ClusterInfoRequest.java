@@ -38,7 +38,7 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
-            dataStreamOptions = DataStreamOptions.readDataStreamOptions(in);
+            dataStreamOptions = DataStreamOptions.read(in);
         }
     }
 
@@ -51,7 +51,7 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
         }
         indicesOptions.writeIndicesOptions(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
-            dataStreamOptions.writeDataStreamOptions(out);
+            dataStreamOptions.writeTo(out);
         }
     }
 

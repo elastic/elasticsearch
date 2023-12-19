@@ -101,6 +101,7 @@ public class HostMetadataTests extends ESTestCase {
                 assertEquals(hostID, host.hostID);
                 assertEquals(machine, host.profilingHostMachine);
                 assertEquals(provider, host.instanceType.provider);
+                assertNotNull(host.instanceType.region);
                 assertEquals("", host.instanceType.name);
                 // region isn't tested because of the combinatorial nature of this test
             });

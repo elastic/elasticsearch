@@ -881,34 +881,30 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         shardSizeInfo.put(shardIdentifierFromRouting(shardIdFrom(indexMetadata1, 0), true), ByteSizeValue.ofGb(8).getBytes());
         shardSizeInfo.put(shardIdentifierFromRouting(shardIdFrom(indexMetadata1, 1), true), ByteSizeValue.ofGb(8).getBytes());
 
-        // index-2 is restored earlier, has desired balance computed, but not allocated accordingly
+        // index-2 is restored earlier but not allocated according to the desired balance
         var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        snapshotShardSizes.put(
+            new SnapshotShard(snapshot, indexIdFrom(indexMetadata2), shardIdFrom(indexMetadata2, 0)),
+            ByteSizeValue.ofGb(1).getBytes()
+        );
+        var index2SnapshotRecoverySource = new RecoverySource.SnapshotRecoverySource(
+            "restore",
+            snapshot,
+            IndexVersion.current(),
+            indexIdFrom(indexMetadata2)
+        );
         switch (randomInt(3)) {
             // index is still unassigned
-            case 0 -> {
-                routingTableBuilder.addAsNewRestore(
-                    indexMetadata2,
-                    new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata2)),
-                    Set.of()
-                );
-                snapshotShardSizes.put(
-                    new SnapshotShard(snapshot, indexIdFrom(indexMetadata2), shardIdFrom(indexMetadata2, 0)),
-                    ByteSizeValue.ofGb(1).getBytes()
-                );
-            }
+            case 0 -> routingTableBuilder.addAsNewRestore(indexMetadata2, index2SnapshotRecoverySource, Set.of());
             // index is initializing on desired node
             case 1 -> routingTableBuilder.add(
                 IndexRoutingTable.builder(indexMetadata2.getIndex())
-                    .addShard(
-                        newShardRouting(shardIdFrom(indexMetadata2, 0), "node-1", true, INITIALIZING, ByteSizeValue.ofGb(1).getBytes())
-                    )
+                    .addShard(newShardRouting(shardIdFrom(indexMetadata2, 0), "node-1", true, INITIALIZING, index2SnapshotRecoverySource))
             );
             // index is initializing on undesired node
             case 2 -> routingTableBuilder.add(
                 IndexRoutingTable.builder(indexMetadata2.getIndex())
-                    .addShard(
-                        newShardRouting(shardIdFrom(indexMetadata2, 0), "node-2", true, INITIALIZING, ByteSizeValue.ofGb(1).getBytes())
-                    )
+                    .addShard(newShardRouting(shardIdFrom(indexMetadata2, 0), "node-2", true, INITIALIZING, index2SnapshotRecoverySource))
             );
             // index is started on undesired node
             case 3 -> {

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -18,18 +20,23 @@ import java.util.Objects;
 
 public class ClusterInfoSimulator {
 
+    private final RoutingAllocation allocation;
+    private ClusterInfo previousClusterInfo;
+
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<ClusterInfo.NodeAndShard, String> dataPath;
 
-    public ClusterInfoSimulator(ClusterInfo clusterInfo) {
-        this.leastAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeLeastAvailableDiskUsages());
-        this.mostAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeMostAvailableDiskUsages());
-        this.shardSizes = new CopyOnFirstWriteMap<>(clusterInfo.shardSizes);
-        this.shardDataSetSizes = Map.copyOf(clusterInfo.shardDataSetSizes);
-        this.dataPath = Map.copyOf(clusterInfo.dataPath);
+    public ClusterInfoSimulator(RoutingAllocation allocation) {
+        this.allocation = allocation;
+        this.previousClusterInfo = allocation.clusterInfo();
+        this.leastAvailableSpaceUsage = new HashMap<>(allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
+        this.mostAvailableSpaceUsage = new HashMap<>(allocation.clusterInfo().getNodeMostAvailableDiskUsages());
+        this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
+        this.shardDataSetSizes = Map.copyOf(allocation.clusterInfo().shardDataSetSizes);
+        this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
     }
 
     /**
@@ -40,7 +47,7 @@ public class ClusterInfoSimulator {
      * This assumes the worst case (all shards are placed on a single most used disk) and prevents node overflow.
      * Balance is later recalculated with a refreshed cluster info containing actual shards placement.
      */
-    public void simulateShardStarted(ShardRouting shard) {
+    public void simulateShardStarted1(ShardRouting shard) {
         assert shard.initializing();
 
         var size = getEstimatedShardSize(shard);
@@ -53,6 +60,42 @@ public class ClusterInfoSimulator {
                 // new shard
                 modifyDiskUsage(shard.currentNodeId(), -size);
                 shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
+            }
+        }
+    }
+
+    public void simulateShardStarted(ShardRouting shard) {
+        assert shard.initializing();
+
+        var shouldReserveSpace = ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard(shard, allocation.metadata());
+
+        var size = ExpectedShardSizeEstimator.getExpectedShardSize(
+            shard,
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            previousClusterInfo,
+            allocation.snapshotShardSizeInfo(),
+            allocation.metadata(),
+            allocation.routingTable()
+        );
+
+        if (size != ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
+            if (shard.relocatingNodeId() != null) {
+                if (allocation.metadata().getIndexSafe(shard.index()).isPartialSearchableSnapshot()) {
+                    size = 0;
+                }
+
+                // relocation
+                assert shouldReserveSpace : "Relocation should always reserve space";
+                modifyDiskUsage(shard.relocatingNodeId(), size);
+                modifyDiskUsage(shard.currentNodeId(), -size);
+            } else {
+                // new shard
+                if (shouldReserveSpace) {
+                    modifyDiskUsage(shard.currentNodeId(), -size);
+                }
+                if (allocation.metadata().getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false) {
+                    shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
+                }
             }
         }
     }
@@ -102,7 +145,7 @@ public class ClusterInfoSimulator {
     }
 
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(
+        var clusterInfo = new ClusterInfo(
             leastAvailableSpaceUsage,
             mostAvailableSpaceUsage,
             shardSizes.toImmutableMap(),
@@ -110,5 +153,7 @@ public class ClusterInfoSimulator {
             dataPath,
             Map.of()
         );
+        previousClusterInfo = clusterInfo;
+        return clusterInfo;
     }
 }

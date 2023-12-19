@@ -33,6 +33,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -75,26 +77,6 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     // Constants for searchWithRetry tests
     private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
-    private static final SearchResponse SEARCH_RESPONSE_SUCCESS = new SearchResponse(
-        null,
-        null,
-        1,
-        1,
-        0,
-        0,
-        ShardSearchFailure.EMPTY_ARRAY,
-        null
-    );
-    private static final SearchResponse SEARCH_RESPONSE_FAILURE = new SearchResponse(
-        null,
-        null,
-        1,
-        0,
-        0,
-        0,
-        ShardSearchFailure.EMPTY_ARRAY,
-        null
-    );
 
     // Constants for bulkIndexWithRetry tests
     private static final IndexRequest INDEX_REQUEST_SUCCESS = new IndexRequest("my-index").id("success")
@@ -131,23 +113,23 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_ImmediateSuccess() {
-        doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(searchResponseSuccess())).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
-        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
+        assertThat(searchResponse, is(searchResponseSuccess()));
         assertThat(messages, is(empty()));
 
         verify(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_SuccessAfterRetry() {
-        doAnswerWithResponses(SEARCH_RESPONSE_FAILURE, SEARCH_RESPONSE_SUCCESS).when(client)
+        doAnswerWithResponses(searchResponseFailure(), searchResponseSuccess()).when(client)
             .execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
-        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
+        assertThat(searchResponse, is(searchResponseSuccess()));
         assertThat(messages, hasSize(1));
 
         verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
@@ -155,12 +137,12 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     public void testSearchWithRetries_SuccessAfterRetryDueToException() {
         doAnswer(withFailure(new IndexPrimaryShardNotAllocatedException(new Index("my-index", "UUID")))).doAnswer(
-            withResponse(SEARCH_RESPONSE_SUCCESS)
+            withResponse(searchResponseSuccess())
         ).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
-        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
+        assertThat(searchResponse, is(searchResponseSuccess()));
         assertThat(messages, hasSize(1));
 
         verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
@@ -169,7 +151,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     private void testSearchWithRetries_FailureAfterTooManyRetries(int maxFailureRetries) {
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(searchResponseFailure())).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         ElasticsearchException e = expectThrows(
@@ -195,7 +177,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_Failure_ShouldNotRetryFromTheBeginning() {
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(searchResponseFailure())).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         ElasticsearchException e = expectThrows(
@@ -212,7 +194,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         int maxFailureRetries = 10;
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(searchResponseFailure())).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         int maxRetries = randomIntBetween(1, maxFailureRetries);
         List<String> messages = new ArrayList<>();
@@ -417,5 +399,28 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             return null;
         }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
+    }
+
+    private static SearchResponse searchResponseSuccess() {
+        return SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 1L, ShardSearchFailure.EMPTY_ARRAY, null);
+    }
+
+    private static SearchResponse searchResponseFailure() {
+        return new SearchResponse(
+            SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            0,
+            0,
+            1L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
+        );
     }
 }

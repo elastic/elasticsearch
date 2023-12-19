@@ -63,10 +63,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
@@ -541,19 +539,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         ? null
                         : new SearchProfileResults(profileResults);
 
-                    InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-                        searchResponse.getHits(),
-                        (InternalAggregations) searchResponse.getAggregations(),
-                        searchResponse.getSuggest(),
-                        profile,
-                        searchResponse.isTimedOut(),
-                        searchResponse.isTerminatedEarly(),
-                        searchResponse.getNumReducePhases()
-                    );
                     ActionListener.respondAndRelease(
                         listener,
                         new SearchResponse(
-                            internalSearchResponse,
+                            searchResponse.getHits(),
+                            searchResponse.getAggregations(),
+                            searchResponse.getSuggest(),
+                            searchResponse.isTimedOut(),
+                            searchResponse.isTerminatedEarly(),
+                            profile,
+                            searchResponse.getNumReducePhases(),
                             searchResponse.getScrollId(),
                             searchResponse.getTotalShards(),
                             searchResponse.getSuccessfulShards(),

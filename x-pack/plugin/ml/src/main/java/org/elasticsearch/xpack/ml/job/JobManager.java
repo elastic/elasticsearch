@@ -478,24 +478,27 @@ public class JobManager {
 
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (modelSnapshotId != null && ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) == false) {
-            voidChainTaskExecutor.add(listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
-                if (newModelSnapshot == null) {
-                    String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
-                    listener.onFailure(new ResourceNotFoundException(message));
-                    return;
-                }
-                jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
-                    if (oldModelSnapshot != null && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
-                        String message = "Job ["
-                            + job.getId()
-                            + "] has a more recent model snapshot ["
-                            + oldModelSnapshot.result.getSnapshotId()
-                            + "]";
-                        listener.onFailure(new IllegalArgumentException(message));
+            voidChainTaskExecutor.add(
+                listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, false, newModelSnapshot -> {
+                    if (newModelSnapshot == null) {
+                        String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
+                        listener.onFailure(new ResourceNotFoundException(message));
+                        return;
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure);
-            }, listener::onFailure));
+                    jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), false, oldModelSnapshot -> {
+                        if (oldModelSnapshot != null
+                            && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
+                            String message = "Job ["
+                                + job.getId()
+                                + "] has a more recent model snapshot ["
+                                + oldModelSnapshot.result.getSnapshotId()
+                                + "]";
+                            listener.onFailure(new IllegalArgumentException(message));
+                        }
+                        listener.onResponse(null);
+                    }, listener::onFailure);
+                }, listener::onFailure)
+            );
         }
     }
 

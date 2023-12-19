@@ -24,7 +24,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class ToGeoPoint extends AbstractConvertFunction {
@@ -32,16 +31,12 @@ public class ToGeoPoint extends AbstractConvertFunction {
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
         Map.entry(LONG, ToGeoPointFromLongEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToGeoPointFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToGeoPointFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(returnType = "geo_point")
-    public ToGeoPoint(
-        Source source,
-        @Param(name = "v", type = { "geo_point", "long", "unsigned_long", "keyword", "text" }) Expression field
-    ) {
+    public ToGeoPoint(Source source, @Param(name = "v", type = { "geo_point", "long", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 

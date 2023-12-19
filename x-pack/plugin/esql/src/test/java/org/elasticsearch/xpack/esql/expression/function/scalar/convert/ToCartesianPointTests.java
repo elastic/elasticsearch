@@ -17,9 +17,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -42,23 +40,13 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_POINT, l -> l, List.of());
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            attribute,
+            evaluatorName.apply("FromLong"),
             EsqlDataTypes.CARTESIAN_POINT,
-            l -> l,
+            CARTESIAN::longAsPoint,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
             List.of()
         );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            attribute,
-            EsqlDataTypes.CARTESIAN_POINT,
-            NumericUtils::asLongUnsigned,
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-
         // random strings that don't look like a cartesian point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -85,7 +73,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
                 )
             ),
             EsqlDataTypes.CARTESIAN_POINT,
-            bytesRef -> CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(((BytesRef) bytesRef).utf8ToString())),
+            bytesRef -> CARTESIAN.stringAsPoint(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
 

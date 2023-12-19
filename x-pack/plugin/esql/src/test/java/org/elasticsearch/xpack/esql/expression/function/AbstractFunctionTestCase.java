@@ -891,19 +891,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
         Map.entry(
-            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.UNSIGNED_LONG, DataTypes.NULL),
-            "geo_point or long or string or unsigned_long"
+            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.NULL),
+            "geo_point or long or string"
         ),
         Map.entry(
-            Set.of(
-                EsqlDataTypes.CARTESIAN_POINT,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
-            ),
-            "cartesian_point or long or string or unsigned_long"
+            Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.NULL),
+            "cartesian_point or long or string"
         )
     );
 

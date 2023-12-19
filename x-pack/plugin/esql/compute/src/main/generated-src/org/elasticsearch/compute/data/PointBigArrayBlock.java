@@ -8,27 +8,23 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-$if(Point)$
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.ObjectArray;
-$else$
-import org.elasticsearch.common.util.$Array$;
-$endif$
 import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 
 /**
- * Block implementation that stores values in a $Type$Array.
+ * Block implementation that stores values in a PointArray.
  * This class is generated. Do not edit it.
  */
-public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {
+public final class PointBigArrayBlock extends AbstractArrayBlock implements PointBlock {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final $Array$ values;
+    private final ObjectArray<SpatialPoint> values;
 
-    public $Type$BigArrayBlock(
-        $Array$ values,
+    public PointBigArrayBlock(
+        ObjectArray<SpatialPoint> values,
         int positionCount,
         int[] firstValueIndexes,
         BitSet nulls,
@@ -40,18 +36,18 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
     }
 
     @Override
-    public $Type$Vector asVector() {
+    public PointVector asVector() {
         return null;
     }
 
     @Override
-    public $type$ get$Type$(int valueIndex) {
+    public SpatialPoint getPoint(int valueIndex) {
         return values.get(valueIndex);
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
-        try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
+    public PointBlock filter(int... positions) {
+        try (var builder = blockFactory().newPointBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -60,11 +56,11 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+                    builder.appendPoint(getPoint(getFirstValueIndex(pos)));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {
-                        builder.append$Type$(get$Type$(first + c$if(BytesRef)$, scratch$endif$));
+                        builder.appendPoint(getPoint(first + c));
                     }
                     builder.endPositionEntry();
                 }
@@ -75,17 +71,17 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public ElementType elementType() {
-        return ElementType.$TYPE$;
+        return ElementType.POINT;
     }
 
     @Override
-    public $Type$Block expand() {
+    public PointBlock expand() {
         if (firstValueIndexes == null) {
             incRef();
             return this;
         }
         // TODO use reference counting to share the values
-        try (var builder = blockFactory().new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
+        try (var builder = blockFactory().newPointBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -94,7 +90,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
                 int first = getFirstValueIndex(pos);
                 int end = first + getValueCount(pos);
                 for (int i = first; i < end; i++) {
-                    builder.append$Type$(get$Type$(i));
+                    builder.appendPoint(getPoint(i));
                 }
             }
             return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
@@ -109,15 +105,15 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof $Type$Block that) {
-            return $Type$Block.equals(this, that);
+        if (obj instanceof PointBlock that) {
+            return PointBlock.equals(this, that);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return $Type$Block.hash(this);
+        return PointBlock.hash(this);
     }
 
     @Override

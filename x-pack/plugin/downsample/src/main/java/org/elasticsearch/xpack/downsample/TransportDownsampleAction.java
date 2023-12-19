@@ -602,7 +602,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (metricType == TimeSeriesParams.MetricType.COUNTER) {
             // For counters, we keep the same field type, because they store
             // only one value (the last value of the counter)
-            for (String fieldProperty: fieldProperties.keySet()) {
+            for (String fieldProperty : fieldProperties.keySet()) {
                 builder.field(fieldProperty, fieldProperties.get(fieldProperty));
             }
         } else {

@@ -56,6 +56,11 @@ public class ExpectedShardSizeEstimator {
         };
     }
 
+    public static boolean shouldReserveSpaceForRelocatingShard(ShardRouting shard, Metadata metadata) {
+        // partial searchable snapshot populates cache as necessary regardless total shard size
+        return metadata.getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false;
+    }
+
     /**
      * Returns the expected shard size for the given shard or the default value provided if not enough information are available
      * to estimate the shards size.

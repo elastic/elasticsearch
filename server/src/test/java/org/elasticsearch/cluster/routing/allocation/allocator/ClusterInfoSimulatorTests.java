@@ -232,59 +232,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         );
     }
 
-    public void testInitializeShardFromSearchableSnapshot() {
-
-        var cachedShardSize = 50;
-        var totalShardSize = 100;
-
-        var indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(
-            INDEX_STORE_TYPE_SETTING.getKey(),
-            SEARCHABLE_SNAPSHOT_STORE_TYPE
-        ).put(SNAPSHOT_PARTIAL_SETTING.getKey(), true);
-
-        var state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings)))
-            .build();
-
-        var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
-        var indexId = new IndexId("my-index", "_na_");
-        var shard = newShardRouting(
-            new ShardId(state.metadata().index("my-index").getIndex(), 0),
-            "node-0",
-            true,
-            ShardRoutingState.INITIALIZING,
-            new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)
-        );
-
-        var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode("node-0", new DiskUsageBuilder(1000, 1000))
-            .withNode("node-1", new DiskUsageBuilder(1000, 1000))
-            .withShard(shard, cachedShardSize)
-            .build();
-        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
-            .withShard(snapshot, indexId, shard.shardId(), totalShardSize)
-            .build();
-
-        var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
-        var simulator = new ClusterInfoSimulator(allocation);
-        simulator.simulateShardStarted(shard);
-
-        assertThat(
-            simulator.getClusterInfo(),
-            equalTo(
-                new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder(1000, 1000))
-                    .withNode("node-1", new DiskUsageBuilder(1000, 1000))
-                    .withShard(shard, cachedShardSize)
-                    .build()
-            )
-        );
-    }
-
     public void testInitializeShardFromSnapshot() {
 
-        var expectedShardSize = 100;
-
+        var shardSize = 100;
         var indexSettings = indexSettings(IndexVersion.current(), 1, 0);
         if (randomBoolean()) {
             indexSettings.put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE);
@@ -309,7 +259,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withNode("node-1", new DiskUsageBuilder(1000, 1000))
             .build();
         var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
-            .withShard(snapshot, indexId, shard.shardId(), expectedShardSize)
+            .withShard(snapshot, indexId, shard.shardId(), shardSize)
             .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
@@ -320,13 +270,60 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulator.getClusterInfo(),
             equalTo(
                 new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder(1000, 1000 - expectedShardSize))
+                    .withNode("node-0", new DiskUsageBuilder(1000, 1000 - shardSize))
                     .withNode("node-1", new DiskUsageBuilder(1000, 1000))
-                    .withShard(shard, expectedShardSize)
+                    .withShard(shard, shardSize)
                     .build()
             )
         );
     }
+
+    public void testInitializeShardFromSearchableSnapshot() {
+
+        var shardSize = 100;
+        var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //
+            .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings)))
+            .build();
+
+        var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
+        var indexId = new IndexId("my-index", "_na_");
+        var shard = newShardRouting(
+            new ShardId(state.metadata().index("my-index").getIndex(), 0),
+            "node-0",
+            true,
+            ShardRoutingState.INITIALIZING,
+            new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)
+        );
+
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode("node-0", new DiskUsageBuilder(1000, 1000))
+            .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+            .build();
+        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
+            .withShard(snapshot, indexId, shard.shardId(), shardSize)
+            .build();
+
+        var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
+        var simulator = new ClusterInfoSimulator(allocation);
+        simulator.simulateShardStarted(shard);
+
+        assertThat(
+            simulator.getClusterInfo(),
+            equalTo(
+                new ClusterInfoTestBuilder() //
+                    .withNode("node-0", new DiskUsageBuilder(1000, 1000))
+                    .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+                    .withShard(shard, shardSize)
+                    .build()
+            )
+        );
+    }
+
+    // TODO test searchable snapshot relocation
 
     public void testInitializeShardFromClone() {
 

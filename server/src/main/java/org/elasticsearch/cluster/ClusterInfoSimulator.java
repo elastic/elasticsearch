@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
@@ -17,6 +16,11 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForRelocatingShard;
+import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 
 public class ClusterInfoSimulator {
 
@@ -67,35 +71,27 @@ public class ClusterInfoSimulator {
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
-        var shouldReserveSpace = ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard(shard, allocation.metadata());
-
-        var size = ExpectedShardSizeEstimator.getExpectedShardSize(
+        var size = getExpectedShardSize(
             shard,
-            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            UNAVAILABLE_EXPECTED_SHARD_SIZE,
             previousClusterInfo,
             allocation.snapshotShardSizeInfo(),
             allocation.metadata(),
             allocation.routingTable()
         );
-
-        if (size != ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
+        if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {
-                if (allocation.metadata().getIndexSafe(shard.index()).isPartialSearchableSnapshot()) {
-                    size = 0;
-                }
-
                 // relocation
-                assert shouldReserveSpace : "Relocation should always reserve space";
-                modifyDiskUsage(shard.relocatingNodeId(), size);
-                modifyDiskUsage(shard.currentNodeId(), -size);
-            } else {
-                // new shard
-                if (shouldReserveSpace) {
+                if (shouldReserveSpaceForRelocatingShard(shard, allocation.metadata())) {
+                    modifyDiskUsage(shard.relocatingNodeId(), size);
                     modifyDiskUsage(shard.currentNodeId(), -size);
                 }
-                if (allocation.metadata().getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false) {
-                    shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
+            } else {
+                // new shard
+                if (shouldReserveSpaceForInitializingShard(shard, allocation.metadata())) {
+                    modifyDiskUsage(shard.currentNodeId(), -size);
                 }
+                shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
             }
         }
     }

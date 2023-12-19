@@ -101,18 +101,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return rules();
     }
 
-    protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>(
-            "Substitutions",
-            Limiter.ONCE,
-            new SubstituteSurrogates(),
-            new ReplaceRegexMatch(),
-            new ReplaceAliasingEvalWithProject(),
-            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
-            new InferNonNullAggConstraint()
-        );
-
-        var operators = new Batch<>(
+    protected static Batch<LogicalPlan> operators() {
+        return new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
             new CombineEvals(),
@@ -147,19 +137,34 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneOrderByBeforeStats(),
             new PruneRedundantSortClauses()
         );
+    }
 
-        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var cleanup = new Batch<>(
+    protected static Batch<LogicalPlan> cleanup() {
+        return new Batch<>(
             "Clean Up",
             new ReplaceDuplicateAggWithEval(),
             // pushing down limits again, because ReplaceDuplicateAggWithEval could create new Project nodes that can still be optimized
             new PushDownAndCombineLimits(),
             new ReplaceLimitAndSortAsTopN()
         );
+    }
+
+    protected static List<Batch<LogicalPlan>> rules() {
+        var substitutions = new Batch<>(
+            "Substitutions",
+            Limiter.ONCE,
+            new SubstituteSurrogates(),
+            new ReplaceRegexMatch(),
+            new ReplaceAliasingEvalWithProject(),
+            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
+            new InferNonNullAggConstraint()
+        );
+
+        var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
         var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(substitutions, operators, skip, cleanup, defaultTopN, label);
+        return asList(substitutions, operators(), skip, cleanup(), defaultTopN, label);
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)
@@ -611,7 +616,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         protected Expression maybeSimplifyNegatable(Expression e) {
             return null;
         }
-
     }
 
     static class PruneFilters extends OptimizerRules.PruneFilters {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -266,11 +267,68 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testProjectOrder() {
+    public void testDuplicateProjections() {
+        assertProjection("""
+            from test
+            | keep first_name, first_name
+            """, "first_name");
+        assertProjection("""
+            from test
+            | keep first_name, first_name, last_name, first_name
+            """, "last_name", "first_name");
+    }
+
+    public void testProjectWildcard() {
         assertProjection("""
             from test
             | keep first_name, *, last_name
             """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
+        assertProjection("""
+            from test
+            | keep first_name, last_name, *
+            """, "first_name", "last_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary");
+        assertProjection("""
+            from test
+            | keep *, first_name, last_name
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "first_name", "last_name");
+
+        var e = expectThrows(ParsingException.class, () -> analyze("""
+            from test
+            | keep *, first_name, last_name, *
+            """));
+        assertThat(e.getMessage(), containsString("Cannot specify [*] more than once"));
+
+    }
+
+    public void testProjectMixedWildcard() {
+        assertProjection("""
+            from test
+            | keep *name, first*
+            """, "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep first_name, *name, first*
+            """, "first_name", "last_name");
+        assertProjection("""
+            from test
+            | keep *ob*, first_name, *name, first*
+            """, "job", "job.raw", "first_name", "last_name");
+        assertProjection("""
+            from test
+            | keep first_name, *, *name
+            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
+        assertProjection("""
+            from test
+            | keep first*, *, last_name, first_name
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep first*, *, last_name, fir*
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name", "first_name");
+        assertProjection("""
+            from test
+            | keep *, job*
+            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "long_noidx", "salary", "job", "job.raw");
     }
 
     public void testProjectThenDropName() {
@@ -1424,6 +1482,11 @@ public class AnalyzerTests extends ESTestCase {
             | keep x*
             """));
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
+    }
+
+    public void testUnresolvedMvExpand() {
+        var e = expectThrows(VerificationException.class, () -> analyze("row foo = 1 | mv_expand bar"));
+        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

@@ -68,6 +68,11 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
     }
 
     @Override
+    public Integer getTokenLimit() {
+        return getServiceSettings().maxInputTokens();
+    }
+
+    @Override
     public ExecutableAction accept(HuggingFaceActionVisitor creator) {
         return creator.create(this);
     }

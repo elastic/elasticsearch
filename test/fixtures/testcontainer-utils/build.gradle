@@ -1,0 +1,15 @@
+apply plugin: 'elasticsearch.java'
+
+
+configurations.all {
+  transitive = false
+}
+
+dependencies {
+  testImplementation project(':test:framework')
+  api "junit:junit:${versions.junit}"
+  api "org.testcontainers:testcontainers:${versions.testcontainer}"
+  implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
+}

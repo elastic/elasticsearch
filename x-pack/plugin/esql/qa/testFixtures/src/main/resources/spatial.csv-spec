@@ -7,11 +7,16 @@ long:long           |pt:geo_point
 ;
 
 convertFromString#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+// tag::to_geopoint-str[]
 row wkt = "POINT(42.97109630194 14.7552534413725)"
-| eval pt = to_geopoint(wkt);
+| eval pt = to_geopoint(wkt)
+// end::to_geopoint-str[]
+;
 
+// tag::to_geopoint-str-result[]
 wkt:keyword                              |pt:geo_point
 "POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
+// end::to_geopoint-str-result[]
 ;
 
 convertFromLongArray#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
@@ -57,14 +62,18 @@ long:long           |pt:cartesian_point
 ;
 
 convertCartesianFromString#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]
+// tag::to_cartesianpoint-str[]
 row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 | mv_expand wkt
 | eval pt = to_cartesianpoint(wkt)
-| eval l = to_long(pt);
+// end::to_cartesianpoint-str[]
+;
 
-wkt:keyword               |pt:cartesian_point      |l:long
-"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53) |5009771769843126025
-"POINT(7580.93 2272.77)"  |POINT(7580.93 2272.77)  |5038656556796611666
+// tag::to_cartesianpoint-str-result[]
+wkt:keyword               |pt:cartesian_point 
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
+"POINT(7580.93 2272.77)"  |POINT(7580.93 2272.77)
+// end::to_cartesianpoint-str-result[]
 ;
 
 convertCartesianFromLongArray#[skip:-8.11.99, reason:spatial type cartesian_point only added in 8.12]

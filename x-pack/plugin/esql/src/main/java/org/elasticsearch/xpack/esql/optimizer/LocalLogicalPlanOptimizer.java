@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -38,6 +40,9 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.cleanup;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operators;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
@@ -48,14 +53,20 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     @Override
     protected List<Batch<LogicalPlan>> batches() {
-        var local = new Batch<>("Local rewrite", new ReplaceTopNWithLimitAndSort(), new ReplaceMissingFieldWithNull());
+        var local = new Batch<>(
+            "Local rewrite",
+            Limiter.ONCE,
+            new ReplaceTopNWithLimitAndSort(),
+            new ReplaceMissingFieldWithNull(),
+            new InferIsNotNull()
+        );
 
         var rules = new ArrayList<Batch<LogicalPlan>>();
         rules.add(local);
         // TODO: if the local rules haven't touched the tree, the rest of the rules can be skipped
-        var logicalRules = LogicalPlanOptimizer.rules();
+        var logicalRules = asList(operators(), cleanup());
         // replace PropagateLocalRelation with its local variant
-        rules.addAll(replaceRules(logicalRules));
+        rules.addAll(replaceRules((logicalRules)));
         return rules;
     }
 
@@ -138,6 +149,14 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             }
 
             return plan;
+        }
+    }
+
+    static class InferIsNotNull extends OptimizerRules.InferIsNotNull {
+
+        @Override
+        protected boolean skipExpression(Expression e) {
+            return e instanceof Coalesce;
         }
     }
 

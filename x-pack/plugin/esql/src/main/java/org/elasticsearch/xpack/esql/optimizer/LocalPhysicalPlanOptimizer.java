@@ -43,10 +43,12 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
@@ -327,7 +329,26 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         @Override
         protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
             PhysicalPlan plan = aggregateExec;
-            if (aggregateExec.child() instanceof EsQueryExec queryExec) {
+            var child = aggregateExec.child();
+            // check is_not_null pattern
+            if (child instanceof FilterExec filterExec) {
+                Expression condition = filterExec.condition();
+                boolean pushdownAgg = true;
+                if (condition instanceof IsNotNull inn) {
+                    Expression field = inn.field();
+                    boolean found = false;
+                    for (NamedExpression agg : aggregateExec.aggregates()) {
+                        if (agg instanceof Alias as && as.child() instanceof AggregateFunction af && field.equals(af.field())) {
+                            found = true;
+                        }
+                    }
+                    // skip filter
+                    if (found) {
+                        child = filterExec.child();
+                    }
+                }
+            }
+            if (child instanceof EsQueryExec queryExec) {
                 var tuple = pushableStats(aggregateExec, context);
 
                 // for the moment support pushing count just for one field
@@ -338,7 +359,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     }
                 }
 
-                // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
+                // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) +
+                // union/join
                 // use the stats since the attributes are larger in size (due to seen)
                 if (tuple.v2().size() == aggregateExec.aggregates().size()) {
                     plan = new EsStatsQueryExec(

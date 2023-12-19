@@ -17,6 +17,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -25,7 +26,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -106,7 +106,6 @@ import static org.hamcrest.Matchers.equalTo;
  *     prefixed with the nested path: nestedPath + "." + fieldName</li>
  * </ul>
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102974")
 public class NestedAggregatorTests extends AggregatorTestCase {
 
     private static final String VALUE_FIELD_NAME = "number";
@@ -139,7 +138,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
     public void testNoDocs() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 // intentionally not writing any docs
             }
             try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
@@ -166,7 +165,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -215,7 +214,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -265,7 +264,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedSum = 0;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -306,7 +305,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     }
 
     public void testResetRootDocId() throws Exception {
-        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriterConfig iwc = new IndexWriterConfig(null).setMergePolicy(new LogDocMergePolicy());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         try (Directory directory = newDirectory()) {
@@ -389,7 +388,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
     public void testNestedOrdering() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 iw.addDocuments(generateBook("1", new String[] { "a" }, new int[] { 12, 13, 14 }));
                 iw.addDocuments(generateBook("2", new String[] { "b" }, new int[] { 5, 50 }));
                 iw.addDocuments(generateBook("3", new String[] { "c" }, new int[] { 39, 19 }));
@@ -516,7 +515,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             books.add(Tuple.tuple(Strings.format("%03d", i), chapters));
         }
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 int id = 0;
                 for (Tuple<String, int[]> book : books) {
                     iw.addDocuments(generateBook(Strings.format("%03d", id), new String[] { book.v1() }, book.v2()));
@@ -566,7 +565,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
     public void testPreGetChildLeafCollectors() throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 List<Iterable<IndexableField>> documents = new ArrayList<>();
                 LuceneDocument document = new LuceneDocument();
                 document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("1"), Field.Store.NO));
@@ -684,7 +683,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     int numNestedDocs = randomIntBetween(0, 20);
@@ -725,7 +724,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         int expectedNestedDocs = 0;
         double expectedMaxValue = Double.NEGATIVE_INFINITY;
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 for (int i = 0; i < numRootDocs; i++) {
                     List<Iterable<IndexableField>> documents = new ArrayList<>();
                     expectedMaxValue = Math.max(expectedMaxValue, generateMaxDocs(documents, 1, i, NESTED_OBJECT, VALUE_FIELD_NAME));
@@ -790,24 +789,29 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     new TermsAggregationBuilder("resellers").field("reseller_id").size(numResellers)
                 )
             );
-        testCase(buildResellerData(numProducts, numResellers), result -> {
-            LongTerms products = (LongTerms) result;
-            assertThat(
-                products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
-                equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList()))
-            );
-            for (int p = 0; p < numProducts; p++) {
-                LongTerms.Bucket bucket = products.getBucketByKey(Integer.toString(p));
-                assertThat(bucket.getDocCount(), equalTo(1L));
-                InternalNested nested = bucket.getAggregations().get("nested");
-                assertThat(nested.getDocCount(), equalTo((long) numResellers));
-                LongTerms resellers = nested.getAggregations().get("resellers");
-                assertThat(
-                    resellers.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
-                    equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList()))
-                );
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
+                buildResellerData(numProducts, numResellers).accept(iw);
             }
-        }, new AggTestConfig(b, resellersMappedFields()));
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                LongTerms products = searchAndReduce(indexReader, new AggTestConfig(b, resellersMappedFields()));
+                assertThat(
+                    products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
+                    equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList()))
+                );
+                for (int p = 0; p < numProducts; p++) {
+                    LongTerms.Bucket bucket = products.getBucketByKey(Integer.toString(p));
+                    assertThat(bucket.getDocCount(), equalTo(1L));
+                    InternalNested nested = bucket.getAggregations().get("nested");
+                    assertThat(nested.getDocCount(), equalTo((long) numResellers));
+                    LongTerms resellers = nested.getAggregations().get("resellers");
+                    assertThat(
+                        resellers.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
+                        equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList()))
+                    );
+                }
+            }
+        }
     }
 
     public static CheckedConsumer<RandomIndexWriter, IOException> buildResellerData(int numProducts, int numResellers) {

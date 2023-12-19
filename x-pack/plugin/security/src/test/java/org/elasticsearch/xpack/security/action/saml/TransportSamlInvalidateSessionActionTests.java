@@ -21,9 +21,9 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -168,7 +168,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                if (IndexAction.NAME.equals(action.name())) {
+                if (TransportIndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
@@ -198,47 +198,51 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     SearchRequest searchRequest = (SearchRequest) request;
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
-                    final SearchResponse response = new SearchResponse(
-                        new SearchResponseSections(
-                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            new SearchResponseSections(
+                                new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                                null,
+                                null,
+                                false,
+                                false,
+                                null,
+                                1
+                            ),
+                            "_scrollId1",
+                            1,
+                            1,
+                            0,
+                            1,
                             null,
-                            null,
-                            false,
-                            false,
-                            null,
-                            1
-                        ),
-                        "_scrollId1",
-                        1,
-                        1,
-                        0,
-                        1,
-                        null,
-                        null
+                            null
+                        )
                     );
-                    listener.onResponse((Response) response);
                 } else if (TransportSearchScrollAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
                     final SearchHit[] hits = new SearchHit[0];
-                    final SearchResponse response = new SearchResponse(
-                        new SearchResponseSections(
-                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            new SearchResponseSections(
+                                new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                                null,
+                                null,
+                                false,
+                                false,
+                                null,
+                                1
+                            ),
+                            "_scrollId1",
+                            1,
+                            1,
+                            0,
+                            1,
                             null,
-                            null,
-                            false,
-                            false,
-                            null,
-                            1
-                        ),
-                        "_scrollId1",
-                        1,
-                        1,
-                        0,
-                        1,
-                        null,
-                        null
+                            null
+                        )
                     );
-                    listener.onResponse((Response) response);
                 } else if (TransportClearScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(ClearScrollRequest.class));
                     ClearScrollRequest scrollRequest = (ClearScrollRequest) request;

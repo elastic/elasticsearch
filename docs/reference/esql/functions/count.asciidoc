@@ -21,8 +21,7 @@ Returns the total number (count) of input values.
 
 *Supported types*
 
-Can take any field type as input and the result is always a `long` not matter
-the input type.
+Can take any field type as input.
 
 *Examples*
 

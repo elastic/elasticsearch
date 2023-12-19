@@ -12,7 +12,7 @@ AUTO_BUCKET(field, buckets, from, to)
 *Parameters*
 
 `field`::
-Date or numeric column from which to derive buckets.
+Numeric or date column from which to derive buckets.
 
 `buckets`::
 Target number of buckets.
@@ -91,7 +91,7 @@ include::{esql-specs}/ints.csv-spec[tag=docsAutoBucketNumeric-result]
 |===
 
 Unlike the earlier example that intentionally filters on a date range, you
-rarely want to filter on a numeric range. You have find the `min` and `max`
+rarely want to filter on a numeric range. You have to find the `min` and `max`
 separately. {esql} doesn't yet have an easy way to do that automatically.
 
 *Examples*

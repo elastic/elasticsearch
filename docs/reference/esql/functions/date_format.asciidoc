@@ -21,7 +21,7 @@ Date expression. If `null`, the function returns `null`.
 
 *Description*
 
-Returns a string representation of a date in the provided format.
+Returns a string representation of a date, in the provided format.
 
 *Example*
 

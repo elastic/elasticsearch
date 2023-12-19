@@ -42,8 +42,7 @@ precision.
 
 *Supported types*
 
-Can take any field type as input and the result is always a `long` no matter the
-input type.
+Can take any field type as input.
 
 *Examples*
 

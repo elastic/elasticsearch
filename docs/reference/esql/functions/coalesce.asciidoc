@@ -17,7 +17,7 @@ Expression to evaluate.
 *Description*
 
 Returns the first of its arguments that is not null. If all arguments are null,
-returns `null`.
+it returns `null`.
 
 *Example*
 

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.repositories.hdfs;
+package org.elasticsearch.test.fixtures.hdfs;
 
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 
@@ -29,6 +29,11 @@ public final class HdfsClientThreadLeakFilter implements ThreadFilter {
 
     @Override
     public boolean reject(Thread t) {
-        return t.getName().equals(OFFENDING_THREAD_NAME);
+        return t.getName().contains(OFFENDING_THREAD_NAME)
+            || t.getName().startsWith("LeaseRenewer")
+            || t.getName().startsWith("SSL Certificates Store Monitor") // hadoop 3 brings that in
+            || t.getName().startsWith("GcTimeMonitor") // hadoop 3
+            || t.getName().startsWith("Command processor") // hadoop 3
+            || t.getName().startsWith("ForkJoinPool-"); // hadoop 3
     }
 }

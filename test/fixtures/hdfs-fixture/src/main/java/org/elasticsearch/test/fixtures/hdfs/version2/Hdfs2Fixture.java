@@ -6,8 +6,8 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.java'
+package org.elasticsearch.test.fixtures.hdfs.version2;
 
-dependencies {
-  api "org.apache.hadoop:hadoop-minicluster:2.8.5"
-}
+import org.elasticsearch.test.fixtures.hdfs.HdfsFixture;
+
+public class Hdfs2Fixture extends HdfsFixture {}

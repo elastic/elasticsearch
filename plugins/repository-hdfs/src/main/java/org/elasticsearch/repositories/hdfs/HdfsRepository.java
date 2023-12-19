@@ -163,6 +163,9 @@ public final class HdfsRepository extends BlobStoreRepository {
         Class<?> ret = hadoopConfiguration.getClass(configKey, null, FailoverProxyProvider.class);
         boolean haEnabled = ret != null;
 
+        logger.warn("haEnabled = " + haEnabled);
+        logger.warn("configKey = " + configKey);
+        logger.warn("ret = " + ret);
         // Create the filecontext with our user information
         // This will correctly configure the filecontext to have our UGI as its internal user.
         FileContext fileContext = ugi.doAs((PrivilegedAction<FileContext>) () -> {

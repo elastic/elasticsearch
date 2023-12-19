@@ -40,6 +40,8 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         timeout = in.readOptionalTimeValue();
         if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS)) {
             dataStreamOptions = DataStreamOptions.readDataStreamOptions(in);
+        } else {
+            dataStreamOptions = DEFAULT_DATA_STREAM_OPTIONS;
         }
     }
 

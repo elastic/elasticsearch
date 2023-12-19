@@ -28,6 +28,7 @@ import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -703,7 +704,7 @@ public class SSLService {
             .map(SslConfiguration::getConfiguredCertificates)
             .flatMap(Collection::stream)
             .map(cert -> new CertificateInfo(cert.path(), cert.format(), cert.alias(), cert.hasPrivateKey(), cert.certificate()))
-            .collect(Collectors.toSet());
+            .collect(Sets.toUnmodifiableSortedSet());
     }
 
     /**
@@ -714,6 +715,7 @@ public class SSLService {
      * such as a CA certificate that is no longer in use, or a server certificate for an unrelated host.
      *
      * @see SslTrustConfig#getConfiguredCertificates()
+     * @see SslConfiguration#getDefaultCertificates()
      */
     public Collection<CertificateInfo> getAllCertificates() throws GeneralSecurityException, IOException {
         return this.getLoadedSslConfigurations()
@@ -726,7 +728,7 @@ public class SSLService {
             )
             .flatMap(Collection::stream)
             .map(cert -> new CertificateInfo(cert.path(), cert.format(), cert.alias(), cert.hasPrivateKey(), cert.certificate()))
-            .collect(Collectors.toSet());
+            .collect(Sets.toUnmodifiableSortedSet());
     }
 
     /**

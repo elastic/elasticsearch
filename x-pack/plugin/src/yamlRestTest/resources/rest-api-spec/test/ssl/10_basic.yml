@@ -8,3 +8,20 @@
   - match: { $body.0.format: "PEM" }
   - match: { $body.0.has_private_key: true }
   - match: { $body.0.issuer: "CN=Elasticsearch Test Node, OU=elasticsearch, O=org" }
+
+
+  - do:
+      ssl.certificates:
+        include_defaults: true
+  # in practice there are dozens of default but only ensure there are at least 10 
+  - exists:  $body.0
+  - exists:  $body.1
+  - exists:  $body.2
+  - exists:  $body.3
+  - exists:  $body.4
+  - exists:  $body.5
+  - exists:  $body.6
+  - exists:  $body.7
+  - exists:  $body.8
+  - exists:  $body.9
+

@@ -14,11 +14,14 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.BeforeClass;
+
+import java.util.function.Predicate;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -33,27 +36,36 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         }
     }
 
+    @Override
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient
+        ClientYamlTestClient clientYamlTestClient,
+        final Version esVersion,
+        final Predicate<String> clusterFeaturesPredicate,
+        final String os
     ) {
-        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
+        /*
+         * Since the esVersion is used to skip tests in ESClientYamlSuiteTestCase, we also take into account the
+         * remote cluster version here and return it if it is lower than the local client version. This is used to
+         * skip tests if some feature isn't available on the remote cluster yet.
+         */
+        final Version commonEsVersion;
+        if (remoteEsVersion == null) {
+            commonEsVersion = esVersion;
+        } else {
+            commonEsVersion = remoteEsVersion.before(esVersion) ? remoteEsVersion : esVersion;
+        }
 
-            /**
-             * Since the esVersion is used to skip tests in ESClientYamlSuiteTestCase, we also take into account the
-             * remote cluster version here and return it if it is lower than the local client version. This is used to
-             * skip tests if some feature isn't available on the remote cluster yet.
-             */
-            @Override
-            public Version esVersion() {
-                Version clientEsVersion = clientYamlTestClient.getEsVersion();
-                if (remoteEsVersion == null) {
-                    return clientEsVersion;
-                } else {
-                    return remoteEsVersion.before(clientEsVersion) ? remoteEsVersion : clientEsVersion;
-                }
-            }
-        };
+        // TODO: same for os and features
+
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            commonEsVersion,
+            ESRestTestCase::clusterHasFeature,
+            os
+        );
     }
 
     @Override

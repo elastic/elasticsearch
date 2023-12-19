@@ -1947,10 +1947,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             || name.startsWith("logs-apm")) {
             return true;
         }
+        if (name.startsWith(".slm-history") || name.startsWith("ilm-history")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
-            case ".slm-history":
             case ".async-search":
             case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
@@ -1965,7 +1967,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
-            case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":

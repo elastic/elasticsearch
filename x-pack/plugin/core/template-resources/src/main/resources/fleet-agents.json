@@ -270,6 +270,9 @@
                 "download_percent": {
                   "type": "double"
                 },
+                "download_rate": {
+                  "type": "double"
+                },
                 "failed_state": {
                   "type": "keyword"
                 },

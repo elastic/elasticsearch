@@ -13,7 +13,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant double value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
+final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
@@ -21,11 +21,7 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     private final DoubleBlock block;
 
-    public ConstantDoubleVector(double value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
+    ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
         this.block = new DoubleVectorBlock(this);
@@ -43,7 +39,7 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     @Override
     public DoubleVector filter(int... positions) {
-        return new ConstantDoubleVector(value, positions.length);
+        return blockFactory().newConstantDoubleVector(value, positions.length);
     }
 
     @Override

@@ -232,10 +232,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
         Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
 
-        return nodes.entrySet().stream().collect(Collectors.toUnmodifiableMap(
-            entry -> entry.getKey().toString(),
-            entry -> (Map<?, ?>) entry.getValue()
-        ));
+        return nodes.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> (Map<?, ?>) entry.getValue()));
     }
 
     protected static boolean clusterHasFeature(String featureId) {

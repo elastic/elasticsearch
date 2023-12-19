@@ -10,64 +10,72 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.telemetry.apm.internal.MetricNameValidator.MAX_ELEMENT_LENGTH;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MetricNameValidatorTests extends ESTestCase {
-    MetricNameValidator nameValidator = new MetricNameValidator();
+    public void testMetricNameNotNull() {
+        String metricName = "es.somemodule.somemetric.count";
+        assertThat(MetricNameValidator.validate(metricName), equalTo(metricName));
+
+        expectThrows(NullPointerException.class, () -> MetricNameValidator.validate(null));
+    }
 
     public void testMaxMetricNameLength() {
-        nameValidator.validate(metricNameWithLength(255));
+        MetricNameValidator.validate(metricNameWithLength(255));
 
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate(metricNameWithLength(256)));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate(metricNameWithLength(256)));
     }
 
     public void testESPrefixAndDotSeparator() {
-        nameValidator.validate("es.somemodule.somemetric.count");
+        MetricNameValidator.validate("es.somemodule.somemetric.count");
 
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("somemodule.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("somemodule.somemetric.count"));
         // verify . is a separator
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es_somemodule_somemetric_count"));
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es_somemodule.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es_somemodule_somemetric_count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es_somemodule.somemetric.count"));
     }
 
     public void testNameElementRegex() {
-        nameValidator.validate("es.somemodulename0.somemetric.count");
-        nameValidator.validate("es.some_module_name0.somemetric.count");
-        nameValidator.validate("es.s.somemetric.count");
+        MetricNameValidator.validate("es.somemodulename0.somemetric.count");
+        MetricNameValidator.validate("es.some_module_name0.somemetric.count");
+        MetricNameValidator.validate("es.s.somemetric.count");
 
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.someModuleName0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.SomeModuleName.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.0some_module_name0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.some_#_name0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.some-name0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.someModuleName0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.SomeModuleName.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.0some_module_name0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.some_#_name0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.some-name0.somemetric.count"));
     }
 
     public void testNameHas3Elements() {
-        nameValidator.validate("es.group.count");
-        nameValidator.validate("es.group.subgroup.count");
+        MetricNameValidator.validate("es.group.count");
+        MetricNameValidator.validate("es.group.subgroup.count");
 
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es"));
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es."));
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.sth"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es."));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.sth"));
     }
 
     public void testNumberOfElementsLimit() {
-        nameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.count");
+        MetricNameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.count");
 
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.a10.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.a10.count"));
     }
 
     public void testElementLengthLimit() {
-        nameValidator.validate("es." + "a".repeat(MAX_ELEMENT_LENGTH) + ".count");
+        MetricNameValidator.validate("es." + "a".repeat(MetricNameValidator.MAX_ELEMENT_LENGTH) + ".count");
 
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es." + "a".repeat(MAX_ELEMENT_LENGTH + 1) + ".count"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> MetricNameValidator.validate("es." + "a".repeat(MetricNameValidator.MAX_ELEMENT_LENGTH + 1) + ".count")
+        );
     }
 
     public void testLastElementAllowList() {
         for (String suffix : MetricNameValidator.ALLOWED_SUFFIXES) {
-            nameValidator.validate("es.somemodule.somemetric." + suffix);
+            MetricNameValidator.validate("es.somemodule.somemetric." + suffix);
         }
-        expectThrows(IllegalArgumentException.class, () -> nameValidator.validate("es.somemodule.somemetric.some_other_suffix"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.somemodule.somemetric.some_other_suffix"));
     }
 
     public static String metricNameWithLength(int length) {

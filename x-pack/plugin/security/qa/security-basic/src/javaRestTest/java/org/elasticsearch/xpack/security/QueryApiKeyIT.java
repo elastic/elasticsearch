@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
@@ -20,8 +21,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -359,6 +362,36 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
     }
 
+    public void testMultiMatchQuery() throws IOException {
+        final String fileUserHeader = API_KEY_USER_AUTH_HEADER;
+        final String adminFileUserHeader = API_KEY_ADMIN_AUTH_HEADER;
+        final String nativeUserHeader = createUser("native_user_1", "api_key_admin_role");
+
+        final List<String> apiKeyIds = new ArrayList<>(3);
+        apiKeyIds.add(createApiKey("key1", null, null, Map.of("tag", 1), fileUserHeader).v1());
+        apiKeyIds.add(createApiKey("key1", null, null, Map.of("tag", 4), nativeUserHeader).v1());
+        apiKeyIds.add(createApiKey("key2", null, null, Map.of("tag", 2), adminFileUserHeader).v1());
+        apiKeyIds.add(createApiKey("key2", null, null, Map.of("tag", 3), nativeUserHeader).v1());
+        // query on the creator username field
+        assertQuery(
+                adminFileUserHeader,
+                """
+                    {"query": {"multi_match": {"query": "key1 key2", "fields": [ "username", "realm_name", "name", "metadata.tag" ] }}}""",
+                apiKeys -> {
+                    assertThat(
+                            apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                            containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1))
+                    );
+                }
+        );
+        // query on the api key name field
+        assertQuery(adminFileUserHeader, """
+            {"query": {"multi_match": {"query": "key name", "fields": [ "username", "realm_name", "name", "metadata.tag" ] }}}""",
+                apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1)));
+        });
+    }
+
     public void testExistsQuery() throws IOException, InterruptedException {
         final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
 
@@ -598,10 +631,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return tuple.v1();
     }
 
-    private void createUser(String name) throws IOException {
+    private static String createUser(String name, String... roles) throws IOException {
         final Request request = new Request("POST", "/_security/user/" + name);
-        request.setJsonEntity("""
-            {"password":"super-strong-password","roles":[]}""");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {"password":"super-strong-password","roles":%s}""", Arrays.stream(roles).map(role -> "\"" + role + "\"").toList()));
         assertOK(adminClient().performRequest(request));
+        return basicAuthHeaderValue(name, new SecureString("super-strong-password"));
     }
 }

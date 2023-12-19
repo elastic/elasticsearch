@@ -11,12 +11,15 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xpack.exponentialhistogram.agg.ExponentialHistogramAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * <p>This plugin adds the mapping type <code>exponential_histogram</code>,
@@ -32,11 +35,33 @@ import java.util.Map;
  * <p>The <code>exponential_histogram</code> mapping type is in tech preview and is
  * intentionally undocumented.</p>
  */
-public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPlugin {
+public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPlugin, SearchPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(ExponentialHistogramFieldMapper.CONTENT_TYPE, ExponentialHistogramFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        List<SearchPlugin.AggregationSpec> specs = new ArrayList<>();
+        specs.add(
+            new SearchPlugin.AggregationSpec(
+                ExponentialHistogramAggregationBuilder.NAME,
+                ExponentialHistogramAggregationBuilder::new,
+                ExponentialHistogramAggregationBuilder.PARSER
+            ).setAggregatorRegistrar(ExponentialHistogramAggregationBuilder::registerAggregators)
+        );
+        return List.copyOf(specs);
+    }
+
+    /*
+    @Override
+    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
+        return List.of(
+            ExponentialHistogramAggregatorFactory::registerHistoBackedHistogramAggregator
+        );
+    }
+    */
 }

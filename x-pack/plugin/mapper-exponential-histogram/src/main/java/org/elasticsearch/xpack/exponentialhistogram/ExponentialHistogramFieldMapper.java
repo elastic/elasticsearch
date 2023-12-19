@@ -43,11 +43,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
-import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -69,7 +69,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     public static final ParseField OFFSET_FIELD = new ParseField("offset");
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
 
-    private static class ExponentialHistogramFieldType extends MappedFieldType {
+    protected static class ExponentialHistogramFieldType extends MappedFieldType {
         ExponentialHistogramFieldType(String name, Map<String, String> meta) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
         }
@@ -93,7 +93,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return (cache, breakerService) -> new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
+            return (cache, breakerService) -> new IndexHistogramFieldData(name(), ExponentialHistogramValuesSourceType.HISTOGRAM) {
                 @Override
                 public LeafHistogramFieldData load(LeafReaderContext context) {
                     return new LeafHistogramFieldData() {
@@ -327,9 +327,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             );
         }
 
-        final int numPositiveCounts = positive == null ? 0 : positive.counts.size();
-        final int numNegativeCounts = negative == null ? 0 : negative.counts.size();
-        if (numPositiveCounts == 0 && numNegativeCounts == 0) {
+        if ((positive == null || positive.counts.isEmpty()) && (negative == null || negative.counts.isEmpty())) {
             throw new DocumentParsingException(
                 subParser.getTokenLocation(),
                 "error parsing field ["
@@ -342,6 +340,12 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                     + "] to be specified and non-empty"
             );
         }
+        return encodeBinaryDocValuesField(name(), scale, negative, positive);
+    }
+
+    protected static BinaryDocValuesField encodeBinaryDocValuesField(String name, int scale, ExponentialHistogramBuckets negative, ExponentialHistogramBuckets positive) throws IOException {
+        final int numPositiveCounts = positive == null ? 0 : positive.counts.size();
+        final int numNegativeCounts = negative == null ? 0 : negative.counts.size();
 
         BytesStreamOutput streamOutput = new BytesStreamOutput();
 
@@ -371,14 +375,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         BytesRef docValue = streamOutput.bytes().toBytesRef();
-        return new BinaryDocValuesField(name(), docValue);
+        return new BinaryDocValuesField(name, docValue);
     }
 
-    private static class ExponentialHistogramBuckets {
+    protected static class ExponentialHistogramBuckets {
         int offset;
-        ArrayList<Long> counts;
+        List<Long> counts;
 
-        ExponentialHistogramBuckets(int offset, ArrayList<Long> counts) {
+        ExponentialHistogramBuckets(int offset, List<Long> counts) {
             this.offset = offset;
             this.counts = counts;
         }
@@ -495,19 +499,16 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             iterator = -1;
         }
 
-        private boolean done() {
-            return iterator+1 == numNegativeCounts+numPositiveCounts;
-        }
-
         @Override
         public boolean next() throws IOException {
-            if (done()) {
+            if (iterator+1 == numNegativeCounts+numPositiveCounts) {
                 return false;
             }
             iterator++;
             count = streamInput.readVLong();
             if (iterator < numNegativeCounts) {
-                index = negativeOffset + iterator;
+                // Iterate through negative offsets in reverse order, from greatest to least absolute value.
+                index = negativeOffset + (numNegativeCounts - iterator - 1);
             } else {
                 index = positiveOffset + iterator - numNegativeCounts;
             }
@@ -516,25 +517,18 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         @Override
         public double value() {
-            if (done()) {
-                throw new IllegalArgumentException("histogram already exhausted");
-            }
-
             /*
              * From https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram:
              *     The ExponentialHistogram bucket identified by index, a signed integer,
              *     represents values in the population that are greater than base**index
              *     and less than or equal to base**(index+1).
              */
-            final double value = Math.pow(scaleBase, index+1);
+            final double value = Math.pow(scaleBase, index+1) * (iterator >= numNegativeCounts ? 1 : -1);
             return value;
         }
 
         @Override
         public long count() {
-            if (done()) {
-                throw new IllegalArgumentException("histogram already exhausted");
-            }
             return count;
         }
     }

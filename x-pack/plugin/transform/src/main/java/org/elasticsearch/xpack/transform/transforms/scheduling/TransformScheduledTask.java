@@ -37,7 +37,7 @@ final class TransformScheduledTask {
         TransformScheduler.Listener listener
     ) {
         this.transformId = Objects.requireNonNull(transformId);
-        this.frequency = frequency != null ? frequency : Transform.DEFAULT_TRANSFORM_FREQUENCY;
+        this.frequency = Objects.requireNonNull(frequency);
         this.lastTriggeredTimeMillis = lastTriggeredTimeMillis;
         this.failureCount = failureCount;
         this.nextScheduledTimeMillis = nextScheduledTimeMillis;

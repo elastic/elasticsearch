@@ -504,7 +504,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected long getCountForIndex(String indexName) {
         return SearchResponseUtils.getTotalHitsValue(
-            client().prepareSearch(indexName).setSource(new SearchSourceBuilder().size(0).trackTotalHits(true))
+            prepareSearch(indexName).setSource(new SearchSourceBuilder().size(0).trackTotalHits(true))
         );
     }
 

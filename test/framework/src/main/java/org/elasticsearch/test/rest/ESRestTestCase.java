@@ -1824,7 +1824,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return responseEntity;
     }
 
-    protected static XContentParser responseAsParser(Response response) throws IOException {
+    public static XContentParser responseAsParser(Response response) throws IOException {
         return XContentHelper.createParser(XContentParserConfiguration.EMPTY, responseAsBytes(response), XContentType.JSON);
     }
 

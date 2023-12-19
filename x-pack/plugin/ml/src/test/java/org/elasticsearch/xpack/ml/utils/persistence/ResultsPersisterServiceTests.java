@@ -77,6 +77,31 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     // Constants for searchWithRetry tests
     private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
+    public static final SearchResponse SEARCH_RESPONSE_SUCCESS = SearchResponseUtils.emptyWithTotalHits(
+        null,
+        1,
+        1,
+        0,
+        1L,
+        ShardSearchFailure.EMPTY_ARRAY,
+        null
+    );
+    public static final SearchResponse SEARCH_RESPONSE_FAILURE = new SearchResponse(
+        SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+        null,
+        null,
+        false,
+        null,
+        null,
+        1,
+        null,
+        1,
+        0,
+        0,
+        1L,
+        ShardSearchFailure.EMPTY_ARRAY,
+        null
+    );
 
     // Constants for bulkIndexWithRetry tests
     private static final IndexRequest INDEX_REQUEST_SUCCESS = new IndexRequest("my-index").id("success")
@@ -113,23 +138,23 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_ImmediateSuccess() {
-        doAnswer(withResponse(searchResponseSuccess())).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_SUCCESS)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
-        assertThat(searchResponse, is(searchResponseSuccess()));
+        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
         assertThat(messages, is(empty()));
 
         verify(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
     }
 
     public void testSearchWithRetries_SuccessAfterRetry() {
-        doAnswerWithResponses(searchResponseFailure(), searchResponseSuccess()).when(client)
+        doAnswerWithResponses(SEARCH_RESPONSE_FAILURE, SEARCH_RESPONSE_SUCCESS).when(client)
             .execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
-        assertThat(searchResponse, is(searchResponseSuccess()));
+        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
         assertThat(messages, hasSize(1));
 
         verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
@@ -137,12 +162,12 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     public void testSearchWithRetries_SuccessAfterRetryDueToException() {
         doAnswer(withFailure(new IndexPrimaryShardNotAllocatedException(new Index("my-index", "UUID")))).doAnswer(
-            withResponse(searchResponseSuccess())
+            withResponse(SEARCH_RESPONSE_SUCCESS)
         ).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         SearchResponse searchResponse = resultsPersisterService.searchWithRetry(SEARCH_REQUEST, JOB_ID, () -> true, messages::add);
-        assertThat(searchResponse, is(searchResponseSuccess()));
+        assertThat(searchResponse, is(SEARCH_RESPONSE_SUCCESS));
         assertThat(messages, hasSize(1));
 
         verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
@@ -151,7 +176,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     private void testSearchWithRetries_FailureAfterTooManyRetries(int maxFailureRetries) {
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(searchResponseFailure())).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         ElasticsearchException e = expectThrows(
@@ -177,7 +202,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     public void testSearchWithRetries_Failure_ShouldNotRetryFromTheBeginning() {
-        doAnswer(withResponse(searchResponseFailure())).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         List<String> messages = new ArrayList<>();
         ElasticsearchException e = expectThrows(
@@ -194,7 +219,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         int maxFailureRetries = 10;
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
-        doAnswer(withResponse(searchResponseFailure())).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
+        doAnswer(withResponse(SEARCH_RESPONSE_FAILURE)).when(client).execute(eq(TransportSearchAction.TYPE), eq(SEARCH_REQUEST), any());
 
         int maxRetries = randomIntBetween(1, maxFailureRetries);
         List<String> messages = new ArrayList<>();
@@ -401,26 +426,4 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }
 
-    private static SearchResponse searchResponseSuccess() {
-        return SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 1L, ShardSearchFailure.EMPTY_ARRAY, null);
-    }
-
-    private static SearchResponse searchResponseFailure() {
-        return new SearchResponse(
-            SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
-            null,
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            1,
-            0,
-            0,
-            1L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            null
-        );
-    }
 }

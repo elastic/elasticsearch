@@ -10,10 +10,16 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanArrayBlock;
 import org.elasticsearch.compute.data.BooleanArrayVector;
+import org.elasticsearch.compute.data.BooleanBigArrayBlock;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefArrayBlock;
@@ -22,14 +28,17 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
+import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
+import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -78,13 +87,15 @@ public class BlockBenchmark {
             int totalPositions = 10;
             long[] actualCheckSums = new long[NUM_BLOCKS_PER_ITERATION];
 
-            for (String dataType : getParamValues("dataType")) {
-                for (String blockKind : getParamValues("blockKind")) {
-                    BenchmarkBlocks data = buildBlocks(dataType, blockKind, totalPositions);
-                    int[][] traversalOrders = createTraversalOrders(data.blocks, false);
-                    run(dataType, data, traversalOrders, actualCheckSums);
-                    assertCheckSums(data, actualCheckSums);
-                }
+            for (String paramString : getParamValues("dataTypeAndBlockKind")) {
+                String[] params = paramString.split("/");
+                String dataType = params[0];
+                String blockKind = params[1];
+
+                BenchmarkBlocks data = buildBlocks(dataType, blockKind, totalPositions);
+                int[][] traversalOrders = createTraversalOrders(data.blocks, false);
+                run(dataType, data, traversalOrders, actualCheckSums);
+                assertCheckSums(data, actualCheckSums);
             }
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
@@ -133,13 +144,33 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "big-array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+                            BitArray valuesBigArray = new BitArray(totalPositions, BigArrays.NON_RECYCLING_INSTANCE);
+                            for (int i = 0; i < values.length; i++) {
+                                if (values[i]) {
+                                    valuesBigArray.set(i);
+                                }
+                            }
+
+                            blocks[blockIndex] = new BooleanBigArrayBlock(
+                                valuesBigArray,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED,
+                                BlockFactory.getNonBreakingInstance()
+                            );
+                        }
                         case "vector" -> {
                             // TODO: add also BigArrayVectors
                             BooleanVector vector = new BooleanArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
-                            throw new IllegalStateException();
+                            throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
 
@@ -185,7 +216,7 @@ public class BlockBenchmark {
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
-                            throw new IllegalStateException();
+                            throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
 
@@ -223,12 +254,32 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "big-array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+                            DoubleArray valuesBigArray = BlockFactory.getNonBreakingInstance()
+                                .bigArrays()
+                                .newDoubleArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            blocks[blockIndex] = new DoubleBigArrayBlock(
+                                valuesBigArray,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED,
+                                BlockFactory.getNonBreakingInstance()
+                            );
+                        }
                         case "vector" -> {
                             DoubleVector vector = new DoubleArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
-                            throw new IllegalStateException();
+                            throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
 
@@ -266,12 +317,30 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "big-array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+                            IntArray valuesBigArray = BlockFactory.getNonBreakingInstance().bigArrays().newIntArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            blocks[blockIndex] = new IntBigArrayBlock(
+                                valuesBigArray,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED,
+                                BlockFactory.getNonBreakingInstance()
+                            );
+                        }
                         case "vector" -> {
                             IntVector vector = new IntArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
-                            throw new IllegalStateException();
+                            throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
 
@@ -309,12 +378,32 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "big-array-multivalue-null" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+                            LongArray valuesBigArray = BlockFactory.getNonBreakingInstance()
+                                .bigArrays()
+                                .newLongArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            blocks[blockIndex] = new LongBigArrayBlock(
+                                valuesBigArray,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED,
+                                BlockFactory.getNonBreakingInstance()
+                            );
+                        }
                         case "vector" -> {
                             LongVector vector = new LongArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
-                            throw new IllegalStateException();
+                            throw new IllegalStateException("illegal block kind [" + blockKind + "]");
                         }
                     }
 
@@ -323,7 +412,7 @@ public class BlockBenchmark {
                 }
             }
             default -> {
-                throw new IllegalStateException();
+                throw new IllegalStateException("illegal data type [" + dataType + "]");
             }
         }
 
@@ -521,13 +610,32 @@ public class BlockBenchmark {
     }
 
     // We could also consider DocBlocks/DocVectors.
-    @Param({ "boolean", "BytesRef", "double", "int", "long" })
-    public String dataType;
+    @Param(
+        {
+            "boolean/array",
+            "boolean/array-multivalue-null",
+            "boolean/big-array-multivalue-null",
+            "boolean/vector",
+            "BytesRef/array",
+            "BytesRef/array-multivalue-null",
+            "BytesRef/vector",
+            "double/array",
+            "double/array-multivalue-null",
+            "double/big-array-multivalue-null",
+            "double/vector",
+            "int/array",
+            "int/array-multivalue-null",
+            "int/big-array-multivalue-null",
+            "int/vector",
+            "long/array",
+            "long/array-multivalue-null",
+            "long/big-array-multivalue-null",
+            "long/vector" }
+    )
+    public String dataTypeAndBlockKind;
 
-    @Param({ "array", "array-multivalue-null", "vector" })
-    public String blockKind;
-
-    @Param({ "sequential", "random" })
+    // @Param({ "sequential", "random" })
+    @Param({ "sequential" })
     public String accessType;
 
     private BenchmarkBlocks data;
@@ -538,6 +646,10 @@ public class BlockBenchmark {
 
     @Setup
     public void setup() {
+        String[] params = dataTypeAndBlockKind.split("/");
+        String dataType = params[0];
+        String blockKind = params[1];
+
         data = buildBlocks(dataType, blockKind, BLOCK_TOTAL_POSITIONS);
         traversalOrders = createTraversalOrders(data.blocks, isRandom(accessType));
     }
@@ -545,6 +657,9 @@ public class BlockBenchmark {
     @Benchmark
     @OperationsPerInvocation(NUM_BLOCKS_PER_ITERATION * BLOCK_TOTAL_POSITIONS)
     public void run() {
+        String[] params = dataTypeAndBlockKind.split("/");
+        String dataType = params[0];
+
         run(dataType, data, traversalOrders, actualCheckSums);
     }
 

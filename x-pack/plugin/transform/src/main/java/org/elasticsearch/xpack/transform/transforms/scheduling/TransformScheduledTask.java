@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.transforms.scheduling;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.transform.Transform;
 
 import java.util.Objects;
 

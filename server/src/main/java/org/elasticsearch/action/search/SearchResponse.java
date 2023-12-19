@@ -536,7 +536,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = in.readVInt();
             int successfulTemp = in.readVInt();
             int skippedTemp = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
                     this.clusterInfo = Collections.emptyMap();
@@ -589,7 +589,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().toList();
                     out.writeCollection(clusterList);

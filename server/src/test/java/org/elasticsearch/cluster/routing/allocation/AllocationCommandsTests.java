@@ -811,23 +811,24 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                ]
              }
             """;
-        XContentParser parser = createParser(JsonXContent.jsonXContent, commands);
-        // move two tokens, parser expected to be "on" `commands` field
-        parser.nextToken();
-        parser.nextToken();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, commands)) {
+            // move two tokens, parser expected to be "on" `commands` field
+            parser.nextToken();
+            parser.nextToken();
 
-        assertThat(
-            AllocationCommands.fromXContent(parser),
-            equalTo(
-                new AllocationCommands(
-                    new AllocateEmptyPrimaryAllocationCommand("test", 1, "node1", true),
-                    new AllocateStalePrimaryAllocationCommand("test", 2, "node1", true),
-                    new AllocateReplicaAllocationCommand("test", 2, "node1"),
-                    new MoveAllocationCommand("test", 3, "node2", "node3"),
-                    new CancelAllocationCommand("test", 4, "node5", true)
+            assertThat(
+                AllocationCommands.fromXContent(parser),
+                equalTo(
+                    new AllocationCommands(
+                        new AllocateEmptyPrimaryAllocationCommand("test", 1, "node1", true),
+                        new AllocateStalePrimaryAllocationCommand("test", 2, "node1", true),
+                        new AllocateReplicaAllocationCommand("test", 2, "node1"),
+                        new MoveAllocationCommand("test", 3, "node2", "node3"),
+                        new CancelAllocationCommand("test", 4, "node5", true)
+                    )
                 )
-            )
-        );
+            );
+        }
     }
 
     @Override

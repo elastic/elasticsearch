@@ -158,7 +158,7 @@ public class ConnectorSyncJobTests extends ESTestCase {
         assertThat(syncJob.getWorkerHostname(), equalTo("worker-hostname"));
     }
 
-    public void testFromXContent_WithAllNonOptionalFieldsSet_DoesNotThrow() throws IOException {
+    public void testFromXContent_WithOnlyNonNullableFieldsSet_DoesNotThrow() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
                                 "connector": {
@@ -240,6 +240,241 @@ public class ConnectorSyncJobTests extends ESTestCase {
             """);
 
         ConnectorSyncJob.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+    }
+
+    public void testFromXContent_WithAllNullableFieldsSetToNull_DoesNotThrow() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+            "cancelation_requested_at": null,
+                                "canceled_at": null,
+                                "completed_at": null,
+                                "connector": {
+                                    "id": "connector-id",
+                                    "filtering": [
+                                        {
+                                            "active": {
+                                                "advanced_snippet": {
+                                                    "created_at": "2023-12-01T14:18:37.397819Z",
+                                                    "updated_at": "2023-12-01T14:18:37.397819Z",
+                                                    "value": {}
+                                                },
+                                                "rules": [
+                                                    {
+                                                        "created_at": "2023-12-01T14:18:37.397819Z",
+                                                        "field": "_",
+                                                        "id": "DEFAULT",
+                                                        "order": 0,
+                                                        "policy": "include",
+                                                        "rule": "regex",
+                                                        "updated_at": "2023-12-01T14:18:37.397819Z",
+                                                        "value": ".*"
+                                                    }
+                                                ],
+                                                "validation": {
+                                                    "errors": [],
+                                                    "state": "valid"
+                                                }
+                                            },
+                                            "domain": "DEFAULT",
+                                            "draft": {
+                                                "advanced_snippet": {
+                                                    "created_at": "2023-12-01T14:18:37.397819Z",
+                                                    "updated_at": "2023-12-01T14:18:37.397819Z",
+                                                    "value": {}
+                                                },
+                                                "rules": [
+                                                    {
+                                                        "created_at": "2023-12-01T14:18:37.397819Z",
+                                                        "field": "_",
+                                                        "id": "DEFAULT",
+                                                        "order": 0,
+                                                        "policy": "include",
+                                                        "rule": "regex",
+                                                        "updated_at": "2023-12-01T14:18:37.397819Z",
+                                                        "value": ".*"
+                                                    }
+                                                ],
+                                                "validation": {
+                                                    "errors": [],
+                                                    "state": "valid"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "index_name": "search-connector",
+                                    "language": "english",
+                                    "pipeline": {
+                                        "extract_binary_content": true,
+                                        "name": "ent-search-generic-ingestion",
+                                        "reduce_whitespace": true,
+                                        "run_ml_inference": false
+                                    },
+                                    "service_type": "service type",
+                                    "configuration": {}
+                                },
+                                "created_at": "2023-12-01T14:18:43.07693Z",
+                                "deleted_document_count": 10,
+                                "error": null,
+                                "id": "HIC-JYwB9RqKhB7x_hIE",
+                                "indexed_document_count": 10,
+                                "indexed_document_volume": 10,
+                                "job_type": "full",
+                                "last_seen": null,
+                                "metadata": {},
+                                "started_at": null,
+                                "status": "canceling",
+                                "total_document_count": 0,
+                                "trigger_method": "scheduled",
+                                "worker_hostname": null
+                                }
+            """);
+
+        ConnectorSyncJob.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+    }
+
+    public void testSyncJobConnectorFromXContent_WithAllFieldsSet() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+                "id": "connector-id",
+                "filtering": [
+                    {
+                        "active": {
+                            "advanced_snippet": {
+                                "created_at": "2023-12-01T14:18:37.397819Z",
+                                "updated_at": "2023-12-01T14:18:37.397819Z",
+                                "value": {}
+                            },
+                            "rules": [
+                                {
+                                    "created_at": "2023-12-01T14:18:37.397819Z",
+                                    "field": "_",
+                                    "id": "DEFAULT",
+                                    "order": 0,
+                                    "policy": "include",
+                                    "rule": "regex",
+                                    "updated_at": "2023-12-01T14:18:37.397819Z",
+                                    "value": ".*"
+                                }
+                            ],
+                            "validation": {
+                                "errors": [],
+                                "state": "valid"
+                            }
+                        },
+                        "domain": "DEFAULT",
+                        "draft": {
+                            "advanced_snippet": {
+                                "created_at": "2023-12-01T14:18:37.397819Z",
+                                "updated_at": "2023-12-01T14:18:37.397819Z",
+                                "value": {}
+                            },
+                            "rules": [
+                                {
+                                    "created_at": "2023-12-01T14:18:37.397819Z",
+                                    "field": "_",
+                                    "id": "DEFAULT",
+                                    "order": 0,
+                                    "policy": "include",
+                                    "rule": "regex",
+                                    "updated_at": "2023-12-01T14:18:37.397819Z",
+                                    "value": ".*"
+                                }
+                            ],
+                            "validation": {
+                                "errors": [],
+                                "state": "valid"
+                            }
+                        }
+                    }
+                ],
+                "index_name": "search-connector",
+                "language": "english",
+                "pipeline": {
+                    "extract_binary_content": true,
+                    "name": "ent-search-generic-ingestion",
+                    "reduce_whitespace": true,
+                    "run_ml_inference": false
+                },
+                "service_type": "service type",
+                "configuration": {}
+            }
+            """);
+
+        Connector connector = ConnectorSyncJob.syncJobConnectorFromXContentBytes(new BytesArray(content), null, XContentType.JSON);
+
+        assertThat(connector.getConnectorId(), equalTo("connector-id"));
+        assertThat(connector.getFiltering().size(), equalTo(1));
+        assertThat(connector.getIndexName(), equalTo("search-connector"));
+        assertThat(connector.getLanguage(), equalTo("english"));
+        assertThat(connector.getPipeline(), notNullValue());
+        assertThat(connector.getServiceType(), equalTo("service type"));
+        assertThat(connector.getConfiguration(), notNullValue());
+    }
+
+    public void testSyncJobConnectorFromXContent_WithAllNonOptionalFieldsSet_DoesNotThrow() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+                "id": "connector-id",
+                "filtering": [
+                    {
+                        "active": {
+                            "advanced_snippet": {
+                                "created_at": "2023-12-01T14:18:37.397819Z",
+                                "updated_at": "2023-12-01T14:18:37.397819Z",
+                                "value": {}
+                            },
+                            "rules": [
+                                {
+                                    "created_at": "2023-12-01T14:18:37.397819Z",
+                                    "field": "_",
+                                    "id": "DEFAULT",
+                                    "order": 0,
+                                    "policy": "include",
+                                    "rule": "regex",
+                                    "updated_at": "2023-12-01T14:18:37.397819Z",
+                                    "value": ".*"
+                                }
+                            ],
+                            "validation": {
+                                "errors": [],
+                                "state": "valid"
+                            }
+                        },
+                        "domain": "DEFAULT",
+                        "draft": {
+                            "advanced_snippet": {
+                                "created_at": "2023-12-01T14:18:37.397819Z",
+                                "updated_at": "2023-12-01T14:18:37.397819Z",
+                                "value": {}
+                            },
+                            "rules": [
+                                {
+                                    "created_at": "2023-12-01T14:18:37.397819Z",
+                                    "field": "_",
+                                    "id": "DEFAULT",
+                                    "order": 0,
+                                    "policy": "include",
+                                    "rule": "regex",
+                                    "updated_at": "2023-12-01T14:18:37.397819Z",
+                                    "value": ".*"
+                                }
+                            ],
+                            "validation": {
+                                "errors": [],
+                                "state": "valid"
+                            }
+                        }
+                    }
+                ],
+                "index_name": null,
+                "language": null,
+                "pipeline": null,
+                "service_type": null,
+                "configuration": {}
+            }
+            """);
+
+        ConnectorSyncJob.syncJobConnectorFromXContentBytes(new BytesArray(content), null, XContentType.JSON);
     }
 
     private void assertTransportSerialization(ConnectorSyncJob testInstance) throws IOException {

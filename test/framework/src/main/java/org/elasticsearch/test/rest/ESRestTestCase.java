@@ -120,6 +120,7 @@ import javax.net.ssl.SSLContext;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1227,7 +1228,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
         Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
         Response response = client.performRequest(refreshRequest);
-        return RefreshResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return RefreshResponse.fromXContent(parser);
+        }
     }
 
     private static void waitForPendingRollupTasks() throws Exception {
@@ -1684,7 +1687,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         entity += "}";
         request.setJsonEntity(entity);
         Response response = client.performRequest(request);
-        return CreateIndexResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return CreateIndexResponse.fromXContent(parser);
+        }
     }
 
     protected static AcknowledgedResponse deleteIndex(String name) throws IOException {
@@ -1694,7 +1699,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static AcknowledgedResponse deleteIndex(RestClient restClient, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
         Response response = restClient.performRequest(request);
-        return AcknowledgedResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return AcknowledgedResponse.fromXContent(parser);
+        }
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -2149,7 +2156,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             // In that case the transport_version field won't exist. Use version, but only for <8.8.0: after that versions diverge.
             var version = parseLegacyVersion(versionField);
             assert version.isPresent();
-            if (version.get().before(Version.V_8_8_0)) {
+            if (version.get().before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
                 return TransportVersion.fromId(version.get().id);
             }
         }

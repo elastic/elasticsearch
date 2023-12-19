@@ -1,0 +1,5 @@
+pr: 103310
+summary: Revert "Validate settings in `ReloadSecureSettings` API"
+area: Security
+type: bug
+issues: []

@@ -19,7 +19,9 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -186,10 +188,16 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, body);
-                                // multiple bodies are supported e.g. in case of bulk provided as a whole string
-                                while (bodyParser.nextToken() != null) {
-                                    apiCallSection.addBody(bodyParser.mapOrdered());
+                                try (
+                                    XContentParser bodyParser = JsonXContent.jsonXContent.createParser(
+                                        XContentParserConfiguration.EMPTY,
+                                        body
+                                    )
+                                ) {
+                                    // multiple bodies are supported e.g. in case of bulk provided as a whole string
+                                    while (bodyParser.nextToken() != null) {
+                                        apiCallSection.addBody(bodyParser.mapOrdered());
+                                    }
                                 }
                             } else {
                                 apiCallSection.addParam(paramName, parser.text());
@@ -363,8 +371,16 @@ public class DoSection implements ExecutableSection {
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
-            if (executionContext.esVersion().major == Version.V_7_17_0.major && executionContext.esVersion().after(Version.V_7_17_1)) {
-                // #84038 and #84089 mean that this assertion fails when running against a small number of 7.17.x released versions
+
+            // #84038 and #84089 mean that this assertion fails when running against < 7.17.2 and 8.0.0 released versions
+            // This is really difficult to express just with features, so I will break it down into 2 parts: version check for v7,
+            // and feature check for v8. This way the version check can be removed once we move to v9
+            @UpdateForV9
+            var fixedInV7 = executionContext.esVersion().major == Version.V_7_17_0.major
+                && executionContext.esVersion().onOrAfter(Version.V_7_17_2);
+            var fixedProductionHeader = fixedInV7
+                || executionContext.clusterHasFeature(RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id());
+            if (fixedProductionHeader) {
                 checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             }
             checkWarningHeaders(response.getWarningHeaders(), testPath);

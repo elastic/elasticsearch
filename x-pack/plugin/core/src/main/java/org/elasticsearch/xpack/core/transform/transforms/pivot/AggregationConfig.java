@@ -139,13 +139,15 @@ public class AggregationConfig implements Writeable, ToXContentObject {
         NamedXContentRegistry namedXContentRegistry,
         DeprecationHandler deprecationHandler
     ) throws IOException {
-        AggregatorFactories.Builder aggregations = null;
-
+        final AggregatorFactories.Builder aggregations;
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-        XContentParser sourceParser = XContentType.JSON.xContent()
-            .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput());
-        sourceParser.nextToken();
-        aggregations = AggregatorFactories.parseAggregators(sourceParser);
+        try (
+            XContentParser sourceParser = XContentType.JSON.xContent()
+                .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput())
+        ) {
+            sourceParser.nextToken();
+            aggregations = AggregatorFactories.parseAggregators(sourceParser);
+        }
 
         return aggregations;
     }

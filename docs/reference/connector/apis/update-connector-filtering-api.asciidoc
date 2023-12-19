@@ -7,7 +7,7 @@ preview::[]
 <titleabbrev>Update connector filtering</titleabbrev>
 ++++
 
-Updates the `filtering` configuration of a connector.
+Updates the `filtering` configuration of a connector. Learn more about filtering in the {enterprise-search-ref}/sync-rules.html[sync rules] documentation.
 
 [[update-connector-filtering-api-request]]
 ==== {api-request-title}

@@ -54,10 +54,10 @@ public final class RenameProcessor extends AbstractProcessor {
     boolean isIgnoreMissing() {
         return ignoreMissing;
     }
+
     public boolean isOverrideEnabled() {
         return overrideEnabled;
     }
-
 
     @Override
     public IngestDocument execute(IngestDocument document) {

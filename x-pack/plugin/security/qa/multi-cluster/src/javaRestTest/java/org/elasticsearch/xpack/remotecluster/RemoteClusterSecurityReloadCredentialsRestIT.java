@@ -27,12 +27,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
-
 // account for slow stored secure settings updates (involves removing and re-creating the keystore)
 @TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemoteClusterSecurityTestCase {
@@ -215,21 +209,6 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         } else {
             // now that credentials are configured, we expect a successful connection
             checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void reloadSecureSettings() throws IOException {
-        final Response reloadResponse = adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings"));
-        assertOK(reloadResponse);
-        final Map<String, Object> map = entityAsMap(reloadResponse);
-        assertThat(map.get("nodes"), instanceOf(Map.class));
-        final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
-        assertThat(nodes, is(not(anEmptyMap())));
-        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
-            assertThat(entry.getValue(), instanceOf(Map.class));
-            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
-            assertThat(node.get("reload_exception"), nullValue());
         }
     }
 

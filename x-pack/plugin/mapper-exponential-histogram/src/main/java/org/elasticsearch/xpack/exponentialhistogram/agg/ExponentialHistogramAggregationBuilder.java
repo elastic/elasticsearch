@@ -107,7 +107,7 @@ public class ExponentialHistogramAggregationBuilder extends ValuesSourceAggregat
 
     @Override
     public BucketCardinality bucketCardinality() {
-        return BucketCardinality.MANY;
+        return BucketCardinality.ONE;
     }
 
     @Override

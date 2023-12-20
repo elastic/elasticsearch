@@ -31,32 +31,53 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "field";
-
-
 
     public void testHistograms() throws Exception {
         ExponentialHistogramFieldMapper mapper = new ExponentialHistogramFieldMapper.Builder(FIELD_NAME).build(
             MapperBuilderContext.root(false, false)
         );
 
+        final int originalScale = 10;
         ExponentialHistogramFieldMapper.ExponentialHistogramBuckets negative =
             new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 0L, 0L, 2L));
         ExponentialHistogramFieldMapper.ExponentialHistogramBuckets positive =
             new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 0L, 0L, 2L));
 
-        // TODO(axw) set scale
+        // Aggregate at a lower scale, illustrating that the aggregated histogram buckets are fewer and wider.
         ExponentialHistogramAggregationBuilder aggBuilder =
-            new ExponentialHistogramAggregationBuilder("my_agg").field(FIELD_NAME);
+            new ExponentialHistogramAggregationBuilder("my_agg")
+                .setMaxScale(9)
+                .field(FIELD_NAME);
 
         testCase(iw -> {
-                iw.addDocument(doc(mapper, 10, negative, positive));
+            iw.addDocument(doc(mapper, originalScale, negative, positive));
+            iw.addDocument(doc(mapper, originalScale, null, positive));
+            iw.addDocument(doc(mapper, originalScale, negative, null));
         }, (InternalExponentialHistogram result) -> {
-            //result.getBuckets()
+
+            List<InternalExponentialHistogram.Bucket> buckets = result.getBuckets();
+            InternalExponentialHistogram.Bucket lastBucket = null;
+            for (InternalExponentialHistogram.Bucket bucket : buckets) {
+                assertThat("unordered bounds", bucket.getLowerBound(), lessThan(bucket.getUpperBound()));
+                if (lastBucket != null) {
+                    assertThat("unordered buckets", lastBucket.getUpperBound(), lessThanOrEqualTo(bucket.getLowerBound()));
+                }
+                lastBucket = bucket;
+            }
+
+            assertEquals(6, buckets.size());
+            assertEquals(4, buckets.get(0).getCount());
+            assertEquals(0, buckets.get(1).getCount());
+            assertEquals(2, buckets.get(2).getCount());
+            assertEquals(2, buckets.get(3).getCount());
+            assertEquals(0, buckets.get(4).getCount());
+            assertEquals(4, buckets.get(5).getCount());
         },  new AggTestConfig(aggBuilder, mapper.fieldType()));
     }
 
@@ -106,22 +127,6 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
             throw new AssertionError(e);
         }
     }
-
-    /*
-    private static BinaryDocValuesField exponentialHistogramFieldDocValues(String fieldName, double[] values) throws IOException {
-        DoubleHistogram histogram = new DoubleHistogram(3);
-        histogram.setAutoResize(true);
-        for (double value : values) {
-            histogram.recordValue(value);
-        }
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        for (DoubleHistogramIterationValue value : histogram.recordedValues()) {
-            streamOutput.writeVInt((int) value.getCountAtValueIteratedTo());
-            streamOutput.writeDouble(value.getValueIteratedTo());
-        }
-        return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
-    }
-    */
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {

@@ -364,8 +364,9 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             streamOutput.writeVInt(positive.offset);
         }
         if (numNegativeCounts > 0) {
-            for (long count : negative.counts) {
-                streamOutput.writeVLong(count);
+            // Iterate through negative offsets in reverse order, from greatest to least absolute value.
+            for (int i = negative.counts.size()-1; i >= 0; i--) {
+                streamOutput.writeVLong(negative.counts.get(i));
             }
         }
         if (numPositiveCounts > 0) {
@@ -443,19 +444,6 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     }
 
     /*
-    @Override
-    public Iterator<Mapper> iterator() {
-        List<Mapper> mappers = new ArrayList<>();
-        Iterator<Mapper> m = super.iterator();
-        while (m.hasNext()) {
-            mappers.add(m.next());
-        }
-        mappers.add(countFieldMapper);
-        return mappers.iterator();
-    }
-     */
-
-    /*
      * ExponentialHistogramValue is an implementation of HistogramValue that
      * iterates over values recorded in an exponential histogram field.
      */
@@ -507,8 +495,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             iterator++;
             count = streamInput.readVLong();
             if (iterator < numNegativeCounts) {
-                // Iterate through negative offsets in reverse order, from greatest to least absolute value.
-                index = negativeOffset + (numNegativeCounts - iterator - 1);
+                // Negative counts are written in reverse order, compensate here.
+                index = negativeOffset + numNegativeCounts - iterator - 1;
             } else {
                 index = positiveOffset + iterator - numNegativeCounts;
             }
@@ -523,8 +511,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
              *     represents values in the population that are greater than base**index
              *     and less than or equal to base**(index+1).
              */
-            final double value = Math.pow(scaleBase, index+1) * (iterator >= numNegativeCounts ? 1 : -1);
-            return value;
+            return Math.pow(scaleBase, index + 1) * (iterator < numNegativeCounts ? -1 : 1);
         }
 
         @Override

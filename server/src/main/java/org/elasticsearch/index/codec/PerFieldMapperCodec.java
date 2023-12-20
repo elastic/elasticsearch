@@ -73,7 +73,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         if (format != null) {
             return format;
         }
-        // here
+        // return our own posting format using PFOR
         return ES812PostingsFormat;
     }
 

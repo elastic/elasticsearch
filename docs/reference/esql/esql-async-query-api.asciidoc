@@ -6,7 +6,7 @@
 
 Runs an async {esql} search.
 
-The async query API let you asynchronously execute a search request,
+The async query API lets you asynchronously execute a search request,
 monitor its progress, and retrieve results as they become available.
 
 Executing an <<esql,ES|QL ({es} query language)>> is commonly quite fast,

@@ -65,6 +65,10 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
     protected abstract void append(BlockLoader.Builder builder, Object v);
 
+    /**
+     * Returns {@code true} if we are <strong>sure</strong> there are no values
+     * for this field.
+     */
     private boolean canSkipLoading(int docId) throws IOException {
         assert docId >= this.docId;
         this.docId = docId;
@@ -131,6 +135,9 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         protected abstract String name();
     }
 
+    /**
+     * Load {@code boolean}s from {@code _source}.
+     */
     public static class BooleansBlockLoader extends SourceBlockLoader {
         public BooleansBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
@@ -168,6 +175,9 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    /**
+     * Load {@link BytesRef}s from {@code _source}.
+     */
     public static class BytesRefsBlockLoader extends SourceBlockLoader {
         public BytesRefsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
@@ -207,6 +217,9 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    /**
+     * Load {@code double}s from {@code _source}.
+     */
     public static class DoublesBlockLoader extends SourceBlockLoader {
         public DoublesBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
@@ -244,6 +257,9 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    /**
+     * Load {@code int}s from {@code _source}.
+     */
     public static class IntsBlockLoader extends SourceBlockLoader {
         public IntsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);
@@ -281,6 +297,9 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    /**
+     * Load {@code long}s from {@code _source}.
+     */
     public static class LongsBlockLoader extends SourceBlockLoader {
         public LongsBlockLoader(ValueFetcher fetcher, LeafIteratorLookup lookup) {
             super(fetcher, lookup);

@@ -51,7 +51,6 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -59,7 +58,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -128,7 +126,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 throw new RuntimeException(e);
             }
         }
-        return factory(reader, docValuesNumberField("long", NumberFieldMapper.NumberType.LONG));
+        return factory(reader, mapperService.fieldType("long"));
     }
 
     static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft) {
@@ -169,10 +167,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         return luceneFactory.get(context);
     }
 
-    private void initIndex(int size, int commitEvery) throws IOException {
+    private void initMapping() throws IOException {
         mapperService = new MapperServiceTestCase() {
         }.createMapperService(MapperServiceTestCase.mapping(b -> {
-            fieldExamples(b, "key", "long");
+            fieldExamples(b, "key", "integer");
             fieldExamples(b, "int", "integer");
             fieldExamples(b, "short", "short");
             fieldExamples(b, "byte", "byte");
@@ -200,6 +198,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 b.endObject();
             }
         }));
+    }
+
+    private void initIndex(int size, int commitEvery) throws IOException {
+        initMapping();
         keyToTags.clear();
         try (
             IndexWriter writer = new IndexWriter(
@@ -423,7 +425,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         operators.add(
             new ValuesSourceReaderOperator.Factory(
-                List.of(testCase.info, fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER))),
+                List.of(testCase.info, fieldInfo(mapperService.fieldType("key"))),
                 List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                 0
             ).get(driverContext)
@@ -496,7 +498,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<Operator> operators = new ArrayList<>();
         operators.add(
             new ValuesSourceReaderOperator.Factory(
-                List.of(fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER))),
+                List.of(fieldInfo(mapperService.fieldType("key"))),
                 List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                 0
             ).get(driverContext)
@@ -621,13 +623,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(new FieldCase(mapperService.fieldType("mv_long"), checks::mvLongsFromDocValues, StatusChecks::mvLongsFromDocValues));
         r.add(new FieldCase(mapperService.fieldType("missing_long"), checks::constantNulls, StatusChecks::constantNulls));
         r.add(new FieldCase(mapperService.fieldType("source_long"), checks::longs, StatusChecks::longsFromSource));
-        r.add(
-            new FieldCase(
-                sourceNumberField("mv_source_long", NumberFieldMapper.NumberType.LONG),
-                checks::mvLongsUnordered,
-                StatusChecks::mvLongsFromSource
-            )
-        );
+        r.add(new FieldCase(mapperService.fieldType("mv_source_long"), checks::mvLongsUnordered, StatusChecks::mvLongsFromSource));
         r.add(new FieldCase(mapperService.fieldType("int"), checks::ints, StatusChecks::intsFromDocValues));
         r.add(new FieldCase(mapperService.fieldType("mv_int"), checks::mvIntsFromDocValues, StatusChecks::mvIntsFromDocValues));
         r.add(new FieldCase(mapperService.fieldType("missing_int"), checks::constantNulls, StatusChecks::constantNulls));
@@ -1130,9 +1126,15 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testWithNulls() throws IOException {
-        MappedFieldType intFt = docValuesNumberField("i", NumberFieldMapper.NumberType.INTEGER);
-        MappedFieldType longFt = docValuesNumberField("j", NumberFieldMapper.NumberType.LONG);
-        MappedFieldType doubleFt = docValuesNumberField("d", NumberFieldMapper.NumberType.DOUBLE);
+        mapperService = new MapperServiceTestCase() {
+        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+            fieldExamples(b, "i", "integer");
+            fieldExamples(b, "j", "long");
+            fieldExamples(b, "d", "double");
+        }));
+        MappedFieldType intFt = mapperService.fieldType("i");
+        MappedFieldType longFt = mapperService.fieldType("j");
+        MappedFieldType doubleFt = mapperService.fieldType("d");
         MappedFieldType kwFt = new KeywordFieldMapper.KeywordFieldType("kw");
 
         NumericDocValuesField intField = new NumericDocValuesField(intFt.name(), 0);
@@ -1206,27 +1208,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    private NumberFieldMapper.NumberFieldType docValuesNumberField(String name, NumberFieldMapper.NumberType type) {
-        return new NumberFieldMapper.NumberFieldType(name, type);
-    }
-
-    private NumberFieldMapper.NumberFieldType sourceNumberField(String name, NumberFieldMapper.NumberType type) {
-        return new NumberFieldMapper.NumberFieldType(
-            name,
-            type,
-            randomBoolean(),
-            false,
-            false,
-            randomBoolean(),
-            null,
-            Map.of(),
-            null,
-            false,
-            null,
-            randomFrom(IndexMode.values())
-        );
-    }
-
     private XContentBuilder fieldExamples(XContentBuilder builder, String name, String type) throws IOException {
         simpleField(builder, name, type);
         simpleField(builder, "mv_" + name, type);
@@ -1256,22 +1237,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Lucene.KEYWORD_ANALYZER,
             new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
             true // TODO randomize - load from stored keyword fields if stored even in synthetic source
-        );
-    }
-
-    private KeywordFieldMapper.KeywordFieldType sourceKeywordField(String name) {
-        FieldType ft = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        ft.setDocValuesType(DocValuesType.NONE);
-        ft.setStored(false);
-        ft.freeze();
-        return new KeywordFieldMapper.KeywordFieldType(
-            name,
-            ft,
-            Lucene.KEYWORD_ANALYZER,
-            Lucene.KEYWORD_ANALYZER,
-            Lucene.KEYWORD_ANALYZER,
-            new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
-            false
         );
     }
 
@@ -1340,27 +1305,25 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    public void testSequentialStoredFieldsTooSmall() {
+    public void testSequentialStoredFieldsTooSmall() throws IOException {
         testSequentialStoredFields(false, between(1, ValuesSourceReaderOperator.SEQUENTIAL_BOUNDARY - 1));
     }
 
-    public void testSequentialStoredFieldsBigEnough() {
+    public void testSequentialStoredFieldsBigEnough() throws IOException {
         testSequentialStoredFields(
             true,
             between(ValuesSourceReaderOperator.SEQUENTIAL_BOUNDARY, ValuesSourceReaderOperator.SEQUENTIAL_BOUNDARY * 2)
         );
     }
 
-    private void testSequentialStoredFields(boolean sequential, int docCount) {
+    private void testSequentialStoredFields(boolean sequential, int docCount) throws IOException {
+        initMapping();
         DriverContext driverContext = driverContext();
         List<Page> source = CannedSourceOperator.collectPages(simpleInput(driverContext, docCount, docCount, docCount));
         assertThat(source, hasSize(1)); // We want one page for simpler assertions, and we want them all in one segment
         assertTrue(source.get(0).<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
         Operator op = new ValuesSourceReaderOperator.Factory(
-            List.of(
-                fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER)),
-                fieldInfo(storedTextField("stored_text"))
-            ),
+            List.of(fieldInfo(mapperService.fieldType("key")), fieldInfo(storedTextField("stored_text"))),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
             0
         ).get(driverContext);

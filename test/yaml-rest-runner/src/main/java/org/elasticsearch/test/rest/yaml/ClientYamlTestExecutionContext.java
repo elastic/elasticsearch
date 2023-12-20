@@ -17,8 +17,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.Stash;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -30,6 +33,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
@@ -59,6 +64,57 @@ public class ClientYamlTestExecutionContext {
     private final boolean randomizeContentType;
     private final BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate;
 
+    // TODO: this will become the ctor once work is done on serverless side and https://github.com/elastic/elasticsearch/pull/103311/
+    // has been merged
+    public ClientYamlTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        boolean randomizeContentType,
+        final Set<String> nodesVersions,
+        final TestFeatureService testFeatureService,
+        final Set<String> osList,
+        BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
+    ) {
+        this(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType,
+            getEsVersion(nodesVersions),
+            testFeatureService::clusterHasFeature,
+            osList.iterator().next(),
+            (ignoreApi, ignorePath) -> true
+        );
+    }
+
+    public ClientYamlTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        boolean randomizeContentType,
+        final Set<String> nodesVersions,
+        final TestFeatureService testFeatureService,
+        final Set<String> osList
+    ) {
+        this(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType,
+            nodesVersions,
+            testFeatureService,
+            osList,
+            (ignoreApi, ignorePath) -> true
+        );
+    }
+
+    @Deprecated
+    private static Version getEsVersion(Set<String> nodesVersions) {
+        return nodesVersions.stream()
+            .map(ESRestTestCase::parseLegacyVersion)
+            .flatMap(Optional::stream)
+            .min(VersionId::compareTo)
+            .orElse(Version.CURRENT);
+    }
+
+    @Deprecated
     public ClientYamlTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
@@ -78,6 +134,7 @@ public class ClientYamlTestExecutionContext {
         );
     }
 
+    @Deprecated
     public ClientYamlTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,

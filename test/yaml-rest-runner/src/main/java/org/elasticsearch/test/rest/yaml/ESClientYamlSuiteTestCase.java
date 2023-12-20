@@ -29,9 +29,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
@@ -62,6 +62,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -139,33 +140,35 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             validateSpec(restSpec);
             restSpecification = restSpec;
             final List<HttpHost> hosts = getClusterHosts();
-            Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
-            final Version esVersion = versionVersionTuple.v1();
-            final Version masterVersion = versionVersionTuple.v2();
+            final Set<String> nodesVersions = getCachedNodesVersions();
             final String os = readOsFromNodesInfo(adminClient());
 
-            logger.info(
-                "initializing client, minimum es version [{}], master version, [{}], hosts {}, os [{}]",
-                esVersion,
-                masterVersion,
-                hosts,
-                os
+            var semanticNodeVersions = nodesVersions.stream()
+                .map(ESRestTestCase::parseLegacyVersion)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+            final TestFeatureService testFeatureService = createTestFeatureService(
+                getClusterStateFeatures(adminClient()),
+                semanticNodeVersions
             );
+
+            logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
+
             clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts);
             restTestExecutionContext = createRestTestExecutionContext(
                 testCandidate,
                 clientYamlTestClient,
-                esVersion,
-                ESRestTestCase::clusterHasFeature,
-                os
+                nodesVersions,
+                testFeatureService,
+                Set.of(os)
             );
             adminExecutionContext = new ClientYamlTestExecutionContext(
                 testCandidate,
                 clientYamlTestClient,
                 false,
-                esVersion,
-                ESRestTestCase::clusterHasFeature,
-                os
+                nodesVersions,
+                testFeatureService,
+                Set.of(os)
             );
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
@@ -190,6 +193,24 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Create the test execution context. Can be overwritten in sub-implementations of the test if the context needs to be modified.
      */
+    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        final Set<String> nodesVersions,
+        final TestFeatureService testFeatureService,
+        final Set<String> osList
+    ) {
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            nodesVersions,
+            testFeatureService,
+            osList
+        );
+    }
+
+    @Deprecated
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
@@ -319,13 +340,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             for (String strPath : paths) {
                 Path path = root.resolve(strPath);
                 if (Files.isDirectory(path)) {
-                    Files.walk(path).forEach(file -> {
-                        if (file.toString().endsWith(".yml")) {
-                            addSuite(root, file, files);
-                        } else if (file.toString().endsWith(".yaml")) {
-                            throw new IllegalArgumentException("yaml files are no longer supported: " + file);
-                        }
-                    });
+                    try (var filesStream = Files.walk(path)) {
+                        filesStream.forEach(file -> {
+                            if (file.toString().endsWith(".yml")) {
+                                addSuite(root, file, files);
+                            } else if (file.toString().endsWith(".yaml")) {
+                                throw new IllegalArgumentException("yaml files are no longer supported: " + file);
+                            }
+                        });
+                    }
                 } else {
                     path = root.resolve(strPath + ".yml");
                     assert Files.exists(path) : "Path " + path + " does not exist in YAML test root";
@@ -402,35 +425,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
-        // we simply go to the _cat/nodes API and parse all versions in the cluster
-        final Request request = new Request("GET", "/_cat/nodes");
-        request.addParameter("h", "version,master");
-        request.setOptions(getCatNodesVersionMasterRequestOptions());
-        Response response = restClient.performRequest(request);
-        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-        String nodesCatResponse = restTestResponse.getBodyAsString();
-        String[] split = nodesCatResponse.split("\n");
-        Version version = null;
-        Version masterVersion = null;
-        for (String perNode : split) {
-            final String[] versionAndMaster = perNode.split("\\s+");
-            assert versionAndMaster.length == 2 : "invalid line: " + perNode + " length: " + versionAndMaster.length;
-            final Version currentVersion = Version.fromString(versionAndMaster[0]);
-            final boolean master = versionAndMaster[1].trim().equals("*");
-            if (master) {
-                assert masterVersion == null;
-                masterVersion = currentVersion;
-            }
-            if (version == null) {
-                version = currentVersion;
-            } else if (version.onOrAfter(currentVersion)) {
-                version = currentVersion;
-            }
-        }
-        return new Tuple<>(version, masterVersion);
-    }
-
     static String readOsFromNodesInfo(RestClient restClient) throws IOException {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
@@ -457,10 +451,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // accurate, for example if "Windows Server 2016" and "Windows Server 2019" are reported by different
         // Java versions then Windows Server 2019 is likely to be correct.
         return osPrettyNames.last();
-    }
-
-    protected RequestOptions getCatNodesVersionMasterRequestOptions() {
-        return RequestOptions.DEFAULT;
     }
 
     public void test() throws IOException {

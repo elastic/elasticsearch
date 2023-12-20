@@ -11,7 +11,6 @@ VDIR=/fixture
 CERTS_DIR=$VDIR/certs
 SSL_DIR=/var/lib/samba/private/tls
 
-echo "within install smb script"
 # install ssl certs
 mkdir -p $SSL_DIR
 cp $CERTS_DIR/*.pem $SSL_DIR

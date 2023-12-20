@@ -50,7 +50,7 @@ Examples :
 **Suffixes**:
 * Use `total` as a suffix for monotonic metrics (always increasing counter) (e.g. <code>es.indices.docs.deleted.<strong>total</strong></code>)
   * Note: even though async counter is reporting a total cumulative value, it is till monotonic.
-* Use `current` to represent the non-monotonic metrics (like gauges, upDownCounters) (e.g. if we have `es.process.jvm.classes.loaded`, we will express the number of classes currently loaded by the JVM as <code>es.process.jvm.classes.loaded.<strong>count</strong></code>, and the total number of classes loaded since the JVM started as <code>es.process.jvm.classes.loaded.<strong>total</strong></code>
+* Use `current` to represent the non-monotonic metrics (like gauges, upDownCounters) (e.g. if we have `es.process.jvm.classes.loaded`, we will express the number of classes currently loaded by the JVM as <code>es.process.jvm.classes.loaded.<strong>current</strong></code>, and the total number of classes loaded since the JVM started as <code>es.process.jvm.classes.loaded.<strong>total</strong></code>
 * Use `ratio` to represent the ratio of two measures with identical unit (or unit-less) or measures that represent a fraction in the range [0, 1]. Examples:
     * Exception: consider using utilization when the ratio is between a usage and its limit, e.g. the ratio between <code>es.process.jvm.heap.<strong>usage</strong></code> and <code>es.process.jvm.heap.<strong>limit</strong></code> should be <code>es.process.jvm.heap.<strong>utilization</strong></code>
 * Use `status` to represent enum like gauges. example <code>es.health.overall.red.status</code> have values 1/0 to represent true/false

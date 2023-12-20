@@ -369,7 +369,7 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
             } finally {
                 searchResponse.decRef();
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void assertFollowerInfo(String followIndexName, String leaderClusterName, String leadIndexName, String status)

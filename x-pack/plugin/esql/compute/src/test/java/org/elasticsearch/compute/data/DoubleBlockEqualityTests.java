@@ -7,12 +7,12 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.operator.ComputeTestCase;
 
 import java.util.BitSet;
 import java.util.List;
 
-public class DoubleBlockEqualityTests extends ESTestCase {
+public class DoubleBlockEqualityTests extends ComputeTestCase {
 
     public void testEmptyVector() {
         // all these "empty" vectors should be equivalent
@@ -28,6 +28,7 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     }
 
     public void testEmptyBlock() {
+        BlockFactory blockFactory = blockFactory();
         // all these "empty" vectors should be equivalent
         List<DoubleBlock> blocks = List.of(
             new DoubleArrayBlock(
@@ -35,14 +36,16 @@ public class DoubleBlockEqualityTests extends ESTestCase {
                 0,
                 new int[] {},
                 BitSet.valueOf(new byte[] { 0b00 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
             new DoubleArrayBlock(
                 new double[] { 0 },
                 0,
                 new int[] {},
                 BitSet.valueOf(new byte[] { 0b00 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
             DoubleBlock.newConstantBlockWith(0, 0),
             DoubleBlock.newBlockBuilder(0).build(),
@@ -116,6 +119,7 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     }
 
     public void testBlockEquality() {
+        BlockFactory blockFactory = blockFactory();
         // all these blocks should be equivalent
         List<DoubleBlock> blocks = List.of(
             new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock(),
@@ -124,14 +128,16 @@ public class DoubleBlockEqualityTests extends ESTestCase {
                 3,
                 new int[] { 0, 1, 2, 3 },
                 BitSet.valueOf(new byte[] { 0b000 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
             new DoubleArrayBlock(
                 new double[] { 1, 2, 3, 4 },
                 3,
                 new int[] { 0, 1, 2, 3 },
                 BitSet.valueOf(new byte[] { 0b1000 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
             new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
             new DoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
@@ -152,14 +158,16 @@ public class DoubleBlockEqualityTests extends ESTestCase {
                 2,
                 new int[] { 0, 1, 2 },
                 BitSet.valueOf(new byte[] { 0b000 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
             new DoubleArrayBlock(
                 new double[] { 9, 9, 4 },
                 2,
                 new int[] { 0, 1, 2 },
                 BitSet.valueOf(new byte[] { 0b100 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
             new DoubleArrayVector(new double[] { 9, 9 }, 2).filter(0, 1).asBlock(),
             new DoubleArrayVector(new double[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),

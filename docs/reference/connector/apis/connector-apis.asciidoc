@@ -27,6 +27,7 @@ Use the following APIs to manage connectors:
 * <<get-connector-api>>
 * <<list-connector-api>>
 * <<check-in-connector-api>>
+* <<update-connector-configuration-api>>
 * <<update-connector-error-api>>
 * <<update-connector-filtering-api>>
 * <<update-connector-last-sync-api>>
@@ -67,6 +68,7 @@ include::list-connectors-api.asciidoc[]
 include::list-connector-sync-jobs-api.asciidoc[]
 include::set-connector-sync-job-error-api.asciidoc[]
 include::set-connector-sync-job-stats-api.asciidoc[]
+include::update-connector-configuration-api.asciidoc[]
 include::update-connector-error-api.asciidoc[]
 include::update-connector-filtering-api.asciidoc[]
 include::update-connector-last-sync-api.asciidoc[]

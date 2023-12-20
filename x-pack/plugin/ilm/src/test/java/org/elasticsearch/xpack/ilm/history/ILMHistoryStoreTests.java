@@ -53,6 +53,9 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.ILM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -282,6 +285,10 @@ public class ILMHistoryStoreTests extends ESTestCase {
             latch.await(5, TimeUnit.SECONDS);
             assertThat(actions.get(), equalTo(numberOfDocs));
         }
+    }
+
+    public void testTemplateNameIsVersioned() {
+        assertThat(ILM_TEMPLATE_NAME, endsWith("-" + INDEX_TEMPLATE_VERSION));
     }
 
     /**

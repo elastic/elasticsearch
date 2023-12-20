@@ -94,12 +94,13 @@ public final class SourceFilter {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(1024);
                 XContent xContent = in.sourceContentType().xContent();
                 XContentBuilder builder = new XContentBuilder(xContent, streamOutput);
-                XContentParser parser = xContent.createParser(parserConfig, in.internalSourceRef().streamInput());
-                if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
-                    return Source.empty(in.sourceContentType());
+                try (XContentParser parser = xContent.createParser(parserConfig, in.internalSourceRef().streamInput())) {
+                    if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
+                        return Source.empty(in.sourceContentType());
+                    }
+                    builder.copyCurrentStructure(parser);
+                    return Source.fromBytes(BytesReference.bytes(builder));
                 }
-                builder.copyCurrentStructure(parser);
-                return Source.fromBytes(BytesReference.bytes(builder));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

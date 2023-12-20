@@ -127,6 +127,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
                     ++expectedSearchRetries;
                 }
 
+                searchResponse.decRef();
                 searchResponse = createSearchResponse();
                 client.respond(TransportSearchScrollAction.TYPE, searchResponse);
             }

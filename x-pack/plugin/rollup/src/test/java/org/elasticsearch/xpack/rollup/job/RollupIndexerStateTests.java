@@ -222,8 +222,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(buildSearchRequest());
-                nextPhase.onResponse(response);
+                ActionListener.respondAndRelease(nextPhase, searchFunction.apply(buildSearchRequest()));
             } catch (Exception e) {
                 nextPhase.onFailure(e);
             }
@@ -482,8 +481,10 @@ public class RollupIndexerStateTests extends ESTestCase {
                         null,
                         1
                     );
-                    final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-                    nextPhase.onResponse(response);
+                    ActionListener.respondAndRelease(
+                        nextPhase,
+                        new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null)
+                    );
                 }
 
                 @Override

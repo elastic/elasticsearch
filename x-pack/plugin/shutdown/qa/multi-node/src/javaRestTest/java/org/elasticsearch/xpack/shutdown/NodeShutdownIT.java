@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,23 +37,28 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientProbe {
+public class NodeShutdownIT extends ESRestTestCase {
 
     public void testRestartCRUD() throws Exception {
-        checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null);
+        checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null, null);
     }
 
     public void testRemoveCRUD() throws Exception {
-        checkCRUD(randomFrom("remove", "REMOVE"), null, null);
+        checkCRUD(randomFrom("remove", "REMOVE"), null, null, null);
     }
 
     public void testReplaceCRUD() throws Exception {
-        checkCRUD(randomFrom("replace", "REPLACE"), null, randomAlphaOfLength(10));
+        checkCRUD(randomFrom("replace", "REPLACE"), null, randomAlphaOfLength(10), null);
     }
 
-    public void checkCRUD(String type, @Nullable String allocationDelay, @Nullable String targetNodeName) throws Exception {
+    public void testSigtermCRUD() throws Exception {
+        checkCRUD(randomFrom("sigterm", "SIGTERM"), null, null, randomPositiveTimeValue());
+    }
+
+    public void checkCRUD(String type, @Nullable String allocationDelay, @Nullable String targetNodeName, @Nullable String grace)
+        throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
-        checkCRUD(nodeIdToShutdown, type, allocationDelay, targetNodeName, true);
+        checkCRUD(nodeIdToShutdown, type, allocationDelay, targetNodeName, true, grace);
     }
 
     @SuppressWarnings("unchecked")
@@ -63,12 +67,13 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         String type,
         @Nullable String allocationDelay,
         @Nullable String targetNodeName,
-        boolean delete
+        boolean delete,
+        @Nullable String grace
     ) throws Exception {
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
 
-        putNodeShutdown(nodeIdToShutdown, type, allocationDelay, targetNodeName);
+        putNodeShutdown(nodeIdToShutdown, type, allocationDelay, targetNodeName, grace);
 
         // Ensure we can read it back
         {
@@ -81,6 +86,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
             assertThat(nodesArray.get(0).get("reason"), equalTo(this.getTestName()));
             assertThat(nodesArray.get(0).get("allocation_delay"), equalTo(allocationDelay));
             assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
+            assertThat(nodesArray.get(0).get("grace_period"), equalTo(grace));
         }
 
         if (delete) {
@@ -89,55 +95,6 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
             assertOK(client().performRequest(deleteRequest));
             assertNoShuttingDownNodes(nodeIdToShutdown);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testShutdownReadinessService() throws Exception {
-        // Get a node from the cluster and find its readiness port
-        Request getNodes = new Request("GET", "_nodes");
-        Map<String, Object> nodesResponse = responseAsMap(client().performRequest(getNodes));
-        Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
-
-        String nodeId = nodesObject.keySet().iterator().next();
-        Map<String, Object> nodeObject = (Map<String, Object>) nodesObject.get(nodeId);
-        Map<String, Object> httpObject = (Map<String, Object>) nodeObject.get("http");
-        String publishAddress = (String) httpObject.get("publish_address");
-
-        String readinessPorts = this.getTestReadinessPorts();
-        String restPorts = this.getTestRestCluster();
-
-        String[] restAddresses = restPorts.split(",");
-        int nodeIndex = 0;
-        for (String restAddress : restAddresses) {
-            // skip ipv6 if any
-            if (restAddress.startsWith("[")) {
-                continue;
-            }
-            if (restAddress.equals(publishAddress)) {
-                break;
-            }
-            nodeIndex++;
-        }
-
-        String[] readinessAddresses = readinessPorts.split(",");
-        String readinessAddress = readinessAddresses[nodeIndex];
-
-        String portStr = readinessAddress.split(":")[1];
-        Integer port = Integer.parseInt(portStr);
-
-        // Once we have the right port, check to see if it's ready, has to be for a properly started cluster
-        tcpReadinessProbeTrue(port);
-
-        // Mark the node for shutdown and check that it's not ready
-        checkCRUD(nodeId, randomFrom("restart", "RESTART"), "1ms", null, false);
-        tcpReadinessProbeFalse(port);
-
-        // Delete the shutdown request and verify that the node is ready again
-        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-        assertOK(client().performRequest(deleteRequest));
-        assertNoShuttingDownNodes(nodeId);
-
-        tcpReadinessProbeTrue(port);
     }
 
     public void testPutShutdownIsIdempotentForRestart() throws Exception {
@@ -262,7 +219,6 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
      * 2) Ensures the status properly comes to rest at COMPLETE after the shards have moved.
      */
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77488")
     public void testShardsMoveOffRemovingNode() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
 
@@ -344,14 +300,14 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         // Create an index, pin the allocation to the node we're about to shut down
         final String indexName = "test-idx";
         Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity("""
+        createIndexRequest.setJsonEntity(Strings.format("""
             {
               "settings": {
                 "number_of_shards": %s,
                 "number_of_replicas": 0,
                 "index.routing.allocation.require._id": "%s"
               }
-            }""".formatted(numberOfShards, nodeIdToShutdown));
+            }""", numberOfShards, nodeIdToShutdown));
         assertOK(client().performRequest(createIndexRequest));
 
         // Mark the node for shutdown
@@ -367,9 +323,10 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
                 ObjectPath.eval("nodes.0.shard_migration.explanation", status),
                 allOf(
                     containsString(indexName),
-                    containsString("cannot move, use the Cluster Allocation Explain API on this shard for details")
+                    containsString("cannot move, see [node_allocation_decision] for details or use the cluster allocation explain API")
                 )
             );
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.node_allocation_decision", status), notNullValue());
         }
 
         // Now update the allocation requirements to unblock shard relocation
@@ -435,11 +392,16 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
     }
 
     private void putNodeShutdown(String nodeIdToShutdown, String type) throws IOException {
-        putNodeShutdown(nodeIdToShutdown, type, null, null);
+        putNodeShutdown(nodeIdToShutdown, type, null, null, null);
     }
 
-    private void putNodeShutdown(String nodeIdToShutdown, String type, @Nullable String allocationDelay, @Nullable String targetNodeName)
-        throws IOException {
+    private void putNodeShutdown(
+        String nodeIdToShutdown,
+        String type,
+        @Nullable String allocationDelay,
+        @Nullable String targetNodeName,
+        @Nullable String grace
+    ) throws IOException {
         String reason = this.getTestName();
 
         // Put a shutdown request
@@ -458,7 +420,11 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
                     assertThat("target node name parameter is only valid for REPLACE-type shutdowns", type, equalToIgnoringCase("replace"));
                     putBody.field("target_node_name", targetNodeName);
                 } else {
-                    assertThat("target node name is required for REPALCE-type shutdowns", type, not(equalToIgnoringCase("replace")));
+                    assertThat("target node name is required for REPLACE-type shutdowns", type, not(equalToIgnoringCase("replace")));
+                }
+                if (grace != null) {
+                    assertThat("grace only valid for SIGTERM-type shutdowns", type, equalToIgnoringCase("sigterm"));
+                    putBody.field("grace_period", grace);
                 }
             }
             putBody.endObject();
@@ -491,6 +457,10 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
                             equalToIgnoringCase("replace")
                         );
                         putBody.field("target_node_name", targetNodeName);
+                    }
+                    if (grace != null) {
+                        assertThat("grace only valid for SIGTERM-type shutdowns", type, equalToIgnoringCase("sigterm"));
+                        putBody.field("grace_period", grace);
                     }
                 }
                 putBody.endObject();

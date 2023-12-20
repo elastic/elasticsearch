@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -49,7 +50,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
@@ -105,7 +105,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         transportService.registerRequestHandler(
             actionName,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             true,
             SearchRequest::new,
@@ -143,7 +143,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     );
                 }
             };
-            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
+            ActionListener.respondAndRelease(listener, processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
         }, listener::onFailure));
     }
 
@@ -209,7 +209,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         Set<RollupJobCaps> validatedCaps = new HashSet<>();
         sourceAgg.getAggregatorFactories()
             .forEach(agg -> validatedCaps.addAll(RollupJobIdentifierUtils.findBestJobs(agg, context.getJobCaps())));
-        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).collect(Collectors.toList());
+        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).toList();
 
         for (AggregationBuilder agg : sourceAgg.getAggregatorFactories()) {
 
@@ -270,12 +270,11 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<SearchSourceBuilder> reader
     ) throws IOException {
-        Writeable.Writer<SearchSourceBuilder> writer = (out, value) -> value.writeTo(out);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.CURRENT);
-            writer.write(output, original);
+            output.setTransportVersion(TransportVersion.current());
+            original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 return reader.read(in);
             }
         }

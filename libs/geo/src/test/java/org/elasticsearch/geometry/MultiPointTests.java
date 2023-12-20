@@ -69,4 +69,9 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
 
         StandardValidator.instance(true).validate(new MultiPoint(Collections.singletonList(new Point(2, 1, 3))));
     }
+
+    @Override
+    protected MultiPoint mutateInstance(MultiPoint instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

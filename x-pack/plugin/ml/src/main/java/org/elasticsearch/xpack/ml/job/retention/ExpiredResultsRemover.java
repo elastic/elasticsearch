@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -115,12 +117,28 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("Failed to remove expired results for job [" + job.getId() + "]", e));
+                if (e instanceof ElasticsearchException elasticsearchException) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to remove expired results for job [" + job.getId() + "]",
+                            elasticsearchException.status(),
+                            elasticsearchException
+                        )
+                    );
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to remove expired results for job [" + job.getId() + "]",
+                            RestStatus.TOO_MANY_REQUESTS,
+                            e
+                        )
+                    );
+                }
             }
         });
     }
 
-    private DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
+    private static DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(
             Result.RESULT_TYPE.getPreferredName(),
             ModelSizeStats.RESULT_TYPE_VALUE,
@@ -150,11 +168,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
         ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            LOGGER,
-            threadPool,
-            MachineLearning.UTILITY_THREAD_POOL_NAME,
-            listener,
-            false
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            listener
         );
         latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
             if (latestTime == null) {

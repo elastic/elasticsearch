@@ -10,6 +10,7 @@ package org.elasticsearch.test.rest;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -117,11 +118,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         client().performRequestAsync(request, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
-                try {
-                    future.onResponse(EntityUtils.toString(response.getEntity()));
-                } catch (IOException e) {
-                    future.onFailure(e);
-                }
+                ActionListener.completeWith(future, () -> EntityUtils.toString(response.getEntity()));
             }
 
             @Override

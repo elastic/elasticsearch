@@ -16,8 +16,11 @@ import com.amazonaws.services.s3.model.S3ObjectInputStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,35 +43,37 @@ class S3RetryingInputStream extends InputStream {
 
     static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
 
+    private final OperationPurpose purpose;
     private final S3BlobStore blobStore;
     private final String blobKey;
     private final long start;
     private final long end;
-    private final int maxAttempts;
     private final List<IOException> failures;
 
     private S3ObjectInputStream currentStream;
+    private long currentStreamFirstOffset;
     private long currentStreamLastOffset;
     private int attempt = 1;
+    private int failuresAfterMeaningfulProgress = 0;
     private long currentOffset;
     private boolean closed;
     private boolean eof;
 
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
-        this(blobStore, blobKey, 0, Long.MAX_VALUE - 1);
+    S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey) throws IOException {
+        this(purpose, blobStore, blobKey, 0, Long.MAX_VALUE - 1);
     }
 
     // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
+    S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
         if (end < start || end == Long.MAX_VALUE) {
             throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
         }
+        this.purpose = purpose;
         this.blobStore = blobStore;
         this.blobKey = blobKey;
-        this.maxAttempts = blobStore.getMaxRetries() + 1;
         this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
         this.start = start;
         this.end = end;
@@ -78,14 +83,15 @@ class S3RetryingInputStream extends InputStream {
     private void openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + currentOffset <= end
                     : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
                 getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
             }
             final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
-            this.currentStreamLastOffset = Math.addExact(Math.addExact(start, currentOffset), getStreamLength(s3Object));
+            this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
+            this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(s3Object));
             this.currentStream = s3Object.getObjectContent();
         } catch (final AmazonClientException e) {
             if (e instanceof AmazonS3Exception amazonS3Exception) {
@@ -160,31 +166,38 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private void reopenStreamOrFail(IOException e) throws IOException {
-        if (attempt >= maxAttempts) {
-            logger.debug(
-                () -> format(
-                    "failed reading [%s/%s] at offset [%s], attempt [%s] of [%s], giving up",
-                    blobStore.bucket(),
-                    blobKey,
-                    start + currentOffset,
-                    attempt,
-                    maxAttempts
-                ),
-                e
-            );
-            throw addSuppressedExceptions(e);
+        if (purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
+            logger.warn(() -> format("""
+                failed reading [%s/%s] at offset [%s]""", blobStore.bucket(), blobKey, start + currentOffset), e);
+            throw e;
         }
-        logger.debug(
-            () -> format(
-                "failed reading [%s/%s] at offset [%s], attempt [%s] of [%s], retrying",
-                blobStore.bucket(),
-                blobKey,
-                start + currentOffset,
-                attempt,
-                maxAttempts
-            ),
-            e
+
+        final int maxAttempts = blobStore.getMaxRetries() + 1;
+
+        final long meaningfulProgressSize = Math.max(1L, blobStore.bufferSizeInBytes() / 100L);
+        final long currentStreamProgress = Math.subtractExact(Math.addExact(start, currentOffset), currentStreamFirstOffset);
+        if (currentStreamProgress >= meaningfulProgressSize) {
+            failuresAfterMeaningfulProgress += 1;
+        }
+        final Supplier<String> messageSupplier = () -> format(
+            """
+                failed reading [%s/%s] at offset [%s]; this was attempt [%s] to read this blob which yielded [%s] bytes; in total \
+                [%s] of the attempts to read this blob have made meaningful progress and do not count towards the maximum number of \
+                retries; the maximum number of read attempts which do not make meaningful progress is [%s]""",
+            blobStore.bucket(),
+            blobKey,
+            start + currentOffset,
+            attempt,
+            currentStreamProgress,
+            failuresAfterMeaningfulProgress,
+            maxAttempts
         );
+        if (attempt >= maxAttempts + failuresAfterMeaningfulProgress) {
+            final var finalException = addSuppressedExceptions(e);
+            logger.warn(messageSupplier, finalException);
+            throw finalException;
+        }
+        logger.debug(messageSupplier, e);
         attempt += 1;
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);
@@ -222,8 +235,10 @@ class S3RetryingInputStream extends InputStream {
     }
 
     @Override
-    public long skip(long n) {
-        throw new UnsupportedOperationException("S3RetryingInputStream does not support seeking");
+    public long skip(long n) throws IOException {
+        // This could be optimized on a failure by re-opening stream directly to the preferred location. However, it is rarely called,
+        // so for now we will rely on the default implementation which just discards bytes by reading.
+        return super.skip(n);
     }
 
     @Override

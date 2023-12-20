@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.AbstractEnrichTestCase;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks.EnrichPolicyLock;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 import org.junit.After;
 
@@ -48,7 +49,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         // fail if the state of this is left locked
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
     }
 
     public void testDeletePolicyDoesNotExistUnlocksPolicy() throws InterruptedException {
@@ -77,7 +78,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         // fail if the state of this is left locked
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
     }
 
     public void testDeleteWithoutIndex() throws Exception {
@@ -107,7 +108,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         assertTrue(reference.get().isAcknowledged());
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
         assertNull(EnrichStore.getPolicy(name, clusterService.state()));
     }
@@ -125,17 +126,13 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), destructiveRequiresName)
                 .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex(EnrichPolicy.getIndexName(name, 1001));
         createIndex(EnrichPolicy.getIndexName(name, 1002));
 
-        client().admin()
-            .indices()
-            .prepareGetIndex()
-            .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1002))
-            .get();
+        indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1002)).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
@@ -157,20 +154,18 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         expectThrows(
             IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .prepareGetIndex()
+            () -> indicesAdmin().prepareGetIndex()
                 .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1001))
                 .get()
         );
 
         if (destructiveRequiresName) {
             Settings settings = Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
         assertNull(EnrichStore.getPolicy(name, clusterService.state()));
     }
@@ -187,10 +182,10 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         createIndex(EnrichPolicy.getIndexName(name, 1002));
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
-        enrichPolicyLocks.lockPolicy(name);
-        assertTrue(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        EnrichPolicyLock policyLock = enrichPolicyLocks.lockPolicy(name);
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(1));
 
         {
             final CountDownLatch latch = new CountDownLatch(1);
@@ -215,8 +210,8 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             );
         }
         {
-            enrichPolicyLocks.releasePolicy(name);
-            assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+            policyLock.close();
+            assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
@@ -236,7 +231,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             assertNotNull(reference.get());
             assertTrue(reference.get().isAcknowledged());
 
-            assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+            assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
             assertNull(EnrichStore.getPolicy(name, clusterService.state()));
         }
@@ -284,7 +279,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             assertNotNull(EnrichStore.getPolicy(otherName, clusterService.state()));
 
             // and the index associated with the other index should be unaffected
-            client().admin().indices().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(otherName, 1001)).get();
+            indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(otherName, 1001)).get();
         }
     }
 }

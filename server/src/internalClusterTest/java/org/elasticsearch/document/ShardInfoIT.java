@@ -8,18 +8,16 @@
 
 package org.elasticsearch.document;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -35,7 +33,7 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);
-        IndexResponse indexResponse = client().prepareIndex("idx").setSource("{}", XContentType.JSON).get();
+        DocWriteResponse indexResponse = prepareIndex("idx").setSource("{}", XContentType.JSON).get();
         assertShardInfo(indexResponse);
         DeleteResponse deleteResponse = client().prepareDelete("idx", indexResponse.getId()).get();
         assertShardInfo(deleteResponse);
@@ -51,7 +49,7 @@ public class ShardInfoIT extends ESIntegTestCase {
         prepareIndex(1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareIndex("idx").setSource("{}", XContentType.JSON));
+            bulkRequestBuilder.add(prepareIndex("idx").setSource("{}", XContentType.JSON));
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -96,11 +94,8 @@ public class ShardInfoIT extends ESIntegTestCase {
         logger.info("Number of copies: {}", numCopies);
 
         assertAcked(
-            prepareCreate("idx").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numCopies - 1)
-            ).setMapping("_routing", "required=" + routingRequired).get()
+            prepareCreate("idx").setSettings(indexSettings(numberOfPrimaryShards, numCopies - 1))
+                .setMapping("_routing", "required=" + routingRequired)
         );
         for (int i = 0; i < numberOfPrimaryShards; i++) {
             ensureActiveShardCopies(i, numNodes);
@@ -118,15 +113,15 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     private void ensureActiveShardCopies(final int shardId, final int copyCount) throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             assertThat(state.routingTable().index("idx"), not(nullValue()));
             assertThat(state.routingTable().index("idx").shard(shardId), not(nullValue()));
             assertThat(state.routingTable().index("idx").shard(shardId).activeShards().size(), equalTo(copyCount));
 
-            ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("idx").setWaitForNoRelocatingShards(true).get();
+            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth("idx").setWaitForNoRelocatingShards(true).get();
             assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("idx").setActiveOnly(true).get();
+            RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("idx").setActiveOnly(true).get();
             assertThat(recoveryResponse.shardRecoveryStates().get("idx").size(), equalTo(0));
         });
     }

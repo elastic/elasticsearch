@@ -9,7 +9,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -89,7 +89,7 @@ public class TransportLoggerTests extends ESTestCase {
             OutboundMessage.Request request = new OutboundMessage.Request(
                 new ThreadContext(Settings.EMPTY),
                 new ClusterStatsRequest(),
-                Version.CURRENT,
+                TransportVersion.current(),
                 ClusterStatsAction.NAME,
                 randomInt(30),
                 false,

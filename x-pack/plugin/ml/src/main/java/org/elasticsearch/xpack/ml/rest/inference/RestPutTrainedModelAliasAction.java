@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -20,6 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction.Request.MODEL_ALIAS;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutTrainedModelAliasAction extends BaseRestHandler {
 
     @Override

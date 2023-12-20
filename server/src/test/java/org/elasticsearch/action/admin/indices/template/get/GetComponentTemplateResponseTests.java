@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.ComponentTemplateTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +36,7 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected GetComponentTemplateAction.Response mutateInstance(GetComponentTemplateAction.Response instance) throws IOException {
+    protected GetComponentTemplateAction.Response mutateInstance(GetComponentTemplateAction.Response instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

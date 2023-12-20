@@ -1,5 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -49,6 +49,6 @@ testClusters.configureEach {
 
 // We don't support the IDP in FIPS-140 mode, so no need to run java rest tests
 tasks.named("javaRestTest").configure {
-  onlyIf { BuildParams.inFipsJvm == false }
+  BuildParams.withFipsEnabledOnly(it)
 }
 

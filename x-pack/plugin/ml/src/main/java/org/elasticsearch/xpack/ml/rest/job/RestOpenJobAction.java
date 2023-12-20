@@ -10,10 +10,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -27,6 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestOpenJobAction extends BaseRestHandler {
 
     @Override
@@ -68,7 +70,7 @@ public class RestOpenJobAction extends BaseRestHandler {
                     builder.field("opened", r.isAcknowledged());
                     builder.field(NodeAcknowledgedResponse.NODE_FIELD, r.getNode());
                     builder.endObject();
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             });
         };

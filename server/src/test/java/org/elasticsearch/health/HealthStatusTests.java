@@ -8,7 +8,8 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.stream.Stream;
@@ -17,8 +18,9 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.hamcrest.Matchers.equalTo;
 
-public class HealthStatusTests extends ESTestCase {
+public class HealthStatusTests extends AbstractWireSerializingTestCase<HealthStatus> {
 
     public void testAllGreenStatuses() {
         assertEquals(GREEN, HealthStatus.merge(randomStatusesContaining(GREEN)));
@@ -53,5 +55,26 @@ public class HealthStatusTests extends ESTestCase {
             result.addAll(randomList(1, 10, () -> status));
         }
         return result.stream();
+    }
+
+    @Override
+    protected Writeable.Reader<HealthStatus> instanceReader() {
+        return HealthStatus::read;
+    }
+
+    @Override
+    protected HealthStatus createTestInstance() {
+        return randomFrom(HealthStatus.values());
+    }
+
+    @Override
+    protected HealthStatus mutateInstance(HealthStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected void assertEqualInstances(HealthStatus expectedInstance, HealthStatus newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

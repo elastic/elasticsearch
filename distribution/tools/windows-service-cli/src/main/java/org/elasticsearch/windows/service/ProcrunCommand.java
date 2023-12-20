@@ -67,7 +67,7 @@ abstract class ProcrunCommand extends Command {
         preExecute(terminal, processInfo, serviceId);
 
         List<String> procrunCmd = new ArrayList<>();
-        procrunCmd.add(procrun.toString());
+        procrunCmd.add(quote(procrun.toString()));
         procrunCmd.add("//%s/%s".formatted(cmd, serviceId));
         if (includeLogArgs()) {
             procrunCmd.add(getLogArgs(serviceId, processInfo.workingDir(), processInfo.envVars()));
@@ -86,8 +86,13 @@ abstract class ProcrunCommand extends Command {
         }
     }
 
+    /** Quotes the given String. */
+    static String quote(String s) {
+        return '"' + s + '"';
+    }
+
     /** Determines the service id for the Elasticsearch service that should be used */
-    private String getServiceId(OptionSet options, Map<String, String> env) throws UserException {
+    private static String getServiceId(OptionSet options, Map<String, String> env) throws UserException {
         List<?> args = options.nonOptionArguments();
         if (args.size() > 1) {
             throw new UserException(ExitCodes.USAGE, "too many arguments, expected one service id");
@@ -102,7 +107,7 @@ abstract class ProcrunCommand extends Command {
     }
 
     /** Determines the logging arguments that should be passed to the procrun command */
-    private String getLogArgs(String serviceId, Path esHome, Map<String, String> env) {
+    private static String getLogArgs(String serviceId, Path esHome, Map<String, String> env) {
         String logArgs = env.get("LOG_OPTS");
         if (logArgs != null && logArgs.isBlank() == false) {
             return logArgs;

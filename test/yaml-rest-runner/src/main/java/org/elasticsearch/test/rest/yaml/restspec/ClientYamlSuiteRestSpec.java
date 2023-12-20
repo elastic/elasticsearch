@@ -7,10 +7,9 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ClasspathUtils;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -24,6 +23,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 
 /**
  * Holds the specification used to turn {@code do} actions in the YAML suite into REST api calls.
@@ -70,7 +71,7 @@ public class ClientYamlSuiteRestSpec {
      * that they influence the client behaviour and don't get sent to Elasticsearch
      */
     public boolean isClientParameter(String name) {
-        return "ignore".equals(name);
+        return IGNORE_RESPONSE_CODES_PARAM.equals(name);
     }
 
     /**
@@ -94,13 +95,7 @@ public class ClientYamlSuiteRestSpec {
 
     private static void parseSpecFile(ClientYamlSuiteRestApiParser restApiParser, Path jsonFile, ClientYamlSuiteRestSpec restSpec) {
         try (InputStream stream = Files.newInputStream(jsonFile)) {
-            try (
-                XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    stream
-                )
-            ) {
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
                 String filename = jsonFile.getFileName().toString();
                 if (filename.equals("_common.json")) {
                     parseCommonSpec(parser, restSpec);

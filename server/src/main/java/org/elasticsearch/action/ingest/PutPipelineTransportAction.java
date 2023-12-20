@@ -9,6 +9,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,15 +21,18 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Optional;
+import java.util.Set;
+
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 
 public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeAction<PutPipelineRequest> {
-
     private final IngestService ingestService;
     private final OriginSettingClient client;
 
@@ -49,7 +53,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
             actionFilters,
             PutPipelineRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         // This client is only used to perform an internal implementation detail,
         // so uses an internal origin context rather than the user context
@@ -63,7 +67,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         ingestService.putPipeline(request, listener, (nodeListener) -> {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
             nodesInfoRequest.clear();
-            nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+            nodesInfoRequest.addMetric(NodesInfoMetrics.Metric.INGEST.metricName());
             client.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
         });
     }
@@ -73,4 +77,13 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedPipelineAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(PutPipelineRequest request) {
+        return Set.of(request.getId());
+    }
 }

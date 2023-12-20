@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.results;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import java.io.IOException;
 import java.util.Date;
 
-public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
+public class InfluencerTests extends AbstractXContentSerializingTestCase<Influencer> {
 
     public Influencer createTestInstance(String jobId) {
         Influencer influencer = new Influencer(
@@ -38,6 +38,11 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
     @Override
     protected Influencer createTestInstance() {
         return createTestInstance(randomAlphaOfLengthBetween(1, 20));
+    }
+
+    @Override
+    protected Influencer mutateInstance(Influencer instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

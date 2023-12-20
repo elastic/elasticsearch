@@ -1,0 +1,125 @@
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              test_prop:
+                type: wildcard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "test_prop": "foo.bar" }
+          { "index": {"_id" : "2"} }
+          { "test_prop": "foobar" }
+          { "index": {"_id" : "3"} }
+          { "test_prop": "this.that" }
+          { "index": {"_id" : "4"} }
+          { "test_prop": "this that" }
+          { "index": {"_id" : "5"} }
+          { "test_prop": "number42" }
+          { "index": {"_id" : "6"} }
+          { "test_prop": "numberfourtytwo" }
+
+
+---
+"Pre Class Regexp w":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              test_prop:
+                value: "foo\\w+"
+          docvalue_fields: [test_prop]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.test_prop.0: "foobar" }
+
+
+---
+"Pre Class Regexp W":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              test_prop:
+                value: "foo\\W+bar"
+          docvalue_fields: [test_prop]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.test_prop.0: "foo.bar" }
+
+
+---
+"Pre Class Regexp s":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              test_prop:
+                value: "this\\sthat"
+          docvalue_fields: [test_prop]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.test_prop.0: "this that" }
+
+
+---
+"Pre Class Regexp S":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              test_prop:
+                value: "this\\Sthat"
+          docvalue_fields: [test_prop]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.test_prop.0: "this.that" }
+
+
+---
+"Pre Class Regexp d":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              test_prop:
+                value: "number\\d+"
+          docvalue_fields: [test_prop]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.test_prop.0: "number42" }
+
+
+---
+"Pre Class Regexp D":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              test_prop:
+                value: "number\\D+"
+          docvalue_fields: [test_prop]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.test_prop.0: "numberfourtytwo" }

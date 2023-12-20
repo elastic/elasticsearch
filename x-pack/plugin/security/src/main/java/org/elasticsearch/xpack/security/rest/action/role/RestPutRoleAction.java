@@ -10,15 +10,15 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +29,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a Role to the security index
  */
-public class RestPutRoleAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.INTERNAL)
+public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     public RestPutRoleAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -58,7 +59,7 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
+                return new RestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
             }
         });
     }

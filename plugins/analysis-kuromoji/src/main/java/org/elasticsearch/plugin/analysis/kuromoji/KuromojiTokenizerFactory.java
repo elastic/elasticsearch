@@ -12,7 +12,6 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
 import org.apache.lucene.analysis.ja.dict.UserDictionary;
-import org.apache.lucene.analysis.ja.util.CSVUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -21,10 +20,10 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 import org.elasticsearch.index.analysis.Analysis;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.StringReader;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Locale;
 
 public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
@@ -58,48 +57,24 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
             );
         }
-        try {
-            List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, false);
-            if (ruleList == null || ruleList.isEmpty()) {
-                return null;
-            }
-            Set<String> dup = new HashSet<>();
-            int lineNum = 0;
-            for (String line : ruleList) {
-                // ignore comments
-                if (line.startsWith("#") == false) {
-                    String[] values = CSVUtil.parse(line);
-                    if (dup.add(values[0]) == false) {
-                        throw new IllegalArgumentException(
-                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
-                        );
-                    }
-                }
-                ++lineNum;
-            }
-            StringBuilder sb = new StringBuilder();
-            for (String line : ruleList) {
-                sb.append(line).append(System.lineSeparator());
-            }
-            return UserDictionary.open(new StringReader(sb.toString()));
+        List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, false, true);
+        if (ruleList == null || ruleList.isEmpty()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String line : ruleList) {
+            sb.append(line).append(System.lineSeparator());
+        }
+        try (Reader rulesReader = new StringReader(sb.toString())) {
+            return UserDictionary.open(rulesReader);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load kuromoji user dictionary", e);
         }
     }
 
     public static JapaneseTokenizer.Mode getMode(Settings settings) {
-        JapaneseTokenizer.Mode mode = JapaneseTokenizer.DEFAULT_MODE;
-        String modeSetting = settings.get("mode", null);
-        if (modeSetting != null) {
-            if ("search".equalsIgnoreCase(modeSetting)) {
-                mode = JapaneseTokenizer.Mode.SEARCH;
-            } else if ("normal".equalsIgnoreCase(modeSetting)) {
-                mode = JapaneseTokenizer.Mode.NORMAL;
-            } else if ("extended".equalsIgnoreCase(modeSetting)) {
-                mode = JapaneseTokenizer.Mode.EXTENDED;
-            }
-        }
-        return mode;
+        String modeSetting = settings.get("mode", JapaneseTokenizer.DEFAULT_MODE.name());
+        return JapaneseTokenizer.Mode.valueOf(modeSetting.toUpperCase(Locale.ENGLISH));
     }
 
     @Override

@@ -6,15 +6,17 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -27,6 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteJobAction extends BaseRestHandler {
 
     @Override
@@ -49,35 +52,32 @@ public class RestDeleteJobAction extends BaseRestHandler {
         deleteJobRequest.setForce(restRequest.paramAsBoolean(CloseJobAction.Request.FORCE.getPreferredName(), deleteJobRequest.isForce()));
         deleteJobRequest.timeout(restRequest.paramAsTime("timeout", deleteJobRequest.timeout()));
         deleteJobRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", deleteJobRequest.masterNodeTimeout()));
+        deleteJobRequest.setDeleteUserAnnotations(restRequest.paramAsBoolean("delete_user_annotations", false));
 
         if (restRequest.paramAsBoolean("wait_for_completion", true)) {
             return channel -> client.execute(DeleteJobAction.INSTANCE, deleteJobRequest, new RestToXContentListener<>(channel));
         } else {
             deleteJobRequest.setShouldStoreResult(true);
 
-            Task task = client.executeLocally(DeleteJobAction.INSTANCE, deleteJobRequest, nullTaskListener());
+            Task task = client.executeLocally(
+                DeleteJobAction.INSTANCE,
+                deleteJobRequest,
+                /*
+                 * We do not want to log anything due to a delete action. The response or error will be returned to the client when called
+                 * synchronously or it will be stored in the task result when called asynchronously.
+                 */
+                ActionListener.noop()
+            );
+
             // Send task description id instead of waiting for the message
             return channel -> {
                 try (XContentBuilder builder = channel.newBuilder()) {
                     builder.startObject();
                     builder.field("task", client.getLocalNodeId() + ":" + task.getId());
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                    channel.sendResponse(new RestResponse(RestStatus.OK, builder));
                 }
             };
         }
-    }
-
-    // We do not want to log anything due to a delete action
-    // The response or error will be returned to the client when called synchronously
-    // or it will be stored in the task result when called asynchronously
-    private static <T> TaskListener<T> nullTaskListener() {
-        return new TaskListener<T>() {
-            @Override
-            public void onResponse(Task task, T o) {}
-
-            @Override
-            public void onFailure(Task task, Exception e) {}
-        };
     }
 }

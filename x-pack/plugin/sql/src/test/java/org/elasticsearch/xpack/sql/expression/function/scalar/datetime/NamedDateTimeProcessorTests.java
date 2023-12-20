@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.junit.Assume;
 
-import java.io.IOException;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
@@ -35,7 +34,7 @@ public class NamedDateTimeProcessorTests extends AbstractSqlWireSerializingTestC
     }
 
     @Override
-    protected NamedDateTimeProcessor mutateInstance(NamedDateTimeProcessor instance) throws IOException {
+    protected NamedDateTimeProcessor mutateInstance(NamedDateTimeProcessor instance) {
         NameExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(NameExtractor.values()));
         return new NamedDateTimeProcessor(replaced, UTC);
     }

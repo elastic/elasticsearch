@@ -1,0 +1,28 @@
+name: Docs Preview Links
+
+on:
+  pull_request_target:
+    types: [opened]
+    paths:
+      - '**.asciidoc'
+
+jobs:
+  doc-preview:
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
+        name: Add doc preview links
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const comment = `Documentation preview:
+              - ✨ [Changed pages](https://${context.repo.repo}_${pr.number}.docs-preview.app.elstc.co/diff)`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment,
+            });

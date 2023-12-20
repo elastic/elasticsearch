@@ -10,18 +10,19 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -29,13 +30,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
  * {@link ScriptMetadata} is used to store user-defined scripts
  * as part of the {@link ClusterState} using only an id as the key.
  */
-public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXContentFragment {
+public final class ScriptMetadata implements Metadata.Custom, Writeable {
 
     /**
      * Standard logger used to warn about dropped scripts.
@@ -127,8 +129,8 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
     }
 
@@ -257,28 +259,15 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(scripts, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(scripts, StreamOutput::writeWriteable);
     }
 
-    /**
-     * This will write XContent from {@link ScriptMetadata}.  The following format will be written:
-     *
-     * {@code
-     * {
-     *     "<id>" : "<{@link StoredScriptSource#toXContent(XContentBuilder, Params)}>",
-     *     "<id>" : "<{@link StoredScriptSource#toXContent(XContentBuilder, Params)}>",
-     *     ...
-     * }
-     * }
-     */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.map(scripts.entrySet().iterator(), entry -> (builder, params) -> {
             builder.field(entry.getKey());
-            entry.getValue().toXContent(builder, params);
-        }
-
-        return builder;
+            return entry.getValue().toXContent(builder, params);
+        });
     }
 
     @Override
@@ -292,8 +281,8 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override

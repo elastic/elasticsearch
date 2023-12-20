@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -25,7 +26,7 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
         // The previous storage format was a base64 encoded string.
         // The new format should parse and decode the string storing the raw bytes.
-        String compressedStringDoc = """
+        String compressedStringDoc = Strings.format("""
             {
               "doc_type": "trained_model_definition_doc",
               "model_id": "bntHUo",
@@ -35,12 +36,30 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
               "compression_version": 3,
               "definition": "%s",
               "eos": false
-            }""".formatted(base64);
+            }""", base64);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, compressedStringDoc)) {
             TrainedModelDefinitionDoc parsed = doParseInstance(parser);
             assertArrayEquals(bytes, parsed.getBinaryData().array());
         }
+    }
+
+    /**
+     * A helper method for creating a random {@link TrainedModelDefinitionDoc}.
+     *
+     * @return a random {@link TrainedModelDefinitionDoc} instance
+     */
+    public static TrainedModelDefinitionDoc createDefinitionDocInstance() {
+        int length = randomIntBetween(4, 10);
+
+        return new TrainedModelDefinitionDoc.Builder().setModelId(randomAlphaOfLength(6))
+            .setDefinitionLength(length)
+            .setTotalDefinitionLength(randomIntBetween(length, length * 2))
+            .setBinaryData(new BytesArray(randomByteArrayOfLength(length)))
+            .setDocNum(randomIntBetween(0, 10))
+            .setCompressionVersion(randomIntBetween(1, 5))
+            .setEos(randomBoolean())
+            .build();
     }
 
     @Override
@@ -55,15 +74,6 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
     @Override
     protected TrainedModelDefinitionDoc createTestInstance() {
-        int length = randomIntBetween(4, 10);
-
-        return new TrainedModelDefinitionDoc.Builder().setModelId(randomAlphaOfLength(6))
-            .setDefinitionLength(length)
-            .setTotalDefinitionLength(randomIntBetween(length, length * 2))
-            .setBinaryData(new BytesArray(randomByteArrayOfLength(length)))
-            .setDocNum(randomIntBetween(0, 10))
-            .setCompressionVersion(randomIntBetween(1, 5))
-            .setEos(randomBoolean())
-            .build();
+        return createDefinitionDocInstance();
     }
 }

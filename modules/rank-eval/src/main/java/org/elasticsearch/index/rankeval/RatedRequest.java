@@ -259,14 +259,10 @@ public class RatedRequest implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
-        PARSER.declareObjectArray(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> { return RatedDocument.fromXContent(p); },
-            RATINGS_FIELD
-        );
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedDocument.fromXContent(p), RATINGS_FIELD);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> SearchSourceBuilder.fromXContent(p, false),
+            (p, c) -> new SearchSourceBuilder().parseXContent(p, false),
             REQUEST_FIELD
         );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS_FIELD);

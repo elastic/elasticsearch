@@ -1,0 +1,40 @@
+{
+	"properties": {
+		"ip": {
+			"type":"ip"
+		},
+	    "@timestamp_pretty": {
+	      "type": "date",
+	      "format": "yyyy-MM-dd"
+	    },
+	    "type_test": {
+	    	"type": "keyword"
+	    },
+	    "event_type": {
+	      "type": "keyword"
+	    },
+	    "event": {
+	      "properties": {
+	        "category": {
+	          "type": "alias",
+	          "path": "event_type"
+	        }
+	      }
+	    },
+	    "host": {
+	      "type": "keyword"
+	    },
+	    "op_sys": {
+	      "type": "keyword"
+	    },
+	    "bool": {
+	      "type": "boolean"
+	    },
+	    "uptime" : {
+	      "type" : "long"
+	    },
+	    "port" : {
+	      "type" : "long"
+	    }
+	}
+}

@@ -1,0 +1,13 @@
+{
+  "name": "buildkite-pipelines",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^20.6.0",
+    "bun-types": "latest",
+    "yaml": "^2.3.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

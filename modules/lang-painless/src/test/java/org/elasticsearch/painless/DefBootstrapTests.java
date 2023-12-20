@@ -22,7 +22,11 @@ import java.util.Collections;
 import java.util.HashMap;
 
 public class DefBootstrapTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(PainlessPlugin.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
+        PainlessPlugin.BASE_WHITELISTS,
+        new HashMap<>(),
+        new HashMap<>()
+    );
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {
@@ -132,21 +136,13 @@ public class DefBootstrapTests extends ESTestCase {
         map.put("a", "b");
         assertEquals(2, (int) handle.invokeExact((Object) map));
 
-        final IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> { Integer.toString((int) handle.invokeExact(new Object())); }
-        );
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+            Integer.toString((int) handle.invokeExact(new Object()));
+        });
         assertEquals("dynamic method [java.lang.Object, size/0] not found", iae.getMessage());
-        assertTrue(
-            "Does not fail inside ClassValue.computeValue()",
-            Arrays.stream(iae.getStackTrace())
-                .anyMatch(
-                    e -> {
-                        return e.getMethodName().equals("computeValue")
-                            && e.getClassName().startsWith("org.elasticsearch.painless.DefBootstrap$PIC$");
-                    }
-                )
-        );
+        assertTrue("Does not fail inside ClassValue.computeValue()", Arrays.stream(iae.getStackTrace()).anyMatch(e -> {
+            return e.getMethodName().equals("computeValue") && e.getClassName().startsWith("org.elasticsearch.painless.DefBootstrap$PIC$");
+        }));
     }
 
     // test operators with null guards

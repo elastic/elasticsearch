@@ -23,6 +23,20 @@ public record PainlessConstructor(
     Map<Class<?>, Object> annotations
 ) {
 
+    public PainlessConstructor(
+        Constructor<?> javaConstructor,
+        List<Class<?>> typeParameters,
+        MethodHandle methodHandle,
+        MethodType methodType,
+        Map<Class<?>, Object> annotations
+    ) {
+        this.javaConstructor = javaConstructor;
+        this.typeParameters = List.copyOf(typeParameters);
+        this.methodHandle = methodHandle;
+        this.methodType = methodType;
+        this.annotations = Map.copyOf(annotations);
+    }
+
     @Override
     public boolean equals(Object object) {
         if (this == object) {

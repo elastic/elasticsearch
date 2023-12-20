@@ -29,7 +29,6 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -106,7 +105,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                 actionFilters,
                 Request::new,
                 Request::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 
@@ -162,11 +161,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                             // only activated on primary
                             if (action.equals(testActionName)) {
                                 actionRunningLatch.countDown();
-                                try {
-                                    actionWaitLatch.await(10, TimeUnit.SECONDS);
-                                } catch (InterruptedException e) {
-                                    throw new AssertionError(e);
-                                }
+                                safeAwait(actionWaitLatch);
                             }
                             sender.sendRequest(connection, action, request, options, handler);
                         }
@@ -210,21 +205,13 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
 
         assertTrue(primaryTestPlugin.actionRunningLatch.await(10, TimeUnit.SECONDS));
 
-        MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            primary
-        );
         // we pause node after TransportService has moved to stopped, but before closing connections, since if connections are closed
         // we would not hit the transport service closed case.
-        primaryTransportService.addOnStopListener(() -> {
+        MockTransportService.getInstance(primary).addOnStopListener(() -> {
             primaryTestPlugin.actionWaitLatch.countDown();
-            try {
-                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(doneLatch);
         });
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
+        internalCluster().stopNode(primary);
 
         assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
         if (response.get() instanceof Exception) {
@@ -234,7 +221,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
 
     private TestPlugin getTestPlugin(String node) {
         PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, node);
-        List<TestPlugin> testPlugins = pluginsService.filterPlugins(TestPlugin.class);
+        List<TestPlugin> testPlugins = pluginsService.filterPlugins(TestPlugin.class).toList();
         assertThat(testPlugins, Matchers.hasSize(1));
         return testPlugins.get(0);
     }

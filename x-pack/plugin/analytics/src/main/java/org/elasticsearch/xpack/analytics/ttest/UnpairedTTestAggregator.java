@@ -15,6 +15,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -69,23 +70,23 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), ctx);
-        final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), ctx);
+        final SortedNumericDoubleValues docAValues = valuesSources.getField(A_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
+        final SortedNumericDoubleValues docBValues = valuesSources.getField(B_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
         final CompensatedSum compSumA = new CompensatedSum(0, 0);
         final CompensatedSum compSumOfSqrA = new CompensatedSum(0, 0);
         final CompensatedSum compSumB = new CompensatedSum(0, 0);
         final CompensatedSum compSumOfSqrB = new CompensatedSum(0, 0);
         final Tuple<Weight, Weight> weights = weightsSupplier.get();
-        final Bits bitsA = getBits(ctx, weights.v1());
-        final Bits bitsB = getBits(ctx, weights.v2());
+        final Bits bitsA = getBits(aggCtx.getLeafReaderContext(), weights.v1());
+        final Bits bitsB = getBits(aggCtx.getLeafReaderContext(), weights.v2());
 
         return new LeafBucketCollectorBase(sub, docAValues) {
 
-            private void processValues(
+            private static void processValues(
                 int doc,
                 long bucket,
                 SortedNumericDoubleValues docValues,
@@ -115,7 +116,7 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
         };
     }
 
-    private Bits getBits(LeafReaderContext ctx, Weight weight) throws IOException {
+    private static Bits getBits(LeafReaderContext ctx, Weight weight) throws IOException {
         if (weight == null) {
             return null;
         }

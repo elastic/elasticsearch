@@ -8,12 +8,14 @@
 package org.elasticsearch.gradle.internal.test.rest;
 
 import org.apache.tools.ant.filters.ReplaceTokens;
+import org.elasticsearch.gradle.internal.util.SerializableFunction;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -29,7 +31,6 @@ import org.gradle.internal.Factory;
 
 import java.io.File;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -43,7 +44,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
  *
  * @see RestResourcesPlugin
  */
-public class CopyRestTestsTask extends DefaultTask {
+public abstract class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     private final ListProperty<String> includeCore;
     private final ListProperty<String> includeXpack;
@@ -53,14 +54,17 @@ public class CopyRestTestsTask extends DefaultTask {
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
     private FileCollection additionalConfig;
-    private Function<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
-    private Function<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
-    private Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
+
+    @Inject
+    public abstract FileOperations getFileOperations();
 
     @Inject
     public CopyRestTestsTask(
@@ -183,15 +187,15 @@ public class CopyRestTestsTask extends DefaultTask {
         this.additionalConfig = additionalConfig;
     }
 
-    public void setCoreConfigToFileTree(Function<FileCollection, FileTree> coreConfigToFileTree) {
+    public void setCoreConfigToFileTree(SerializableFunction<FileCollection, FileTree> coreConfigToFileTree) {
         this.coreConfigToFileTree = coreConfigToFileTree;
     }
 
-    public void setXpackConfigToFileTree(Function<FileCollection, FileTree> xpackConfigToFileTree) {
+    public void setXpackConfigToFileTree(SerializableFunction<FileCollection, FileTree> xpackConfigToFileTree) {
         this.xpackConfigToFileTree = xpackConfigToFileTree;
     }
 
-    public void setAdditionalConfigToFileTree(Function<FileCollection, FileTree> additionalConfigToFileTree) {
+    public void setAdditionalConfigToFileTree(SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree) {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
     }
 

@@ -167,7 +167,7 @@ public class UUIDTests extends ESTestCase {
                 + " docs indexed at "
                 + numDocsPerSecond
                 + " docs/s required "
-                + new ByteSizeValue(size)
+                + ByteSizeValue.ofBytes(size)
                 + " bytes of disk space, or "
                 + bytesPerDoc
                 + " bytes per document. Took: "

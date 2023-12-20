@@ -55,7 +55,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         throws IOException {
         super(in);
         this.rangeFactory = rangeFactory;
-        ranges = in.readList(rangeReader);
+        ranges = in.readCollectionAsList(rangeReader);
         keyed = in.readBoolean();
     }
 
@@ -83,7 +83,10 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         return ranges;
     }
 
-    private static void sortRanges(final Range[] ranges) {
+    /**
+     * Sort the provided ranges in place.
+     */
+    static void sortRanges(final Range[] ranges) {
         new InPlaceMergeSorter() {
 
             @Override
@@ -106,7 +109,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeList(ranges);
+        out.writeCollection(ranges);
         out.writeBoolean(keyed);
     }
 

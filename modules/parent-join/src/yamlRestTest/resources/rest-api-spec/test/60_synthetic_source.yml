@@ -10,7 +10,7 @@ unsupported:
         body:
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               join_field:
                 type: join

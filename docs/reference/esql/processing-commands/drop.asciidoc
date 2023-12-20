@@ -1,0 +1,34 @@
+[discrete]
+[[esql-drop]]
+=== `DROP`
+
+**Syntax**
+
+[source,esql]
+----
+DROP columns
+----
+
+*Parameters*
+
+`columns`::
+A comma-separated list of columns to remove. Supports wildcards.
+
+*Description*
+
+The `DROP` processing command removes one or more columns.
+
+*Examples*
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dropheight]
+----
+
+Rather than specify each column by name, you can use wildcards to drop all
+columns with a name that matches a pattern:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dropheightwithwildcard]
+----

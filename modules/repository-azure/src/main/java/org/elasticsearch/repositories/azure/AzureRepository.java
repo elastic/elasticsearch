@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -67,7 +68,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
         public static final Setting<LocationMode> LOCATION_MODE_SETTING = new Setting<>(
             "location_mode",
-            s -> LocationMode.PRIMARY_ONLY.toString(),
+            LocationMode.PRIMARY_ONLY.toString(),
             s -> LocationMode.valueOf(s.toUpperCase(Locale.ROOT)),
             Property.NodeScope
         );
@@ -107,7 +108,8 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            RepositoriesMetrics.NOOP
         );
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;

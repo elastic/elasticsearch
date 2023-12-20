@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ValidationException;
@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetTransformAction extends ActionType<GetTransformAction.Response> {
 
@@ -74,6 +75,11 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                 );
             }
             return exception;
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_transforms[%s]", getResourceId());
         }
 
         @Override
@@ -130,9 +136,9 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 if (in.readBoolean()) {
-                    this.errors = in.readList(Error::new);
+                    this.errors = in.readCollectionAsList(Error::new);
                 } else {
                     this.errors = null;
                 }
@@ -191,10 +197,10 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 if (errors != null) {
                     out.writeBoolean(true);
-                    out.writeList(errors);
+                    out.writeCollection(errors);
                 } else {
                     out.writeBoolean(false);
                 }

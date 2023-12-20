@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.io.IOException;
 

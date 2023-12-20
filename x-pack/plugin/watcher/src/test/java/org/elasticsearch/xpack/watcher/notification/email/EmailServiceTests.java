@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
+import javax.mail.MessagingException;
+
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
@@ -263,6 +265,61 @@ public class EmailServiceTests extends ESTestCase {
                     + "[xpack.notification.email.account.domain_allowlist]."
             )
         );
+    }
+
+    public void testChangeDomainAllowListSetting() throws UnsupportedEncodingException, MessagingException {
+        Settings settings = Settings.builder()
+            .put("xpack.notification.email.account.account1.foo", "bar")
+            // Setting a random SMTP server name and an invalid port so that sending emails is guaranteed to fail:
+            .put("xpack.notification.email.account.account1.smtp.host", randomAlphaOfLength(10))
+            .put("xpack.notification.email.account.account1.smtp.port", -100)
+            .putList("xpack.notification.email.account.domain_allowlist", "bar.com")
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
+        EmailService emailService = new EmailService(settings, null, mock(SSLService.class), clusterSettings);
+        Email email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com", "non-whitelisted@invalid.com"),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        when(account.name()).thenReturn("account1");
+        Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
+        Profile profile = randomFrom(Profile.values());
+
+        // This send will fail because one of the recipients ("non-whitelisted@invalid.com") is in a domain that is not in the allowed list
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> emailService.send(email, auth, profile, "account1")
+        );
+        assertThat(
+            e1.getMessage(),
+            containsString(
+                "failed to send email with subject [subject] and recipient domains "
+                    + "[bar.com, invalid.com], one or more recipients is not specified in the domain allow list setting "
+                    + "[xpack.notification.email.account.domain_allowlist]."
+            )
+        );
+
+        // Now dynamically add "invalid.com" to the list of allowed domains:
+        Settings newSettings = Settings.builder()
+            .putList("xpack.notification.email.account.domain_allowlist", "bar.com", "invalid.com")
+            .build();
+        clusterSettings.applySettings(newSettings);
+        // Still expect an exception because we're not actually sending the email, but it's no longer because the domain isn't allowed:
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> emailService.send(email, auth, profile, "account1")
+        );
+        assertThat(e2.getMessage(), containsString("port out of range"));
     }
 
     private static Email.AddressList createAddressList(String... emails) throws UnsupportedEncodingException {

@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ParsedDerivative extends ParsedSimpleValue implements Derivative {
+public class ParsedDerivative extends ParsedSimpleValue {
 
     private double normalizedValue;
     private String normalizedAsString;
@@ -25,13 +25,8 @@ public class ParsedDerivative extends ParsedSimpleValue implements Derivative {
     private static final ParseField NORMALIZED = new ParseField("normalized_value");
 
     @Override
-    public double normalizedValue() {
-        return this.normalizedValue;
-    }
-
-    @Override
     public String getType() {
-        return DerivativePipelineAggregationBuilder.NAME;
+        return "derivative";
     }
 
     private static final ObjectParser<ParsedDerivative, Void> PARSER = new ObjectParser<>(

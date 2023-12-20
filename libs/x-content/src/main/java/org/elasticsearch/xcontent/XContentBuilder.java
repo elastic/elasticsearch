@@ -9,6 +9,7 @@
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 
@@ -221,7 +222,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param responseContentType  a content-type header value to be send back on a response
+     * @param responseContentType  a content-type header value to be sent back on a response
      */
     public XContentBuilder(
         XContent xContent,
@@ -244,7 +245,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param responseContentType  a content-type header value to be send back on a response
+     * @param responseContentType  a content-type header value to be sent back on a response
      * @param restApiVersion a rest api version indicating with which version the XContent is compatible with.
      */
     public XContentBuilder(
@@ -432,6 +433,22 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     public XContentBuilder value(byte value) throws IOException {
         generator.writeNumber(value);
+        return this;
+    }
+
+    public XContentBuilder array(String name, byte[] values) throws IOException {
+        return field(name).values(values);
+    }
+
+    private XContentBuilder values(byte[] values) throws IOException {
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (byte b : values) {
+            value(b);
+        }
+        endArray();
         return this;
     }
 
@@ -723,11 +740,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         if (values == null) {
             return nullValue();
         }
-        startArray();
-        for (String s : values) {
-            value(s);
-        }
-        endArray();
+        generator.writeStringArray(values);
         return this;
     }
 
@@ -867,6 +880,14 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).value(value);
     }
 
+    public XContentBuilder field(String name, Collection<String> value) throws IOException {
+        return stringListField(name, value);
+    }
+
+    public XContentBuilder field(String name, String[] value) throws IOException {
+        return array(name, value);
+    }
+
     public XContentBuilder field(String name, Number value) throws IOException {
         field(name);
         if (value instanceof Short) {
@@ -947,8 +968,12 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).value(value, params);
     }
 
-    private XContentBuilder value(ToXContent value) throws IOException {
+    public XContentBuilder value(ToXContent value) throws IOException {
         return value(value, ToXContent.EMPTY_PARAMS);
+    }
+
+    public XContentBuilder value(Map<String, ?> map) throws IOException {
+        return map(map);
     }
 
     private XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
@@ -977,13 +1002,17 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values) throws IOException {
+        return xContentList(name, values, ToXContent.EMPTY_PARAMS);
+    }
+
+    public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values, ToXContent.Params params) throws IOException {
         field(name);
         if (values == null) {
             return nullValue();
         }
         startArray();
         for (ToXContent value : values) {
-            value(value);
+            value(value, params);
         }
         endArray();
         return this;
@@ -1015,12 +1044,16 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
+    public XContentBuilder field(String name, Map<String, ?> values) throws IOException {
         return field(name).map(values);
     }
 
     public XContentBuilder map(Map<String, ?> values) throws IOException {
         return map(values, true, true);
+    }
+
+    public XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences) throws IOException {
+        return map(values, ensureNoSelfReferences, true);
     }
 
     public XContentBuilder stringStringMap(String name, Map<String, String> values) throws IOException {
@@ -1030,8 +1063,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         startObject();
         for (Map.Entry<String, String> value : values.entrySet()) {
-            field(value.getKey());
-            value(value.getValue());
+            generator.writeStringField(value.getKey(), value.getValue());
         }
         return endObject();
     }
@@ -1278,4 +1310,45 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
     }
 
+    /**
+     * Checks whether the given value is writeable as x-content.
+     *
+     * If the value cannot be passed to {@link #value(Object)} without
+     * error, an error {@link IllegalArgumentException} is thrown.
+     */
+    public static void ensureToXContentable(@Nullable Object value) {
+        if (value == null) {
+            return;
+        }
+
+        if (value instanceof Object[] array) {
+            for (Object v : array) {
+                ensureToXContentable(v);
+            }
+        } else if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() instanceof String == false) {
+                    throw new IllegalArgumentException(
+                        "Cannot write non-String map key [" + entry.getKey().getClass().getName() + "] to x-content"
+                    );
+                }
+                ensureToXContentable(entry.getValue());
+            }
+        } else if (value instanceof Path) {
+            // Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
+            return;
+        } else if (value instanceof Iterable<?> iterable) {
+            // Iterable also implicitly handles Set and List
+            for (Object v : iterable) {
+                ensureToXContentable(v);
+            }
+        } else if (value instanceof ToXContent || value instanceof Enum<?>) {
+            return;
+        } else {
+            Class<?> type = value.getClass();
+            if (WRITERS.containsKey(type) == false) {
+                throw new IllegalArgumentException("Cannot write type [" + type.getCanonicalName() + "] to x-content");
+            }
+        }
+    }
 }

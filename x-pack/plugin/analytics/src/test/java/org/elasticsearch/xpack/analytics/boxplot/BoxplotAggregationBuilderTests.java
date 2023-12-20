@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.analytics.boxplot;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,7 +22,7 @@ import java.io.IOException;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasSize;
 
-public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<BoxplotAggregationBuilder> {
+public class BoxplotAggregationBuilderTests extends AbstractXContentSerializingTestCase<BoxplotAggregationBuilder> {
     String aggregationName;
 
     @Before
@@ -60,7 +61,15 @@ public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<
         if (randomBoolean()) {
             aggregationBuilder.compression(randomDoubleBetween(0, 100, true));
         }
+        if (randomBoolean()) {
+            aggregationBuilder.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
+        }
         return aggregationBuilder;
+    }
+
+    @Override
+    protected BoxplotAggregationBuilder mutateInstance(BoxplotAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

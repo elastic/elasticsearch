@@ -10,10 +10,9 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -81,6 +80,8 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
@@ -112,7 +113,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
     protected final boolean rstOnClose;
-    private final Version version;
+    private final TransportVersion version;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -134,9 +135,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final AtomicLong outboundConnectionCount = new AtomicLong(); // also used as a correlation ID for open/close logs
 
+    @SuppressWarnings("this-escape")
     public TcpTransport(
         Settings settings,
-        Version version,
+        TransportVersion version,
         ThreadPool threadPool,
         PageCacheRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
@@ -196,7 +198,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         );
     }
 
-    public Version getVersion() {
+    @Override
+    public TransportVersion getVersion() {
         return version;
     }
 
@@ -235,12 +238,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
-        private final Version version;
+        private final TransportVersion version;
         private final Compression.Enabled compress;
         private final Compression.Scheme compressionScheme;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-        NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
+        NodeChannels(
+            DiscoveryNode node,
+            List<TcpChannel> channels,
+            ConnectionProfile connectionProfile,
+            TransportVersion handshakeVersion
+        ) {
             this.node = node;
             this.channels = Collections.unmodifiableList(channels);
             assert channels.size() == connectionProfile.getNumConnections()
@@ -256,7 +264,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public Version getVersion() {
+        public TransportVersion getTransportVersion() {
             return version;
         }
 
@@ -307,7 +315,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
 
             final Compression.Scheme schemeToUse = getCompressionScheme(wrapped);
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
+            assert false == RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME.equals(action)
+                || REMOTE_CLUSTER_PROFILE.equals(channel.getProfile())
+                : "remote cluster handshake can only be sent through RCS remote cluster connection";
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getTransportVersion(), schemeToUse, false);
         }
 
         private Compression.Scheme getCompressionScheme(TransportRequest request) {
@@ -343,23 +354,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
-
-        Objects.requireNonNull(profile, "connection profile cannot be null");
-        if (node == null) {
-            throw new ConnectTransportException(null, "can't open connection to a null node");
-        }
-        ConnectionProfile finalProfile = maybeOverrideConnectionProfile(profile);
-        if (closeLock.readLock().tryLock() == false) {
-            ensureOpen();
-            assert false : "should not get here ever because close-write-lock should only be held on shutdown";
-            throw new ConnectTransportException(node, "failed to acquire close-read-lock");
-        }
-        try {
-            ensureOpen();
-            initiateConnection(node, finalProfile, listener);
-        } finally {
-            closeLock.readLock().unlock();
-        }
+        ActionListener.run(listener, l -> {
+            Objects.requireNonNull(profile, "connection profile cannot be null");
+            if (node == null) {
+                throw new ConnectTransportException(null, "can't open connection to a null node");
+            }
+            final var finalProfile = maybeOverrideConnectionProfile(profile);
+            if (closeLock.readLock().tryLock() == false) {
+                ensureOpen();
+                assert false : "should not get here ever because close-write-lock should only be held on shutdown";
+                throw new ConnectTransportException(node, "failed to acquire close-read-lock");
+            }
+            try {
+                ensureOpen();
+                initiateConnection(node, finalProfile, l);
+            } finally {
+                closeLock.readLock().unlock();
+            }
+        });
     }
 
     private void initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener) {
@@ -370,7 +382,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                final TcpChannel channel = initiateChannel(node);
+                final TcpChannel channel = initiateChannel(node, connectionProfile);
                 if (logger.isTraceEnabled()) {
                     channel.addConnectListener(new ChannelOpenTraceLogger(channel));
                 }
@@ -390,7 +402,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             node,
             connectionProfile,
             channels,
-            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener, false)
+            new ThreadedActionListener<>(threadPool.generic(), listener)
         );
 
         for (TcpChannel channel : channels) {
@@ -398,12 +410,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
-        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
+        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, threadPool.generic());
     }
 
     @Override
     public BoundTransportAddress boundAddress() {
         return this.boundAddress;
+    }
+
+    @Override
+    public BoundTransportAddress boundRemoteIngressAddress() {
+        return profileBoundAddresses().get(REMOTE_CLUSTER_PROFILE);
     }
 
     @Override
@@ -700,8 +717,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     logger.log(
                         closeConnectionExceptionLevel,
-                        new ParameterizedMessage(
-                            "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                        () -> format(
+                            "close connection exception caught on transport layer [%s], disconnecting from relevant node",
                             channel
                         ),
                         e
@@ -722,7 +739,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     outboundHandler.sendBytes(
                         channel,
                         new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)),
-                        ActionListener.wrap(() -> CloseableChannel.closeChannel(channel))
+                        ActionListener.running(() -> CloseableChannel.closeChannel(channel))
                     );
                     closeChannel = false;
                 }
@@ -730,6 +747,23 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 logger.warn(() -> format("%s, [%s], closing connection", e.getMessage(), channel));
             } else if (e instanceof TransportNotReadyException) {
                 logger.debug(() -> format("%s on [%s], closing connection", e.getMessage(), channel));
+            } else if (e instanceof HeaderValidationException headerValidationException) {
+                Header header = headerValidationException.header;
+                if (channel.isOpen()) {
+                    try {
+                        outboundHandler.sendErrorResponse(
+                            header.getVersion(),
+                            channel,
+                            header.getRequestId(),
+                            header.getActionName(),
+                            ResponseStatsConsumer.NONE,
+                            headerValidationException.validationException
+                        );
+                    } catch (IOException inner) {
+                        inner.addSuppressed(headerValidationException.validationException);
+                        logger.warn(() -> "Failed to send error message back to client for validation failure", inner);
+                    }
+                }
             } else {
                 logger.warn(() -> "exception caught on transport layer [" + channel + "], closing connection", e);
             }
@@ -753,7 +787,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         assert addedOnThisCall : "Channel should only be added to accepted channel set once";
         // Mark the channel init time
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
+        channel.addCloseListener(ActionListener.running(() -> acceptedChannels.remove(channel)));
         logger.trace(() -> format("Tcp transport channel accepted: %s", channel));
     }
 
@@ -769,10 +803,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * Initiate a single tcp socket channel.
      *
      * @param node for the initiated connection
+     * @param connectionProfile the connection profile to use when connecting to the node
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 
     /**
      * Called to tear down internal resources
@@ -855,9 +890,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (messageLength > THIRTY_PER_HEAP_SIZE) {
             throw new IllegalArgumentException(
                 "illegal transport message of size ["
-                    + new ByteSizeValue(messageLength)
+                    + ByteSizeValue.ofBytes(messageLength)
                     + "] which exceeds 30% of this node's heap size ["
-                    + new ByteSizeValue(THIRTY_PER_HEAP_SIZE)
+                    + ByteSizeValue.ofBytes(THIRTY_PER_HEAP_SIZE)
                     + "], closing connection"
             );
         }
@@ -915,7 +950,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile, ActionListener<Version> listener) {
+    public void executeHandshake(
+        DiscoveryNode node,
+        TcpChannel channel,
+        ConnectionProfile profile,
+        ActionListener<TransportVersion> listener
+    ) {
         long requestId = responseHandlers.newRequestId();
         handshaker.sendHandshake(requestId, node, channel, profile.getHandshakeTimeout(), listener);
     }
@@ -966,7 +1006,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             messagesSent,
             bytesWritten,
             networkService.getHandlingTimeTracker().getHistogram(),
-            outboundHandlingTimeTracker.getHistogram()
+            outboundHandlingTimeTracker.getHistogram(),
+            requestHandlers.getStats()
         );
     }
 
@@ -975,6 +1016,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public static Set<ProfileSettings> getProfileSettings(Settings settings) {
         HashSet<ProfileSettings> profiles = new HashSet<>();
+        // Process remote cluster port first so that errors are consistently reported if there
+        // is direct usage of the _remote_cluster profile
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
+            profiles.add(RemoteClusterPortSettings.buildRemoteAccessProfileSettings(settings));
+        }
         boolean isDefaultSet = false;
         for (String profile : settings.getGroups("transport.profiles.", true).keySet()) {
             profiles.add(new ProfileSettings(settings, profile));
@@ -985,6 +1031,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (isDefaultSet == false) {
             profiles.add(new ProfileSettings(settings, TransportSettings.DEFAULT_PROFILE));
         }
+        // Add the remote access profile
         return Collections.unmodifiableSet(profiles);
     }
 
@@ -1077,7 +1124,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time
                             ch.getChannelStats().markAccessed(relativeMillisTime);
-                            ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
+                            ch.addCloseListener(ActionListener.running(nodeChannels::close));
                         });
                         keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                         nodeChannels.addCloseListener(new ChannelCloseLogger(node, connectionId, relativeMillisTime));

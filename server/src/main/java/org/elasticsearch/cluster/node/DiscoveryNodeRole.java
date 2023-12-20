@@ -141,7 +141,13 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a data node.
      */
-    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true);
+    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true) {
+
+        @Override
+        public boolean isEnabledByDefault(Settings settings) {
+            return DiscoveryNode.isStateless(settings) == false;
+        }
+    };
 
     /**
      * Represents the role for a content node.
@@ -152,7 +158,6 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
-
     };
 
     /**
@@ -164,7 +169,6 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
-
     };
 
     /**
@@ -176,7 +180,6 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
-
     };
 
     /**
@@ -188,7 +191,6 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
-
     };
 
     /**
@@ -200,7 +202,6 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         public boolean isEnabledByDefault(final Settings settings) {
             return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
-
     };
 
     /**
@@ -246,6 +247,27 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
      * Represents the role for a transform node.
      */
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
+
+    /**
+     * Represents the role for an index node.
+     */
+    public static final DiscoveryNodeRole INDEX_ROLE = new DiscoveryNodeRole("index", "I", true) {
+
+        @Override
+        public boolean isEnabledByDefault(Settings settings) {
+            return DiscoveryNode.isStateless(settings);
+        }
+    };
+
+    /**
+     * Represents the role for a search node.
+     */
+    public static final DiscoveryNodeRole SEARCH_ROLE = new DiscoveryNodeRole("search", "S", true) {
+
+        public boolean isEnabledByDefault(Settings settings) {
+            return false;
+        }
+    };
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
@@ -334,5 +356,4 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
         return maybeGetRoleFromRoleName(roleName).orElseThrow(() -> new IllegalArgumentException("unknown role [" + roleName + "]"));
     }
-
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +39,7 @@ public final class AnalyzerComponents {
     }
 
     static AnalyzerComponents createComponents(
+        IndexCreationContext context,
         String name,
         Settings analyzerSettings,
         final Map<String, TokenizerFactory> tokenizers,
@@ -77,7 +79,13 @@ public final class AnalyzerComponents {
                     "Custom Analyzer [" + name + "] failed to find filter under name " + "[" + tokenFilterName + "]"
                 );
             }
-            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(tokenizer, charFiltersList, tokenFilterList, tokenFilters::get);
+            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(
+                context,
+                tokenizer,
+                charFiltersList,
+                tokenFilterList,
+                tokenFilters::get
+            );
             tokenFilterList.add(tokenFilter);
         }
 

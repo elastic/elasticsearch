@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.prefix;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -51,22 +51,6 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             this.prefixLength = prefixLength;
             this.appendPrefixLength = appendPrefixLength;
             this.netmask = netmask;
-        }
-
-        public boolean isIpv6() {
-            return isIpv6;
-        }
-
-        public int getPrefixLength() {
-            return prefixLength;
-        }
-
-        public boolean appendPrefixLength() {
-            return appendPrefixLength;
-        }
-
-        public BytesRef getNetmask() {
-            return netmask;
         }
 
         @Override
@@ -113,8 +97,8 @@ public final class IpPrefixAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        return new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(ctx), ipPrefix);
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        return new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(aggCtx.getLeafReaderContext()), ipPrefix);
     }
 
     private class IpPrefixLeafCollector extends LeafBucketCollectorBase {
@@ -195,15 +179,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             while (ordsEnum.next()) {
                 long ordinal = ordsEnum.ord();
                 if (bucketOrdsToCollect[b] != ordinal) {
-                    throw new AggregationExecutionException(
-                        "Iteration order of ["
-                            + bucketOrds
-                            + "] changed without mutating. ["
-                            + ordinal
-                            + "] should have been ["
-                            + bucketOrdsToCollect[b]
-                            + "]"
-                    );
+                    throw AggregationErrors.iterationOrderChangedWithoutMutating(bucketOrds.toString(), ordinal, bucketOrdsToCollect[b]);
                 }
                 BytesRef ipAddress = new BytesRef();
                 ordsEnum.readValue(ipAddress);

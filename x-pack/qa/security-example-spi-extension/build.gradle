@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 
 esplugin {
@@ -15,6 +15,8 @@ dependencies {
   javaRestTestImplementation project(':client:rest-high-level')
   // let the javaRestTest see the classpath of main
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+  javaRestTestImplementation project(':modules:rest-root')
+
 }
 
 testClusters.configureEach {

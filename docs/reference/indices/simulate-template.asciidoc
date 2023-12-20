@@ -94,6 +94,10 @@ Defaults to `false`.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+`include_defaults`::
+(Optional, Boolean) Functionality in preview:[]. If `true`, return all default settings in the response.
+Defaults to `false`.
+
 [role="child_attributes"]
 [[simulate-template-api-request-body]]
 ==== {api-request-body-title}

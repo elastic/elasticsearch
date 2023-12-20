@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -156,9 +157,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(LongBounds::new);
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            hardBounds = in.readOptionalWriteable(LongBounds::new);
-        }
+        hardBounds = in.readOptionalWriteable(LongBounds::new);
     }
 
     @Override
@@ -179,9 +178,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeOptionalWriteable(hardBounds);
-        }
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /**
@@ -287,11 +284,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
         this.extendedBounds = extendedBounds;
         return this;
-    }
-
-    /** Return hard bounds for this histogram, or {@code null} if none are set. */
-    public LongBounds hardBounds() {
-        return hardBounds;
     }
 
     /** Set hard bounds on this histogram, specifying boundaries outside which buckets cannot be created. */
@@ -406,20 +398,34 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
+
+        if (context.getIndexSettings().getIndexMetadata().isDownsampledIndex()
+            && DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
+            throw new IllegalArgumentException(
+                config.getDescription()
+                    + " is not supported for aggregation ["
+                    + getName()
+                    + "] with interval type ["
+                    + dateHistogramIntervalType.getPreferredName()
+                    + "]"
+            );
+        }
 
         final ZoneId tz = timeZone();
+        if (context.getIndexSettings().getIndexMetadata().isDownsampledIndex() && tz != null && ZoneId.of("UTC").equals(tz) == false) {
+            throw new IllegalArgumentException(
+                config.getDescription() + " is not supported for aggregation [" + getName() + "] with timezone [" + tz + "]"
+            );
+        }
+
+        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
 
         LongBounds roundedBounds = null;
@@ -499,8 +505,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override

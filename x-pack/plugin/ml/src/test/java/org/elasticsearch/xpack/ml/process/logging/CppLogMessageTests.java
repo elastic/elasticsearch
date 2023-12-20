@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.process.logging;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.time.Instant;
 
-public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessage> {
+public class CppLogMessageTests extends AbstractXContentSerializingTestCase<CppLogMessage> {
 
     public void testDefaultConstructor() {
         CppLogMessage msg = new CppLogMessage(Instant.ofEpochSecond(1494422876L));
@@ -70,6 +70,11 @@ public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessag
         msg.setFile("CAnomalyDetector.cc");
         msg.setLine(123);
         return msg;
+    }
+
+    @Override
+    protected CppLogMessage mutateInstance(CppLogMessage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

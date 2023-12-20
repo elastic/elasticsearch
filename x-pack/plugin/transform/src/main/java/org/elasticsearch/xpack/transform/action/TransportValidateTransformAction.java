@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportValidateTransformAction extends HandledTransportAction<Request, Response> {
 
     private final Client client;
@@ -56,7 +58,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         Settings settings,
         IngestService ingestService
     ) {
-        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new);
+        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -102,20 +104,21 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(
                 new ValidationException().addValidationError(
-                    new ParameterizedMessage(
-                        "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
-                            + "Minimum required version is [{}]",
+                    format(
+                        "Transform configuration is too old [%s], use the upgrade API to fix your transform. "
+                            + "Minimum required version is [%s]",
                         config.getVersion(),
                         TransformDeprecations.MIN_TRANSFORM_VERSION
-                    ).getFormattedMessage()
+                    )
                 )
             );
             return;
         }
 
         // <5> Final listener
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            deducedMappings -> { listener.onResponse(new Response(deducedMappings)); },
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
+            listener.onResponse(new Response(deducedMappings));
+        },
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )
@@ -126,7 +129,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 deduceMappingsListener.onResponse(null);
             } else {
-                function.deduceMappings(client, config.getSource(), deduceMappingsListener);
+                function.deduceMappings(client, config.getHeaders(), config.getSource(), deduceMappingsListener);
             }
         }, listener::onFailure);
 
@@ -135,15 +138,14 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             if (request.isDeferValidation()) {
                 validateQueryListener.onResponse(true);
             } else {
-                function.validateQuery(client, config.getSource(), validateQueryListener);
+                function.validateQuery(client, config.getHeaders(), config.getSource(), request.timeout(), validateQueryListener);
             }
         }, listener::onFailure);
 
         // <2> Validate transform function config
-        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
-            validateSourceDestResponse -> { function.validateConfig(validateConfigListener); },
-            listener::onFailure
-        );
+        ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(validateSourceDestResponse -> {
+            function.validateConfig(validateConfigListener);
+        }, listener::onFailure);
 
         // <1> Validate source and destination indices
         sourceDestValidator.validate(

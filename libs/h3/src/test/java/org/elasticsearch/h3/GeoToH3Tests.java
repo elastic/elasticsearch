@@ -55,4 +55,16 @@ public class GeoToH3Tests extends ESTestCase {
         }
         return GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
     }
+
+    public void testNorthPoleCells() {
+        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
+            assertEquals(H3.northPolarH3Address(res), H3.geoToH3Address(90, GeoTestUtil.nextLongitude(), res));
+        }
+    }
+
+    public void testSouthPoleCells() {
+        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
+            assertEquals(H3.southPolarH3Address(res), H3.geoToH3Address(-90, GeoTestUtil.nextLongitude(), res));
+        }
+    }
 }

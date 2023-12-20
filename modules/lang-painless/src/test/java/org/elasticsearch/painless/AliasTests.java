@@ -8,8 +8,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -34,7 +34,9 @@ public class AliasTests extends ScriptTestCase {
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
             () -> PainlessLookupBuilder.buildFromWhitelists(
-                List.of(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.alias-shadow"))
+                List.of(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.alias-shadow")),
+                new HashMap<>(),
+                new HashMap<>()
             )
         );
         assertEquals(

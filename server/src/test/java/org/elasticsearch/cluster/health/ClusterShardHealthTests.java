@@ -8,14 +8,14 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
-public class ClusterShardHealthTests extends AbstractSerializingTestCase<ClusterShardHealth> {
+public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase<ClusterShardHealth> {
 
     @Override
     protected ClusterShardHealth doParseInstance(XContentParser parser) throws IOException {

@@ -16,14 +16,15 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction.Request;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction.Response;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 public class TransportGetStatusAction extends TransportMasterNodeAction<Request, Response> {
 
@@ -44,21 +45,13 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<Request,
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-        IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        final Response response;
-        if (metadata == null) {
-            // no need to actually install metadata just yet, but safe to say it is not stopped
-            response = new Response(OperationMode.RUNNING);
-        } else {
-            response = new Response(metadata.getOperationMode());
-        }
-        listener.onResponse(response);
+        listener.onResponse(new Response(currentILMMode(state)));
     }
 
     @Override

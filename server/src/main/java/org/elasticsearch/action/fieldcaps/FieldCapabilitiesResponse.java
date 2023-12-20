@@ -10,20 +10,22 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,7 +34,7 @@ import java.util.stream.Collectors;
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
+public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContentObject {
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
@@ -74,9 +76,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
+        this.responseMap = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
-        this.failures = in.readList(FieldCapabilitiesFailure::new);
+        this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
     }
 
     /**
@@ -89,8 +91,13 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     /**
      * Get the concrete list of indices that failed
      */
-    public String[] getFailedIndices() {
-        return this.failures.stream().map(FieldCapabilitiesFailure::getIndices).flatMap(s -> Arrays.stream(s)).toArray(String[]::new);
+    public int getFailedIndicesCount() {
+        int count = 0;
+        for (FieldCapabilitiesFailure fieldCapabilitiesFailure : this.failures) {
+            int length = fieldCapabilitiesFailure.getIndices().length;
+            count += length;
+        }
+        return count;
     }
 
     /**
@@ -134,39 +141,45 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     }
 
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
-        return in.readMap(StreamInput::readString, FieldCapabilities::new);
+        return in.readMap(FieldCapabilities::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
+        out.writeMap(responseMap, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
-        out.writeList(failures);
+        out.writeCollection(failures);
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
-        out.writeMap(map, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        out.writeMap(map, StreamOutput::writeWriteable);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         if (indexResponses.size() > 0) {
             throw new IllegalStateException("cannot serialize non-merged response");
         }
-        builder.startObject();
-        builder.array(INDICES_FIELD.getPreferredName(), indices);
-        builder.startObject(FIELDS_FIELD.getPreferredName());
-        for (var r : responseMap.entrySet()) {
-            builder.xContentValuesMap(r.getKey(), r.getValue());
-        }
-        builder.endObject();
-        if (this.failures.size() > 0) {
-            builder.field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length);
-            builder.xContentList(FAILURES_FIELD.getPreferredName(), failures);
-        }
-        builder.endObject();
-        return builder;
+
+        return Iterators.concat(
+            Iterators.single(
+                (b, p) -> b.startObject().array(INDICES_FIELD.getPreferredName(), indices).startObject(FIELDS_FIELD.getPreferredName())
+            ),
+            Iterators.map(responseMap.entrySet().iterator(), r -> (b, p) -> b.xContentValuesMap(r.getKey(), r.getValue())),
+            this.failures.size() > 0
+                ? Iterators.concat(
+                    Iterators.single(
+                        (ToXContent) (b, p) -> b.endObject()
+                            .field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndicesCount())
+                            .field(FAILURES_FIELD.getPreferredName())
+                            .startArray()
+                    ),
+                    failures.iterator(),
+                    Iterators.single((b, p) -> b.endArray().endObject())
+                )
+                : Iterators.single((b, p) -> b.endObject().endObject())
+        );
     }
 
     public static FieldCapabilitiesResponse fromXContent(XContentParser parser) throws IOException {
@@ -233,6 +246,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
+        if (indexResponses.size() > 0) {
+            return "FieldCapabilitiesResponse{unmerged}";
+        }
         return Strings.toString(this);
     }
 }

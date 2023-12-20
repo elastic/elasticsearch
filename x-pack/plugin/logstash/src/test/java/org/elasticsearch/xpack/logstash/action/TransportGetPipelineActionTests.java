@@ -33,7 +33,9 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 
@@ -98,13 +100,11 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             }
         };
 
-        try (Client client = getMockClient(multiGetResponse)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getMockClient(threadPool, multiGetResponse);
             Loggers.addAppender(logger, mockLogAppender);
-            TransportGetPipelineAction action = new TransportGetPipelineAction(
-                mock(TransportService.class),
-                mock(ActionFilters.class),
-                client
-            );
+            TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+            TransportGetPipelineAction action = new TransportGetPipelineAction(transportService, mock(ActionFilters.class), client);
             action.doExecute(null, request, testActionListener);
         } finally {
             Loggers.removeAppender(logger, mockLogAppender);
@@ -128,45 +128,53 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY,
             null
         );
+        try {
 
-        SearchResponse mockResponse = mock(SearchResponse.class);
-        when(mockResponse.getHits()).thenReturn(prepareSearchHits());
+            SearchResponse mockResponse = mock(SearchResponse.class);
+            when(mockResponse.getHits()).thenReturn(prepareSearchHits());
 
-        GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2", "3*"));
-        AtomicReference<Exception> failure = new AtomicReference<>();
+            GetPipelineRequest request = new GetPipelineRequest(List.of("1", "2", "3*"));
+            AtomicReference<Exception> failure = new AtomicReference<>();
 
-        // Set up an ActionListener for the actual test conditions
-        ActionListener<GetPipelineResponse> testActionListener = new ActionListener<>() {
-            @Override
-            public void onResponse(GetPipelineResponse getPipelineResponse) {
-                assertThat(getPipelineResponse, is(notNullValue()));
-                assertThat(getPipelineResponse.pipelines().size(), equalTo(3));
-                assertTrue(getPipelineResponse.pipelines().containsKey("1"));
-                assertTrue(getPipelineResponse.pipelines().containsKey("2"));
-                assertTrue(getPipelineResponse.pipelines().containsKey("3*"));
+            // Set up an ActionListener for the actual test conditions
+            ActionListener<GetPipelineResponse> testActionListener = new ActionListener<>() {
+                @Override
+                public void onResponse(GetPipelineResponse getPipelineResponse) {
+                    assertThat(getPipelineResponse, is(notNullValue()));
+                    assertThat(getPipelineResponse.pipelines().size(), equalTo(3));
+                    assertTrue(getPipelineResponse.pipelines().containsKey("1"));
+                    assertTrue(getPipelineResponse.pipelines().containsKey("2"));
+                    assertTrue(getPipelineResponse.pipelines().containsKey("3*"));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                }
+            };
+
+            TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+            try (var threadPool = createThreadPool()) {
+                final var client = getMockClient(threadPool, searchResponse);
+                new TransportGetPipelineAction(transportService, mock(ActionFilters.class), client).doExecute(
+                    null,
+                    request,
+                    testActionListener
+                );
             }
 
-            @Override
-            public void onFailure(Exception e) {
-                failure.set(e);
-            }
-        };
-
-        try (Client client = getMockClient(searchResponse)) {
-            new TransportGetPipelineAction(mock(TransportService.class), mock(ActionFilters.class), client).doExecute(
-                null,
-                request,
-                testActionListener
-            );
+            assertNull(failure.get());
+        } finally {
+            searchResponse.decRef();
         }
-
-        assertNull(failure.get());
     }
 
     public void testMissingIndexHandling() throws Exception {
-        try (Client failureClient = getFailureClient(new IndexNotFoundException("foo"))) {
+        try (var threadPool = createThreadPool()) {
+            final var failureClient = getFailureClient(threadPool, new IndexNotFoundException("foo"));
+            TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
             final TransportGetPipelineAction action = new TransportGetPipelineAction(
-                mock(TransportService.class),
+                transportService,
                 mock(ActionFilters.class),
                 failureClient
             );
@@ -178,8 +186,8 @@ public class TransportGetPipelineActionTests extends ESTestCase {
         }
     }
 
-    private Client getMockClient(ActionResponse response) {
-        return new NoOpClient(getTestName()) {
+    private Client getMockClient(ThreadPool threadPool, ActionResponse response) {
+        return new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -192,8 +200,8 @@ public class TransportGetPipelineActionTests extends ESTestCase {
         };
     }
 
-    private Client getFailureClient(Exception e) {
-        return new NoOpClient(getTestName()) {
+    private Client getFailureClient(ThreadPool threadPool, Exception e) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
@@ -210,15 +218,15 @@ public class TransportGetPipelineActionTests extends ESTestCase {
     }
 
     private SearchHits prepareSearchHits() {
-        SearchHit hit1 = new SearchHit(0, "1", null, null);
+        SearchHit hit1 = new SearchHit(0, "1");
         hit1.score(1f);
         hit1.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchHit hit2 = new SearchHit(0, "2", null, null);
+        SearchHit hit2 = new SearchHit(0, "2");
         hit2.score(1f);
         hit2.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchHit hit3 = new SearchHit(0, "3*", null, null);
+        SearchHit hit3 = new SearchHit(0, "3*");
         hit3.score(1f);
         hit3.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 

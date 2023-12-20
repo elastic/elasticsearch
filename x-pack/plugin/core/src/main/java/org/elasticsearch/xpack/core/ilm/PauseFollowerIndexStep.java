@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
 
@@ -46,7 +45,7 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndexName().equals(followerIndex);
             })
-            .collect(Collectors.toList());
+            .toList();
 
         if (shardFollowTasks.isEmpty()) {
             listener.onResponse(null);
@@ -55,11 +54,11 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
 
         PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
         request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(r -> {
+        getClient().execute(PauseFollowAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> {
             if (r.isAcknowledged() == false) {
                 throw new ElasticsearchException("pause follow request failed to be acknowledged");
             }
-            listener.onResponse(null);
-        }, listener::onFailure));
+            l.onResponse(null);
+        }));
     }
 }

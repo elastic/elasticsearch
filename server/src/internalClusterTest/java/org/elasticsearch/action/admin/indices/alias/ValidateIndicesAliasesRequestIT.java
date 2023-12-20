@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -36,10 +35,8 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public static class IndicesAliasesPlugin extends Plugin implements ActionPlugin {
 
-        static final Setting<List<String>> ALLOWED_ORIGINS_SETTING = Setting.listSetting(
+        static final Setting<List<String>> ALLOWED_ORIGINS_SETTING = Setting.stringListSetting(
             "index.aliases.allowed_origins",
-            Collections.emptyList(),
-            Function.identity(),
             Setting.Property.IndexScope,
             Setting.Property.Dynamic
         );

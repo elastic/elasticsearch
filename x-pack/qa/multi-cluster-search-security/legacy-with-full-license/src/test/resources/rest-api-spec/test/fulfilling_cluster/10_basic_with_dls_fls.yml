@@ -1,0 +1,410 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "x_cluster_role" ]
+          }
+  - do:
+      security.put_role:
+        name: "x_cluster_role"
+        body:  >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              {
+                "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
+                "field_caps_index_3", "point_in_time_index"],
+                "privileges": ["read", "read_cross_cluster"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "remote"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "remote_ccs" ]
+          }
+  - do:
+      security.put_role:
+        name: "remote_ccs"
+        body:  >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              {
+                "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
+                "field_caps_index_3", "point_in_time_index"],
+                "privileges": ["read", "read_cross_cluster"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "dls_fls_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              {
+                "names": ["shared_index"],
+                "privileges": ["read", "read_cross_cluster"],
+                "query": "{ \"term\": { \"public\" : true } }",
+                "field_security": { "grant": ["*"], "except": ["secret"] }
+              }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_all_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              { "names": ["terms_enum_index"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_alias_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              { "names": ["terms_enum_alias"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_none_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              { "names": ["terms_enum_index"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"dynamic\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "terms_enum_fls_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              { "names": ["terms_enum_index"], "privileges": ["read"], "field_security" : {"grant" : [ "*"],"except": [ "foo" ]} }
+            ]
+          }
+
+---
+"Index data and search on the remote cluster":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [simple-data-stream2]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream2"
+
+  - do:
+      indices.create:
+        index: closed_index
+        body:
+          aliases:
+            aliased_closed_index: {}
+
+  - do:
+      indices.close:
+        index: closed_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+
+  - do:
+      indices.create:
+        index: single_doc_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              created_at:
+                type: date
+                format: "yyyy-MM-dd"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "single_doc_index"}}'
+          - '{"f1": "remote_cluster", "sort_field": 1, "created_at" : "2016-01-01"}'
+
+  - do:
+      indices.create:
+        index: field_caps_index_1
+        body:
+          mappings:
+            properties:
+              text:
+                type:     text
+              keyword:
+                type:     keyword
+              number:
+                type:     double
+              geo:
+                type:     geo_point
+              object:
+                type: object
+                properties:
+                  nested1 :
+                    type : text
+                    index: false
+                  nested2:
+                    type: float
+                    doc_values: false
+  - do:
+      indices.create:
+        index: field_caps_index_3
+        body:
+          mappings:
+            properties:
+              text:
+                type:     text
+              keyword:
+                type:     keyword
+              number:
+                type:     long
+              geo:
+                type:     keyword
+              object:
+                type: object
+                properties:
+                  nested1 :
+                    type : long
+                    index: false
+                  nested2:
+                    type: keyword
+                    doc_values: false
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 0
+          aliases:
+            aliased_test_index: # we use this alias in the multi cluster test to verify filtered aliases work
+              filter:
+                term:
+                  filter_field : 1
+  - do:
+      indices.create:
+        index: secured_via_alias
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              number_of_replicas: 0
+          aliases:
+            secure_alias: {} # we use this alias in the multi cluster test to verify permissions via aliases work
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index"}}'
+          - '{"f1": "remote_cluster", "filter_field": 0}'
+          - '{"index": {"_index": "test_index"}}'
+          - '{"f1": "remote_cluster", "filter_field": 1}'
+          - '{"index": {"_index": "test_index"}}'
+          - '{"f1": "remote_cluster", "filter_field": 0}'
+          - '{"index": {"_index": "test_index"}}'
+          - '{"f1": "remote_cluster", "filter_field": 1}'
+          - '{"index": {"_index": "test_index"}}'
+          - '{"f1": "remote_cluster", "filter_field": 0}'
+          - '{"index": {"_index": "test_index"}}'
+          - '{"f1": "remote_cluster", "filter_field": 0}'
+          - '{"index": {"_index": "secured_via_alias"}}'
+          - '{"f1": "remote_cluster", "secure": true}'
+
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6 }
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: aliased_test_index
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.filter_field: 1 }
+  - match: { hits.hits.0._index: "test_index" }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: secure_alias
+
+  - match: { _shards.total: 2 }
+  - match: { hits.total: 1 }
+  - is_true: hits.hits.0._source.secure
+  - match: { hits.hits.0._index: "secured_via_alias" }
+
+  # The user is updated to remove its role mappings to show that we do not
+  #  need the user to be assigned to a role on the remote cluster and that the
+  #  roles sent with the user from the other cluster are used. The put user
+  #  request clears the cached reference to the user so we do not need to do
+  #  that manually
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ ]
+          }
+  - match: { created: false }
+
+  - do:
+      indices.create:
+        index: point_in_time_index
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              number_of_replicas: 0
+          mappings:
+            properties:
+              created_at:
+                type: date
+                format: "yyyy-MM-dd"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "point_in_time_index"}}'
+          - '{"f": "r1", "created_at" : "2020-01-01"}'
+          - '{"index": {"_index": "point_in_time_index"}}'
+          - '{"f": "r2", "created_at" : "2020-01-02"}'
+          - '{"index": {"_index": "point_in_time_index"}}'
+          - '{"f": "r3", "created_at" : "2020-01-03"}'
+          - '{"index": {"_index": "point_in_time_index"}}'
+          - '{"f": "r4", "created_at" : "2020-01-04"}'
+
+  - do:
+      indices.create:
+        index: shared_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "shared_index", "_id": 1}}'
+          - '{"public": true, "name": "doc 1", "secret": "sesame"}'
+          - '{"index": {"_index": "shared_index", "_id": 2}}'
+          - '{"public": false, "name": "doc 2", "secret": "sesame"}'
+
+  - do:
+      indices.create:
+        index: terms_enum_index
+        body:
+          aliases:
+            terms_enum_alias: {}
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              ck:
+                type: constant_keyword
+                value: const
+              foo:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "terms_enum_index"}}'
+          - '{"foo": "zar"}'
+          - '{"index": {"_index": "terms_enum_index"}}'
+          - '{"foo": "foo"}'
+          - '{"index": {"_index": "terms_enum_index"}}'
+          - '{"foo": "foobar"}'

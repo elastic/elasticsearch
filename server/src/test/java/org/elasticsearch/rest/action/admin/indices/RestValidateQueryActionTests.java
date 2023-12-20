@@ -27,6 +27,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -43,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -54,7 +54,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private UsageService usageService = new UsageService();
-    private RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
+    private RestController controller = new RestController(null, client, new NoneCircuitBreakerService(), usageService, Tracer.NOOP);
     private RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**

@@ -13,7 +13,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.ActionConfigStatsTests;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats> {
@@ -30,7 +29,7 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
     }
 
     @Override
-    protected PhaseStats mutateInstance(PhaseStats instance) throws IOException {
+    protected PhaseStats mutateInstance(PhaseStats instance) {
         TimeValue minimumAge = instance.getAfter();
         String[] actionNames = instance.getActionNames();
         switch (between(0, 1)) {

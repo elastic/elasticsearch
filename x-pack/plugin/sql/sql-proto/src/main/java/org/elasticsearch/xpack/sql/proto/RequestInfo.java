@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-public class RequestInfo {
+public final class RequestInfo {
     private static final String CANVAS = "canvas";
     public static final String ODBC_32 = "odbc32";
     private static final String ODBC_64 = "odbc64";

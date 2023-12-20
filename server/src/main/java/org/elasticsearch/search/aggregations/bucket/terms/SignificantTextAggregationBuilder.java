@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -39,7 +40,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     static final ParseField SOURCE_FIELDS_NAME = new ParseField("source_fields");
     static final ParseField FILTER_DUPLICATE_TEXT_FIELD_NAME = new ParseField("filter_duplicate_text");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
         SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS;
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = SignificantTermsAggregationBuilder.DEFAULT_SIGNIFICANCE_HEURISTIC;
 
@@ -74,7 +75,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
 
         PARSER.declareObject(
             SignificantTextAggregationBuilder::backgroundFilter,
-            (p, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+            (p, context) -> AbstractQueryBuilder.parseTopLevelQuery(p),
             SignificantTermsAggregationBuilder.BACKGROUND_FILTER
         );
 
@@ -122,10 +123,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         return new SignificantTextAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
-    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
-    }
-
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
         return bucketCountThresholds;
     }
@@ -142,14 +139,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         throw new AggregationInitializationException(
             "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
         );
-    }
-
-    public SignificantTextAggregationBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (bucketCountThresholds == null) {
-            throw new IllegalArgumentException("[bucketCountThresholds] must not be null: [" + name + "]");
-        }
-        this.bucketCountThresholds = bucketCountThresholds;
-        return this;
     }
 
     /**
@@ -243,10 +232,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         return this;
     }
 
-    public QueryBuilder backgroundFilter() {
-        return filterBuilder;
-    }
-
     /**
      * Set terms to include and exclude from the aggregation results
      */
@@ -268,10 +253,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         }
         this.significanceHeuristic = significanceHeuristic;
         return this;
-    }
-
-    public SignificanceHeuristic significanceHeuristic() {
-        return significanceHeuristic;
     }
 
     /**
@@ -399,7 +380,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_3_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_3_0;
     }
 }

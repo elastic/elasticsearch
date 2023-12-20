@@ -87,7 +87,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             super(in);
             this.name = in.readString();
             if (in.readBoolean()) {
-                this.roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
+                this.roles = in.readCollectionAsSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
             } else {
                 this.roles = null;
             }
@@ -109,7 +109,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             out.writeString(name);
             if (roles != null) {
                 out.writeBoolean(true);
-                out.writeCollection(roles, StreamOutput::writeString);
+                out.writeStringCollection(roles);
             } else {
                 out.writeBoolean(false);
             }
@@ -118,7 +118,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
                 out.writeInt(deciders.size());
                 for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
                     out.writeString(entry.getKey());
-                    Settings.writeSettingsToStream(entry.getValue(), out);
+                    entry.getValue().writeTo(out);
                 }
             } else {
                 out.writeBoolean(false);

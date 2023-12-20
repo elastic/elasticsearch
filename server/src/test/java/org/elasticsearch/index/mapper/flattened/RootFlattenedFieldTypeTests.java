@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -62,7 +62,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
 
         RootFlattenedFieldType withDv = new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false);
-        assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
+        assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
     }
 
     public void testFuzzyQuery() {

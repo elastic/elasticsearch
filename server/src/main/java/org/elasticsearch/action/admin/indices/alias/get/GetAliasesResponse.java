@@ -11,9 +11,8 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,21 +21,15 @@ import java.util.Objects;
 
 public class GetAliasesResponse extends ActionResponse {
 
-    private final ImmutableOpenMap<String, List<AliasMetadata>> aliases;
+    private final Map<String, List<AliasMetadata>> aliases;
     private final Map<String, List<DataStreamAlias>> dataStreamAliases;
 
-    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetadata>> aliases, Map<String, List<DataStreamAlias>> dataStreamAliases) {
+    public GetAliasesResponse(Map<String, List<AliasMetadata>> aliases, Map<String, List<DataStreamAlias>> dataStreamAliases) {
         this.aliases = aliases;
         this.dataStreamAliases = dataStreamAliases;
     }
 
-    public GetAliasesResponse(StreamInput in) throws IOException {
-        super(in);
-        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
-        dataStreamAliases = in.readMap(StreamInput::readString, in1 -> in1.readList(DataStreamAlias::new));
-    }
-
-    public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
+    public Map<String, List<AliasMetadata>> getAliases() {
         return aliases;
     }
 
@@ -44,10 +37,15 @@ public class GetAliasesResponse extends ActionResponse {
         return dataStreamAliases;
     }
 
+    /**
+     * NB prior to 8.12 get-aliases was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until we no
+     * longer need to support calling this action remotely.
+     */
+    @UpdateForV9 // replace this implementation with TransportAction.localOnly()
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
-        out.writeMap(dataStreamAliases, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(aliases, StreamOutput::writeCollection);
+        out.writeMap(dataStreamAliases, StreamOutput::writeCollection);
     }
 
     @Override

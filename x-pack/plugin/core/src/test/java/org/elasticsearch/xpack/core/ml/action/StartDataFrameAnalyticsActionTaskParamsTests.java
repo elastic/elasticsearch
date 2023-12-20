@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
-
-public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerializingTestCase<StartDataFrameAnalyticsAction.TaskParams> {
+public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractXContentSerializingTestCase<
+    StartDataFrameAnalyticsAction.TaskParams> {
 
     @Override
     protected StartDataFrameAnalyticsAction.TaskParams doParseInstance(XContentParser parser) throws IOException {
@@ -24,7 +24,16 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerial
 
     @Override
     protected StartDataFrameAnalyticsAction.TaskParams createTestInstance() {
-        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), randomVersion(random()), randomBoolean());
+        return new StartDataFrameAnalyticsAction.TaskParams(
+            randomAlphaOfLength(10),
+            MlConfigVersionUtils.randomVersion(random()),
+            randomBoolean()
+        );
+    }
+
+    @Override
+    protected StartDataFrameAnalyticsAction.TaskParams mutateInstance(StartDataFrameAnalyticsAction.TaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

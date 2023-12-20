@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,7 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests.randomMeta;
 
-public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<LifecyclePolicyMetadata> {
+public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTestCase<LifecyclePolicyMetadata> {
 
     private String lifecycleName;
 
@@ -50,13 +50,13 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new)
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new)
             )
         );
     }
@@ -91,7 +91,7 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupILMAction.NAME), RollupILMAction::parse)
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
             )
         );
         return new NamedXContentRegistry(entries);
@@ -127,7 +127,7 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
     }
 
     @Override
-    protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) throws IOException {
+    protected LifecyclePolicyMetadata mutateInstance(LifecyclePolicyMetadata instance) {
         LifecyclePolicy policy = instance.getPolicy();
         Map<String, String> headers = instance.getHeaders();
         long version = instance.getVersion();

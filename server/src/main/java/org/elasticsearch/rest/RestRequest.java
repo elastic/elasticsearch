@@ -14,8 +14,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -32,13 +32,13 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
@@ -48,8 +48,9 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params {
 
+    public static final String RESPONSE_RESTRICTED = "responseRestricted";
     // tchar pattern as defined by RFC7230 section 3.2.6
-    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
     private static final AtomicLong requestIdGenerator = new AtomicLong();
 
@@ -62,7 +63,7 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
-    private final RestApiVersion restApiVersion;
+    private final Optional<RestApiVersion> restApiVersion;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -73,6 +74,7 @@ public class RestRequest implements ToXContent.Params {
         return contentConsumed;
     }
 
+    @SuppressWarnings("this-escape")
     protected RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
@@ -84,6 +86,7 @@ public class RestRequest implements ToXContent.Params {
         this(parserConfig, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
+    @SuppressWarnings("this-escape")
     private RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
@@ -112,9 +115,11 @@ public class RestRequest implements ToXContent.Params {
         } catch (ElasticsearchStatusException e) {
             throw new MediaTypeHeaderException(e, "Accept", "Content-Type");
         }
-        this.parserConfig = parserConfig.restApiVersion().equals(restApiVersion)
+
+        var effectiveApiVersion = this.getRestApiVersion();
+        this.parserConfig = parserConfig.restApiVersion().equals(effectiveApiVersion)
             ? parserConfig
-            : parserConfig.withRestApiVersion(restApiVersion);
+            : parserConfig.withRestApiVersion(effectiveApiVersion);
         this.httpChannel = httpChannel;
         this.params = params;
         this.rawPath = path;
@@ -123,7 +128,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     protected RestRequest(RestRequest other) {
-        assert other.parserConfig.restApiVersion().equals(other.restApiVersion);
+        assert other.parserConfig.restApiVersion().equals(other.getRestApiVersion());
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
         if (other.xContentType.get() != null) {
@@ -145,7 +150,7 @@ public class RestRequest implements ToXContent.Params {
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
-            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " + "Only one value should be provided");
+            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. Only one value should be provided");
         }
         String rawContentType = header.get(0);
         if (Strings.hasText(rawContentType)) {
@@ -536,12 +541,7 @@ public class RestRequest implements ToXContent.Params {
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
             Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-            BytesReference content = tuple.v2();
-            XContentType xContentType = tuple.v1();
-            try (
-                InputStream stream = content.streamInput();
-                XContentParser parser = xContentType.xContent().createParser(parserConfig, stream)
-            ) {
+            try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
                 withParser.accept(parser);
             }
         } else {
@@ -610,14 +610,26 @@ public class RestRequest implements ToXContent.Params {
      * The requested version of the REST API.
      */
     public RestApiVersion getRestApiVersion() {
-        return restApiVersion;
+        return restApiVersion.orElse(RestApiVersion.current());
+    }
+
+    public boolean hasExplicitRestApiVersion() {
+        return restApiVersion.isPresent();
+    }
+
+    public void markResponseRestricted(String restriction) {
+        if (params.containsKey(RESPONSE_RESTRICTED)) {
+            throw new IllegalArgumentException("The parameter [" + RESPONSE_RESTRICTED + "] is already defined.");
+        }
+        params.put(RESPONSE_RESTRICTED, restriction);
+        // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
+        consumedParams.add(RESPONSE_RESTRICTED);
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {
 
-        private String message;
-        private Set<String> failedHeaderNames;
-        private Object[] params;
+        private final String message;
+        private final Set<String> failedHeaderNames;
 
         MediaTypeHeaderException(final RuntimeException cause, String... failedHeaderNames) {
             super(cause);
@@ -631,7 +643,7 @@ public class RestRequest implements ToXContent.Params {
 
         @Override
         public String getMessage() {
-            return LoggerMessageFormat.format(message, params);
+            return message;
         }
     }
 

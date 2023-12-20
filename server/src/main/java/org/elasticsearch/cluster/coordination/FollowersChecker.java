@@ -16,15 +16,18 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -34,7 +37,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +46,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -58,7 +61,7 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
  * considering a follower to be faulty, to allow for a brief network partition or a long GC cycle to occur without triggering the removal of
  * a node and the consequent shard reallocation.
  */
-public class FollowersChecker {
+public final class FollowersChecker {
 
     private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 
@@ -121,13 +124,13 @@ public class FollowersChecker {
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(
             FOLLOWER_CHECK_ACTION_NAME,
-            Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
             FollowerCheckRequest::new,
             (request, transportChannel, task) -> handleFollowerCheck(
                 request,
-                new ChannelActionListener<>(transportChannel, FOLLOWER_CHECK_ACTION_NAME, request)
+                new ChannelActionListener<>(transportChannel).map(ignored -> Empty.INSTANCE)
             )
         );
         transportService.addConnectionListener(new TransportConnectionListener() {
@@ -177,7 +180,7 @@ public class FollowersChecker {
         fastResponseState = new FastResponseState(term, mode);
     }
 
-    private void handleFollowerCheck(FollowerCheckRequest request, ActionListener<Empty> listener) {
+    private void handleFollowerCheck(FollowerCheckRequest request, ActionListener<Void> listener) {
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
             final String message = "handleFollowerCheck: node is unhealthy ["
@@ -191,7 +194,7 @@ public class FollowersChecker {
         final FastResponseState responder = this.fastResponseState;
         if (responder.mode == Mode.FOLLOWER && responder.term == request.term) {
             logger.trace("responding to {} on fast path", request);
-            listener.onResponse(Empty.INSTANCE);
+            listener.onResponse(null);
             return;
         }
 
@@ -199,11 +202,21 @@ public class FollowersChecker {
             throw new CoordinationStateRejectedException("rejecting " + request + " since local state is " + this);
         }
 
-        transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(ActionRunnable.supply(listener, () -> {
-            logger.trace("responding to {} on slow path", request);
-            handleRequestAndUpdateState.accept(request);
-            return Empty.INSTANCE;
-        }));
+        transportService.getThreadPool()
+            .executor(Names.CLUSTER_COORDINATION)
+            .execute(ActionRunnable.supply(listener, new CheckedSupplier<>() {
+                @Override
+                public Void get() {
+                    logger.trace("responding to {} on slow path", request);
+                    handleRequestAndUpdateState.accept(request);
+                    return null;
+                }
+
+                @Override
+                public String toString() {
+                    return "responding to [" + request + "] on slow path";
+                }
+            }));
     }
 
     /**
@@ -294,7 +307,12 @@ public class FollowersChecker {
                 new TransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse() {
                         if (running() == false) {
                             logger.trace("{} no longer running", FollowerChecker.this);
                             return;
@@ -396,7 +414,7 @@ public class FollowersChecker {
                 public String toString() {
                     return FollowerChecker.this + "::handleWakeUp";
                 }
-            }, followerCheckInterval, Names.SAME);
+            }, followerCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

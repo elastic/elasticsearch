@@ -99,11 +99,9 @@ public class EnrollmentSingleNodeTests extends SecuritySingleNodeTestCase {
                 "ApiKey " + Base64.getEncoder().encodeToString(enrollmentTokenSetOnce.get().getApiKey().getBytes(StandardCharsets.UTF_8))
             )
         );
-        final AuthenticateResponse authenticateResponse1 = apiKeyClient.execute(
-            AuthenticateAction.INSTANCE,
-            new AuthenticateRequest("_xpack_security")
-        ).actionGet();
-        assertThat(authenticateResponse1.authentication().getUser().principal(), equalTo("_xpack_security"));
+        final AuthenticateResponse authenticateResponse1 = apiKeyClient.execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
+            .actionGet();
+        assertThat(authenticateResponse1.authentication().getEffectiveSubject().getUser().principal(), equalTo("_xpack_security"));
 
         final KibanaEnrollmentResponse kibanaEnrollmentResponse = apiKeyClient.execute(
             KibanaEnrollmentAction.INSTANCE,
@@ -115,10 +113,8 @@ public class EnrollmentSingleNodeTests extends SecuritySingleNodeTestCase {
             Map.of("Authorization", "Bearer " + kibanaEnrollmentResponse.getTokenValue())
         );
 
-        final AuthenticateResponse authenticateResponse2 = kibanaClient.execute(
-            AuthenticateAction.INSTANCE,
-            new AuthenticateRequest("elastic/kibana")
-        ).actionGet();
-        assertThat(authenticateResponse2.authentication().getUser().principal(), equalTo("elastic/kibana"));
+        final AuthenticateResponse authenticateResponse2 = kibanaClient.execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
+            .actionGet();
+        assertThat(authenticateResponse2.authentication().getEffectiveSubject().getUser().principal(), equalTo("elastic/kibana"));
     }
 }

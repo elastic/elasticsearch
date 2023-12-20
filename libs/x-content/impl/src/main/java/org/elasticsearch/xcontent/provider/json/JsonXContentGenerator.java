@@ -21,13 +21,12 @@ import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerationException;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 
@@ -366,6 +365,31 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
+    public void writeStringArray(String[] array) throws IOException {
+        try {
+            if (isFiltered()) {
+                // filtered serialization does not work correctly with the bulk array serializer, so we need to fall back to serializing
+                // the array one-by-one
+                // TODO: this can probably be removed after upgrading Jackson to 2.15.1 or later, see
+                // https://github.com/FasterXML/jackson-core/issues/1023
+                writeStringArrayFiltered(array);
+            } else {
+                generator.writeArray(array, 0, array.length);
+            }
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
+    private void writeStringArrayFiltered(String[] array) throws IOException {
+        writeStartArray();
+        for (String s : array) {
+            writeString(s);
+        }
+        writeEndArray();
+    }
+
+    @Override
     public void writeString(char[] value, int offset, int len) throws IOException {
         try {
             generator.writeString(value, offset, len);
@@ -444,14 +468,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
-            // EMPTY is safe here because we never call namedObject when writing raw data
-            try (
-                XContentParser parser = XContentFactory.xContent(contentType)
-                    // It's okay to pass the throwing deprecation handler
-                    // because we should not be writing raw fields when
-                    // generating JSON
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(XContentParserConfiguration.EMPTY, content)) {
                 parser.nextToken();
                 writeFieldName(name);
                 copyCurrentStructure(parser);
@@ -493,13 +510,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     protected void copyRawValue(InputStream stream, XContent xContent) throws IOException {
-        // EMPTY is safe here because we never call namedObject
-        try (
-            XContentParser parser = xContent
-                // It's okay to pass the throwing deprecation handler because we
-                // should not be writing raw fields when generating JSON
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
-        ) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, stream)) {
             copyCurrentStructure(parser);
         }
     }

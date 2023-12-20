@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Exception used when the in-memory lock for a shard cannot be obtained
  */
-public class ShardLockObtainFailedException extends ElasticsearchException {
+public final class ShardLockObtainFailedException extends ElasticsearchException {
 
     public ShardLockObtainFailedException(ShardId shardId, String message) {
         super(buildMessage(shardId, message));

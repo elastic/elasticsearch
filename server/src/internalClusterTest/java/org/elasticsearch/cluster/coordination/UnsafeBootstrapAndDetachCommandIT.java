@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -138,7 +137,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
                 .build()
         );
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = clusterAdmin().prepareState().setLocal(true).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -238,19 +237,12 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
         logger.info("--> stop 2nd and 3d master eligible node");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(1)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(2)));
+        internalCluster().stopNode(masterNodes.get(1));
+        internalCluster().stopNode(masterNodes.get(2));
 
         logger.info("--> ensure NO_MASTER_BLOCK on data-only node");
         assertBusy(() -> {
-            ClusterState state = internalCluster().client(dataNode)
-                .admin()
-                .cluster()
-                .prepareState()
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .getState();
+            ClusterState state = internalCluster().client(dataNode).admin().cluster().prepareState().setLocal(true).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -262,7 +254,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> stop 1st master-eligible node and data-only node");
         NodeEnvironment nodeEnvironment = internalCluster().getAnyMasterNodeInstance(NodeEnvironment.class);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
+        internalCluster().stopNode(masterNodes.get(0));
         assertBusy(() -> internalCluster().getInstance(GatewayMetaState.class, dataNode).allPendingAsyncStatesWritten());
         internalCluster().stopRandomDataNode();
 
@@ -296,14 +288,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> ensure there is no NO_MASTER_BLOCK and unsafe-bootstrap is reflected in cluster state");
         assertBusy(() -> {
-            ClusterState state = internalCluster().client(dataNode2)
-                .admin()
-                .cluster()
-                .prepareState()
-                .setLocal(true)
-                .execute()
-                .actionGet()
-                .getState();
+            ClusterState state = internalCluster().client(dataNode2).admin().cluster().prepareState().setLocal(true).get().getState();
             assertFalse(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
             assertTrue(state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false));
         });
@@ -348,22 +333,19 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
                 .build()
         );
 
-        ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+        ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true).get().getState();
         assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node));
+        internalCluster().stopNode(node);
     }
 
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetadata() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String masterNode = internalCluster().startMasterOnlyNode();
         Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
-        );
-        internalCluster().client().admin().cluster().updateSettings(req).get();
+        updateClusterSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb"));
 
-        ClusterState state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = internalCluster().client().admin().cluster().prepareState().get().getState();
         assertThat(state.metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()), equalTo("1234kb"));
 
         internalCluster().stopCurrentMasterNode();
@@ -377,7 +359,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(masterNodeDataPathSettings);
         ensureGreen();
 
-        state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();
+        state = internalCluster().client().admin().cluster().prepareState().get().getState();
         assertThat(state.metadata().settings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()), equalTo("1234kb"));
     }
 }

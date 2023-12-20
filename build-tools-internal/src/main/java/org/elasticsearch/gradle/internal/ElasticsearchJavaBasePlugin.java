@@ -38,8 +38,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        // common repositories setup
         project.getPluginManager().apply(JavaBasePlugin.class);
+        // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
@@ -91,7 +91,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         List<String> sourceSetConfigurationNames = List.of(
             sourceSet.getApiConfigurationName(),
             sourceSet.getImplementationConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
             sourceSet.getCompileOnlyConfigurationName(),
             sourceSet.getRuntimeOnlyConfigurationName()
         );
@@ -106,11 +105,12 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      */
     public static void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
-
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
+        if (BuildParams.getJavaToolChainSpec().isPresent()) {
+            java.toolchain(BuildParams.getJavaToolChainSpec().get());
+        }
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
-
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             CompileOptions compileOptions = compileTask.getOptions();
             /*
@@ -132,6 +132,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
             compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
             compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+            compileOptions.setIncremental(BuildParams.isCi() == false);
         });
         // also apply release flag to groovy, which is used in build-tools
         project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
@@ -145,6 +146,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      */
     public static void configureInputNormalization(Project project) {
         project.getNormalization().getRuntimeClasspath().ignore("META-INF/MANIFEST.MF");
+        project.getNormalization().getRuntimeClasspath().ignore("IMPL-JARS/**/META-INF/MANIFEST.MF");
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

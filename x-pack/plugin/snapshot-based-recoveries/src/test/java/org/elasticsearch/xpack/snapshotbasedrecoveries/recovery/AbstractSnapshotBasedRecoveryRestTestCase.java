@@ -52,10 +52,7 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
         final int numDocs = randomIntBetween(500, 1000);

@@ -32,11 +32,9 @@ import java.util.List;
 // other packages (e.g org.elasticsearch.client) will point to server rather than
 // their own artifacts.
 public class ElasticsearchJavadocPlugin implements Plugin<Project> {
-    private Project project;
 
     @Override
     public void apply(Project project) {
-        this.project = project;
         // ignore missing javadocs
         project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
             // the -quiet here is because of a bug in gradle, in that adding a string option
@@ -57,35 +55,37 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
         });
 
         // Relying on configurations introduced by the java plugin
-        this.project.getPlugins().withType(JavaPlugin.class, javaPlugin -> project.afterEvaluate(project1 -> {
+        project.getPlugins().withType(JavaPlugin.class, javaPlugin -> project.afterEvaluate(project1 -> {
             var withShadowPlugin = project1.getPlugins().hasPlugin(ShadowPlugin.class);
             var compileClasspath = project.getConfigurations().getByName("compileClasspath");
 
+            var copiedCompileClasspath = project.getConfigurations().create("copiedCompileClasspath");
+            copiedCompileClasspath.extendsFrom(compileClasspath);
             if (withShadowPlugin) {
                 var shadowConfiguration = project.getConfigurations().getByName("shadow");
                 var shadowedDependencies = shadowConfiguration.getAllDependencies();
-                var nonShadowedCompileClasspath = compileClasspath.copyRecursive(
+                var nonShadowedCompileClasspath = copiedCompileClasspath.copyRecursive(
                     dependency -> shadowedDependencies.contains(dependency) == false
                 );
-                configureJavadocForConfiguration(false, nonShadowedCompileClasspath);
-                configureJavadocForConfiguration(true, shadowConfiguration);
+                configureJavadocForConfiguration(project, false, nonShadowedCompileClasspath);
+                configureJavadocForConfiguration(project, true, shadowConfiguration);
             } else {
-                configureJavadocForConfiguration(false, compileClasspath);
+                configureJavadocForConfiguration(project, false, compileClasspath);
             }
         }));
     }
 
-    private void configureJavadocForConfiguration(boolean shadow, Configuration configuration) {
+    private void configureJavadocForConfiguration(Project project, boolean shadow, Configuration configuration) {
         configuration.getAllDependencies()
             .stream()
             .sorted(Comparator.comparing(Dependency::getGroup))
             .filter(d -> d instanceof ProjectDependency)
             .map(d -> (ProjectDependency) d)
             .filter(p -> p.getDependencyProject() != null)
-            .forEach(projectDependency -> configureDependency(shadow, projectDependency));
+            .forEach(projectDependency -> configureDependency(project, shadow, projectDependency));
     }
 
-    private void configureDependency(boolean shadowed, ProjectDependency dep) {
+    private void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {
         var upstreamProject = dep.getDependencyProject();
         if (shadowed) {
             /*

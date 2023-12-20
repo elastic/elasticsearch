@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -31,9 +32,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.getAuthenticationFromCrossClusterAccessMetadata;
+
 /**
- * Transport action that tests whether a user has the specified
- * {@link RoleDescriptor.IndicesPrivileges privileges}
+ * Transport action that tests whether the currently authenticated user has the specified
+ * {@link AuthorizationEngine.PrivilegesToCheck privileges}
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
 
@@ -49,7 +52,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         NativePrivilegeStore privilegeStore,
         SecurityContext context
     ) {
-        super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
+        super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.securityContext = context;
@@ -58,30 +61,18 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     @Override
     protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
-        final Subject subject = securityContext.getAuthentication().getEffectiveSubject();
-        if (subject.getUser().principal().equals(username) == false) {
+        final Authentication authentication = securityContext.getAuthentication();
+
+        if (isSameUser(authentication, username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
-        }
-
-        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = request.indexPrivileges();
-        if (indicesPrivileges != null) {
-            for (int i = 0; i < indicesPrivileges.length; i++) {
-                BytesReference query = indicesPrivileges[i].getQuery();
-                if (query != null) {
-                    listener.onFailure(
-                        new IllegalArgumentException("users may only check the index privileges without any DLS role query")
-                    );
-                    return;
-                }
-            }
         }
 
         resolveApplicationPrivileges(
             request,
             ActionListener.wrap(
                 applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
-                    subject,
+                    authentication.getEffectiveSubject(),
                     request.getPrivilegesToCheck(),
                     applicationPrivilegeDescriptors,
                     listener.map(privilegesCheckResult -> {
@@ -113,5 +104,15 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         return Arrays.stream(request.applicationPrivileges())
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
             .collect(Collectors.toSet());
+    }
+
+    private static boolean isSameUser(Authentication authentication, String username) {
+        final Subject subjectToCheck;
+        if (authentication.isCrossClusterAccess()) {
+            subjectToCheck = getAuthenticationFromCrossClusterAccessMetadata(authentication).getEffectiveSubject();
+        } else {
+            subjectToCheck = authentication.getEffectiveSubject();
+        }
+        return subjectToCheck.getUser().principal().equals(username);
     }
 }

@@ -1,0 +1,51 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "sort": {
+          "field": [
+            "profiling.project.id",
+            "@timestamp",
+            "host.id"
+          ]
+        }
+      },
+      "codec": "best_compression"
+    },
+    "mappings": {
+      "_source": {
+        "enabled": false
+      },
+      "_meta": {
+        "index-template-version": ${xpack.profiling.template.version},
+        "index-version": ${xpack.profiling.index.metrics.version}
+      },
+      /*
+       We intentionally allow dynamic mappings for metrics. Which metrics are added is guarded by
+       the collector and we want to allow adding new metrics over time. As this is a datastream,
+       which will age and eventually be deleted, schema evolution is not a major concern here.
+       */
+      "dynamic": true,
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "profiling.project.id": {
+          "type": "keyword"
+        },
+        "host.id": {
+          "type": "keyword"
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "epoch_second"
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

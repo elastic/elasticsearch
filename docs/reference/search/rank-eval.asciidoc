@@ -429,8 +429,8 @@ in the query. Defaults to 10.
 
 Expected Reciprocal Rank (ERR) is an extension of the classical reciprocal rank
 for the graded relevance case (Olivier Chapelle, Donald Metzler, Ya Zhang, and
-Pierre Grinspan. 2009.
-https://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
+Pierre Grinspan. Jan 2009.
+https://www.researchgate.net/publication/220269787_Expected_reciprocal_rank_for_graded_relevance[Expected reciprocal rank for graded relevance].)
 
 It is based on the assumption of a cascade model of search, in which a user
 scans through ranked search results in order and stops at the first document

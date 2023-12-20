@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.Locale;
 
@@ -89,10 +88,9 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     private volatile ClusterRebalanceType type;
 
-    public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        type = CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.get(settings);
+    public ClusterRebalanceAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
         logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
     }
 
     private void setType(ClusterRebalanceType type) {

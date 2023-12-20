@@ -9,15 +9,12 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
     private final BinaryDocValues values;
@@ -30,11 +27,6 @@ abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
     @Override
     public long ramBytesUsed() {
         return 0; // not exposed by Lucene
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
     }
 
     @Override

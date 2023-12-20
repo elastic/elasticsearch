@@ -8,16 +8,17 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
@@ -28,6 +29,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
     private transient int counter;
 
     private ProfileResult profileResult;
+
+    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> hits = null));
 
     public FetchSearchResult() {}
 
@@ -40,25 +43,14 @@ public final class FetchSearchResult extends SearchPhaseResult {
         super(in);
         contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            profileResult = in.readOptionalWriteable(ProfileResult::new);
-        } else {
-            profileResult = null;
-        }
+        profileResult = in.readOptionalWriteable(ProfileResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         hits.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeOptionalWriteable(profileResult);
-        }
-    }
-
-    @Override
-    public QuerySearchResult queryResult() {
-        return null;
+        out.writeOptionalWriteable(profileResult);
     }
 
     @Override
@@ -95,5 +87,25 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public ProfileResult profileResult() {
         return profileResult;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

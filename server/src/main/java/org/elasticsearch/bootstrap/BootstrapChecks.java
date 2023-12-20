@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -25,6 +26,7 @@ import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AllPermission;
@@ -130,10 +132,11 @@ final class BootstrapChecks {
         for (final BootstrapCheck check : checks) {
             final BootstrapCheck.BootstrapCheckResult result = check.check(context);
             if (result.isFailure()) {
+                final String message = result.getMessage() + "; for more information see [" + check.referenceDocs() + "]";
                 if (enforceLimits == false && enforceBootstrapChecks == false && check.alwaysEnforce() == false) {
-                    ignoredErrors.add(result.getMessage());
+                    ignoredErrors.add(message);
                 } else {
-                    errors.add(result.getMessage());
+                    errors.add(message);
                 }
             }
         }
@@ -149,7 +152,9 @@ final class BootstrapChecks {
                     + errors.size()
                     + "] bootstrap checks failed. You must address the points described in the following ["
                     + errors.size()
-                    + "] lines before starting Elasticsearch."
+                    + "] lines before starting Elasticsearch. For more information see ["
+                    + ReferenceDocs.BOOTSTRAP_CHECKS
+                    + "]"
             );
             for (int i = 0; i < errors.size(); i++) {
                 messages.add("bootstrap check failure [" + (i + 1) + "] of [" + errors.size() + "]: " + errors.get(i));
@@ -205,6 +210,7 @@ final class BootstrapChecks {
         checks.add(new EarlyAccessCheck());
         checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
+        checks.add(new ByteOrderCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -236,6 +242,11 @@ final class BootstrapChecks {
             } else {
                 return BootstrapCheckResult.success();
             }
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_HEAP_SIZE;
         }
 
         // visible for testing
@@ -296,6 +307,11 @@ final class BootstrapChecks {
             }
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_FILE_DESCRIPTOR;
+        }
+
         // visible for testing
         long getMaxFileDescriptorCount() {
             return ProcessProbe.getMaxFileDescriptorCount();
@@ -317,6 +333,11 @@ final class BootstrapChecks {
         // visible for testing
         boolean isMemoryLocked() {
             return Natives.isMemoryLocked();
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MEMORY_LOCK;
         }
 
     }
@@ -347,6 +368,10 @@ final class BootstrapChecks {
             return JNANatives.MAX_NUMBER_OF_THREADS;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_NUMBER_THREADS;
+        }
     }
 
     static class MaxSizeVirtualMemoryCheck implements BootstrapCheck {
@@ -376,6 +401,10 @@ final class BootstrapChecks {
             return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_SIZE_VIRTUAL_MEMORY;
+        }
     }
 
     /**
@@ -407,6 +436,10 @@ final class BootstrapChecks {
             return JNANatives.MAX_FILE_SIZE;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_FILE_SIZE;
+        }
     }
 
     static class MaxMapCountCheck implements BootstrapCheck {
@@ -476,6 +509,10 @@ final class BootstrapChecks {
             return Long.parseLong(procSysVmMaxMapCount);
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAXIMUM_MAP_COUNT;
+        }
     }
 
     static class ClientJvmCheck implements BootstrapCheck {
@@ -499,6 +536,10 @@ final class BootstrapChecks {
             return JvmInfo.jvmInfo().getVmName();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_CLIENT_JVM;
+        }
     }
 
     /**
@@ -527,6 +568,10 @@ final class BootstrapChecks {
             return JvmInfo.jvmInfo().useSerialGC();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_USE_SERIAL_COLLECTOR;
+        }
     }
 
     /**
@@ -549,6 +594,10 @@ final class BootstrapChecks {
             return Natives.isSystemCallFilterInstalled();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_SYSTEM_CALL_FILTER;
+        }
     }
 
     abstract static class MightForkCheck implements BootstrapCheck {
@@ -575,6 +624,11 @@ final class BootstrapChecks {
         @Override
         public final boolean alwaysEnforce() {
             return true;
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_ONERROR_AND_ONOUTOFMEMORYERROR;
         }
 
     }
@@ -656,6 +710,11 @@ final class BootstrapChecks {
             return Constants.JAVA_VERSION;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_EARLY_ACCESS;
+        }
+
     }
 
     static class AllPermissionCheck implements BootstrapCheck {
@@ -679,6 +738,10 @@ final class BootstrapChecks {
             return true;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_ALL_PERMISSION;
+        }
     }
 
     static class DiscoveryConfiguredCheck implements BootstrapCheck {
@@ -700,6 +763,31 @@ final class BootstrapChecks {
                         .collect(Collectors.joining(", "))
                 )
             );
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECK_DISCOVERY_CONFIGURATION;
+        }
+    }
+
+    static class ByteOrderCheck implements BootstrapCheck {
+
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            if (nativeByteOrder() != ByteOrder.LITTLE_ENDIAN) {
+                return BootstrapCheckResult.failure("Little-endian native byte order is required to run Elasticsearch");
+            }
+            return BootstrapCheckResult.success();
+        }
+
+        ByteOrder nativeByteOrder() {
+            return ByteOrder.nativeOrder();
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.BOOTSTRAP_CHECKS;
         }
     }
 }

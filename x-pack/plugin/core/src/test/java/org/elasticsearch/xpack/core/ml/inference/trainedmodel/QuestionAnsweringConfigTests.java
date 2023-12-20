@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -16,6 +16,16 @@ import java.io.IOException;
 import java.util.function.Predicate;
 
 public class QuestionAnsweringConfigTests extends InferenceConfigItemTestCase<QuestionAnsweringConfig> {
+
+    public static QuestionAnsweringConfig mutateForVersion(QuestionAnsweringConfig instance, TransportVersion version) {
+        return new QuestionAnsweringConfig(
+            instance.getNumTopClasses(),
+            instance.getMaxAnswerLength(),
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField()
+        );
+    }
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -43,8 +53,13 @@ public class QuestionAnsweringConfigTests extends InferenceConfigItemTestCase<Qu
     }
 
     @Override
-    protected QuestionAnsweringConfig mutateInstanceForVersion(QuestionAnsweringConfig instance, Version version) {
-        return instance;
+    protected QuestionAnsweringConfig mutateInstance(QuestionAnsweringConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected QuestionAnsweringConfig mutateInstanceForVersion(QuestionAnsweringConfig instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
     }
 
     public static QuestionAnsweringConfig createRandom() {

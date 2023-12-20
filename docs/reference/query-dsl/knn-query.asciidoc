@@ -1,0 +1,222 @@
+[[query-dsl-knn-query]]
+=== Knn query
+++++
+<titleabbrev>Knn</titleabbrev>
+++++
+
+Finds the _k_ nearest vectors to a query vector, as measured by a similarity
+metric. _knn_ query finds nearest vectors through approximate search on indexed
+dense_vectors. The preferred way to do approximate kNN search is through the
+<<knn-search,top level knn section>> of a search request. _knn_ query is reserved for
+expert cases, where there is a need to combine this query with other queries.
+
+[[knn-query-ex-request]]
+==== Example request
+
+[source,console]
+----
+PUT my-image-index
+{
+  "mappings": {
+    "properties": {
+       "image-vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "l2_norm"
+      },
+      "file-type": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+
+. Index your data.
++
+[source,console]
+----
+POST my-image-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "image-vector": [1, 5, -20], "file-type": "jpg" }
+{ "index": { "_id": "2" } }
+{ "image-vector": [42, 8, -15], "file-type": "png" }
+{ "index": { "_id": "3" } }
+{ "image-vector": [15, 11, 23], "file-type": "jpg" }
+----
+//TEST[continued]
+
+. Run the search using the `knn` query, asking for the top 3 nearest vectors.
++
+[source,console]
+----
+POST my-image-index/_search
+{
+  "size" : 3,
+  "query" : {
+    "knn": {
+      "field": "image-vector",
+      "query_vector": [-5, 9, -12],
+      "num_candidates": 10
+    }
+  }
+}
+----
+//TEST[continued]
+
+NOTE: `knn` query doesn't have a separate `k` parameter. `k` is defined by
+`size` parameter of a search request similar to other queries. `knn` query
+collects `num_candidates` results from each shard, then merges them to get
+the top `size` results.
+
+
+[[knn-query-top-level-parameters]]
+==== Top-level parameters for `knn`
+
+`field`::
++
+--
+(Required, string) The name of the vector field to search against. Must be a
+<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
+--
+
+`query_vector`::
++
+--
+(Required, array of floats) Query vector. Must have the same number of dimensions
+as the vector field you are searching against.
+--
+
+`num_candidates`::
++
+--
+(Required, integer) The number of nearest neighbor candidates to consider per shard.
+Cannot exceed 10,000. {es} collects `num_candidates` results from each shard, then
+merges them to find the top results. Increasing `num_candidates` tends to improve the
+accuracy of the final results.
+--
+
+`filter`::
++
+--
+(Optional, query object) Query to filter the documents that can match.
+The kNN search will return the top documents that also match this filter.
+The value can be a single query or a list of queries. If `filter` is not provided,
+all documents are allowed to match.
+
+The filter is a pre-filter, meaning that it is applied **during** the approximate
+kNN search to ensure that `num_candidates` matching documents are returned.
+--
+
+`similarity`::
++
+--
+(Optional, float) The minimum similarity required for a document to be considered
+a match. The similarity value calculated relates to the raw
+<<dense-vector-similarity, `similarity`>> used. Not the document score. The matched
+documents are then scored according to <<dense-vector-similarity, `similarity`>>
+and the provided `boost` is applied.
+--
+
+`boost`::
++
+--
+(Optional, float) Floating point number used to multiply the
+scores of matched documents. This value cannot be negative. Defaults to `1.0`.
+--
+
+`_name`::
++
+--
+(Optional, string) Name field to identify the query
+--
+
+[[knn-query-filtering]]
+==== Pre-filters and post-filters in knn query
+
+There are two ways to filter documents that match a kNN query:
+
+. **pre-filtering** – filter is applied during the approximate kNN search
+to ensure that `k` matching documents are returned.
+. **post-filtering** – filter is applied after the approximate kNN search
+completes, which results in fewer than k results, even when there are enough
+matching documents.
+
+Pre-filtering is supported through the `filter` parameter of the `knn` query.
+Also filters from <<filter-alias,aliases>> are applied as pre-filters.
+
+All other filters found in the Query DSL tree are applied as post-filters.
+For example, `knn` query finds the top 3 documents with the nearest vectors
+(num_candidates=3), which are combined with  `term` filter, that is
+post-filtered. The final set of documents will contain only a single document
+that passes the post-filter.
+
+
+[source,console]
+----
+POST my-image-index/_search
+{
+  "size" : 10,
+  "query" : {
+    "bool" : {
+      "must" : {
+        "knn": {
+          "field": "image-vector",
+          "query_vector": [-5, 9, -12],
+          "num_candidates": 3
+        }
+      },
+      "filter" : {
+        "term" : { "file-type" : "png" }
+      }
+    }
+  }
+}
+----
+//TEST[continued]
+
+[[knn-query-with-nested-query]]
+==== Knn query inside a nested query
+
+`knn` query can be used inside a nested query. The behaviour here is similar
+to <<nested-knn-search, top level nested kNN search>>:
+
+* kNN search over nested dense_vectors diversifies the top results over
+the top-level document
+* `filter`  over the top-level document metadata is supported and acts as a
+post-filter
+* `filter` over `nested` field metadata is not supported
+
+A sample query can look like below:
+
+[source,js]
+----
+{
+  "query" : {
+    "nested" : {
+      "path" : "paragraph",
+        "query" : {
+          "knn": {
+            "query_vector": [
+                0.45,
+                45
+            ],
+            "field": "paragraph.vector",
+            "num_candidates": 2
+        }
+      }
+    }
+  }
+}
+----
+// NOTCONSOLE
+
+[[knn-query-aggregations]]
+==== Knn query with aggregations
+`knn` query calculates aggregations on `num_candidates` from each shard.
+Thus, the final results from aggregations contain
+`num_candidates * number_of_shards` documents. This is different from
+the <<knn-search,top level knn section>> where aggregations are
+calculated on the global top k nearest documents.
+

@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.AfterClass;
@@ -41,7 +41,7 @@ import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBuilder> {
+public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<CollapseBuilder> {
     private static NamedWriteableRegistry namedWriteableRegistry;
     private static NamedXContentRegistry xContentRegistry;
 
@@ -152,6 +152,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
@@ -169,6 +170,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);

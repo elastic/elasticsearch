@@ -1,0 +1,108 @@
+
+[discrete]
+=== Cluster is close to reaching the configured maximum number of shards for data nodes.
+
+The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
+setting limits the maximum number of open shards for a cluster, only counting data nodes
+that do not belong to the frozen tier.
+
+This symptom indicates that action should be taken, otherwise, either the creation of new
+indices or upgrading the cluster could be blocked.
+
+If you're confident your changes won't destabilize the cluster, you can
+temporarily increase the limit using the <<cluster-update-settings,cluster update settings API>>:
+
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Troubleshoot shards capacity for non-frozen nodes">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-shards-capacity-non-frozen"
+            id="cloud-shards-capacity-non-frozen">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-shards-capacity-non-frozen"
+            id="self-managed-shards-capacity-non-frozen"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-shards-capacity-non-frozen"
+       aria-labelledby="cloud-shards-capacity-non-frozen">
+++++
+
+include::troubleshooting-shards-capacity.asciidoc[tag=non-frozen-nodes-cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-shards-capacity-non-frozen"
+       aria-labelledby="self-managed-shards-capacity-non-frozen"
+       hidden="">
+++++
+
+include::troubleshooting-shards-capacity.asciidoc[tag=non-frozen-nodes-self-managed]
+
+++++
+  </div>
+</div>
+++++
+
+[discrete]
+=== Cluster is close to reaching the configured maximum number of shards for frozen nodes.
+
+The <<cluster-max-shards-per-node-frozen,`cluster.max_shards_per_node.frozen`>> cluster
+setting limits the maximum number of open shards for a cluster, only counting data nodes
+that belong to the frozen tier.
+
+This symptom indicates that action should be taken, otherwise, either the creation of new
+indices or upgrading the cluster could be blocked.
+
+If you're confident your changes won't destabilize the cluster, you can
+temporarily increase the limit using the <<cluster-update-settings,cluster update settings API>>:
+
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Troubleshoot shards capacity for frozen nodes">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-shards-capacity-frozen"
+            id="cloud-shards-capacity">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-shards-capacity-frozen"
+            id="self-managed-shards-capacity-frozen"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-shards-capacity-frozen"
+       aria-labelledby="cloud-shards-capacity-frozen">
+++++
+
+include::troubleshooting-shards-capacity.asciidoc[tag=frozen-nodes-cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-shards-capacity-frozen"
+       aria-labelledby="self-managed-shards-capacity-frozen"
+       hidden="">
+++++
+
+include::troubleshooting-shards-capacity.asciidoc[tag=frozen-nodes-self-managed]
+
+++++
+  </div>
+</div>
+++++

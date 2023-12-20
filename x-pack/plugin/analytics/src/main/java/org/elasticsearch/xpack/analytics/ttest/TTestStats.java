@@ -54,8 +54,8 @@ public class TTestStats implements Writeable {
 
     public static class Reducer implements Consumer<TTestStats> {
         private long count = 0;
-        CompensatedSum compSum = new CompensatedSum(0, 0);
-        CompensatedSum compSumOfSqrs = new CompensatedSum(0, 0);
+        final CompensatedSum compSum = new CompensatedSum(0, 0);
+        final CompensatedSum compSumOfSqrs = new CompensatedSum(0, 0);
 
         @Override
         public void accept(TTestStats stat) {

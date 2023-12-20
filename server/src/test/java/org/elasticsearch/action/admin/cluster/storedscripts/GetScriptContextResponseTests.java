@@ -8,13 +8,13 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class GetScriptContextResponseTests extends AbstractSerializingTestCase<GetScriptContextResponse> {
+public class GetScriptContextResponseTests extends AbstractXContentSerializingTestCase<GetScriptContextResponse> {
 
     @Override
     protected GetScriptContextResponse createTestInstance() {
@@ -35,7 +35,7 @@ public class GetScriptContextResponseTests extends AbstractSerializingTestCase<G
     }
 
     @Override
-    protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) throws IOException {
+    protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) {
         return new GetScriptContextResponse(ScriptContextInfoSerializingTests.mutateOne(instance.contexts.values()));
     }
 }

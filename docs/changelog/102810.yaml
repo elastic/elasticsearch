@@ -1,0 +1,5 @@
+pr: 102810
+summary: Add memory utilization Kibana metric to the monitoring index templates
+area: Monitoring
+type: enhancement
+issues: []

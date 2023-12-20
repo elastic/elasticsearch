@@ -20,6 +20,7 @@ import java.io.IOException;
 public class MPNetTokenization extends Tokenization {
 
     public static final ParseField NAME = new ParseField("mpnet");
+    public static final String MASK_TOKEN = "<mask>";
 
     public static ConstructingObjectParser<MPNetTokenization, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<MPNetTokenization, Void> parser = new ConstructingObjectParser<>(
@@ -65,6 +66,11 @@ public class MPNetTokenization extends Tokenization {
 
     XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
+    }
+
+    @Override
+    public String getMaskToken() {
+        return MASK_TOKEN;
     }
 
     @Override

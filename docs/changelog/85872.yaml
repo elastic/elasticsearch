@@ -1,5 +1,0 @@
-pr: 85872
-summary: Replace the implementation of the `categorize_text` aggregation
-area: Machine Learning
-type: enhancement
-issues: []

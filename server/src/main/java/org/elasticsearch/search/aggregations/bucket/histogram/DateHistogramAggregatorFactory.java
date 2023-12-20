@@ -117,10 +117,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         this.rounding = rounding;
     }
 
-    public long minDocCount() {
-        return minDocCount;
-    }
-
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {

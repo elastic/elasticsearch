@@ -16,6 +16,13 @@ if it is set too high, analysis drifts farther away from real-time. The balance
 that is struck depends upon each use case and the environmental factors of the
 cluster.
 
+IMPORTANT: If you get an error that says
+`Datafeed missed XXXX documents due to ingest latency`, consider increasing 
+the value of `query_delay'. If it doesn't help, investigate the ingest latency and its 
+cause. You can do this by comparing event and ingest timestamps. High latency 
+is often caused by bursts of ingested documents, misconfiguration of the ingest 
+pipeline, or misalignment of system clocks.
+
 == Why worry about delayed data?
 
 If data are delayed randomly (and consequently are missing from analysis), the

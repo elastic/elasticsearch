@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,28 +28,21 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
     public SearchableSnapshotFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         numberOfSearchableSnapshotIndices = input.readVInt();
-        if (input.getVersion().onOrAfter(Version.V_7_13_0)) {
-            numberOfFullCopySearchableSnapshotIndices = input.readVInt();
-            numberOfSharedCacheSearchableSnapshotIndices = input.readVInt();
-        } else {
-            numberOfFullCopySearchableSnapshotIndices = 0;
-            numberOfSharedCacheSearchableSnapshotIndices = 0;
-        }
+        numberOfFullCopySearchableSnapshotIndices = input.readVInt();
+        numberOfSharedCacheSearchableSnapshotIndices = input.readVInt();
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_9_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_9_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(numberOfSearchableSnapshotIndices);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeVInt(numberOfFullCopySearchableSnapshotIndices);
-            out.writeVInt(numberOfSharedCacheSearchableSnapshotIndices);
-        }
+        out.writeVInt(numberOfFullCopySearchableSnapshotIndices);
+        out.writeVInt(numberOfSharedCacheSearchableSnapshotIndices);
     }
 
     public SearchableSnapshotFeatureSetUsage(

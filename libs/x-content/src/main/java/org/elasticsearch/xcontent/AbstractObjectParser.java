@@ -250,7 +250,7 @@ public abstract class AbstractObjectParser<Value, Context> {
     }
 
     /**
-     * Declare a double field that parses explicit {@code null}s in the json to a default value.
+     * Declare an integer field that parses explicit {@code null}s in the json to a default value.
      */
     public void declareIntOrNull(BiConsumer<Value, Integer> consumer, int nullValue, ParseField field) {
         declareField(
@@ -403,7 +403,7 @@ public abstract class AbstractObjectParser<Value, Context> {
      */
     public abstract void declareExclusiveFieldSet(String... exclusiveSet);
 
-    private static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
+    public static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
         throws IOException {
         final XContentParser.Token currentToken = parser.currentToken();
         if (currentToken.isValue()

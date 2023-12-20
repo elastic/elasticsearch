@@ -47,6 +47,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         this(loadSource, SourceFieldMapper.NAME);
     }
 
+    @SuppressWarnings("this-escape")
     public FieldsVisitor(boolean loadSource, String sourceFieldName) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;
@@ -84,6 +85,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
+            if (fieldType == null) {
+                continue; // TODO this is lame
+            }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
                 fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));

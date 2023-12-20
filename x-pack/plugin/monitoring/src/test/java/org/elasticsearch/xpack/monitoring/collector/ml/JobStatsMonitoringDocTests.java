@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -90,17 +90,13 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
         final Date date7 = new Date(ZonedDateTime.parse("2017-01-07T07:07:07.007+07:00").toInstant().toEpochMilli());
         final Instant date8 = ZonedDateTime.parse("2017-01-07T08:08:08.007+07:00").toInstant();
 
-        final DiscoveryNode discoveryNode = new DiscoveryNode(
-            "_node_name",
-            "_node_id",
-            "_ephemeral_id",
-            "_host_name",
-            "_host_address",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            singletonMap("attr", "value"),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("_node_id")
+            .name("_node_name")
+            .ephemeralId("_ephemeral_id")
+            .address("_host_name", "_host_address", new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .attributes(singletonMap("attr", "value"))
+            .roles(singleton(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
         final ModelSizeStats modelStats = new ModelSizeStats.Builder("_model").setModelBytes(100L)
             .setTotalByFieldCount(101L)

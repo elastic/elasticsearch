@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -48,7 +49,13 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
         TokenService tokenService,
         SecurityContext securityContext
     ) {
-        super(SamlAuthenticateAction.NAME, transportService, actionFilters, SamlAuthenticateRequest::new);
+        super(
+            SamlAuthenticateAction.NAME,
+            transportService,
+            actionFilters,
+            SamlAuthenticateRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
@@ -69,6 +76,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                     return;
                 }
                 assert authentication != null : "authentication should never be null at this point";
+                assert false == authentication.isRunAs() : "saml realm authentication cannot have run-as";
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
                 tokenService.createOAuth2Tokens(

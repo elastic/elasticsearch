@@ -8,7 +8,9 @@
 package org.elasticsearch.common.blobstore;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -20,6 +22,14 @@ public interface BlobStore extends Closeable {
      * Get a blob container instance for storing blobs at the given {@link BlobPath}.
      */
     BlobContainer blobContainer(BlobPath path);
+
+    /**
+     * Delete all the provided blobs from the blob store. Each blob could belong to a different {@code BlobContainer}
+     *
+     * @param purpose   the purpose of the delete operation
+     * @param blobNames the blobs to be deleted
+     */
+    void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException;
 
     /**
      * Returns statistics on the count of operations that have been performed on this blob store

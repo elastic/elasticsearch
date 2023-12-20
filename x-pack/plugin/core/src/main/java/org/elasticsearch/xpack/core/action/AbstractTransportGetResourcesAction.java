@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -68,12 +70,12 @@ public abstract class AbstractTransportGetResourcesAction<
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }
 
-    protected void searchResources(AbstractGetResourcesRequest request, ActionListener<QueryPage<Resource>> listener) {
+    protected void searchResources(AbstractGetResourcesRequest request, TaskId parentTaskId, ActionListener<QueryPage<Resource>> listener) {
         String[] tokens = Strings.tokenizeToStringArray(request.getResourceId(), ",");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().sort(
             SortBuilders.fieldSort(request.getResourceIdField())
@@ -96,6 +98,7 @@ public abstract class AbstractTransportGetResourcesAction<
                 indicesOptions
             )
         ).source(customSearchOptions(sourceBuilder));
+        searchRequest.setParentTask(parentTaskId);
 
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),

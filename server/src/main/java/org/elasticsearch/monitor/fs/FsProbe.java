@@ -133,7 +133,7 @@ public class FsProbe {
         FsInfo.Path fsPath = new FsInfo.Path();
         fsPath.path = dataPath.path.toString();
 
-        // NOTE: we use already cached (on node startup) FileStore and spins
+        // NOTE: we use already cached (on node startup) FileStore
         // since recomputing these once per second (default) could be costly,
         // and they should not change:
         fsPath.total = getTotal(dataPath.fileStore);

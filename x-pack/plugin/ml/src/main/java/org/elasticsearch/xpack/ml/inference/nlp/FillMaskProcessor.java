@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 
 public class FillMaskProcessor extends NlpTask.Processor {
 
-    FillMaskProcessor(NlpTokenizer tokenizer, FillMaskConfig config) {
+    FillMaskProcessor(NlpTokenizer tokenizer) {
         super(tokenizer);
     }
 

@@ -5,9 +5,9 @@
 <titleabbrev>Rollup search</titleabbrev>
 ++++
 
-Enables searching rolled-up data using the standard Query DSL.
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
-experimental[]
+Enables searching rolled-up data using the standard Query DSL.
 
 [[rollup-search-request]]
 ==== {api-request-title}

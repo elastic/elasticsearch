@@ -10,11 +10,13 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -70,9 +72,9 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionVersionNoFeature() throws Exception {
         Version version = VersionUtils.randomVersion(random());
-        parser = createParser(YamlXContent.yamlXContent, """
+        parser = createParser(YamlXContent.yamlXContent, Strings.format("""
             version:     " - %s"
-            reason:      Delete ignores the parent param""".formatted(version));
+            reason:      Delete ignores the parent param""", version));
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
@@ -187,5 +189,18 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         Exception e = expectThrows(ParsingException.class, () -> SkipSection.parse(parser));
         assertThat(e.getMessage(), is("if os is specified, feature skip_os must be set"));
+    }
+
+    public void testParseSkipSectionWithThreeDigitVersion() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            version:     " - 8.2.999"
+            features:     regex
+            reason:      Now you have two problems""");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SkipSection.parse(parser));
+        assertThat(
+            e.getMessage(),
+            containsString("illegal revision version format - only one or two digit numbers are supported but found 999")
+        );
     }
 }

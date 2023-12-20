@@ -74,6 +74,10 @@
         "type":"string",
         "description":"Optional parameter to specify the Grok pattern that should be used to extract fields from messages in a semi-structured text file"
       },
+      "ecs_compatibility":{
+        "type":"string",
+        "description":"Optional parameter to specify the compatibility mode with ECS Grok patterns - may be either 'v1' or 'disabled'"
+      },
       "timestamp_field":{
         "type":"string",
         "description":"Optional parameter to specify the timestamp field in the file"

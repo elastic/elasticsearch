@@ -10,11 +10,11 @@ package org.elasticsearch.legacygeo.builders;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.parsers.GeoWKTParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -176,7 +176,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
         return result;
     }
 
-    protected JtsGeometry jtsGeometry(Geometry geom) {
+    protected static JtsGeometry jtsGeometry(Geometry geom) {
         // dateline180Check is false because ElasticSearch does it's own dateline wrapping
         JtsGeometry jtsGeometry = new JtsGeometry(geom, SPATIAL_CONTEXT, false, MULTI_POLYGON_MAY_OVERLAP);
         if (AUTO_VALIDATE_JTS_GEOMETRY) jtsGeometry.validate();

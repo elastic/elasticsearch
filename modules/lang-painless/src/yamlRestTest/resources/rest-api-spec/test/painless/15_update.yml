@@ -123,3 +123,81 @@
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Iterable object is self-referencing itself" }
+
+---
+"Script Update Metadata":
+  - skip:
+      version: " - 8.3.99"
+      reason: "update metadata introduced in 8.4.0"
+
+  - do:
+      update:
+        index:    test_1
+        id:       "2"
+        body:
+          script:
+            source: "ctx._source.bar = metadata().id + '-extra'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "2"
+
+  - match: { _source.bar: 2-extra }
+  - match: { found: true }
+
+  - do:
+      update:
+        index:    test_1
+        id:       "2"
+        body:
+          script:
+            source: "metadata().op = 'delete'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      catch: missing
+      get:
+        index: test_1
+        id: "2"
+
+  - match: { found: false }
+
+---
+"Script Write Field":
+  - skip:
+      version: " - 8.4.99"
+      reason: "Write fields api introduced in 8.5.0"
+
+  - do:
+      index:
+        index:  test_1
+        id:     "3"
+        body:
+          foo:    bar
+          count:  1
+
+  - do:
+      update:
+        index:    test_1
+        id:       "3"
+        body:
+          script:
+            source: field('foo').transform(x -> x + '-baz'); field('nest').doc().field('bar').set(200)
+            lang: painless
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "3"
+
+  - match: { _source.foo: bar-baz }
+  - match: { _source.nest.bar: 200 }
+  - match: { found: true }

@@ -22,9 +22,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -94,7 +96,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true)
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder())
         );
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
@@ -108,7 +110,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             new BytesArray(requestContent),
             XContentType.JSON
         ).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder());
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(
@@ -126,7 +128,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             new BytesArray(requestContent),
             XContentType.JSON
         ).withParams(Collections.singletonMap("ignore_unavailable", "true")).build();
-        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true);
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder());
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(
@@ -192,29 +194,33 @@ public class MultiSearchRequestTests extends ESTestCase {
                 new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz")) },
             tookInMillis
         );
+        try {
 
-        assertEquals(XContentHelper.stripWhitespace("""
-            {
-              "took": %s,
-              "responses": [
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
                 {
-                  "error": {
-                    "root_cause": [ { "type": "illegal_state_exception", "reason": "foobar" } ],
-                    "type": "illegal_state_exception",
-                    "reason": "foobar"
-                  },
-                  "status": 500
-                },
-                {
-                  "error": {
-                    "root_cause": [ { "type": "illegal_state_exception", "reason": "baaaaaazzzz" } ],
-                    "type": "illegal_state_exception",
-                    "reason": "baaaaaazzzz"
-                  },
-                  "status": 500
-                }
-              ]
-            }""".formatted(tookInMillis)), Strings.toString(response));
+                  "took": %s,
+                  "responses": [
+                    {
+                      "error": {
+                        "root_cause": [ { "type": "illegal_state_exception", "reason": "foobar" } ],
+                        "type": "illegal_state_exception",
+                        "reason": "foobar"
+                      },
+                      "status": 500
+                    },
+                    {
+                      "error": {
+                        "root_cause": [ { "type": "illegal_state_exception", "reason": "baaaaaazzzz" } ],
+                        "type": "illegal_state_exception",
+                        "reason": "baaaaaazzzz"
+                      },
+                      "status": 500
+                    }
+                  ]
+                }""", tookInMillis)), Strings.toString(response));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testMaxConcurrentSearchRequests() {
@@ -231,7 +237,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, null, true)
+            () -> RestMultiSearchAction.parseRequest(restRequest, null, true, new UsageService().getSearchUsageHolder())
         );
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
@@ -240,7 +246,12 @@ public class MultiSearchRequestTests extends ESTestCase {
             new BytesArray(mserchActionWithNewLine.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         ).build();
-        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(restRequestWithNewLine, null, true);
+        MultiSearchRequest msearchRequest = RestMultiSearchAction.parseRequest(
+            restRequestWithNewLine,
+            null,
+            true,
+            new UsageService().getSearchUsageHolder()
+        );
         assertEquals(3, msearchRequest.requests().size());
     }
 
@@ -256,7 +267,7 @@ public class MultiSearchRequestTests extends ESTestCase {
 
         MultiSearchRequest request = new MultiSearchRequest();
         RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true, (searchRequest, parser) -> {
-            searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+            searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder()));
             request.add(searchRequest);
         });
         return request;
@@ -303,7 +314,11 @@ public class MultiSearchRequestTests extends ESTestCase {
             byte[] originalBytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, xContentType.xContent());
             MultiSearchRequest parsedRequest = new MultiSearchRequest();
             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
-                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(
+                    p,
+                    false,
+                    new UsageService().getSearchUsageHolder()
+                );
                 if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                     r.source(searchSourceBuilder);
                 }
@@ -486,6 +501,24 @@ public class MultiSearchRequestTests extends ESTestCase {
         );
     }
 
+    public void testTaskDescription() {
+        MultiSearchRequest request = new MultiSearchRequest();
+        request.add(new SearchRequest().preference("abc"));
+        request.add(new SearchRequest().routing("r").preference("xyz"));
+        request.add(new SearchRequest().indices("index-1"));
+
+        String description = request.createTask(0, "type", "action", TaskId.EMPTY_TASK_ID, Map.of()).getDescription();
+        assertThat(
+            description,
+            equalTo(
+                "requests[3]: "
+                    + "indices[], search_type[QUERY_THEN_FETCH], source[], preference[abc] | "
+                    + "indices[], search_type[QUERY_THEN_FETCH], source[], routing[r], preference[xyz] | "
+                    + "indices[index-1], search_type[QUERY_THEN_FETCH], source[]"
+            )
+        );
+    }
+
     private void assertExpandWildcardsValue(IndicesOptions options, String expectedValue) throws IOException {
         SearchRequest request = new SearchRequest();
         request.indicesOptions(options);
@@ -567,6 +600,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                     msearchDefault.ignoreThrottled()
                 )
             );
+            searchRequest.setForceSyntheticSource(false);
 
             request.add(searchRequest);
         }

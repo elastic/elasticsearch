@@ -9,7 +9,9 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -58,11 +60,51 @@ public class FetchProfiler implements FetchPhase.Profiler {
     }
 
     @Override
-    public void visitor(FieldsVisitor fieldsVisitor) {
-        current.debug.put(
-            "stored_fields",
-            fieldsVisitor == null ? List.of() : fieldsVisitor.getFieldNames().stream().sorted().collect(toList())
-        );
+    public StoredFieldLoader storedFields(StoredFieldLoader storedFieldLoader) {
+        current.debug.put("stored_fields", storedFieldLoader.fieldsToLoad());
+        return new StoredFieldLoader() {
+            @Override
+            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
+                LeafStoredFieldLoader in = storedFieldLoader.getLoader(ctx, docs);
+                return new LeafStoredFieldLoader() {
+                    @Override
+                    public void advanceTo(int doc) throws IOException {
+                        final Timer timer = current.getNewTimer(FetchPhaseTiming.LOAD_STORED_FIELDS);
+                        timer.start();
+                        try {
+                            in.advanceTo(doc);
+                        } finally {
+                            timer.stop();
+                        }
+                    }
+
+                    @Override
+                    public BytesReference source() {
+                        return in.source();
+                    }
+
+                    @Override
+                    public String id() {
+                        return in.id();
+                    }
+
+                    @Override
+                    public String routing() {
+                        return in.routing();
+                    }
+
+                    @Override
+                    public Map<String, List<Object>> storedFields() {
+                        return in.storedFields();
+                    }
+                };
+            }
+
+            @Override
+            public List<String> fieldsToLoad() {
+                return storedFieldLoader.fieldsToLoad();
+            }
+        };
     }
 
     @Override
@@ -72,7 +114,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
-                Timer timer = breakdown.getTimer(FetchSubPhaseTiming.NEXT_READER);
+                Timer timer = breakdown.getNewTimer(FetchSubPhaseTiming.NEXT_READER);
                 timer.start();
                 try {
                     delegate.setNextReader(readerContext);
@@ -82,8 +124,13 @@ public class FetchProfiler implements FetchPhase.Profiler {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return delegate.storedFieldsSpec();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
-                Timer timer = breakdown.getTimer(FetchSubPhaseTiming.PROCESS);
+                Timer timer = breakdown.getNewTimer(FetchSubPhaseTiming.PROCESS);
                 timer.start();
                 try {
                     delegate.process(hitContext);
@@ -95,33 +142,17 @@ public class FetchProfiler implements FetchPhase.Profiler {
     }
 
     @Override
-    public void startLoadingStoredFields() {
-        current.getTimer(FetchPhaseTiming.LOAD_STORED_FIELDS).start();
+    public Timer startLoadingSource() {
+        Timer timer = current.getNewTimer(FetchPhaseTiming.LOAD_SOURCE);
+        timer.start();
+        return timer;
     }
 
     @Override
-    public void stopLoadingStoredFields() {
-        current.getTimer(FetchPhaseTiming.LOAD_STORED_FIELDS).stop();
-    }
-
-    @Override
-    public void startLoadingSource() {
-        current.getTimer(FetchPhaseTiming.LOAD_SOURCE).start();
-    }
-
-    @Override
-    public void stopLoadingSource() {
-        current.getTimer(FetchPhaseTiming.LOAD_SOURCE).stop();
-    }
-
-    @Override
-    public void startNextReader() {
-        current.getTimer(FetchPhaseTiming.NEXT_READER).start();
-    }
-
-    @Override
-    public void stopNextReader() {
-        current.getTimer(FetchPhaseTiming.NEXT_READER).stop();
+    public Timer startNextReader() {
+        Timer timer = current.getNewTimer(FetchPhaseTiming.NEXT_READER);
+        timer.start();
+        return timer;
     }
 
     static class FetchProfileBreakdown extends AbstractProfileBreakdown<FetchPhaseTiming> {

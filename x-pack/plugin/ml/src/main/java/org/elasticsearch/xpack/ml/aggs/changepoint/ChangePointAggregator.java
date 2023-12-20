@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.apache.commons.math3.exception.NotStrictlyPositiveException;
 import org.apache.commons.math3.special.Beta;
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntToDoubleFunction;
 import java.util.stream.IntStream;
@@ -31,6 +34,8 @@ import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractBucket;
 import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
 
 public class ChangePointAggregator extends SiblingPipelineAggregator {
+
+    private static final Logger logger = LogManager.getLogger(ChangePointAggregator.class);
 
     static final double P_VALUE_THRESHOLD = 0.025;
     private static final int MINIMUM_BUCKETS = 10;
@@ -53,25 +58,44 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     @Override
     public InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
-        MlAggsHelper.DoubleBucketValues maybeBucketsValue = extractDoubleBucketedValues(
+        Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(
             bucketsPaths()[0],
             aggregations,
             BucketHelpers.GapPolicy.SKIP,
             true
-        ).orElseThrow(
-            () -> new AggregationExecutionException(
-                "unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
-            )
         );
-        if (maybeBucketsValue.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
-            throw new AggregationExecutionException(
-                "not enough buckets to calculate change_point. Requires at least [" + ((2 * MINIMUM_BUCKETS) + 2) + "]"
+        if (maybeBucketsValue.isEmpty()) {
+            return new InternalChangePointAggregation(
+                name(),
+                metadata(),
+                null,
+                new ChangeType.Indeterminable("unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "]")
             );
         }
-        Tuple<int[], Integer> candidatePoints = candidateChangePoints(maybeBucketsValue.getValues());
-        ChangeType changeType = changePValue(maybeBucketsValue, candidatePoints, P_VALUE_THRESHOLD);
+        MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketsValue.get();
+        if (bucketValues.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
+            return new InternalChangePointAggregation(
+                name(),
+                metadata(),
+                null,
+                new ChangeType.Indeterminable(
+                    "not enough buckets to calculate change_point. Requires at least ["
+                        + ((2 * MINIMUM_BUCKETS) + 2)
+                        + "]; found ["
+                        + bucketValues.getValues().length
+                        + "]"
+                )
+            );
+        }
+        Tuple<int[], Integer> candidatePoints = candidateChangePoints(bucketValues.getValues());
+        ChangeType changeType = changePValue(bucketValues, candidatePoints, P_VALUE_THRESHOLD);
         if (changeType.pValue() > P_VALUE_THRESHOLD) {
-            changeType = maxDeviationKdePValue(maybeBucketsValue, P_VALUE_THRESHOLD);
+            try {
+                SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
+                changeType = detect.at(P_VALUE_THRESHOLD);
+            } catch (NotStrictlyPositiveException nspe) {
+                logger.debug("failure calculating spikes", nspe);
+            }
         }
         ChangePointBucket changePointBucket = null;
         if (changeType.changePoint() >= 0) {
@@ -81,42 +105,6 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
 
         return new InternalChangePointAggregation(name(), metadata(), changePointBucket, changeType);
-    }
-
-    static ChangeType maxDeviationKdePValue(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
-        double[] timeWindow = bucketValues.getValues();
-        double variance = RunningStats.from(timeWindow, i -> 1.0).variance();
-        if (variance == 0.0) {
-            return new ChangeType.Stationary();
-        }
-        int minIndex = 0;
-        double minValue = Double.MAX_VALUE;
-        int maxIndex = 0;
-        double maxValue = -Double.MAX_VALUE;
-        for (int i = 0; i < timeWindow.length; i++) {
-            if (timeWindow[i] < minValue) {
-                minValue = timeWindow[i];
-                minIndex = i;
-            }
-            if (timeWindow[i] > maxValue) {
-                maxValue = timeWindow[i];
-                maxIndex = i;
-            } else if (timeWindow[i] == maxValue) {
-                maxIndex = i;
-            }
-        }
-        KDE dist = new KDE(timeWindow, minIndex, maxIndex);
-        KDE.ValueAndMagnitude cdf = dist.cdf(minValue);
-        KDE.ValueAndMagnitude sf = dist.sf(maxValue);
-
-        if (cdf.isMoreSignificant(sf, timeWindow.length) && cdf.significance(timeWindow.length) * 2 < pValueThreshold) {
-            return new ChangeType.Dip(cdf.significance(timeWindow.length) * 2, bucketValues.getBucketIndex(minIndex));
-        }
-        if (sf.significance(timeWindow.length) * 2 < pValueThreshold) {
-            return new ChangeType.Spike(sf.significance(timeWindow.length) * 2, bucketValues.getBucketIndex(maxIndex));
-        }
-        return new ChangeType.Stationary();
-
     }
 
     static ChangeType changePValue(
@@ -359,7 +347,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         }
     }
 
-    static record VarianceAndRValue(double variance, double rValue) implements Comparable<VarianceAndRValue> {
+    record VarianceAndRValue(double variance, double rValue) implements Comparable<VarianceAndRValue> {
         @Override
         public int compareTo(VarianceAndRValue o) {
             int v = Double.compare(variance, o.variance);

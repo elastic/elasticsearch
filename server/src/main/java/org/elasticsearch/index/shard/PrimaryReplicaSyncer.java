@@ -162,6 +162,35 @@ public class PrimaryReplicaSyncer {
     ) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         final TaskManager taskManager = transportService.getTaskManager();
+
+        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+            doResync(
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                snapshot,
+                startingSeqNo,
+                maxSeqNo,
+                maxSeenAutoIdTimestamp,
+                listener,
+                request,
+                taskManager
+            );
+        }
+    }
+
+    private void doResync(
+        ShardId shardId,
+        String primaryAllocationId,
+        long primaryTerm,
+        Translog.Snapshot snapshot,
+        long startingSeqNo,
+        long maxSeqNo,
+        long maxSeenAutoIdTimestamp,
+        ActionListener<ResyncTask> listener,
+        ResyncRequest request,
+        TaskManager taskManager
+    ) {
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
         ActionListener<Void> wrappedListener = new ActionListener<Void>() {
             @Override
@@ -209,7 +238,6 @@ public class PrimaryReplicaSyncer {
     }
 
     static class SnapshotSender extends AbstractRunnable implements ActionListener<ResyncReplicationResponse> {
-        private final Logger logger;
         private final SyncAction syncAction;
         private final ResyncTask task; // to track progress
         private final String primaryAllocationId;
@@ -241,7 +269,6 @@ public class PrimaryReplicaSyncer {
             Executor executor,
             ActionListener<Void> listener
         ) {
-            this.logger = PrimaryReplicaSyncer.logger;
             this.syncAction = syncAction;
             this.task = task;
             this.shardId = shardId;
@@ -324,18 +351,23 @@ public class PrimaryReplicaSyncer {
                     maxSeenAutoIdTimestamp,
                     operations.toArray(EMPTY_ARRAY)
                 );
-                logger.trace(
+                PrimaryReplicaSyncer.logger.trace(
                     "{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])",
                     shardId,
                     operations.size(),
-                    new ByteSizeValue(size),
+                    ByteSizeValue.ofBytes(size),
                     totalSentOps.get(),
                     totalSkippedOps.get()
                 );
                 firstMessage.set(false);
                 syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
-                logger.trace("{} resync completed (total sent: [{}], skipped: [{}])", shardId, totalSentOps.get(), totalSkippedOps.get());
+                PrimaryReplicaSyncer.logger.trace(
+                    "{} resync completed (total sent: [{}], skipped: [{}])",
+                    shardId,
+                    totalSentOps.get(),
+                    totalSkippedOps.get()
+                );
                 listener.onResponse(null);
             }
         }

@@ -21,6 +21,11 @@ public class UpdateCalendarJobActionResquestTests extends AbstractWireSerializin
     }
 
     @Override
+    protected UpdateCalendarJobAction.Request mutateInstance(UpdateCalendarJobAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<UpdateCalendarJobAction.Request> instanceReader() {
         return UpdateCalendarJobAction.Request::new;
     }

@@ -2,7 +2,7 @@
 [[fleet-multi-search]]
 === Fleet multi search API
 ++++
-<titleabbrev>Fleet search</titleabbrev>
+<titleabbrev>Fleet multi search</titleabbrev>
 ++++
 
 Executes several <<fleet-search,fleet searches>> with a single API request.

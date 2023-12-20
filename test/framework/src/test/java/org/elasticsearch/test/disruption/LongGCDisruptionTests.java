@@ -9,6 +9,7 @@ package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
@@ -38,6 +39,11 @@ public class LongGCDisruptionTests extends ESTestCase {
                 lock.unlock();
             }
         }
+    }
+
+    @BeforeClass
+    public static void ignoreJdk20Plus() {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
     }
 
     public void testBlockingTimeout() throws Exception {

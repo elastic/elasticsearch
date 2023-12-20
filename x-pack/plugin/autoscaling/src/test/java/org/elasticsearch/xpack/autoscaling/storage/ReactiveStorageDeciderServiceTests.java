@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -37,12 +39,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -53,13 +55,15 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -133,7 +137,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .forEach(decision::add);
 
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".data", "hot"))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".data", "hot"))
             .numberOfShards(randomIntBetween(1, 10))
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
@@ -146,7 +150,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (randomBoolean()) {
             decision.add(randomFrom(Decision.YES, Decision.ALWAYS, Decision.THROTTLE, Decision.NO));
         }
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         if (randomBoolean()) {
             decision.add(new Decision.Single(Decision.Type.NO, FilterAllocationDecider.NAME, "test"));
             if (randomBoolean()) {
@@ -177,7 +181,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testFilterLooksLikeTier() {
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         for (int i = 0; i < between(0, 10); ++i) {
             String key = randomValueOtherThanMany(name -> name.startsWith("_") || name.equals("name"), () -> randomAlphaOfLength(5));
             settings.put(
@@ -216,13 +220,13 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 10))
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
         metaBuilder.put(indexMetadata, true);
         stateBuilder.metadata(metaBuilder);
-        stateBuilder.routingTable(RoutingTable.builder().addAsNew(indexMetadata).build());
+        stateBuilder.routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build());
         addNode(stateBuilder);
         addNode(stateBuilder);
         ClusterState initialClusterState = stateBuilder.build();
@@ -240,7 +244,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ShardRouting primaryShard = subjectRoutings.primaryShard();
         ShardRouting replicaShard = subjectRoutings.replicaShards().get(0);
-        DiscoveryNode[] nodes = initialClusterState.nodes().toArray(DiscoveryNode[]::new);
+        DiscoveryNode[] nodes = initialClusterState.nodes().getAllNodes().toArray(DiscoveryNode[]::new);
         boolean useReplica = randomBoolean();
         if (useReplica || randomBoolean()) {
             startShard(allocation, primaryShard, nodes[0].getId());
@@ -251,42 +255,140 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         final ClusterState clusterState = updateClusterState(initialClusterState, allocation);
 
-        ImmutableOpenMap.Builder<String, Long> shardSizeBuilder = ImmutableOpenMap.builder();
+        Map<String, Long> shardSize = new HashMap<>();
         IntStream.range(0, randomInt(10))
-            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards()))
+            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards().toList()))
             .filter(s -> s.shardId().getId() != shardId)
-            .forEach(s -> shardSizeBuilder.put(shardIdentifier(s), randomNonNegativeLong()));
+            .forEach(s -> shardSize.put(shardIdentifier(s), randomNonNegativeLong()));
 
         long expected = randomLongBetween(1, Long.MAX_VALUE);
         if (useReplica == false || randomBoolean()) {
-            shardSizeBuilder.put(shardIdentifier(primaryShard), expected);
+            shardSize.put(shardIdentifier(primaryShard), expected);
         } else {
-            shardSizeBuilder.put(shardIdentifier(replicaShard), expected);
+            shardSize.put(shardIdentifier(replicaShard), expected);
         }
 
         ShardRouting subjectShard = useReplica ? replicaShard : primaryShard;
-        validateSizeOf(clusterState, subjectShard, shardSizeBuilder, expected);
-        validateSizeOf(clusterState, subjectShard, ImmutableOpenMap.builder(), ByteSizeUnit.KB.toBytes(1));
+        validateSizeOf(clusterState, subjectShard, shardSize, expected);
+        validateSizeOf(clusterState, subjectShard, Map.of(), ByteSizeUnit.KB.toBytes(1));
+
+        assertThat(createAllocationState(shardSize, clusterState).maxNodeLockedSize(), equalTo(0L));
     }
 
-    public void validateSizeOf(
-        ClusterState clusterState,
-        ShardRouting subjectShard,
-        ImmutableOpenMap.Builder<String, Long> shardSizeBuilder,
-        long expected
-    ) {
-        ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null, null);
+    public void testMaxNodeLockedSizeUsingAttributes() {
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        Metadata.Builder metaBuilder = Metadata.builder();
+        int numberOfShards = randomIntBetween(1, 10);
+        int numberOfReplicas = randomIntBetween(1, 10);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(addRandomNodeLockUsingAttributes(settings(IndexVersion.current())))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
+        metaBuilder.put(indexMetadata, true);
+        stateBuilder.metadata(metaBuilder);
+        stateBuilder.routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build());
+        ClusterState clusterState = stateBuilder.build();
+
+        long baseSize = between(1, 10);
+        Map<String, Long> shardSizes = IntStream.range(0, numberOfShards)
+            .mapToObj(s -> clusterState.getRoutingTable().index(indexMetadata.getIndex()).shard(s))
+            .flatMap(irt -> Stream.of(irt.primaryShard(), irt.replicaShards().get(0)))
+            .collect(
+                Collectors.toMap(
+                    ClusterInfo::shardIdentifierFromRouting,
+                    s -> s.primary() ? s.shardId().getId() + baseSize : between(1, 100)
+                )
+            );
+
+        // keep the calculation in 2x until the end to avoid rounding.
+        long nodeLockedSize = (baseSize * 2 + numberOfShards - 1) * numberOfShards / 2;
+        assertThat(createAllocationState(shardSizes, clusterState).maxNodeLockedSize(), equalTo(nodeLockedSize));
+
+        ClusterState withResizeSource = ClusterState.builder(clusterState)
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .put(
+                        IndexMetadata.builder(indexMetadata)
+                            .settings(
+                                Settings.builder()
+                                    .put(indexMetadata.getSettings())
+                                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, randomAlphaOfLength(9))
+                            )
+                    )
+            )
+            .build();
+
+        assertThat(createAllocationState(shardSizes, withResizeSource).maxNodeLockedSize(), equalTo(nodeLockedSize * 2));
+    }
+
+    public void testNodeLockSplitClone() {
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        Metadata.Builder metaBuilder = Metadata.builder();
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(between(1, 10))
+            .build();
+        int numberOfShards = randomIntBetween(1, 2);
+        int numberOfReplicas = randomIntBetween(1, 10);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, sourceIndexMetadata.getIndexUUID())
+                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndexMetadata.getIndex().getName())
+            )
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
+        metaBuilder.put(sourceIndexMetadata, true);
+        metaBuilder.put(indexMetadata, true);
+        stateBuilder.metadata(metaBuilder);
+        stateBuilder.routingTable(
+            RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                .addAsNew(sourceIndexMetadata)
+                .addAsNew(indexMetadata)
+                .build()
+        );
+        ClusterState clusterState = stateBuilder.build();
+
+        long sourceSize = between(1, 10);
+        Map<String, Long> shardSizes = Map.of(
+            ClusterInfo.shardIdentifierFromRouting(
+                clusterState.getRoutingTable().index(sourceIndexMetadata.getIndex()).shard(0).primaryShard()
+            ),
+            sourceSize
+        );
+
+        assertThat(createAllocationState(shardSizes, clusterState).maxNodeLockedSize(), equalTo(sourceSize * 2));
+    }
+
+    private Settings.Builder addRandomNodeLockUsingAttributes(Settings.Builder settings) {
+        String setting = randomFrom(
+            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING
+        ).getKey();
+        String attribute = randomFrom(DiscoveryNodeFilters.SINGLE_NODE_NAMES);
+        return settings.put(setting + attribute, randomAlphaOfLength(5));
+    }
+
+    public void validateSizeOf(ClusterState clusterState, ShardRouting subjectShard, Map<String, Long> shardSize, long expected) {
+        assertThat(createAllocationState(shardSize, clusterState).sizeOf(subjectShard), equalTo(expected));
+    }
+
+    private ReactiveStorageDeciderService.AllocationState createAllocationState(Map<String, Long> shardSize, ClusterState clusterState) {
+        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), shardSize, Map.of(), Map.of(), Map.of());
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             null,
             info,
             null,
             Set.of(),
             Set.of()
         );
-
-        assertThat(allocationState.sizeOf(subjectShard), equalTo(expected));
+        return allocationState;
     }
 
     private void startShard(RoutingAllocation allocation, ShardRouting unassignedShard, String nodeId) {
@@ -300,7 +402,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                     ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
                     allocation.changes()
                 );
-                allocation.routingNodes().startShard(logger, initialized, allocation.changes());
+                allocation.routingNodes()
+                    .startShard(logger, initialized, allocation.changes(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 return;
             }
         }
@@ -314,17 +417,21 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot(randomAlphaOfLength(5), new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID())),
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId(randomAlphaOfLength(5), UUIDs.randomBase64UUID())
         );
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 10))
             .numberOfReplicas(randomIntBetween(0, 10))
             .build();
         metaBuilder.put(indexMetadata, true);
         stateBuilder.metadata(metaBuilder);
-        stateBuilder.routingTable(RoutingTable.builder().addAsNewRestore(indexMetadata, recoverySource, new HashSet<>()).build());
+        stateBuilder.routingTable(
+            RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                .addAsNewRestore(indexMetadata, recoverySource, new HashSet<>())
+                .build()
+        );
         ClusterState clusterState = stateBuilder.build();
 
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
@@ -332,9 +439,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId)
             .primaryShard();
 
-        ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder = ImmutableOpenMap.builder();
+        Map<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder = new HashMap<>();
         IntStream.range(0, randomInt(10))
-            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards()))
+            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards().toList()))
             .filter(s -> s.shardId().getId() != shardId)
             .forEach(s -> shardSizeBuilder.put(snapshotShardSizeKey(recoverySource, s), randomNonNegativeLong()));
 
@@ -342,19 +449,20 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         shardSizeBuilder.put(snapshotShardSizeKey(recoverySource, primaryShard), expected);
 
         validateSizeOfSnapshotShard(clusterState, primaryShard, shardSizeBuilder, expected);
-        validateSizeOfSnapshotShard(clusterState, primaryShard, ImmutableOpenMap.builder(), ByteSizeUnit.KB.toBytes(1));
+        validateSizeOfSnapshotShard(clusterState, primaryShard, Map.of(), ByteSizeUnit.KB.toBytes(1));
     }
 
     private void validateSizeOfSnapshotShard(
         ClusterState clusterState,
         ShardRouting primaryShard,
-        ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder,
+        Map<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder,
         long expected
     ) {
-        SnapshotShardSizeInfo shardSizeInfo = new SnapshotShardSizeInfo(shardSizeBuilder.build());
+        SnapshotShardSizeInfo shardSizeInfo = new SnapshotShardSizeInfo(shardSizeBuilder);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             null,
             null,
             shardSizeInfo,
@@ -379,16 +487,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     static void addNode(ClusterState.Builder stateBuilder, DiscoveryNodeRole role) {
         stateBuilder.nodes(
             DiscoveryNodes.builder(stateBuilder.nodes())
-                .add(
-                    new DiscoveryNode(
-                        "test",
-                        UUIDs.randomBase64UUID(),
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(role),
-                        Version.CURRENT
-                    )
-                )
+                .add(DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).name("test").roles(Set.of(role)).build())
         );
     }
 
@@ -413,7 +512,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(10)
             .build();
@@ -421,31 +520,32 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         stateBuilder.metadata(metaBuilder);
         ClusterState clusterState = stateBuilder.build();
 
-        Set<ShardRouting> shards = IntStream.range(0, between(1, 10))
+        var shards = IntStream.range(0, between(1, 10))
             .mapToObj(i -> Tuple.tuple(new ShardId(indexMetadata.getIndex(), randomInt(10)), randomBoolean()))
             .distinct()
             .map(t -> TestShardRouting.newShardRouting(t.v1(), nodeId, t.v2(), ShardRoutingState.STARTED))
-            .collect(Collectors.toSet());
+            .toList();
 
         long minShardSize = randomLongBetween(1, 10);
 
-        ImmutableOpenMap.Builder<String, DiskUsage> diskUsagesBuilder = ImmutableOpenMap.builder();
-        diskUsagesBuilder.put(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
-        ImmutableOpenMap<String, DiskUsage> diskUsages = diskUsagesBuilder.build();
-        ImmutableOpenMap.Builder<String, Long> shardSizeBuilder = ImmutableOpenMap.builder();
         ShardRouting missingShard = randomBoolean() ? randomFrom(shards) : null;
-        Collection<ShardRouting> shardsWithSizes = shards.stream().filter(s -> s != missingShard).collect(Collectors.toSet());
-        for (ShardRouting shard : shardsWithSizes) {
-            shardSizeBuilder.put(shardIdentifier(shard), ByteSizeUnit.KB.toBytes(randomLongBetween(minShardSize, 100)));
+        Map<String, Long> shardSize = new HashMap<>();
+        for (ShardRouting shard : shards) {
+            if (shard != missingShard) {
+                shardSize.put(shardIdentifier(shard), ByteSizeUnit.KB.toBytes(randomLongBetween(minShardSize, 100)));
+            }
         }
-        if (shardsWithSizes.isEmpty() == false) {
-            shardSizeBuilder.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
+        if (shardSize.isEmpty() == false) {
+            shardSize.put(randomFrom(shardSize.keySet()), ByteSizeUnit.KB.toBytes(minShardSize));
         }
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSizeBuilder.build(), null, null, null);
+
+        var diskUsages = Map.of(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
+        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, Map.of(), Map.of(), Map.of());
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             thresholdSettings,
             info,
             null,
@@ -454,11 +554,12 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
 
         long result = allocationState.unmovableSize(nodeId, shards);
-        if (missingShard != null
-            && (missingShard.primary()
-                || clusterState.getRoutingNodes().activePrimary(missingShard.shardId()) == null
-                || info.getShardSize(clusterState.getRoutingNodes().activePrimary(missingShard.shardId())) == null)
-            || minShardSize < 5) {
+
+        Predicate<ShardRouting> shardSizeKnown = shard -> shard.primary()
+            ? info.getShardSize(shard.shardId(), true) != null
+            : info.getShardSize(shard.shardId(), true) != null || info.getShardSize(shard.shardId(), false) != null;
+
+        if ((missingShard != null && shardSizeKnown.test(missingShard) == false) || minShardSize < 5) {
             // the diff between used and high watermark is 5 KB.
             assertThat(result, equalTo(ByteSizeUnit.KB.toBytes(5)));
         } else {
@@ -471,7 +572,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         addNode(stateBuilder);
         Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(10)
             .numberOfReplicas(1)
             .build();
@@ -489,7 +590,12 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         AllocationDecider no = new AllocationDecider() {
             @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
                 return Decision.NO;
             }
         };
@@ -521,6 +627,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             allocationDeciders,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
             null,
@@ -536,7 +643,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         addNode(stateBuilder, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
         Metadata.Builder metaBuilder = Metadata.builder();
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         if (randomBoolean()) {
             settings.put(DataTier.TIER_PREFERENCE, randomBoolean() ? DataTier.DATA_HOT : "data_hot,data_warm");
         }
@@ -568,7 +675,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         addNode(stateBuilder);
         Metadata.Builder metaBuilder = Metadata.builder();
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         if (randomBoolean()) {
             settings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".data", DataTier.DATA_HOT);
         }
@@ -624,6 +731,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             allocationDeciders,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
             null,

@@ -10,7 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -56,29 +57,30 @@ public class TimeseriesLifecycleType implements LifecycleType {
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
+        DownsampleAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
     ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(
+    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
+        DownsampleAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME
-    );
+    ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
+        DownsampleAction.NAME,
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
-        FreezeAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null
+        FreezeAction.NAME
     ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
@@ -106,13 +108,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ReadOnlyAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
-        RollupILMAction.NAME,
+        DownsampleAction.NAME,
         SearchableSnapshotAction.NAME
     );
     // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
     // It's ordered to produce consistent error messages which can be unit tested.
     public static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Collections.unmodifiableSet(
-        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME))
+        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, DownsampleAction.NAME))
     );
 
     private TimeseriesLifecycleType() {}
@@ -153,8 +155,17 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
+        if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
+            return false;
+        }
+
         // searchable snapshots automatically set their own allocation rules, no need to configure them with a migrate step.
         if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
+            return false;
+        }
+
+        // do not inject if MigrateAction is not supported for this phase (such as hot, frozen, delete phase)
+        if (ALLOWED_ACTIONS.get(phase.getName()).contains(MigrateAction.NAME) == false) {
             return false;
         }
 
@@ -164,48 +175,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
         }
 
         return true;
-    }
-
-    @Override
-    public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        int index = ORDERED_VALID_PHASES.indexOf(currentPhaseName);
-        if (index < 0 && "new".equals(currentPhaseName) == false) {
-            throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
-        } else {
-            // Find the next phase after `index` that exists in `phases` and return it
-            while (++index < ORDERED_VALID_PHASES.size()) {
-                String phaseName = ORDERED_VALID_PHASES.get(index);
-                if (phases.containsKey(phaseName)) {
-                    return phaseName;
-                }
-            }
-            // if we have exhausted VALID_PHASES and haven't found a matching
-            // phase in `phases` return null indicating there is no next phase
-            // available
-            return null;
-        }
-    }
-
-    public String getPreviousPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        if ("new".equals(currentPhaseName)) {
-            return null;
-        }
-        int index = ORDERED_VALID_PHASES.indexOf(currentPhaseName);
-        if (index < 0) {
-            throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
-        } else {
-            // Find the previous phase before `index` that exists in `phases` and return it
-            while (--index >= 0) {
-                String phaseName = ORDERED_VALID_PHASES.get(index);
-                if (phases.containsKey(phaseName)) {
-                    return phaseName;
-                }
-            }
-            // if we have exhausted VALID_PHASES and haven't found a matching
-            // phase in `phases` return null indicating there is no previous phase
-            // available
-            return null;
-        }
     }
 
     public List<LifecycleAction> getOrderedActions(Phase phase) {
@@ -218,37 +187,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
             case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
             default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
         };
-    }
-
-    @Override
-    public String getNextActionName(String currentActionName, Phase phase) {
-        List<String> orderedActionNames = switch (phase.getName()) {
-            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS;
-            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS;
-            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS;
-            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS;
-            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS;
-            default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
-        };
-
-        int index = orderedActionNames.indexOf(currentActionName);
-        if (index < 0) {
-            throw new IllegalArgumentException(
-                "[" + currentActionName + "] is not a valid action for phase [" + phase.getName() + "] in lifecycle type [" + TYPE + "]"
-            );
-        } else {
-            // Find the next action after `index` that exists in the phase and return it
-            while (++index < orderedActionNames.size()) {
-                String actionName = orderedActionNames.get(index);
-                if (phase.getActions().containsKey(actionName)) {
-                    return actionName;
-                }
-            }
-            // if we have exhausted `validActions` and haven't found a matching
-            // action in the Phase return null indicating there is no next
-            // action available
-            return null;
-        }
     }
 
     @Override
@@ -313,6 +251,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         validateActionsFollowingSearchableSnapshot(phases);
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
         validateFrozenPhaseHasSearchableSnapshotAction(phases);
+        validateDownsamplingIntervals(phases);
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
@@ -478,6 +417,66 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 );
             }
         });
+    }
+
+    /**
+     * Add validations if there are multiple downsample actions on different phases. The rules that we
+     * enforce are the following:
+     *   - The latter interval must be greater than the previous interval
+     *   - The latter interval must be a multiple of the previous interval
+     */
+    static void validateDownsamplingIntervals(Collection<Phase> phases) {
+        Map<String, Phase> phasesWithDownsamplingActions = phases.stream()
+            .filter(phase -> phase.getActions().containsKey(DownsampleAction.NAME))
+            .collect(Collectors.toMap(Phase::getName, Function.identity()));
+
+        if (phasesWithDownsamplingActions.size() < 2) {
+            // Interval validations must be executed when there are at least two downsample actions, otherwise return
+            return;
+        }
+
+        // Order phases and extract the downsample action instances per phase
+        List<Phase> orderedPhases = INSTANCE.getOrderedPhases(phasesWithDownsamplingActions);
+        var downsampleActions = orderedPhases.stream()
+            .map(phase -> Tuple.tuple(phase.getName(), (DownsampleAction) phase.getActions().get(DownsampleAction.NAME)))
+            .toList(); // Returns a list of tuples (phase name, downsample action)
+
+        var firstDownsample = downsampleActions.get(0);
+        for (int i = 1; i < downsampleActions.size(); i++) {
+            var secondDownsample = downsampleActions.get(i);
+            var firstInterval = firstDownsample.v2().fixedInterval();
+            var secondInterval = secondDownsample.v2().fixedInterval();
+            long firstMillis = firstInterval.estimateMillis();
+            long secondMillis = secondInterval.estimateMillis();
+            if (firstMillis >= secondMillis) {
+                // The later interval must be greater than the previous interval
+                throw new IllegalArgumentException(
+                    "Downsampling interval ["
+                        + secondInterval
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be greater than the interval ["
+                        + firstInterval
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            } else if (secondMillis % firstMillis != 0) {
+                // Downsampling interval must be a multiple of the source interval
+                throw new IllegalArgumentException(
+                    "Downsampling interval ["
+                        + secondInterval
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be a multiple of the interval ["
+                        + firstInterval
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            }
+            firstDownsample = secondDownsample;
+        }
     }
 
     private static boolean definesAllocationRules(AllocateAction action) {

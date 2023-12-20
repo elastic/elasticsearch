@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
@@ -19,6 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSqlAsyncDeleteResultsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

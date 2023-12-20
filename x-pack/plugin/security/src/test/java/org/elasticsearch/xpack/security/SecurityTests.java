@@ -9,22 +9,25 @@ package org.elasticsearch.xpack.security;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -33,35 +36,54 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -69,15 +91,22 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
+import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.operator.OperatorPrivilegesViolation;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -91,11 +120,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -103,15 +133,22 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SecurityTests extends ESTestCase {
 
     private Security security = null;
     private ThreadContext threadContext = null;
+    private SecurityContext securityContext = null;
     private TestUtils.UpdatableLicenseState licenseState;
 
     public static class DummyExtension implements SecurityExtension {
@@ -127,22 +164,40 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    private Collection<Object> createComponentsUtil(Settings settings, SecurityExtension... extensions) throws Exception {
+    public static class DummyOperatorOnlyRegistry implements OperatorOnlyRegistry {
+        @Override
+        public OperatorPrivilegesViolation check(String action, TransportRequest request) {
+            throw new RuntimeException("boom");
+        }
+
+        @Override
+        public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {
+            throw new RuntimeException("boom");
+        }
+    }
+
+    private void constructNewSecurityObject(Settings settings, SecurityExtension... extensions) {
         Environment env = TestEnvironment.newEnvironment(settings);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, Version.CURRENT);
         licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(env);
-        security = new Security(settings, Arrays.asList(extensions)) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return licenseState;
-            }
+        if (security == null) {
+            security = new Security(settings, Arrays.asList(extensions)) {
+                @Override
+                protected XPackLicenseState getLicenseState() {
+                    return licenseState;
+                }
 
-            @Override
-            protected SSLService getSslService() {
-                return sslService;
-            }
-        };
+                @Override
+                protected SSLService getSslService() {
+                    return sslService;
+                }
+            };
+        }
+    }
+
+    private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, IndexVersion.current());
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
@@ -153,6 +208,7 @@ public class SecurityTests extends ESTestCase {
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
@@ -160,6 +216,7 @@ public class SecurityTests extends ESTestCase {
             client,
             threadPool,
             clusterService,
+            new FeatureService(List.of(new SecurityFeatures())),
             mock(ResourceWatcherService.class),
             mock(ScriptService.class),
             xContentRegistry(),
@@ -178,7 +235,8 @@ public class SecurityTests extends ESTestCase {
             .put(testSettings)
             .put("path.home", createTempDir())
             .build();
-        return createComponentsUtil(settings, extensions);
+        constructNewSecurityObject(settings, extensions);
+        return createComponentsUtil(settings);
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -215,14 +273,14 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(1, service.getAuditTrails().size());
-        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(0).name());
+        assertThat(service.getAuditTrail(), notNullValue());
+        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrail().name());
     }
 
     public void testDisabledByDefault() throws Exception {
         Collection<Object> components = createComponents(Settings.EMPTY);
         AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
-        assertEquals(0, auditTrailService.getAuditTrails().size());
+        assertThat(auditTrailService.getAuditTrail(), nullValue());
     }
 
     public void testHttpSettingDefaults() throws Exception {
@@ -309,7 +367,8 @@ public class SecurityTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -330,6 +389,8 @@ public class SecurityTests extends ESTestCase {
             "truststore.password",
             "truststore.path",
             "truststore.algorithm",
+            "trust_restrictions.path",
+            "trust_restrictions.x509_fields",
             "keystore.key_password"
         ).forEach(suffix -> {
 
@@ -351,30 +412,34 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .build();
         Metadata.Builder builder = Metadata.builder();
         License license = TestUtils.generateSignedLicense(
             randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM, License.OperationMode.TRIAL).toString(),
             TimeValue.timeValueHours(24)
         );
         TestUtils.putLicense(builder, license);
+        LicenseService licenseService;
+        if (randomBoolean()) {
+            licenseService = mock(ClusterStateLicenseService.class);
+            when(((ClusterStateLicenseService) licenseService).getLicense(any())).thenReturn(license);
+        } else {
+            licenseService = mock(LicenseService.class);
+            when(licenseService.getLicense()).thenReturn(license);
+        }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
-        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+        new Security.ValidateLicenseForFIPS(false, licenseService).accept(node, state);
         // no exception thrown
-        new Security.ValidateLicenseForFIPS(true).accept(node, state);
+        new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state);
         // no exception thrown
     }
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode(
-            "foo",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .build();
         Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType = randomFrom(
             List.of(License.OperationMode.values())
@@ -385,69 +450,15 @@ public class SecurityTests extends ESTestCase {
         License license = TestUtils.generateSignedLicense(forbiddenLicenseType, TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
-        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+        ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
+        when(licenseService.getLicense(any())).thenReturn(license);
+        new Security.ValidateLicenseForFIPS(false, licenseService).accept(node, state);
         // no exception thrown
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> new Security.ValidateLicenseForFIPS(true).accept(node, state)
+            () -> new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state)
         );
         assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
-
-    }
-
-    public void testIndexJoinValidator_FullyCurrentCluster() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
-        IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
-        joinValidator.accept(node, clusterState);
-    }
-
-    public void testIndexUpgradeValidatorWithUpToDateIndex() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        IndexMetadata indexMetadata = IndexMetadata.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
-        joinValidator.accept(node, clusterState);
-    }
-
-    public void testIndexUpgradeValidatorWithMissingIndex() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode existingOtherNode = new DiscoveryNode(
-            "bar",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
-        joinValidator.accept(node, clusterState);
     }
 
     public void testGetFieldFilterSecurityEnabled() throws Exception {
@@ -460,34 +471,23 @@ public class SecurityTests extends ESTestCase {
             new FieldPermissionsDefinition(new String[] { "field_granted" }, Strings.EMPTY_ARRAY)
         );
         IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(
-            true,
             permissions,
             DocumentPermissions.allowAll()
         );
         permissionsMap.put("index_granted", indexGrantedAccessControl);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-            false,
-            FieldPermissions.DEFAULT,
-            DocumentPermissions.allowAll()
+            randomFrom(FieldPermissions.DEFAULT, null),
+            randomFrom(DocumentPermissions.allowAll(), null)
         );
-        permissionsMap.put("index_not_granted", indexAccessControl);
-        IndicesAccessControl.IndexAccessControl nullFieldPermissions = new IndicesAccessControl.IndexAccessControl(
-            true,
-            null,
-            DocumentPermissions.allowAll()
-        );
-        permissionsMap.put("index_null", nullFieldPermissions);
-        IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, index);
+        permissionsMap.put("index_granted_all_permissions", indexAccessControl);
+        IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, permissionsMap);
+        securityContext.putIndicesAccessControl(indicesAccessControl);
 
         assertTrue(fieldFilter.apply("index_granted").test("field_granted"));
         assertFalse(fieldFilter.apply("index_granted").test(randomAlphaOfLengthBetween(3, 10)));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test("field_granted"));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 10)));
-        expectThrows(IllegalStateException.class, () -> fieldFilter.apply("index_not_granted"));
-        assertTrue(fieldFilter.apply("index_null").test(randomAlphaOfLengthBetween(3, 6)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_null"));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
+        assertTrue(fieldFilter.apply("index_granted_all_permissions").test(randomAlphaOfLengthBetween(3, 10)));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
     }
 
     public void testGetFieldFilterSecurityDisabled() throws Exception {
@@ -500,9 +500,11 @@ public class SecurityTests extends ESTestCase {
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
-            true,
-            null
+            new XPackLicenseStatus(
+                randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
+                true,
+                null
+            )
         );
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
@@ -577,7 +579,7 @@ public class SecurityTests extends ESTestCase {
             )
             .build();
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
-        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
     }
 
     public void testValidateForFipsMultipleValidationErrors() {
@@ -597,10 +599,10 @@ public class SecurityTests extends ESTestCase {
             .build();
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
         assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
-        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
     }
 
-    public void testValidateForFipsNoErrors() {
+    public void testValidateForFipsNoErrorsOrLogs() throws IllegalAccessException {
         final Settings settings = Settings.builder()
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
@@ -611,15 +613,82 @@ public class SecurityTests extends ESTestCase {
                     Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
                 )
             )
+            .put(
+                XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                )
+            )
+            .put(
+                ApiKeyService.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())
+                )
+            )
+            .put(
+                ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoCacheHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2") || alg.equals("ssha256"))
+                        .collect(Collectors.toList())
+                )
+            )
             .build();
-        Security.validateForFips(settings);
-        // no exception thrown
+        expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
     }
 
-    public void testValidateForFipsNoErrorsForDefaultSettings() {
+    public void testValidateForFipsNonFipsCompliantCacheHashAlgoWarningLog() throws IllegalAccessException {
+        String key = randomCacheHashSetting();
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(key, randomNonFipsCompliantCacheHash())
+            .build();
+        expectLogs(Security.class, List.of(logEventForNonCompliantCacheHash(key)), () -> Security.validateForFips(settings));
+    }
+
+    public void testValidateForFipsNonFipsCompliantStoredHashAlgoWarningLog() throws IllegalAccessException {
+        String key = randomFrom(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).getKey();
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(key, randomNonFipsCompliantStoredHash())
+            .build();
+        expectLogs(Security.class, List.of(logEventForNonCompliantStoredHash(key)), () -> Security.validateForFips(settings));
+    }
+
+    public void testValidateForMultipleNonFipsCompliantCacheHashAlgoWarningLogs() throws IllegalAccessException {
+        String firstKey = randomCacheHashSetting();
+        String secondKey = randomValueOtherThan(firstKey, this::randomCacheHashSetting);
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(firstKey, randomNonFipsCompliantCacheHash())
+            .put(secondKey, randomNonFipsCompliantCacheHash())
+            .build();
+        expectLogs(
+            Security.class,
+            List.of(logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey)),
+            () -> Security.validateForFips(settings)
+        );
+    }
+
+    public void testValidateForFipsValidationErrorAndWarningLogs() throws IllegalAccessException {
+        String firstKey = randomCacheHashSetting();
+        String secondKey = randomValueOtherThan(firstKey, this::randomCacheHashSetting);
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(firstKey, randomNonFipsCompliantCacheHash())
+            .put(secondKey, randomNonFipsCompliantCacheHash())
+            .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
+            .build();
+        expectLogs(Security.class, List.of(logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey)), () -> {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
+            assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
+        });
+    }
+
+    public void testValidateForFipsNoErrorsOrLogsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
-        Security.validateForFips(settings);
-        // no exception thrown
+        expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
@@ -636,16 +705,27 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         RestRequest request = new FakeRestRequest();
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "Negotiate", "ApiKey");
-        }));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
+                verifyHasAuthenticationHeaderValue(
+                    e,
+                    "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"",
+                    "Negotiate",
+                    "ApiKey"
+                );
+            })
+        );
         threadContext.stashContext();
-        licenseState.update(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
-        }));
+        licenseState.update(new XPackLicenseStatus(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
+                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
+            })
+        );
         if (completed.get()) {
             fail("authentication succeeded but it shouldn't");
         }
@@ -689,7 +769,7 @@ public class SecurityTests extends ESTestCase {
                     "Security rest interceptor",
                     ActionModule.class.getName(),
                     Level.DEBUG,
-                    "Using REST interceptor from plugin org.elasticsearch.xpack.security.Security"
+                    "Using custom REST interceptor from plugin org.elasticsearch.xpack.security.Security"
                 )
             );
 
@@ -700,13 +780,18 @@ public class SecurityTests extends ESTestCase {
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
-                Arrays.asList(security),
+                List.of(security),
                 null,
                 null,
                 usageService,
-                null
+                null,
+                Tracer.NOOP,
+                mock(ClusterService.class),
+                null,
+                List.of(),
+                RestExtension.allowAll()
             );
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, null);
 
             appender.assertAllExpectationsMatched();
         } finally {
@@ -748,9 +833,242 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    private void logAndFail(Exception e) {
-        logger.error("unexpected exception", e);
-        fail("unexpected exception " + e.getMessage());
+    public void testSecurityMustBeEnableToConnectRemoteClusterWithCredentials() {
+        // Security on, no remote cluster with credentials
+        final Settings.Builder builder1 = Settings.builder();
+        if (randomBoolean()) {
+            builder1.put("xpack.security.enabled", "true");
+        }
+        try {
+            new Security(builder1.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, no remote cluster with credentials
+        final Settings.Builder builder2 = Settings.builder().put("xpack.security.enabled", "false");
+        try {
+            new Security(builder2.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security on, remote cluster with credentials
+        final Settings.Builder builder3 = Settings.builder();
+        final MockSecureSettings secureSettings3 = new MockSecureSettings();
+        final String clusterCredentials3 = randomAlphaOfLength(20);
+        secureSettings3.setString("cluster.remote.my1.credentials", clusterCredentials3);
+        builder3.setSecureSettings(secureSettings3);
+        if (randomBoolean()) {
+            builder3.put("xpack.security.enabled", "true");
+        }
+        final Settings settings3 = builder3.build();
+        try {
+            new Security(settings3);
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, remote cluster with credentials
+        final Settings.Builder builder4 = Settings.builder();
+        final MockSecureSettings secureSettings4 = new MockSecureSettings();
+        secureSettings4.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
+        secureSettings4.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
+        builder4.setSecureSettings(secureSettings4);
+        final Settings settings4 = builder4.put("xpack.security.enabled", "false").build();
+        final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class, () -> new Security(settings4));
+        assertThat(
+            e4.getMessage(),
+            containsString(
+                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
+                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
+                    + "Please either enable security or remove these settings from the keystore."
+            )
+        );
+
+        // Security off, remote cluster with credentials on reload call
+        final MockSecureSettings secureSettings5 = new MockSecureSettings();
+        secureSettings5.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
+        secureSettings5.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
+        final Settings.Builder builder5 = Settings.builder().setSecureSettings(secureSettings5);
+        // Use builder with security disabled to construct valid Security instance
+        final var security = new Security(builder2.build());
+        final IllegalArgumentException e5 = expectThrows(IllegalArgumentException.class, () -> security.reload(builder5.build()));
+        assertThat(
+            e5.getMessage(),
+            containsString(
+                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
+                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
+                    + "Please either enable security or remove these settings from the keystore."
+            )
+        );
+    }
+
+    public void testLoadExtensions() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put("path.home", createTempDir())
+            .put(OPERATOR_PRIVILEGES_ENABLED.getKey(), true)
+            .build();
+        constructNewSecurityObject(settings);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                List<Object> extensions = new ArrayList<>();
+                if (extensionPointType == OperatorOnlyRegistry.class) {
+                    extensions.add(new DummyOperatorOnlyRegistry());
+                }
+                return (List<T>) extensions;
+            }
+        });
+        createComponentsUtil(settings);
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
+        assertThat(operatorPrivilegesService, instanceOf(OperatorPrivileges.DefaultOperatorPrivilegesService.class));
+        OperatorOnlyRegistry registry = ((OperatorPrivileges.DefaultOperatorPrivilegesService) operatorPrivilegesService)
+            .getOperatorOnlyRegistry();
+        assertThat(registry, instanceOf(DummyOperatorOnlyRegistry.class));
+    }
+
+    public void testReload() throws Exception {
+        final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
+
+        final PlainActionFuture<ActionResponse.Empty> value = new PlainActionFuture<>();
+        final Client mockedClient = mock(Client.class);
+
+        final Realms mockedRealms = mock(Realms.class);
+        when(mockedRealms.stream()).thenReturn(Stream.of());
+
+        doAnswer((inv) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
+            return null;
+        }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+
+        security = new Security(settings, Collections.emptyList()) {
+            @Override
+            protected Client getClient() {
+                return mockedClient;
+            }
+
+            @Override
+            protected Realms getRealms() {
+                return mockedRealms;
+            }
+        };
+
+        final Settings inputSettings = Settings.EMPTY;
+        security.reload(inputSettings);
+
+        verify(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+        verify(mockedRealms).stream();
+    }
+
+    public void testReloadWithFailures() {
+        final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
+
+        final boolean failRemoteClusterCredentialsReload = randomBoolean();
+        final Client mockedClient = mock(Client.class);
+        if (failRemoteClusterCredentialsReload) {
+            doAnswer((inv) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+                listener.onFailure(new RuntimeException("failed remote cluster credentials reload"));
+                return null;
+            }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+        } else {
+            doAnswer((inv) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
+                return null;
+            }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+        }
+
+        final Realms mockedRealms = mock(Realms.class);
+        final boolean failRealmsReload = (false == failRemoteClusterCredentialsReload) || randomBoolean();
+        if (failRealmsReload) {
+            when(mockedRealms.stream()).thenThrow(new RuntimeException("failed jwt realms reload"));
+        } else {
+            when(mockedRealms.stream()).thenReturn(Stream.of());
+        }
+        security = new Security(settings, Collections.emptyList()) {
+            @Override
+            protected Client getClient() {
+                return mockedClient;
+            }
+
+            @Override
+            protected Realms getRealms() {
+                return mockedRealms;
+            }
+        };
+
+        final Settings inputSettings = Settings.EMPTY;
+        final var exception = expectThrows(ElasticsearchException.class, () -> security.reload(inputSettings));
+
+        assertThat(exception.getMessage(), containsString("secure settings reload failed for one or more security component"));
+        if (failRemoteClusterCredentialsReload) {
+            assertThat(exception.getSuppressed()[0].getMessage(), containsString("failed remote cluster credentials reload"));
+            if (failRealmsReload) {
+                assertThat(exception.getSuppressed()[1].getMessage(), containsString("failed jwt realms reload"));
+            }
+        } else {
+            assertThat(exception.getSuppressed()[0].getMessage(), containsString("failed jwt realms reload"));
+        }
+        // Verify both called despite failure
+        verify(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+        verify(mockedRealms).stream();
+    }
+
+    public void testLoadNoExtensions() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put("path.home", createTempDir())
+            .put(OPERATOR_PRIVILEGES_ENABLED.getKey(), true)
+            .build();
+        constructNewSecurityObject(settings);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return new ArrayList<>();
+            }
+        });
+        createComponentsUtil(settings);
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
+        assertThat(operatorPrivilegesService, instanceOf(OperatorPrivileges.DefaultOperatorPrivilegesService.class));
+        OperatorOnlyRegistry registry = ((OperatorPrivileges.DefaultOperatorPrivilegesService) operatorPrivilegesService)
+            .getOperatorOnlyRegistry();
+        assertThat(registry, instanceOf(DefaultOperatorOnlyRegistry.class));
+
+    }
+
+    public void testLoadExtensionsWhenOperatorPrivsAreDisabled() throws Exception {
+        Settings.Builder settingsBuilder = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir());
+
+        if (randomBoolean()) {
+            settingsBuilder.put(OPERATOR_PRIVILEGES_ENABLED.getKey(), false); // doesn't matter if explicit or implicitly disabled
+        }
+
+        Settings settings = settingsBuilder.build();
+        constructNewSecurityObject(settings);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                List<Object> extensions = new ArrayList<>();
+                if (extensionPointType == OperatorOnlyRegistry.class) {
+                    if (randomBoolean()) {
+                        extensions.add(new DummyOperatorOnlyRegistry()); // won't ever be used
+                    }
+                }
+                return (List<T>) extensions;
+            }
+        });
+        createComponentsUtil(settings);
+        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
+        assertThat(operatorPrivilegesService, is(NOOP_OPERATOR_PRIVILEGES_SERVICE));
     }
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {
@@ -758,5 +1076,72 @@ public class SecurityTests extends ESTestCase {
         assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
         assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), hasSize(expectedValues.length));
         assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), containsInAnyOrder(expectedValues));
+    }
+
+    private String randomCacheHashSetting() {
+        Authentication.RealmRef ref = AuthenticationTestHelper.randomRealmRef(randomBoolean());
+        return randomFrom(
+            getFullSettingKey(
+                new RealmConfig.RealmIdentifier(ref.getType(), ref.getName()),
+                CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING
+            ),
+            CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING.getKey(),
+            ApiKeyService.CACHE_HASH_ALGO_SETTING.getKey()
+        );
+    }
+
+    private String randomNonFipsCompliantCacheHash() {
+        return randomFrom(
+            Hasher.getAvailableAlgoCacheHash()
+                .stream()
+                .filter(alg -> (alg.startsWith("pbkdf2") || alg.equals("ssha256")) == false)
+                .collect(Collectors.toList())
+        );
+    }
+
+    private String randomNonFipsCompliantStoredHash() {
+        return randomFrom(
+            Hasher.getAvailableAlgoStoredHash().stream().filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())
+        );
+    }
+
+    private MockLogAppender.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
+        return new MockLogAppender.SeenEventExpectation(
+            "cache hash not fips compliant",
+            Security.class.getName(),
+            Level.WARN,
+            "[*] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
+                + "The recommended hasher for ["
+                + settingKey
+                + "] is SSHA256."
+        );
+    }
+
+    private MockLogAppender.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
+        return new MockLogAppender.SeenEventExpectation(
+            "stored hash not fips compliant",
+            Security.class.getName(),
+            Level.WARN,
+            "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                + "Please set the appropriate value for ["
+                + settingKey
+                + "] setting."
+        );
+    }
+
+    private void expectLogs(Class<?> clazz, List<MockLogAppender.LoggingExpectation> expected, Runnable runnable)
+        throws IllegalAccessException {
+        final MockLogAppender mockAppender = new MockLogAppender();
+        final Logger logger = LogManager.getLogger(clazz);
+        mockAppender.start();
+        try {
+            Loggers.addAppender(logger, mockAppender);
+            expected.forEach(mockAppender::addExpectation);
+            runnable.run();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 }

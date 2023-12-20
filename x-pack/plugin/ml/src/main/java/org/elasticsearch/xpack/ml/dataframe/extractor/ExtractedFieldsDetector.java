@@ -249,7 +249,7 @@ public class ExtractedFieldsDetector {
         fieldSelection.add(FieldSelection.excluded(field, getMappingTypes(field), reason));
     }
 
-    private void addExcludedNestedPattern(String pattern, Set<FieldSelection> fieldSelection) {
+    private static void addExcludedNestedPattern(String pattern, Set<FieldSelection> fieldSelection) {
         fieldSelection.add(
             FieldSelection.excluded(pattern, Collections.singleton(NestedObjectMapper.CONTENT_TYPE), "nested fields are not supported")
         );
@@ -327,22 +327,34 @@ public class ExtractedFieldsDetector {
         try {
             // If the inclusion set does not match anything, that means the user's desired fields cannot be found in
             // the collection of supported field types. We should let the user know.
-            Set<String> includedSet = NameResolver.newUnaliased(
+            Set<String> includedSet = expandFields(
+                analyzedFields.includes().length == 0 ? new String[] { "*" } : analyzedFields.includes(),
                 fields,
-                (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex))
-            ).expand(includes, false);
+                false
+            );
+
             // If the exclusion set does not match anything, that means the fields are already not present
             // no need to raise if nothing matched
-            Set<String> excludedSet = NameResolver.newUnaliased(
-                fieldCapabilitiesResponse.get().keySet(),
-                (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex))
-            ).expand(excludes, true);
+            Set<String> excludedSet = expandFields(analyzedFields.excludes(), fieldCapabilitiesResponse.get().keySet(), true);
 
             applyIncludesExcludes(fields, includedSet, excludedSet, fieldSelection);
         } catch (ResourceNotFoundException ex) {
             // Re-wrap our exception so that we throw the same exception type when there are no fields.
             throw ExceptionsHelper.badRequestException(ex.getMessage());
         }
+    }
+
+    private static Set<String> expandFields(String[] fields, Set<String> nameset, boolean allowNoMatch) {
+        NameResolver nameResolver = NameResolver.newUnaliased(
+            nameset,
+            (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex))
+        );
+
+        Set<String> expanded = new HashSet<>();
+        for (String field : fields) {
+            expanded.addAll(nameResolver.expand(field, allowNoMatch));
+        }
+        return expanded;
     }
 
     private void checkIncludesExcludesAreNotObjects(FetchSourceContext analyzedFields) {

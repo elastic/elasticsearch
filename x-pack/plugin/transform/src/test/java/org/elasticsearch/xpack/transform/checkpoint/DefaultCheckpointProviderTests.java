@@ -19,15 +19,18 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -43,9 +46,13 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -63,6 +70,10 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
+    private ParentTaskAssigningClient parentTaskClient;
+    private Client remoteClient1;
+    private Client remoteClient2;
+    private Client remoteClient3;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -73,6 +84,16 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        parentTaskClient = new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456"));
+        remoteClient1 = mock(Client.class);
+        when(remoteClient1.threadPool()).thenReturn(threadPool);
+        remoteClient2 = mock(Client.class);
+        when(remoteClient2.threadPool()).thenReturn(threadPool);
+        remoteClient3 = mock(Client.class);
+        when(remoteClient3.threadPool()).thenReturn(threadPool);
+        when(client.getRemoteClusterClient(eq("remote-1"), any())).thenReturn(remoteClient1);
+        when(client.getRemoteClusterClient(eq("remote-2"), any())).thenReturn(remoteClient2);
+        when(client.getRemoteClusterClient(eq("remote-3"), any())).thenReturn(remoteClient3);
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -95,7 +116,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source did not resolve to any open indexes"
             ),
-            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.emptySet()); }
+            () -> {
+                provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.emptySet());
+            }
         );
 
         assertExpectation(
@@ -111,7 +134,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source did not resolve to any concrete indexes"
             ),
-            () -> { provider.reportSourceIndexChanges(Collections.emptySet(), Collections.emptySet()); }
+            () -> {
+                provider.reportSourceIndexChanges(Collections.emptySet(), Collections.emptySet());
+            }
         );
     }
 
@@ -133,7 +158,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: [other_index]"
             ),
-            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.singleton("other_index")); }
+            () -> {
+                provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.singleton("other_index"));
+            }
         );
 
         assertExpectation(
@@ -149,7 +176,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: []"
             ),
-            () -> { provider.reportSourceIndexChanges(Sets.newHashSet("index", "other_index"), Collections.singleton("other_index")); }
+            () -> {
+                provider.reportSourceIndexChanges(Sets.newHashSet("index", "other_index"), Collections.singleton("other_index"));
+            }
         );
         assertExpectation(
             new MockLogAppender.SeenEventExpectation(
@@ -164,7 +193,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [], new indexes: [other_index]"
             ),
-            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Sets.newHashSet("index", "other_index")); }
+            () -> {
+                provider.reportSourceIndexChanges(Collections.singleton("index"), Sets.newHashSet("index", "other_index"));
+            }
         );
     }
 
@@ -195,7 +226,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found more than 10 changes, [50] removed indexes, [50] new indexes"
             ),
-            () -> { provider.reportSourceIndexChanges(oldSet, newSet); }
+            () -> {
+                provider.reportSourceIndexChanges(oldSet, newSet);
+            }
         );
     }
 
@@ -224,7 +257,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             clock,
-            client,
+            parentTaskClient,
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
@@ -268,10 +301,107 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
     }
 
+    // regression test for gh#91550, testing a local and a remote the same index name
+    public void testCreateNextCheckpointWithRemoteClient() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 1L, 2L, 3L }));
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        GetCheckpointAction.Response remoteCheckpointResponse = new GetCheckpointAction.Response(
+            Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
+        );
+        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient1).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
+
+        // local and remote share the same index name
+        when(remoteClusterResolver.resolve(any(String[].class))).thenReturn(
+            new RemoteClusterResolver.ResolvedIndices(Map.of("remote-1", List.of("index-1")), List.of("index-1"))
+        );
+
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
+            parentTaskClient,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+
+        SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(
+            new TransformCheckpoint(transformId, 100000000L, 7, emptyMap(), 120000000L),
+            new LatchedActionListener<>(ActionListener.wrap(checkpointHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertNotNull(checkpointHolder.get());
+        assertThat(checkpointHolder.get().getCheckpoint(), is(equalTo(8L)));
+        assertThat(checkpointHolder.get().getIndicesCheckpoints().keySet(), containsInAnyOrder("index-1", "remote-1:index-1"));
+    }
+
+    // regression test for gh#91550, testing 3 remotes with same index name
+    public void testCreateNextCheckpointWithRemoteClients() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response remoteCheckpointResponse1 = new GetCheckpointAction.Response(
+            Map.of("index-1", new long[] { 1L, 2L, 3L })
+        );
+        doAnswer(withResponse(remoteCheckpointResponse1)).when(remoteClient1).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        GetCheckpointAction.Response remoteCheckpointResponse2 = new GetCheckpointAction.Response(
+            Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
+        );
+        doAnswer(withResponse(remoteCheckpointResponse2)).when(remoteClient2).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        GetCheckpointAction.Response remoteCheckpointResponse3 = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 9L }));
+        doAnswer(withResponse(remoteCheckpointResponse3)).when(remoteClient3).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
+
+        // local and remote share the same index name
+        when(remoteClusterResolver.resolve(any(String[].class))).thenReturn(
+            new RemoteClusterResolver.ResolvedIndices(
+                Map.of("remote-1", List.of("index-1"), "remote-2", List.of("index-1"), "remote-3", List.of("index-1")),
+                Collections.emptyList()
+            )
+        );
+
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
+            parentTaskClient,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+
+        SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(
+            new TransformCheckpoint(transformId, 100000000L, 7, emptyMap(), 120000000L),
+            new LatchedActionListener<>(ActionListener.wrap(checkpointHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertNotNull(checkpointHolder.get());
+        assertThat(checkpointHolder.get().getCheckpoint(), is(equalTo(8L)));
+        assertThat(
+            checkpointHolder.get().getIndicesCheckpoints().keySet(),
+            containsInAnyOrder("remote-1:index-1", "remote-2:index-1", "remote-3:index-1")
+        );
+    }
+
     private DefaultCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
         return new DefaultCheckpointProvider(
             clock,
-            client,
+            parentTaskClient,
             new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,

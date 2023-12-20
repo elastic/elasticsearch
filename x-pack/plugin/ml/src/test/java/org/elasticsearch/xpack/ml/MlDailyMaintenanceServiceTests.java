@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -45,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -139,6 +140,21 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         );
     }
 
+    public void testNoAnomalyDetectionTasksWhenDisabled() throws InterruptedException {
+        when(clusterService.state()).thenReturn(createClusterState(false));
+
+        CountDownLatch latch = new CountDownLatch(2);
+        try (MlDailyMaintenanceService service = createService(latch, client, false, randomBoolean(), randomBoolean())) {
+            service.start();
+            latch.await(5, TimeUnit.SECONDS);
+        }
+
+        verify(client, never()).threadPool();
+        verify(client, never()).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        verify(client, never()).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(any(), any());
+    }
+
     private void assertThatBothTasksAreTriggered(Answer<?> deleteExpiredDataAnswer, Answer<?> getJobsAnswer) throws InterruptedException {
         when(clusterService.state()).thenReturn(createClusterState(false));
         doAnswer(deleteExpiredDataAnswer).when(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
@@ -160,6 +176,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         String jobId = "job-in-state-deleting";
         TaskInfo taskInfo = new TaskInfo(
             new TaskId("test", 123),
+            "test",
             "test",
             DeleteJobAction.NAME,
             "delete-job-" + jobId,
@@ -183,7 +200,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         ).execute(same(GetJobsAction.INSTANCE), any(), any());
         doAnswer(withResponse(new ListTasksResponse(Collections.singletonList(taskInfo), Collections.emptyList(), Collections.emptyList())))
             .when(client)
-            .execute(same(ListTasksAction.INSTANCE), any(), any());
+            .execute(same(TransportListTasksAction.TYPE), any(), any());
 
         CountDownLatch latch = new CountDownLatch(2);
         try (MlDailyMaintenanceService service = createService(latch, client)) {
@@ -193,7 +210,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
         verify(client, times(3)).threadPool();
         verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
-        verify(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
@@ -220,7 +237,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         ).execute(same(GetJobsAction.INSTANCE), any(), any());
         doAnswer(withResponse(new ListTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()))).when(
             client
-        ).execute(same(ListTasksAction.INSTANCE), any(), any());
+        ).execute(same(TransportListTasksAction.TYPE), any(), any());
         doAnswer(withResponse(AcknowledgedResponse.of(deleted))).when(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
 
         CountDownLatch latch = new CountDownLatch(2);
@@ -231,7 +248,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
         verify(client, times(4)).threadPool();
         verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
-        verify(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        verify(client).execute(same(TransportListTasksAction.TYPE), any(), any());
         verify(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
         verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
         verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
@@ -239,6 +256,16 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
     }
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {
+        return createService(latch, client, true, true, true);
+    }
+
+    private MlDailyMaintenanceService createService(
+        CountDownLatch latch,
+        Client client,
+        boolean isAnomalyDetectionEnabled,
+        boolean isDataFrameAnalyticsEnabled,
+        boolean isNlpEnabled
+    ) {
         return new MlDailyMaintenanceService(Settings.EMPTY, threadPool, client, clusterService, mlAssignmentNotifier, () -> {
             // We need to be careful that an unexpected iteration doesn't get squeezed in by the maintenance threadpool in
             // between the latch getting counted down to zero and the main test thread stopping the maintenance service.
@@ -250,7 +277,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             } else {
                 return TimeValue.timeValueHours(1);
             }
-        });
+        }, isAnomalyDetectionEnabled, isDataFrameAnalyticsEnabled, isNlpEnabled);
     }
 
     private static ClusterState createClusterState(boolean isUpgradeMode) {

@@ -19,13 +19,18 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
@@ -249,6 +254,57 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
         expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID));
 
+        closeShards(indexShard);
+    }
+
+    public void testConsistencyBetweenRequestAndSession() throws IOException {
+        IndexShard indexShard = newStartedShard(true);
+
+        final String sessionUUID = UUIDs.randomBase64UUID();
+        final Store.MetadataSnapshot metadata = restoreSourceService.openSession(sessionUUID, indexShard);
+        final Set<String> knownFileNames = metadata.fileMetadataMap().keySet();
+
+        final String anotherSessionUUID = UUIDs.randomBase64UUID();
+
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> restoreSourceService.ensureSessionShardIdConsistency(anotherSessionUUID, indexShard.shardId())
+        );
+        assertThat(e1.getMessage(), containsString("session [" + anotherSessionUUID + "] not found"));
+
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> restoreSourceService.ensureFileNameIsKnownToSession(anotherSessionUUID, randomFrom(knownFileNames))
+        );
+        assertThat(e2.getMessage(), containsString("session [" + anotherSessionUUID + "] not found"));
+
+        final ShardId anotherShardId = new ShardId(randomAlphaOfLengthBetween(3, 12), randomAlphaOfLength(20), randomIntBetween(0, 3));
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> restoreSourceService.ensureSessionShardIdConsistency(sessionUUID, anotherShardId)
+        );
+        assertThat(e3.getMessage(), containsString("does not match requested shardId [" + anotherShardId + "]"));
+
+        final String anotherFileName = randomValueOtherThanMany(knownFileNames::contains, () -> randomAlphaOfLengthBetween(3, 12));
+        final IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> restoreSourceService.ensureFileNameIsKnownToSession(sessionUUID, anotherFileName)
+        );
+        assertThat(e4.getMessage(), containsString("invalid file name [" + anotherFileName + "]"));
+
+        try {
+            restoreSourceService.ensureSessionShardIdConsistency(sessionUUID, indexShard.shardId());
+        } catch (Exception e) {
+            fail("should have succeeded, but got [" + e + "]");
+        }
+
+        try {
+            restoreSourceService.ensureFileNameIsKnownToSession(sessionUUID, randomFrom(knownFileNames));
+        } catch (Exception e) {
+            fail("should have succeeded, but got [" + e + "]");
+        }
+
+        restoreSourceService.closeSession(sessionUUID);
         closeShards(indexShard);
     }
 }

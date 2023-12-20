@@ -10,7 +10,7 @@ package org.elasticsearch.script.field;
 
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
-public class FlattenedDocValuesField extends AbstractKeywordDocValuesField {
+public class FlattenedDocValuesField extends BaseKeywordDocValuesField {
     public FlattenedDocValuesField(SortedBinaryDocValues input, String name) {
         super(input, name);
     }

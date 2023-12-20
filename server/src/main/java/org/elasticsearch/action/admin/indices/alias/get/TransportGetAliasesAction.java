@@ -9,7 +9,7 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -19,14 +19,15 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,32 +40,37 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
+/**
+ * NB prior to 8.12 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService (i.e. a
+ * HandledTransportAction) until we no longer need to support calling this action remotely.
+ */
+@UpdateForV9 // remove the HandledTransportAction superclass, this action need not be registered with the TransportService
+public class TransportGetAliasesAction extends TransportLocalClusterStateAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
+    private final ThreadContext threadContext;
 
     @Inject
     public TransportGetAliasesAction(
         TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
+        ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         super(
             GetAliasesAction.NAME,
-            transportService,
             clusterService,
-            threadPool,
+            transportService,
             actionFilters,
             GetAliasesRequest::new,
-            indexNameExpressionResolver,
-            GetAliasesResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
+        this.threadContext = clusterService.threadPool().getThreadContext();
     }
 
     @Override
@@ -78,15 +84,22 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
+    protected void localClusterStateOperation(
+        Task task,
+        GetAliasesRequest request,
+        ClusterState state,
+        ActionListener<GetAliasesResponse> listener
+    ) {
         assert Transports.assertNotTransportThread("no need to avoid the context switch and may be expensive if there are many aliases");
+        final var cancellableTask = (CancellableTask) task;
         // resolve all concrete indices upfront and warn/error later
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
         Map<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request.aliases(), concreteIndices);
+        cancellableTask.ensureNotCancelled();
         listener.onResponse(
             new GetAliasesResponse(
-                postProcess(request, concreteIndices, aliases, state, systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices),
+                postProcess(request, concreteIndices, aliases, state, systemIndexAccessLevel, threadContext, systemIndices),
                 postProcess(indexNameExpressionResolver, request, state)
             )
         );
@@ -95,7 +108,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     /**
      * Fills alias result with empty entries for requested indices when no specific aliases were requested.
      */
-    static ImmutableOpenMap<String, List<AliasMetadata>> postProcess(
+    static Map<String, List<AliasMetadata>> postProcess(
         GetAliasesRequest request,
         String[] concreteIndices,
         Map<String, List<AliasMetadata>> aliases,
@@ -105,7 +118,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         SystemIndices systemIndices
     ) {
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder(aliases);
+        Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>(aliases);
         for (String index : concreteIndices) {
             IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
             assert ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
@@ -121,9 +134,9 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                 assert previous == null;
             }
         }
-        final ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = mapBuilder.build();
+        final Map<String, List<AliasMetadata>> finalResponse = Collections.unmodifiableMap(mapBuilder);
         if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
-            checkSystemIndexAccess(request, systemIndices, state, finalResponse, systemIndexAccessLevel, threadContext);
+            checkSystemIndexAccess(systemIndices, state, finalResponse, systemIndexAccessLevel, threadContext);
         }
         return finalResponse;
     }
@@ -152,10 +165,9 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     }
 
     private static void checkSystemIndexAccess(
-        GetAliasesRequest request,
         SystemIndices systemIndices,
         ClusterState state,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliasesMap,
+        Map<String, List<AliasMetadata>> aliasesMap,
         SystemIndexAccessLevel systemIndexAccessLevel,
         ThreadContext threadContext
     ) {

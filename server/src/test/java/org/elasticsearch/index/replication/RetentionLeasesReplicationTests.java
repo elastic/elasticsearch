@@ -21,7 +21,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,13 +44,13 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
                 if (leases.isEmpty() == false && rarely()) {
                     RetentionLease leaseToRemove = randomFrom(leases);
                     leases.remove(leaseToRemove);
-                    group.removeRetentionLease(leaseToRemove.id(), ActionListener.wrap(latch::countDown));
+                    group.removeRetentionLease(leaseToRemove.id(), ActionListener.running(latch::countDown));
                 } else {
                     RetentionLease newLease = group.addRetentionLease(
                         Integer.toString(i),
                         randomNonNegativeLong(),
                         "test-" + i,
-                        ActionListener.wrap(latch::countDown)
+                        ActionListener.running(latch::countDown)
                     );
                     leases.add(newLease);
                 }
@@ -146,7 +146,7 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testTurnOffTranslogRetentionAfterAllShardStarted() throws Exception {
         final Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            settings.put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomIndexCompatibleVersion(random()));
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomCompatibleVersion(random()));
         }
         try (ReplicationGroup group = createGroup(between(1, 2), settings.build())) {
             group.startAll();

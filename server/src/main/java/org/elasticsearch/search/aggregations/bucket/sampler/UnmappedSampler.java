@@ -43,7 +43,7 @@ public class UnmappedSampler extends InternalSampler {
     }
 
     @Override
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return false;
     }
 

@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -176,6 +177,48 @@ public class JvmErgonomicsTests extends ESTestCase {
         assertThat(
             JvmErgonomics.choose(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=1g")),
             everyItem(not(startsWith("-XX:MaxDirectMemorySize=")))
+        );
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    public void testMissingOptionHandling() {
+        final Map<String, JvmOption> g1GcOn = Map.of("UseG1GC", new JvmOption("true", ""));
+        final Map<String, JvmOption> g1GcOff = Map.of("UseG1GC", new JvmOption("", ""));
+
+        assertFalse(JvmErgonomics.tuneG1GCHeapRegion(Map.of(), false));
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> JvmErgonomics.tuneG1GCHeapRegion(Map.of(), true)).getMessage(),
+            allOf(containsString("[UseG1GC]"), containsString("unexpectedly missing"))
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> JvmErgonomics.tuneG1GCHeapRegion(g1GcOn, true)).getMessage(),
+            allOf(containsString("[G1HeapRegionSize]"), containsString("unexpectedly missing"))
+        );
+        assertFalse(JvmErgonomics.tuneG1GCHeapRegion(g1GcOff, randomBoolean()));
+
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> JvmErgonomics.tuneG1GCReservePercent(Map.of(), randomBoolean())).getMessage(),
+            allOf(containsString("[UseG1GC]"), containsString("unexpectedly missing"))
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> JvmErgonomics.tuneG1GCReservePercent(g1GcOn, randomBoolean())).getMessage(),
+            allOf(containsString("[G1ReservePercent]"), containsString("unexpectedly missing"))
+        );
+        assertEquals(0, JvmErgonomics.tuneG1GCReservePercent(g1GcOff, randomBoolean()));
+
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> JvmErgonomics.tuneG1GCInitiatingHeapOccupancyPercent(Map.of())).getMessage(),
+            allOf(containsString("[UseG1GC]"), containsString("unexpectedly missing"))
+        );
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> JvmErgonomics.tuneG1GCInitiatingHeapOccupancyPercent(g1GcOn)).getMessage(),
+            allOf(containsString("[InitiatingHeapOccupancyPercent]"), containsString("unexpectedly missing"))
+        );
+        assertFalse(JvmErgonomics.tuneG1GCInitiatingHeapOccupancyPercent(g1GcOff));
+
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> new JvmOption("OptionName", null)).getMessage(),
+            allOf(containsString("could not determine the origin of JVM option [OptionName]"), containsString("unsupported"))
         );
     }
 

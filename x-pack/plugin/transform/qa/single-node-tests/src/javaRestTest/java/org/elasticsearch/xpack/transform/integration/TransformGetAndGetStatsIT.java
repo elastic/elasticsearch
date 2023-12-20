@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
@@ -21,7 +22,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -89,19 +89,19 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
         // Check all the different ways to retrieve transform stats
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_stats", authHeader);
+        Request getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "_stats", authHeader, randomTimeout());
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_all/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "_all/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "*/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "*/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1,pivot_2/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1,pivot_2/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_*/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_*/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
 
@@ -122,7 +122,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         }
 
         // only pivot_1
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
 
@@ -133,7 +133,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
 
         // only continuous
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_continuous/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + "pivot_continuous/_stats",
+            authHeader,
+            randomTimeout()
+        );
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
 
@@ -300,7 +305,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
-        Request request = createRequestWithAuth("GET", path, authHeader);
+        Request request = createRequestWithAuthAndTimeout("GET", path, authHeader, randomTimeout());
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         Response response = client().performRequest(request);
         Map<String, Object> stats = entityAsMap(response);
@@ -354,7 +359,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId + "/_stats", authHeader);
+        Request getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + transformId + "/_stats",
+            authHeader,
+            randomTimeout()
+        );
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
@@ -381,7 +391,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String transformSrc = "reviews_cont_pivot_test";
         createReviewsIndex(transformSrc);
         final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
-        String config = """
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -412,7 +422,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(transformDest, transformSrc);
+            }""", transformDest, transformSrc);
 
         createTransformRequest.setJsonEntity(config);
 
@@ -420,7 +430,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         startAndWaitForContinuousTransform(transformId, transformDest, null);
 
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId + "/_stats", null);
+        Request getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + transformId + "/_stats",
+            null,
+            randomTimeout()
+        );
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
@@ -451,10 +466,10 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         long now = Instant.now().toEpochMilli() - 1_000;
         for (int i = 0; i < numDocs; i++) {
             // Doing only new users so that there is a deterministic number of docs for progress
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"timestamp":%s}
-                """.formatted(transformSrc, randomFrom(42, 47, 113), 10, 5, now));
+                """, transformSrc, randomFrom(42, 47, 113), 10, 5, now));
         }
         bulk.append("\r\n");
         final Request bulkRequest = new Request("POST", "/_bulk");
@@ -498,7 +513,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
         int numberOfTransforms = randomIntBetween(1_500, 4_000);
         for (int i = 0; i < numberOfTransforms; ++i) {
-            String transformId = String.format(Locale.ROOT, "t-%05d", i);
+            String transformId = Strings.format("t-%05d", i);
             final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
             createTransformRequest.setJsonEntity(config);
             assertOK(client().performRequest(createTransformRequest));
@@ -520,20 +535,20 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
             assertEquals(size, configs.size());
             assertEquals(size, stats.size());
 
-            assertThat(configs.get(0).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
-            assertThat(configs.get(configs.size() - 1).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
-            assertThat(stats.get(0).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
-            assertThat(stats.get(stats.size() - 1).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
+            assertThat(configs.get(0).get("id"), equalTo(Strings.format("t-%05d", from)));
+            assertThat(configs.get(configs.size() - 1).get("id"), equalTo(Strings.format("t-%05d", from + size - 1)));
+            assertThat(stats.get(0).get("id"), equalTo(Strings.format("t-%05d", from)));
+            assertThat(stats.get(stats.size() - 1).get("id"), equalTo(Strings.format("t-%05d", from + size - 1)));
 
             if (size > 2) {
                 int randomElement = randomIntBetween(1, size - 1);
-                assertThat(configs.get(randomElement).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
-                assertThat(stats.get(randomElement).get("id"), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
+                assertThat(configs.get(randomElement).get("id"), equalTo(Strings.format("t-%05d", from + randomElement)));
+                assertThat(stats.get(randomElement).get("id"), equalTo(Strings.format("t-%05d", from + randomElement)));
             }
         }
 
         for (int i = 0; i < numberOfTransforms; ++i) {
-            deleteTransform(String.format(Locale.ROOT, "t-%05d", i));
+            deleteTransform(Strings.format("t-%05d", i));
         }
     }
 
@@ -571,5 +586,17 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
                   "frequency": "10s"
                 }
             """;
+    }
+
+    private Request createRequestWithAuthAndTimeout(String method, String endpoint, String authHeader, String timeout) {
+        Request request = createRequestWithAuth(method, endpoint, authHeader);
+        if (timeout != null) {
+            request.addParameter("timeout", timeout);
+        }
+        return request;
+    }
+
+    private static String randomTimeout() {
+        return randomFrom((String) null, "5s", "30s", "1m");
     }
 }

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -40,7 +42,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -154,7 +155,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, PAGE_TIMEOUT_NAME)),
             PAGE_TIMEOUT
         );
-        parser.declareObject(AbstractSqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
+        parser.declareObject(AbstractSqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER);
         parser.declareObject(AbstractSqlQueryRequest::runtimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         return parser;
     }
@@ -287,7 +288,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         validationException
                     );
                 }
-            } else if (SqlVersion.isClientCompatible(SqlVersion.fromId(CURRENT.id), requestInfo().version()) == false) {
+            } else if (SqlVersion.isClientCompatible(SqlVersion.fromId(Version.CURRENT.id), requestInfo().version()) == false) {
                 validationException = addValidationError(
                     "The ["
                         + requestInfo().version()
@@ -295,7 +296,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         + mode.toString()
                         + "] "
                         + "client is not compatible with Elasticsearch version ["
-                        + CURRENT
+                        + Build.current().version()
                         + "]",
                     validationException
                 );
@@ -427,16 +428,16 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public AbstractSqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readString();
-        params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
+        params = in.readCollectionAsList(AbstractSqlQueryRequest::readSqlTypedParamValue);
         zoneId = in.readZoneId();
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             catalog = in.readOptionalString();
         }
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
             runtimeMappings = in.readMap();
         }
     }
@@ -457,14 +458,14 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         out.writeString(query);
         out.writeCollection(params, AbstractSqlQueryRequest::writeSqlTypedParamValue);
         out.writeZoneId(zoneId);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             out.writeOptionalString(catalog);
         }
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);
         out.writeOptionalNamedWriteable(filter);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
             out.writeGenericMap(runtimeMappings);
         }
     }

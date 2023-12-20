@@ -11,6 +11,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -76,6 +77,9 @@ public class RestResourcesPlugin implements Plugin<Project> {
 
     public static final String COPY_YAML_TESTS_TASK = "copyYamlTestsTask";
     public static final String COPY_REST_API_SPECS_TASK = "copyRestApiSpecsTask";
+    public static final String YAML_TESTS_USAGE = "yaml-tests";
+    public static final String YAML_XPACK_TESTS_USAGE = "yaml-xpack-tests";
+    public static final String YAML_SPEC_USAGE = "yaml-spec";
     private static final String EXTENSION_NAME = "restResources";
 
     @Override
@@ -86,18 +90,41 @@ public class RestResourcesPlugin implements Plugin<Project> {
         SourceSet defaultSourceSet = sourceSets.maybeCreate(TEST_SOURCE_SET_NAME);
 
         // tests
-        Configuration testConfig = project.getConfigurations().create("restTestConfig");
-        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
+        Configuration testConfig = project.getConfigurations().create("restTestConfig", config -> {
+            config.setCanBeConsumed(false);
+            config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_TESTS_USAGE));
+        });
+        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig", config -> {
+            config.setCanBeConsumed(false);
+            config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_XPACK_TESTS_USAGE));
+        });
         // core
-        Dependency restTestdependency = project.getDependencies().project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
-        project.getDependencies().add(testConfig.getName(), restTestdependency);
-        // x-pack
-        Dependency restXPackTestdependency = project.getDependencies()
-            .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
-        project.getDependencies().add(xpackTestConfig.getName(), restXPackTestdependency);
+        // we guard this reference to :rest-api-spec with a find to make testing easier
+        var restApiSpecProjectAvailable = project.findProject(":rest-api-spec") != null;
+        if (restApiSpecProjectAvailable) {
+            Dependency restTestdependency = project.getDependencies()
+                .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
+            project.getDependencies().add(testConfig.getName(), restTestdependency);
+        }
 
-        project.getConfigurations().create("restTests");
-        project.getConfigurations().create("restXpackTests");
+        // x-pack
+        var restXpackTests = project.findProject(":x-pack:plugin") != null;
+        if (restXpackTests) {
+            Dependency restXPackTestdependency = project.getDependencies()
+                .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
+            project.getDependencies().add(xpackTestConfig.getName(), restXPackTestdependency);
+        }
+        project.getConfigurations()
+            .create(
+                "restTests",
+                config -> config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_TESTS_USAGE))
+            );
+        project.getConfigurations()
+            .create(
+                "restXpackTests",
+                config -> config.getAttributes()
+                    .attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_XPACK_TESTS_USAGE))
+            );
 
         Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
             .register(COPY_YAML_TESTS_TASK, CopyRestTestsTask.class, task -> {
@@ -113,10 +140,24 @@ public class RestResourcesPlugin implements Plugin<Project> {
             });
 
         // api
-        Configuration specConfig = project.getConfigurations().create("restSpec"); // name chosen for passivity
-        Dependency restSpecDependency = project.getDependencies().project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
-        project.getDependencies().add(specConfig.getName(), restSpecDependency);
-        project.getConfigurations().create("restSpecs");
+        Configuration specConfig = project.getConfigurations()
+            .create(
+                "restSpec", // name chosen for passivity
+                config -> {
+                    config.setCanBeConsumed(false);
+                    config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_SPEC_USAGE));
+                }
+            );
+        if (restApiSpecProjectAvailable) {
+            Dependency restSpecDependency = project.getDependencies()
+                .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
+            project.getDependencies().add(specConfig.getName(), restSpecDependency);
+        }
+        project.getConfigurations()
+            .create(
+                "restSpecs",
+                config -> config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_SPEC_USAGE))
+            );
 
         Provider<CopyRestApiTask> copyRestYamlApiTask = project.getTasks()
             .register(COPY_REST_API_SPECS_TASK, CopyRestApiTask.class, task -> {

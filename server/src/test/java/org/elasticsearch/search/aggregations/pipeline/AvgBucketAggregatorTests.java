@@ -12,9 +12,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -104,15 +102,19 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
             InternalAvg avgResult;
             InternalDateHistogram histogramResult;
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
 
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                avgResult = searchAndReduce(indexSearcher, query, avgBuilder, 10000, new MappedFieldType[] { fieldType, valueFieldType });
-                histogramResult = searchAndReduce(indexSearcher, query, histo, 10000, new MappedFieldType[] { fieldType, valueFieldType });
+                avgResult = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(avgBuilder, fieldType, valueFieldType).withMaxBuckets(10000).withQuery(query)
+                );
+                histogramResult = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(histo, fieldType, valueFieldType).withMaxBuckets(10000).withQuery(query)
+                );
             }
 
             // Finally, reduce the pipeline agg
@@ -159,18 +161,14 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             }
 
             InternalFilter filterResult;
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
                 MappedFieldType keywordField = keywordField(textField);
 
                 filterResult = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    filterAggregationBuilder,
-                    new MappedFieldType[] { fieldType, valueFieldType, keywordField }
+                    indexReader,
+                    new AggTestConfig(filterAggregationBuilder, fieldType, valueFieldType, keywordField).withQuery(query)
                 );
             }
 

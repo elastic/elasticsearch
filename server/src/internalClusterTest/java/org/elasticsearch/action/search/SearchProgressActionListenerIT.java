@@ -12,11 +12,13 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
@@ -27,7 +29,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -109,14 +110,15 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 List<SearchShard> searchShards,
                 List<SearchShard> skippedShards,
                 SearchResponse.Clusters clusters,
-                boolean fetchPhase
+                boolean fetchPhase,
+                TransportSearchAction.SearchTimeProvider timeProvider
             ) {
                 shardsListener.set(searchShards);
                 assertEquals(fetchPhase, hasFetchPhase);
             }
 
             @Override
-            public void onQueryResult(int shardIndex) {
+            public void onQueryResult(int shardIndex, QuerySearchResult result) {
                 assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numQueryResults.incrementAndGet();
             }
@@ -160,7 +162,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 throw new AssertionError();
             }
         };
-        client.executeLocally(SearchAction.INSTANCE, new SearchRequest(request) {
+        client.executeLocally(TransportSearchAction.TYPE, new SearchRequest(request) {
             @Override
             public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                 SearchTask task = super.createTask(id, type, action, parentTaskId, headers);
@@ -185,7 +187,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
     private static List<SearchShard> createRandomIndices(Client client) {
         int numIndices = randomIntBetween(3, 20);
         for (int i = 0; i < numIndices; i++) {
-            String indexName = String.format(Locale.ROOT, "index-%03d", i);
+            String indexName = Strings.format("index-%03d", i);
             assertAcked(client.admin().indices().prepareCreate(indexName).get());
             client.prepareIndex(indexName).setSource("number", i, "foo", "bar").get();
         }

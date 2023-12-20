@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -34,7 +33,7 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    public void testReset() throws IOException {
+    public void testReset() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         long startTime = 1514764800000L;
         final int bucketCount = 100;
@@ -69,7 +68,7 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
 
         List<String> auditMessages = fetchAllAuditMessages(job.getId());
         assertThat(auditMessages.isEmpty(), is(false));
-        assertThat(auditMessages.get(auditMessages.size() - 1), equalTo("Job has been reset"));
+        assertThat("Audit messages: " + auditMessages, auditMessages.get(auditMessages.size() - 1), equalTo("Job has been reset"));
     }
 
     private Job.Builder createJob(String jobId, TimeValue bucketSpan) {

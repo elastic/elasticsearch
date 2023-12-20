@@ -11,14 +11,13 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
@@ -30,6 +29,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -45,7 +46,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -78,6 +82,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -89,6 +94,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
 
+    private final ActionType<BulkResponse> bulkAction;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IngestService ingestService;
@@ -138,8 +144,39 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider
     ) {
-        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
+        this(
+            BulkAction.INSTANCE,
+            BulkRequest::new,
+            threadPool,
+            transportService,
+            clusterService,
+            ingestService,
+            client,
+            actionFilters,
+            indexNameExpressionResolver,
+            indexingPressure,
+            systemIndices,
+            relativeTimeProvider
+        );
+    }
+
+    TransportBulkAction(
+        ActionType<BulkResponse> bulkAction,
+        Writeable.Reader<BulkRequest> requestReader,
+        ThreadPool threadPool,
+        TransportService transportService,
+        ClusterService clusterService,
+        IngestService ingestService,
+        NodeClient client,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices,
+        LongSupplier relativeTimeProvider
+    ) {
+        super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
+        this.bulkAction = bulkAction;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
@@ -169,10 +206,26 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return indexRequest;
     }
 
+    public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(
+        final ActionListener<Response> listener
+    ) {
+        return listener.delegateFailureAndWrap((l, bulkItemResponses) -> {
+            assert bulkItemResponses.getItems().length == 1 : "expected exactly one item in bulk response";
+            final BulkItemResponse bulkItemResponse = bulkItemResponses.getItems()[0];
+            if (bulkItemResponse.isFailed() == false) {
+                @SuppressWarnings("unchecked")
+                final Response response = (Response) bulkItemResponse.getResponse();
+                l.onResponse(response);
+            } else {
+                l.onFailure(bulkItemResponse.getFailure().getCause());
+            }
+        });
+    }
+
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         /*
-         * This is called on the Transport tread so we can check the indexing
+         * This is called on the Transport thread so we can check the indexing
          * memory pressure *quickly* but we don't want to keep the transport
          * thread busy. Then, as soon as we have the indexing pressure in we fork
          * to one of the write thread pools. We do this because juggling the
@@ -192,6 +245,52 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
+        ensureClusterStateThenForkAndExecute(task, bulkRequest, executorName, releasingListener);
+    }
+
+    private void ensureClusterStateThenForkAndExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        String executorName,
+        ActionListener<BulkResponse> releasingListener
+    ) {
+        final ClusterState initialState = clusterService.state();
+        final ClusterBlockException blockException = initialState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        if (blockException != null) {
+            if (false == blockException.retryable()) {
+                releasingListener.onFailure(blockException);
+                return;
+            }
+            logger.trace("cluster is blocked, waiting for it to recover", blockException);
+            final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
+                initialState,
+                clusterService,
+                bulkRequest.timeout(),
+                logger,
+                threadPool.getThreadContext()
+            );
+            clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    forkAndExecute(task, bulkRequest, executorName, releasingListener);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    releasingListener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    releasingListener.onFailure(blockException);
+                }
+            }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
+        } else {
+            forkAndExecute(task, bulkRequest, executorName, releasingListener);
+        }
+    }
+
+    private void forkAndExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> releasingListener) {
         threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
@@ -202,21 +301,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     protected void doInternalExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
-        final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean indexRequestHasPipeline = IngestService.resolvePipelines(actionRequest, indexRequest, metadata);
-                hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 
             if (actionRequest instanceof IndexRequest ir) {
-                ir.checkAutoIdWithOpTypeCreateSupportedByVersion(minNodeVersion);
                 if (ir.getAutoGeneratedTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {
                     throw new IllegalArgumentException("autoGeneratedTimestamp should not be set externally");
                 }
@@ -227,7 +322,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
             // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
             // this path is never taken.
-            try {
+            ActionListener.run(listener, l -> {
                 if (Assertions.ENABLED) {
                     final boolean arePipelinesResolved = bulkRequest.requests()
                         .stream()
@@ -237,13 +332,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, listener);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
                 } else {
-                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
+                    ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            });
             return;
         }
 
@@ -273,37 +366,50 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
+        createMissingIndicesAndIndexData(
+            task,
+            bulkRequest,
+            executorName,
+            listener,
+            autoCreateIndices,
+            indicesThatCannotBeCreated,
+            startTime
+        );
+    }
+
+    /*
+     * This method is responsible for creating any missing indices and indexing the data in the BulkRequest
+     */
+    protected void createMissingIndicesAndIndexData(
+        Task task,
+        BulkRequest bulkRequest,
+        String executorName,
+        ActionListener<BulkResponse> listener,
+        Set<String> autoCreateIndices,
+        Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+        long startTime
+    ) {
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         if (autoCreateIndices.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
         } else {
             final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
             for (String index : autoCreateIndices) {
-                createIndex(index, bulkRequest.timeout(), minNodeVersion, new ActionListener<>() {
+                createIndex(index, bulkRequest.timeout(), new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse result) {
                         if (counter.decrementAndGet() == 0) {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
-                                @Override
-                                protected void doRun() {
-                                    executeBulk(
-                                        task,
-                                        bulkRequest,
-                                        startTime,
-                                        listener,
-                                        executorName,
-                                        responses,
-                                        indicesThatCannotBeCreated
-                                    );
-                                }
-                            });
+                            forkExecuteBulk(listener);
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof IndexNotFoundException) {
-                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) cause);
+                        if (cause instanceof IndexNotFoundException indexNotFoundException) {
+                            synchronized (indicesThatCannotBeCreated) {
+                                indicesThatCannotBeCreated.put(index, indexNotFoundException);
+                            }
                         } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
                             for (int i = 0; i < bulkRequest.requests.size(); i++) {
@@ -314,35 +420,32 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         }
                         if (counter.decrementAndGet() == 0) {
-                            final ActionListener<BulkResponse> wrappedListener = ActionListener.wrap(listener::onResponse, inner -> {
+                            forkExecuteBulk(ActionListener.wrap(listener::onResponse, inner -> {
                                 inner.addSuppressed(e);
                                 listener.onFailure(inner);
-                            });
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(wrappedListener) {
-                                @Override
-                                protected void doRun() {
-                                    executeBulk(
-                                        task,
-                                        bulkRequest,
-                                        startTime,
-                                        wrappedListener,
-                                        executorName,
-                                        responses,
-                                        indicesThatCannotBeCreated
-                                    );
-                                }
-
-                                @Override
-                                public void onRejection(Exception rejectedException) {
-                                    rejectedException.addSuppressed(e);
-                                    super.onRejection(rejectedException);
-                                }
-                            });
+                            }));
                         }
+                    }
+
+                    private void forkExecuteBulk(ActionListener<BulkResponse> finalListener) {
+                        threadPool.executor(executorName).execute(new ActionRunnable<>(finalListener) {
+                            @Override
+                            protected void doRun() {
+                                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+                            }
+                        });
                     }
                 });
             }
         }
+    }
+
+    /*
+     * This returns the IngestService to be used for the given request. The default implementation ignores the request and always returns
+     * the same ingestService, but child classes might use information in the request in creating an IngestService specific to that request.
+     */
+    protected IngestService getIngestService(BulkRequest request) {
+        return ingestService;
     }
 
     static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
@@ -362,7 +465,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return;
         }
 
-        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
 
         // At this point with write op is targeting a backing index of a data stream directly,
         // so checking if write op is append-only and if so fail.
@@ -402,8 +505,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         if (writeRequest.routing() != null) {
-            IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-            if (dataStream.getDataStream().isAllowCustomRouting() == false) {
+            DataStream dataStream = (DataStream) indexAbstraction;
+            if (dataStream.isAllowCustomRouting() == false) {
                 throw new IllegalArgumentException(
                     "index request targeting data stream ["
                         + dataStream.getName()
@@ -427,7 +530,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
+    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest();
         createIndexRequest.index(index);
         createIndexRequest.cause("auto(bulk api)");
@@ -450,7 +553,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return false;
     }
 
-    private long buildTookInMillis(long startTimeNanos) {
+    protected long buildTookInMillis(long startTimeNanos) {
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
@@ -571,7 +674,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[requests.size()])
+                    requests.toArray(new BulkItemRequest[0])
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
@@ -589,9 +692,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                             responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                         }
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
+                        maybeFinishHim();
                     }
 
                     @Override
@@ -603,15 +704,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
                         }
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
+                        maybeFinishHim();
                     }
 
-                    private void finishHim() {
-                        listener.onResponse(
-                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-                        );
+                    private void maybeFinishHim() {
+                        if (counter.decrementAndGet() == 0) {
+                            listener.onResponse(
+                                new BulkResponse(
+                                    responses.toArray(new BulkItemResponse[responses.length()]),
+                                    buildTookInMillis(startTimeNanos)
+                                )
+                            );
+                        }
                     }
                 });
             }
@@ -736,10 +840,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
-            return indexAbstractions.computeIfAbsent(
-                request.index(),
-                key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
-            );
+            try {
+                return indexAbstractions.computeIfAbsent(
+                    request.index(),
+                    key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+                );
+            } catch (IndexNotFoundException e) {
+                if (e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                    throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams", e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         IndexRouting routing(Index index) {
@@ -759,9 +871,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.executeBulkRequest(
+        getIngestService(original).executeBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
+            bulkRequestModifier::markItemAsDropped,
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
                 if (exception != null) {
@@ -798,14 +911,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
-                            threadPool.executor(Names.SAME).execute(runnable);
+                            runnable.run();
                         } else {
                             threadPool.executor(executorName).execute(runnable);
                         }
                     }
                 }
             },
-            bulkRequestModifier::markItemAsDropped,
             executorName
         );
     }

@@ -16,7 +16,10 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.rest.RestRequest.RESPONSE_RESTRICTED;
 
 public class RestUtils {
 
@@ -25,12 +28,7 @@ public class RestUtils {
      */
     private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
-    public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
-        @Override
-        public String decode(String value) {
-            return RestUtils.decodeComponent(value);
-        }
-    };
+    public static final PathTrie.Decoder REST_DECODER = RestUtils::decodeComponent;
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {
@@ -83,6 +81,9 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
+        if (RESPONSE_RESTRICTED.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("parameter [" + RESPONSE_RESTRICTED + "] is reserved and may not set");
+        }
         params.put(name, value);
     }
 
@@ -241,6 +242,18 @@ public class RestUtils {
         if (Strings.isNullOrEmpty(corsSetting)) {
             return new String[0];
         }
-        return Arrays.asList(corsSetting.split(",")).stream().map(String::trim).toArray(size -> new String[size]);
+        return Arrays.stream(corsSetting.split(",")).map(String::trim).toArray(String[]::new);
     }
+
+    /**
+     * Extract the trace id from the specified traceparent string.
+     * @see <a href="https://www.w3.org/TR/trace-context/#traceparent-header">W3 traceparent spec</a>
+     *
+     * @param traceparent   The value from the {@code traceparent} HTTP header
+     * @return  The trace id from the traceparent string, or {@code Optional.empty()} if it is not present.
+     */
+    public static Optional<String> extractTraceId(String traceparent) {
+        return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
+    }
+
 }

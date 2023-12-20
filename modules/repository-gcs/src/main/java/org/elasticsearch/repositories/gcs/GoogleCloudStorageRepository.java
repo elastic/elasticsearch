@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -34,7 +35,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRepository.class);
 
     // package private for testing
-    static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+    static final ByteSizeValue MIN_CHUNK_SIZE = ByteSizeValue.ONE;
 
     /**
      * Maximum allowed object size in GCS.
@@ -76,7 +77,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            RepositoriesMetrics.NOOP
         );
         this.storageService = storageService;
 

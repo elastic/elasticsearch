@@ -23,4 +23,9 @@ public class GetAutoscalingPolicyActionRequestWireSerializingTests extends Abstr
         return new GetAutoscalingPolicyAction.Request(randomAlphaOfLength(8));
     }
 
+    @Override
+    protected GetAutoscalingPolicyAction.Request mutateInstance(GetAutoscalingPolicyAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
 }

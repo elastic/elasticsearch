@@ -1,120 +1,27 @@
 [[plugin-authors]]
-== Help for plugin authors
+== Creating an {es} plugin
 
-:plugin-properties-files: {elasticsearch-root}/build-tools/src/main/resources
+{es} plugins are modular bits of code that add functionality to
+{es}. Plugins are written in Java and implement Java interfaces that
+are defined in the source code. Plugins are composed of JAR files and metadata
+files, compressed in a single zip file.
 
-The Elasticsearch repository contains examples of:
+There are two ways to create a plugin:
 
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/custom-settings[Java plugin]
-  which contains a plugin with custom settings.
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rest-handler[Java plugin]
-  which contains a plugin that registers a Rest handler.
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rescore[Java plugin]
-  which contains a rescore plugin.
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/script-expert-scoring[Java plugin]
-  which contains a script plugin.
+<<creating-stable-plugins>>:: 
+Text analysis plugins can be developed against the stable plugin API to provide
+{es} with custom Lucene analyzers, token filters, character filters, and
+tokenizers.
 
-These examples provide the bare bones needed to get started. For more
-information about how to write a plugin, we recommend looking at the plugins
-listed in this documentation for inspiration.
+<<creating-classic-plugins>>::
+Other plugins can be developed against the classic plugin API to provide custom
+authentication, authorization, or scoring mechanisms, and more.
 
-[discrete]
-=== Plugin descriptor file
+:plugin-type: stable
+include::development/creating-stable-plugins.asciidoc[]
+include::development/example-text-analysis-plugin.asciidoc[]
+:!plugin-type:
 
-All plugins must contain a file called `plugin-descriptor.properties`.
-The format for this file is described in detail in this example:
-
-["source","properties"]
---------------------------------------------------
-include::{plugin-properties-files}/plugin-descriptor.properties[]
---------------------------------------------------
-
-Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
-can fill in the necessary values in the `build.gradle` file for your plugin.
-
-[discrete]
-==== Mandatory elements for plugins
-
-
-[cols="<,<,<",options="header",]
-|=======================================================================
-|Element                    | Type   | Description
-
-|`description`              |String  | simple summary of the plugin
-
-|`version`                  |String  | plugin's version
-
-|`name`                     |String  | the plugin name
-
-|`classname`                |String  | the name of the class to load, fully-qualified.
-
-|`java.version`             |String  | version of java the code is built against.
-Use the system property `java.specification.version`. Version string must be a sequence
-of nonnegative decimal integers separated by "."'s and may have leading zeros.
-
-|`elasticsearch.version`    |String  | version of Elasticsearch compiled against.
-
-|=======================================================================
-
-Note that only jar files at the root of the plugin are added to the classpath for the plugin!
-If you need other resources, package them into a resources jar.
-
-[IMPORTANT]
-.Plugin release lifecycle
-==============================================
-
-You will have to release a new version of the plugin for each new Elasticsearch release.
-This version is checked when the plugin is loaded so Elasticsearch will refuse to start
-in the presence of plugins with the incorrect `elasticsearch.version`.
-
-==============================================
-
-
-[discrete]
-=== Testing your plugin
-
-When testing a Java plugin, it will only be auto-loaded if it is in the
-`plugins/` directory. Use `bin/elasticsearch-plugin install file:///path/to/your/plugin`
-to install your plugin for testing.
-
-You may also load your plugin within the test framework for integration tests.
-Read more in {ref}/integration-tests.html#changing-node-configuration[Changing Node Configuration].
-
-
-[discrete]
-[[plugin-authors-jsm]]
-=== Java Security permissions
-
-Some plugins may need additional security permissions. A plugin can include
-the optional `plugin-security.policy` file containing `grant` statements for
-additional permissions. Any additional permissions will be displayed to the user
-with a large warning, and they will have to confirm them when installing the
-plugin interactively. So if possible, it is best to avoid requesting any
-spurious permissions!
-
-If you are using the Elasticsearch Gradle build system, place this file in
-`src/main/plugin-metadata` and it will be applied during unit tests as well.
-
-Keep in mind that the Java security model is stack-based, and the additional
-permissions will only be granted to the jars in your plugin, so you will have
-write proper security code around operations requiring elevated privileges.
-It is recommended to add a check to prevent unprivileged code (such as scripts)
-from gaining escalated permissions. For example:
-
-[source,java]
---------------------------------------------------
-// ES permission you should check before doPrivileged() blocks
-import org.elasticsearch.SpecialPermission;
-
-SecurityManager sm = System.getSecurityManager();
-if (sm != null) {
-  // unprivileged code such as scripts do not have SpecialPermission
-  sm.checkPermission(new SpecialPermission());
-}
-AccessController.doPrivileged(
-  // sensitive operation
-);
---------------------------------------------------
-
-See https://www.oracle.com/technetwork/java/seccodeguide-139067.html[Secure Coding Guidelines for Java SE]
-for more information.
+:plugin-type: classic
+include::development/creating-classic-plugins.asciidoc[]
+:!plugin-type:

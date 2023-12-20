@@ -11,12 +11,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -64,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -139,7 +139,7 @@ public class DataFrameAnalyticsConfigProvider {
 
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DataFrameAnalyticsConfig.documentId(jobId));
         getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, getListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, getListener);
     }
 
     private void deleteLeftOverDocs(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
@@ -166,7 +166,7 @@ public class DataFrameAnalyticsConfigProvider {
         String id = update.getId();
 
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DataFrameAnalyticsConfig.documentId(id));
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
 
             // Fail the update request if the config to be updated doesn't exist
             if (getResponse.isExists() == false) {
@@ -176,14 +176,12 @@ public class DataFrameAnalyticsConfigProvider {
 
             // Parse the original config
             DataFrameAnalyticsConfig originalConfig;
-            try {
-                try (
-                    InputStream stream = getResponse.getSourceAsBytesRef().streamInput();
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-                ) {
-                    originalConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
-                }
+            try (
+                InputStream stream = getResponse.getSourceAsBytesRef().streamInput();
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+            ) {
+                originalConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchParseException("Failed to parse data frame analytics configuration [" + id + "]", e));
                 return;
@@ -255,7 +253,7 @@ public class DataFrameAnalyticsConfigProvider {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                IndexAction.INSTANCE,
+                TransportIndexAction.TYPE,
                 indexRequest,
                 ActionListener.wrap(indexResponse -> listener.onResponse(config), e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
@@ -326,7 +324,7 @@ public class DataFrameAnalyticsConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            new ActionListener.Delegating<SearchResponse, List<DataFrameAnalyticsConfig>>(listener) {
+            new DelegatingActionListener<SearchResponse, List<DataFrameAnalyticsConfig>>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     SearchHit[] hits = searchResponse.getHits().getHits();
@@ -345,7 +343,7 @@ public class DataFrameAnalyticsConfigProvider {
                     }
 
                     Set<String> tasksWithoutConfigs = new HashSet<>(jobsWithTask);
-                    tasksWithoutConfigs.removeAll(configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList()));
+                    configs.stream().map(DataFrameAnalyticsConfig::getId).toList().forEach(tasksWithoutConfigs::remove);
                     if (tasksWithoutConfigs.isEmpty() == false) {
                         logger.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
                     }

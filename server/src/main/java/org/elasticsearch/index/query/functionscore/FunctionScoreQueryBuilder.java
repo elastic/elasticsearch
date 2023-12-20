@@ -10,7 +10,8 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -138,7 +139,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public FunctionScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        filterFunctionBuilders = in.readList(FilterFunctionBuilder::new).toArray(new FilterFunctionBuilder[0]);
+        filterFunctionBuilders = in.readArray(FilterFunctionBuilder::new, FilterFunctionBuilder[]::new);
         maxBoost = in.readFloat();
         minScore = in.readOptionalFloat();
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
@@ -148,7 +149,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(query);
-        out.writeList(Arrays.asList(filterFunctionBuilders));
+        out.writeCollection(Arrays.asList(filterFunctionBuilders));
         out.writeFloat(maxBoost);
         out.writeOptionalFloat(minScore);
         out.writeOptionalWriteable(boostMode);
@@ -239,15 +240,19 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
         builder.endArray();
 
-        builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        if (scoreMode != DEFAULT_SCORE_MODE) {
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        }
         if (boostMode != null) {
             builder.field(BOOST_MODE_FIELD.getPreferredName(), boostMode.name().toLowerCase(Locale.ROOT));
         }
-        builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);
+        if (maxBoost != FunctionScoreQuery.DEFAULT_MAX_BOOST) {
+            builder.field(MAX_BOOST_FIELD.getPreferredName(), maxBoost);
+        }
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -445,7 +450,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         boolean singleFunctionFound = false;
         String singleFunctionName = null;
         List<FunctionScoreQueryBuilder.FilterFunctionBuilder> filterFunctionBuilders = new ArrayList<>();
-
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -646,7 +650,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

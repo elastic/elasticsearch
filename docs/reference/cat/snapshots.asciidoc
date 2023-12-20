@@ -11,7 +11,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<get-snapshot-api,get snapshot API>>.
 ====
 
-Returns information about the <<modules-snapshots,snapshots>> stored in one or
+Returns information about the <<snapshot-restore,snapshots>> stored in one or
 more repositories. A snapshot is a backup of an index or running {es} cluster.
 
 
@@ -103,7 +103,7 @@ units>>.
 `total_shards`, `ts`::
 (Default) Total number of shards in the snapshot.
 
-`reason, `r`::
+`reason`, `r`::
 Reason for any snapshot failures.
 --
 

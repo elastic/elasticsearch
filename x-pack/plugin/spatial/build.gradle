@@ -14,9 +14,12 @@ dependencies {
   compileOnly project(path: ':modules:legacy-geo')
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api project(":libs:elasticsearch-h3")
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('vector-tile'))
+  testImplementation project(path: ':modules:aggregations')
 }
 
 testClusters.configureEach {
@@ -29,4 +32,8 @@ if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
 }

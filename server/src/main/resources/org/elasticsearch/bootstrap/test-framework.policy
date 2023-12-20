@@ -83,6 +83,7 @@ grant codeBase "${codebase.mocksocket}" {
 grant codeBase "${codebase.elasticsearch}" {
   permission java.lang.RuntimePermission "setSecurityManager";
 };
+
 // this is the test-framework, but the jar is horribly named
 grant codeBase "${codebase.framework}" {
   permission java.lang.RuntimePermission "setSecurityManager";
@@ -123,6 +124,8 @@ grant codeBase "${codebase.netty-transport}" {
 };
 
 grant {
-  permission java.net.SocketPermission "127.0.0.1", "connect, resolve";
+  permission java.net.SocketPermission "127.0.0.1", "accept, connect, resolve";
   permission java.nio.file.LinkPermission "symbolic";
+  // needed for keystore tests
+  permission java.lang.RuntimePermission "accessUserInformation";
 };

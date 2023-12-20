@@ -244,18 +244,16 @@ public class FunctionRefTests extends ScriptTestCase {
     }
 
     public void testMethodMissing() {
-        Exception e = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("List l = [2, 1]; l.sort(Integer::bogus); return l.get(0);"); }
-        );
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = [2, 1]; l.sort(Integer::bogus); return l.get(0);");
+        });
         assertThat(e.getMessage(), containsString("function reference [Integer::bogus/2] matching [java.util.Comparator"));
     }
 
     public void testQualifiedMethodMissing() {
-        Exception e = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("List l = [2, 1]; l.sort(java.time.Instant::bogus); return l.get(0);", false); }
-        );
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = [2, 1]; l.sort(java.time.Instant::bogus); return l.get(0);", false);
+        });
         assertThat(
             e.getMessage(),
             containsString("function reference [java.time.Instant::bogus/2] matching [java.util.Comparator, compare/2")
@@ -263,26 +261,23 @@ public class FunctionRefTests extends ScriptTestCase {
     }
 
     public void testClassMissing() {
-        Exception e = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("List l = [2, 1]; l.sort(Bogus::bogus); return l.get(0);", false); }
-        );
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = [2, 1]; l.sort(Bogus::bogus); return l.get(0);", false);
+        });
         assertThat(e.getMessage(), endsWith("variable [Bogus] is not defined"));
     }
 
     public void testQualifiedClassMissing() {
-        Exception e = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("List l = [2, 1]; l.sort(org.package.BogusClass::bogus); return l.get(0);", false); }
-        );
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = [2, 1]; l.sort(org.package.BogusClass::bogus); return l.get(0);", false);
+        });
         assertEquals("variable [org.package.BogusClass] is not defined", e.getMessage());
     }
 
     public void testNotFunctionalInterface() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("List l = new ArrayList(); l.add(2); l.add(1); l.add(Integer::bogus); return l.get(0);"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = new ArrayList(); l.add(2); l.add(1); l.add(Integer::bogus); return l.get(0);");
+        });
         assertThat(
             expected.getMessage(),
             containsString("cannot convert function reference [Integer::bogus] to a non-functional interface [def]")
@@ -290,17 +285,15 @@ public class FunctionRefTests extends ScriptTestCase {
     }
 
     public void testIncompatible() {
-        expectScriptThrows(
-            ClassCastException.class,
-            () -> { exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::startsWith); return l.get(0);"); }
-        );
+        expectScriptThrows(ClassCastException.class, () -> {
+            exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::startsWith); return l.get(0);");
+        });
     }
 
     public void testWrongArity() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("Optional.empty().orElseGet(String::startsWith);"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("Optional.empty().orElseGet(String::startsWith);");
+        });
         assertThat(
             expected.getMessage(),
             containsString("function reference [String::startsWith/0] matching [java.util.function.Supplier")
@@ -308,18 +301,16 @@ public class FunctionRefTests extends ScriptTestCase {
     }
 
     public void testWrongArityNotEnough() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);");
+        });
         assertThat(expected.getMessage(), containsString("function reference [String::isEmpty/2] matching [java.util.Comparator"));
     }
 
     public void testWrongArityDef() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def y = Optional.empty(); return y.orElseGet(String::startsWith);"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def y = Optional.empty(); return y.orElseGet(String::startsWith);");
+        });
         assertThat(
             expected.getMessage(),
             containsString("function reference [String::startsWith/0] matching [java.util.function.Supplier")
@@ -327,38 +318,33 @@ public class FunctionRefTests extends ScriptTestCase {
     }
 
     public void testWrongArityNotEnoughDef() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);");
+        });
         assertThat(expected.getMessage(), containsString("function reference [String::isEmpty/2] matching [java.util.Comparator"));
     }
 
     public void testReturnVoid() {
-        Throwable expected = expectScriptThrows(
-            ClassCastException.class,
-            () -> { exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength).sum();"); }
-        );
+        Throwable expected = expectScriptThrows(ClassCastException.class, () -> {
+            exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength).sum();");
+        });
         assertThat(expected.getMessage(), containsString("Cannot cast from [void] to [long]."));
     }
 
     public void testReturnVoidDef() {
-        Exception expected = expectScriptThrows(
-            LambdaConversionException.class,
-            () -> { exec("StringBuilder b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(b::setLength);"); }
-        );
+        Exception expected = expectScriptThrows(LambdaConversionException.class, () -> {
+            exec("StringBuilder b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(b::setLength);");
+        });
         assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
 
-        expected = expectScriptThrows(
-            LambdaConversionException.class,
-            () -> { exec("def b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(b::setLength);"); }
-        );
+        expected = expectScriptThrows(LambdaConversionException.class, () -> {
+            exec("def b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(b::setLength);");
+        });
         assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
 
-        expected = expectScriptThrows(
-            LambdaConversionException.class,
-            () -> { exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength);"); }
-        );
+        expected = expectScriptThrows(LambdaConversionException.class, () -> {
+            exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength);");
+        });
         assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
     }
 

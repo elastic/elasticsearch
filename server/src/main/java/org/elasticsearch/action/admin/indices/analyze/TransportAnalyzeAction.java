@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
@@ -82,7 +83,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             actionFilters,
             indexNameExpressionResolver,
             AnalyzeAction.Request::new,
-            ThreadPool.Names.ANALYZE
+            threadPool.executor(ThreadPool.Names.ANALYZE)
         );
         this.settings = settings;
         this.indicesService = indicesService;
@@ -188,11 +189,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             MappedFieldType fieldType = indexService.mapperService().fieldType(request.field());
             if (fieldType != null) {
                 if (fieldType instanceof StringFieldType) {
-                    return indexService.mapperService()
-                        .indexAnalyzer(
-                            fieldType.name(),
-                            f -> { throw new IllegalArgumentException("No analyzer configured for field " + fieldType.name()); }
-                        );
+                    return indexService.mapperService().indexAnalyzer(fieldType.name(), f -> {
+                        throw new IllegalArgumentException("No analyzer configured for field " + fieldType.name());
+                    });
                 } else {
                     throw new IllegalArgumentException(
                         "Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields"
@@ -214,6 +213,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     ) throws IOException {
         if (request.tokenizer() != null) {
             return analysisRegistry.buildCustomAnalyzer(
+                IndexCreationContext.RELOAD_ANALYZERS,
                 indexSettings,
                 false,
                 request.tokenizer(),
@@ -223,6 +223,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
             || (request.charFilters() != null && request.charFilters().size() > 0))) {
                 return analysisRegistry.buildCustomAnalyzer(
+                    IndexCreationContext.RELOAD_ANALYZERS,
                     indexSettings,
                     true,
                     new NameOrDefinition("keyword"),

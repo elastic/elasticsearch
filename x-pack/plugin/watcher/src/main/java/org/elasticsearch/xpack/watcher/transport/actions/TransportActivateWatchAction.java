@@ -118,7 +118,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
         }
     }
 
-    private XContentBuilder activateWatchBuilder(boolean active, ZonedDateTime now) throws IOException {
+    private static XContentBuilder activateWatchBuilder(boolean active, ZonedDateTime now) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject()
                 .startObject(WatchField.STATUS.getPreferredName())

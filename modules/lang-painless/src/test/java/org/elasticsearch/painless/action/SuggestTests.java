@@ -11,9 +11,9 @@ package org.elasticsearch.painless.action;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.painless.ScriptTestCase;
-import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.antlr.EnhancedSuggestLexer;
 import org.elasticsearch.painless.antlr.SuggestLexer;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 
 import java.util.List;
 

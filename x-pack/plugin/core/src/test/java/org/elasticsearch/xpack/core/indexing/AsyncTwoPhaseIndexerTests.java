@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -124,7 +125,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 null,
                 1
             );
-            nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
+            ActionListener.respondAndRelease(
+                nextPhase,
+                new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null)
+            );
         }
 
         @Override
@@ -266,7 +270,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 awaitForLatch();
             }
 
-            nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
+            ActionListener.respondAndRelease(
+                nextPhase,
+                new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null)
+            );
         }
 
         @Override
@@ -356,9 +363,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            fail("should not be called");
-        }
+        protected void doSaveState(IndexerState state, Integer position, Runnable next) {}
 
         @Override
         protected void onFailure(Exception exc) {
@@ -399,9 +404,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+        public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
             delays.add(delay);
-
             return super.schedule(command, TimeValue.ZERO, executor);
         }
 

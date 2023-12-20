@@ -21,11 +21,11 @@ import java.util.List;
 
 public final class RemoteInfoResponse extends ActionResponse implements ToXContentObject {
 
-    private List<RemoteConnectionInfo> infos;
+    private final List<RemoteConnectionInfo> infos;
 
     RemoteInfoResponse(StreamInput in) throws IOException {
         super(in);
-        infos = in.readList(RemoteConnectionInfo::new);
+        infos = in.readCollectionAsImmutableList(RemoteConnectionInfo::new);
     }
 
     public RemoteInfoResponse(Collection<RemoteConnectionInfo> infos) {
@@ -38,7 +38,7 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(infos);
+        out.writeCollection(infos);
     }
 
     @Override

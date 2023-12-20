@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -28,11 +27,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.reservedstate.ActionWithReservedState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -42,6 +43,8 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -50,7 +53,9 @@ import static org.elasticsearch.core.Strings.format;
  * A base class for operations that needs to be performed on the master node.
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends
-    HandledTransportAction<Request, Response> {
+    HandledTransportAction<Request, Response>
+    implements
+        ActionWithReservedState<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
 
@@ -61,7 +66,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private final Writeable.Reader<Response> responseReader;
 
-    protected final String executor;
+    protected final Executor executor;
 
     protected TransportMasterNodeAction(
         String actionName,
@@ -72,7 +77,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         this(
             actionName,
@@ -98,9 +103,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -114,10 +119,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private void executeMasterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
-        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
             throw new TaskCancelledException("Task was cancelled");
         }
-
         masterOperation(task, request, state, listener);
     }
 
@@ -142,14 +146,31 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
+    // package private for testing
+    void validateForReservedState(Request request, ClusterState state) {
+        Optional<String> handlerName = reservedStateHandlerName();
+        assert handlerName.isPresent();
+
+        validateForReservedState(state, handlerName.get(), modifiedKeys(request), request.toString());
+    }
+
+    // package private for testing
+    boolean supportsReservedState() {
+        return reservedStateHandlerName().isPresent();
+    }
+
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
+        if (supportsReservedState()) {
+            validateForReservedState(request, state);
+        }
         logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
-        new AsyncSingleAction(task, request, listener).doStart(state);
+        request.mustIncRef();
+        new AsyncSingleAction(task, request, ActionListener.runBefore(listener, request::decRef)).doStart(state);
     }
 
     class AsyncSingleAction {
@@ -172,6 +193,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 listener.onFailure(new TaskCancelledException("Task was cancelled"));
                 return;
             }
+            final long currentStateVersion = clusterState.version();
             try {
                 final DiscoveryNodes nodes = clusterState.nodes();
                 if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
@@ -183,7 +205,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             listener.onFailure(blockException);
                         } else {
                             logger.debug("can't execute due to a cluster block, retrying", blockException);
-                            retry(clusterState, blockException, newState -> {
+                            retry(currentStateVersion, blockException, newState -> {
                                 try {
                                     ClusterBlockException newException = checkBlockIfStateRecovered(request, newState);
                                     return (newException == null || newException.retryable() == false);
@@ -205,19 +227,18 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                     ),
                                     t
                                 );
-                                retryOnMasterChange(clusterState, t);
+                                retryOnNextState(currentStateVersion, t);
                             } else {
                                 logger.debug("unexpected exception during publication", t);
                                 delegatedListener.onFailure(t);
                             }
                         });
-                        threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
+                        executor.execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
                         logger.debug("no known master node, scheduling a retry");
-                        retryOnMasterChange(clusterState, null);
+                        retryOnNextState(currentStateVersion, null);
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
@@ -225,7 +246,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             masterNode,
                             actionName,
                             request,
-                            new ActionListenerResponseHandler<Response>(listener, responseReader) {
+                            new ActionListenerResponseHandler<>(listener, responseReader, executor) {
                                 @Override
                                 public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();
@@ -239,7 +260,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                             nodes.getMasterNode(),
                                             exp.getDetailedMessage()
                                         );
-                                        retryOnMasterChange(clusterState, cause);
+                                        retryOnNextState(currentStateVersion, cause);
                                     } else {
                                         logger.trace(
                                             () -> format("failure when forwarding request [%s] to master [%s]", actionName, masterNode),
@@ -258,11 +279,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             }
         }
 
-        private void retryOnMasterChange(ClusterState state, Throwable failure) {
-            retry(state, failure, MasterNodeChangePredicate.build(state));
+        private void retryOnNextState(long currentStateVersion, Throwable failure) {
+            retry(currentStateVersion, failure, ClusterStateObserver.NON_NULL_MASTER_PREDICATE);
         }
 
-        private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
+        private void retry(long currentStateVersion, final Throwable failure, final Predicate<ClusterState> statePredicate) {
             if (observer == null) {
                 final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
                 if (remainingTimeoutMS <= 0) {
@@ -271,8 +292,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     return;
                 }
                 this.observer = new ClusterStateObserver(
-                    state,
-                    clusterService,
+                    currentStateVersion,
+                    clusterService.getClusterApplierService(),
                     TimeValue.timeValueMillis(remainingTimeoutMS),
                     logger,
                     threadPool.getThreadContext()

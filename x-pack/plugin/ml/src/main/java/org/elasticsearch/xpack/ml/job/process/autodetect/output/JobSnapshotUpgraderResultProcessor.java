@@ -69,7 +69,7 @@ public class JobSnapshotUpgraderResultProcessor {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.persister = Objects.requireNonNull(persister);
         this.process = Objects.requireNonNull(autodetectProcess);
-        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId).shouldRetry(this::isAlive);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.flushListener = new FlushListener();
     }
 
@@ -249,7 +249,7 @@ public class JobSnapshotUpgraderResultProcessor {
             }
 
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
-            persister.commitStateWrites(jobId);
+            persister.commitWrites(jobId, JobResultsPersister.CommitType.STATE);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

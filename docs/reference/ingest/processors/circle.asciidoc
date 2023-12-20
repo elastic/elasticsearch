@@ -12,11 +12,11 @@ Converts circle definitions of shapes to regular polygons which approximate them
 [options="header"]
 |======
 | Name                        | Required  | Default  | Description
-| `field`                     | yes       | -        | The string-valued field to trim whitespace from
+| `field`                     | yes       | -        | The field to interpret as a circle. Either a string in WKT format or a map for GeoJSON.
 | `target_field`              | no        | `field`  | The field to assign the polygon shape to, by default `field` is updated in-place
 | `ignore_missing`            | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 | `error_distance`            | yes       | -        | The difference between the resulting inscribed distance from center to side and the circle's radius (measured in meters for `geo_shape`, unit-less for `shape`)
-| `shape_type`                | yes       | -        | which field mapping type is to be used when processing the circle: `geo_shape` or `shape`
+| `shape_type`                | yes       | -        | Which field mapping type is to be used when processing the circle: `geo_shape` or `shape`
 include::common-options.asciidoc[]
 |======
 

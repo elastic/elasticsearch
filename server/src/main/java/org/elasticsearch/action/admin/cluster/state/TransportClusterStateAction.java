@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +26,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
@@ -36,11 +39,12 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
 
     @Inject
     public TransportClusterStateAction(
@@ -60,7 +64,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ClusterStateRequest::new,
             indexNameExpressionResolver,
             ClusterStateResponse::new,
-            ThreadPool.Names.SAME
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -92,7 +96,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ? acceptableClusterStatePredicate
             : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
-        if (acceptableClusterStatePredicate.test(state) && cancellableTask.isCancelled() == false) {
+        if (cancellableTask.notifyIfCancelled(listener)) {
+            return;
+        }
+        if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
             assert acceptableClusterStateOrFailedPredicate.test(state) == false;
@@ -106,7 +113,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         }
 
                         if (acceptableClusterStatePredicate.test(newState)) {
-                            ActionListener.completeWith(listener, () -> buildResponse(request, newState));
+                            executor.execute(ActionRunnable.supply(listener, () -> buildResponse(request, newState)));
                         } else {
                             listener.onFailure(
                                 new NotMasterException(
@@ -123,19 +130,29 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        try {
-                            if (cancellableTask.notifyIfCancelled(listener) == false) {
-                                listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                        ActionListener.run(listener, l -> {
+                            if (cancellableTask.notifyIfCancelled(l) == false) {
+                                l.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
                             }
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
+                        });
                     }
                 }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }
     }
 
+    @SuppressForbidden(reason = "exposing ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
+    }
+
+    @SuppressForbidden(reason = "exposing ClusterState#clusterFeatures requires reading them")
+    private static Map<String, Set<String>> getClusterFeatures(ClusterState clusterState) {
+        return clusterState.clusterFeatures().nodeFeatures();
+    }
+
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
+        ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT); // too heavy to construct & serialize cluster state without forking
+
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
@@ -143,6 +160,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
+            builder.nodeIdsToCompatibilityVersions(getCompatibilityVersions(currentState));
+            builder.nodeFeatures(getClusterFeatures(currentState));
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {
@@ -174,7 +193,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     // If the requested index is part of a data stream then that data stream should also be included:
                     IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
-                        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+                        DataStream dataStream = indexAbstraction.getParentDataStream();
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {

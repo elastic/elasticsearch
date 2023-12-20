@@ -183,7 +183,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected InternalComposite mutateInstance(InternalComposite instance) throws IOException {
+    protected InternalComposite mutateInstance(InternalComposite instance) {
         List<InternalComposite.InternalBucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         int code = randomIntBetween(0, 2);

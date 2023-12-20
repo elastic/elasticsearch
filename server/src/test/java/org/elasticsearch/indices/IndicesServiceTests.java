@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -33,10 +32,12 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateWriterUtils;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -87,6 +88,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -195,10 +197,16 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         return true;
     }
 
+    @Override
+    protected Settings nodeSettings() {
+        // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
+        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
+    }
+
     public void testCanDeleteShardContent() {
         IndicesService indicesService = getIndicesService();
         IndexMetadata meta = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -260,9 +268,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNull(meta.index("test"));
 
         test = createIndex("test");
-        client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
-        assertHitCount(client().prepareSearch("test").get(), 1);
+        assertHitCount(client().prepareSearch("test"), 1);
         IndexMetadata secondMetadata = clusterService.state().metadata().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
         ShardPath secondPath = ShardPath.loadShardPath(
@@ -359,7 +367,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
@@ -397,7 +405,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         // try to import a dangling index with the same name as the alias, it should fail
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(alias).settings(idxSettings)
@@ -405,7 +413,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         CountDownLatch latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.running(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
 
@@ -414,7 +422,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         // now try importing a dangling index with the same name as the alias, it should succeed.
         latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.running(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), not(originalState));
         assertNotNull(clusterService.state().getMetadata().index(alias));
@@ -428,7 +436,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         // import an index with minor version incremented by one over cluster master version, it should be ignored
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettingsLater = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(Version.CURRENT.id + 10000))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(IndexVersion.current().id() + 10000))
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         final IndexMetadata indexMetadataLater = new IndexMetadata.Builder(indexNameLater).settings(idxSettingsLater)
@@ -436,7 +444,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         CountDownLatch latch = new CountDownLatch(1);
-        dangling.allocateDangled(Arrays.asList(indexMetadataLater), ActionListener.wrap(latch::countDown));
+        dangling.allocateDangled(Arrays.asList(indexMetadataLater), ActionListener.running(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), equalTo(originalState));
     }
@@ -456,7 +464,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final IndicesService indicesService = getIndicesService();
         final Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             .build();
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
@@ -480,7 +488,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final IndicesService indicesService = getIndicesService();
         final Settings idxSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             .put(IndexModule.SIMILARITY_SETTINGS_PREFIX + ".test.type", "fake-similarity")
             .build();
@@ -558,7 +566,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             final String indexName = "foo-" + value;
             final Index index = new Index(indexName, UUIDs.randomBase64UUID());
             final Settings.Builder builder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             if (value != null) {
                 builder.put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), value);
@@ -581,7 +589,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final String indexName = "foobar";
         final Index index = new Index(indexName, UUIDs.randomBase64UUID());
         final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
             .put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), true)
             .put(BarEnginePlugin.BAR_INDEX_SETTING.getKey(), true)
@@ -603,12 +611,17 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testBuildAliasFilter() {
         var indicesService = getIndicesService();
-
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(
                 indexBuilder("test-0").state(IndexMetadata.State.OPEN)
                     .putAlias(AliasMetadata.builder("test-alias-0").filter(Strings.toString(QueryBuilders.termQuery("foo", "bar"))))
                     .putAlias(AliasMetadata.builder("test-alias-1").filter(Strings.toString(QueryBuilders.termQuery("foo", "baz"))))
+                    .putAlias(AliasMetadata.builder("test-alias-non-filtering"))
+            )
+            .put(
+                indexBuilder("test-1").state(IndexMetadata.State.OPEN)
+                    .putAlias(AliasMetadata.builder("test-alias-0").filter(Strings.toString(QueryBuilders.termQuery("foo", "bar"))))
+                    .putAlias(AliasMetadata.builder("test-alias-1").filter(Strings.toString(QueryBuilders.termQuery("foo", "bax"))))
                     .putAlias(AliasMetadata.builder("test-alias-non-filtering"))
             );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
@@ -618,9 +631,19 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-0"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0"));
+            assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
+        }
+        {
             AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-1"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-1"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "baz")));
+        }
+        {
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-1"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-1"));
+            assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bax")));
         }
         {
             AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1"));
@@ -632,9 +655,27 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
         }
         {
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-0", "test-alias-1"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0", "test-alias-1"));
+            BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
+            assertThat(filter.filter(), empty());
+            assertThat(filter.must(), empty());
+            assertThat(filter.mustNot(), empty());
+            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "bax"), QueryBuilders.termQuery("foo", "bar")));
+        }
+        {
             AliasFilter result = indicesService.buildAliasFilter(
                 state,
                 "test-0",
+                Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering")
+            );
+            assertThat(result.getAliases(), emptyArray());
+            assertThat(result.getQueryBuilder(), nullValue());
+        }
+        {
+            AliasFilter result = indicesService.buildAliasFilter(
+                state,
+                "test-1",
                 Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering")
             );
             assertThat(result.getAliases(), emptyArray());
@@ -646,12 +687,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         var indicesService = getIndicesService();
 
         final String dataStreamName1 = "logs-foobar";
+        final String dataStreamName2 = "logs-foobaz";
         IndexMetadata backingIndex1 = createBackingIndex(dataStreamName1, 1).build();
+        IndexMetadata backingIndex2 = createBackingIndex(dataStreamName2, 1).build();
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex1, false)
-            .put(DataStreamTestHelper.newInstance(dataStreamName1, List.of(backingIndex1.getIndex())));
+            .put(backingIndex2, false)
+            .put(DataStreamTestHelper.newInstance(dataStreamName1, List.of(backingIndex1.getIndex())))
+            .put(DataStreamTestHelper.newInstance(dataStreamName2, List.of(backingIndex2.getIndex())));
         mdBuilder.put("logs_foo", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "bar")));
+        mdBuilder.put("logs_foo", dataStreamName2, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
         mdBuilder.put("logs", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
+        mdBuilder.put("logs", dataStreamName2, null, Strings.toString(QueryBuilders.termQuery("foo", "bax")));
         mdBuilder.put("logs_bar", dataStreamName1, null, null);
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
@@ -659,6 +706,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
+        }
+        {
+            String index = backingIndex2.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"));
+            assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo"));
+            assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "baz")));
         }
         {
             String index = backingIndex1.getIndex().getName();
@@ -671,14 +724,26 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
         }
         {
-            String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
+            String index = backingIndex2.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
             assertThat(filter.must(), empty());
             assertThat(filter.mustNot(), empty());
-            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
+            assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bax")));
+        }
+        {
+            // querying an unfiltered and a filtered alias for the same data stream should drop the filters
+            String index = backingIndex1.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
+            assertThat(result, is(AliasFilter.EMPTY));
+        }
+        {
+            // similarly, querying the data stream name and a filtered alias should drop the filter
+            String index = backingIndex1.getIndex().getName();
+            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs", dataStreamName1));
+            assertThat(result, is(AliasFilter.EMPTY));
         }
     }
 }

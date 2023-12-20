@@ -38,6 +38,7 @@ public final class TransformAggregations {
     public static final String FLATTENED = "flattened";
     public static final String SCALED_FLOAT = "scaled_float";
     public static final String DOUBLE = "double";
+    public static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
     public static final String LONG = "long";
     public static final String GEO_SHAPE = "geo_shape";
     public static final String GEO_POINT = "geo_point";
@@ -55,7 +56,6 @@ public final class TransformAggregations {
     private static final List<String> UNSUPPORTED_AGGS = Arrays.asList(
         "adjacency_matrix",
         "auto_date_histogram",
-        "boxplot", // https://github.com/elastic/elasticsearch/issues/52189
         "composite", // DONT because it makes no sense
         "date_histogram",
         "date_range",
@@ -119,7 +119,8 @@ public final class TransformAggregations {
         RARE_TERMS("rare_terms", FLATTENED),
         MISSING("missing", LONG),
         TOP_METRICS("top_metrics", SOURCE),
-        STATS("stats", DOUBLE);
+        STATS("stats", DOUBLE),
+        BOXPLOT("boxplot", DOUBLE);
 
         private final String aggregationType;
         private final String targetMapping;
@@ -173,6 +174,11 @@ public final class TransformAggregations {
             // scaled float requires an additional parameter "scaling_factor", which we do not know, therefore we fallback to float
             if (sourceType.equals(SCALED_FLOAT)) {
                 return FLOAT;
+            }
+
+            // min/max/sum aggregations over aggregate_metric_double return double
+            if (sourceType.equals(AGGREGATE_METRIC_DOUBLE)) {
+                return DOUBLE;
             }
 
             return sourceType;

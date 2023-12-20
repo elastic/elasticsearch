@@ -162,7 +162,15 @@ class LicenseOverrides {
             Map.entry("815e7855f6d368620d993455993992fd6ac033a836155871d817cd6f9b5a59c2", EXPIRED),
             Map.entry("6017293796d20658ae8a39535961e6460ccd65bce7f7dd1a10259c52500287b3", EXPIRED),
             Map.entry("ad300cbe3673033316b78227a3f3a89d5ff3bf9db5f51b1be0de913551788999", EXPIRED),
-            Map.entry("a47c23d69a88b14e2fe2177b39165c1c20f45dd6a16fb54f20d448c6b830f9b4", EXPIRED)
+            Map.entry("a47c23d69a88b14e2fe2177b39165c1c20f45dd6a16fb54f20d448c6b830f9b4", EXPIRED),
+            Map.entry("3d283f93759c3499e3ff85226f6f728993996e5e14326e75e50f9acd5a3a153c", EXPIRED),
+            Map.entry("98d3ef0a4aaf38f9bce31c5096121ea2faccf81c2ed747674562c963bb0aa3c3", EXPIRED),
+            Map.entry("82b9dd9b7eba701b5f9547c4a1236a639925ff550d639585f4c7461389f2c645", EXPIRED),
+            Map.entry("198c6b263e8057ca3cd49a90c59e8a2051273cbea638bf4a1442bdff289c88ec", EXPIRED),
+            Map.entry("0600c806f9f3977698d516d52476b8597bed99f1818ed555db8a30ffab5aa82e", EXPIRED),
+            Map.entry("978b60101b872f510ca158a50d3ef928b5d1678d1d0c78aed68155a9230b088f", EXPIRED),
+            Map.entry("24e6e985024a56b0fcddd990ab7a48de7acde5e2402a420f59f299f1231c3b57", EXPIRED),
+            Map.entry("833c7e2336c4f5adfba1f10445124cf2ab602ecc99c89f65c867f5af03d5d106", EXPIRED)
         );
     }
 

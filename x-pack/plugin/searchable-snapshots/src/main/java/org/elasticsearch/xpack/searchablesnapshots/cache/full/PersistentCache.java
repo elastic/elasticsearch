@@ -39,6 +39,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -51,7 +52,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 
@@ -307,11 +307,12 @@ public class PersistentCache implements Closeable {
         }
     }
 
-    public long getNumDocs() {
+    // package private for tests
+    long getNumDocs() {
         ensureOpen();
         long count = 0L;
         for (CacheIndexWriter writer : writers) {
-            count += writer.indexWriter.getPendingNumDocs();
+            count += writer.indexWriter.getDocStats().numDocs;
         }
         return count;
     }
@@ -576,12 +577,12 @@ public class PersistentCache implements Closeable {
         }
 
         final CacheKey cacheKey = cacheFile.getCacheKey();
-        document.add(new StringField(FILE_NAME_FIELD, cacheKey.getFileName(), Field.Store.YES));
+        document.add(new StringField(FILE_NAME_FIELD, cacheKey.fileName(), Field.Store.YES));
         document.add(new StringField(FILE_LENGTH_FIELD, Long.toString(cacheFile.getLength()), Field.Store.YES));
-        document.add(new StringField(SNAPSHOT_ID_FIELD, cacheKey.getSnapshotUUID(), Field.Store.YES));
-        document.add(new StringField(SNAPSHOT_INDEX_NAME_FIELD, cacheKey.getSnapshotIndexName(), Field.Store.YES));
+        document.add(new StringField(SNAPSHOT_ID_FIELD, cacheKey.snapshotUUID(), Field.Store.YES));
+        document.add(new StringField(SNAPSHOT_INDEX_NAME_FIELD, cacheKey.snapshotIndexName(), Field.Store.YES));
 
-        final ShardId shardId = cacheKey.getShardId();
+        final ShardId shardId = cacheKey.shardId();
         document.add(new StringField(SHARD_INDEX_NAME_FIELD, shardId.getIndex().getName(), Field.Store.YES));
         document.add(new StringField(SHARD_INDEX_ID_FIELD, shardId.getIndex().getUUID(), Field.Store.YES));
         document.add(new StringField(SHARD_ID_FIELD, Integer.toString(shardId.getId()), Field.Store.YES));

@@ -50,7 +50,7 @@ class LoadAuthorizedIndicesTimeChecker implements Consumer<Collection<String>> {
                     + " The index privileges for this user may be too complex for this cluster.",
                 indices.size(),
                 requestInfo.getAction(),
-                requestInfo.getAuthentication().getUser().principal(),
+                requestInfo.getAuthentication().getEffectiveSubject().getUser().principal(),
                 millis,
                 thresholds.warnThresholdMs
             );
@@ -61,7 +61,7 @@ class LoadAuthorizedIndicesTimeChecker implements Consumer<Collection<String>> {
                 millis,
                 indices.size(),
                 requestInfo.getAction(),
-                requestInfo.getAuthentication().getUser().principal()
+                requestInfo.getAuthentication().getEffectiveSubject().getUser().principal()
             );
         }
     }

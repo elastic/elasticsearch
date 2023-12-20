@@ -13,7 +13,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +26,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -103,7 +101,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             );
         }
 
-        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField().equals(collapseField) == false)) {
+        if (collapseField != null && (sortFields.length > 1 || Objects.equals(sortFields[0].getField(), collapseField) == false)) {
             throw new IllegalArgumentException(
                 "Cannot use [collapse] in conjunction with ["
                     + SEARCH_AFTER.getPreferredName()
@@ -154,23 +152,17 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
     private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value, DocValueFormat format) {
         try {
             switch (sortType) {
-                case DOC:
+                case DOC, INT:
                     if (value instanceof Number) {
                         return ((Number) value).intValue();
                     }
                     return Integer.parseInt(value.toString());
 
-                case SCORE:
+                case SCORE, FLOAT:
                     if (value instanceof Number) {
                         return ((Number) value).floatValue();
                     }
                     return Float.parseFloat(value.toString());
-
-                case INT:
-                    if (value instanceof Number) {
-                        return ((Number) value).intValue();
-                    }
-                    return Integer.parseInt(value.toString());
 
                 case DOUBLE:
                     if (value instanceof Number) {
@@ -188,12 +180,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                         false,
                         () -> { throw new IllegalStateException("now() is not allowed in [search_after] key"); }
                     );
-
-                case FLOAT:
-                    if (value instanceof Number) {
-                        return ((Number) value).floatValue();
-                    }
-                    return Float.parseFloat(value.toString());
 
                 case STRING_VAL:
                 case STRING:
@@ -301,13 +287,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to build xcontent.", e);
-        }
+        return Strings.toString(this, true, true);
     }
 }

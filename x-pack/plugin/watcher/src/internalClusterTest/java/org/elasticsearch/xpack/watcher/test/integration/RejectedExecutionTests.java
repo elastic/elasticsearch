@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
@@ -36,7 +36,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
 
     public void testHistoryOnRejection() throws Exception {
         createIndex("idx");
-        client().prepareIndex("idx").setSource("field", "a").get();
+        prepareIndex("idx").setSource("field", "a").get();
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "a")), "idx");
         new PutWatchRequestBuilder(client()).setId(randomAlphaOfLength(5))
@@ -50,8 +50,10 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
 
         assertBusy(() -> {
             flushAndRefresh(".watcher-history-*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
-            assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(2L));
+            assertResponse(
+                prepareSearch(".watcher-history-*"),
+                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(2L))
+            );
         });
     }
 
@@ -61,7 +63,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 1)
             .put("xpack.watcher.thread_pool.size", 1)

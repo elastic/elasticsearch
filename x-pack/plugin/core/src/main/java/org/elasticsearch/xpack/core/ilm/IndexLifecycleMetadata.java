@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -14,15 +15,18 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,12 +50,9 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         )
     );
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> LifecyclePolicyMetadata.parse(p, n),
-            v -> { throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported"); },
-            POLICIES_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicyMetadata.parse(p, n), v -> {
+            throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
+        }, POLICIES_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);
     }
 
@@ -75,7 +76,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(policyMetadatas, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(policyMetadatas, StreamOutput::writeWriteable);
         out.writeEnum(operationMode);
     }
 
@@ -83,6 +84,10 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         return policyMetadatas;
     }
 
+    /**
+     * @deprecated use {@link LifecycleOperationMetadata#getILMOperationMode()} instead. This may be incorrect.
+     */
+    @Deprecated(since = "8.7.0")
     public OperationMode getOperationMode() {
         return operationMode;
     }
@@ -100,15 +105,16 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.xContentValuesMap(POLICIES_FIELD.getPreferredName(), policyMetadatas);
-        builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentValuesMap(POLICIES_FIELD.getPreferredName(), policyMetadatas),
+            Iterators.single((builder, params) -> builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode))
+        );
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -140,7 +146,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(this, false, true);
     }
 
     public static class IndexLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {
@@ -183,8 +189,8 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
 
         static Diff<LifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {

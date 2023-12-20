@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalyticsAction.Response> {
 
     public static final GetDataFrameAnalyticsAction INSTANCE = new GetDataFrameAnalyticsAction();
@@ -25,7 +27,7 @@ public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalytic
         super(NAME, Response::new);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
@@ -45,6 +47,11 @@ public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalytic
         @Override
         public String getResourceIdField() {
             return DataFrameAnalyticsConfig.ID.getPreferredName();
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_data_frame_analytics[%s]", getResourceId());
         }
     }
 

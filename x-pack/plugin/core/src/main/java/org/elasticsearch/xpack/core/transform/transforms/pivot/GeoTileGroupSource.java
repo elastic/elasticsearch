@@ -106,7 +106,7 @@ public class GeoTileGroupSource extends SingleGroupSource {
         }
         if (geoBoundingBox != null) {
             builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
-            geoBoundingBox.toXContentFragment(builder, true);
+            geoBoundingBox.toXContentFragment(builder);
             builder.endObject();
         }
         builder.endObject();

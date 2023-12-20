@@ -12,11 +12,11 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 
-abstract class AbstractStringPattern implements StringPattern {
+public abstract class AbstractStringPattern implements StringPattern {
 
     private Automaton automaton;
 
-    abstract Automaton createAutomaton();
+    public abstract Automaton createAutomaton();
 
     private Automaton automaton() {
         if (automaton == null) {

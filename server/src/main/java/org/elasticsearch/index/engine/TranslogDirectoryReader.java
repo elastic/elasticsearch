@@ -11,11 +11,13 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
@@ -30,12 +32,14 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
@@ -155,6 +159,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             0,
             0,
+            VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
             false
         );
@@ -172,6 +177,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             0,
             0,
+            VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
             false
         );
@@ -189,6 +195,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             0,
             0,
+            VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
             false
         );
@@ -249,7 +256,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
                     operation.source(),
                     XContentHelper.xContentType(operation.source()),
                     operation.routing(),
-                    Map.of()
+                    Map.of(),
+                    false
                 ),
                 mappingLookup
             );
@@ -341,13 +349,23 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public VectorValues getVectorValues(String field) throws IOException {
-            return getDelegate().getVectorValues(field);
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return getDelegate().getFloatVectorValues(field);
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-            return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            return getDelegate().getByteVectorValues(field);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
         }
 
         @Override
@@ -379,6 +397,31 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public TermVectors termVectors() throws IOException {
+            return getDelegate().termVectors();
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    assert docID == 0;
+                    if (delegate.get() == null) {
+                        if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                            // override this for ShardGetService
+                            if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
+                                readStoredFieldsDirectly(visitor);
+                                return;
+                            }
+                        }
+                    }
+                    getDelegate().storedFields().document(docID, visitor);
+                }
+            };
+        }
+
+        @Override
         public int numDocs() {
             return 1;
         }
@@ -390,21 +433,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            assert docID == 0;
-            if (docID != 0) {
-                throw new IllegalArgumentException("no such doc ID " + docID);
-            }
-            if (delegate.get() == null) {
-                if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
-                    // override this for ShardGetService
-                    if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
-                        readStoredFieldsDirectly(visitor);
-                        return;
-                    }
-                }
-            }
-
-            getDelegate().document(docID, visitor);
+            storedFields().document(docID, visitor);
         }
 
         private void readStoredFieldsDirectly(StoredFieldVisitor visitor) throws IOException {

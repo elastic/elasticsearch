@@ -7,10 +7,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,6 +22,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -174,8 +174,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             toAsStr = in.readOptionalString();
             from = in.readDouble();
             to = in.readDouble();
-            originalFrom = in.getVersion().onOrAfter(Version.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(from);
-            originalTo = in.getVersion().onOrAfter(Version.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(to);
+            originalFrom = in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(from);
+            originalTo = in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(to);
         }
 
         @Override
@@ -185,7 +185,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             out.writeOptionalString(toAsStr);
             out.writeDouble(from);
             out.writeDouble(to);
-            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
                 out.writeOptionalDouble(originalFrom);
                 out.writeOptionalDouble(originalTo);
             }
@@ -197,14 +197,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
         public double getTo() {
             return this.originalTo;
-        }
-
-        public Double getOriginalFrom() {
-            return originalFrom;
-        }
-
-        public Double getOriginalTo() {
-            return originalTo;
         }
 
         public String getFromAsString() {
@@ -391,8 +383,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
             return null;
         }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
-        FilterByFilterAggregator.AdapterBuilder<FromFilters<?>> filterByFilterBuilder = new FilterByFilterAggregator.AdapterBuilder<
-            FromFilters<?>>(name, false, null, context, parent, cardinality, metadata) {
+        FilterByFilterAggregator.AdapterBuilder<FromFilters<?>> filterByFilterBuilder = new FilterByFilterAggregator.AdapterBuilder<>(
+            name,
+            false,
+            false,
+            null,
+            context,
+            parent,
+            cardinality,
+            metadata
+        ) {
             @Override
             protected FromFilters<?> adapt(CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate)
                 throws IOException {
@@ -555,8 +555,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
-        for (int i = 0; i < ranges.length; i++) {
-            Range range = ranges[i];
+        for (Range range : ranges) {
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket = rangeFactory.createBucket(
                 range.key,
                 range.originalFrom,
@@ -652,8 +651,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(ctx);
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(aggCtx.getLeafReaderContext());
             final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
 
             if (singleton != null) {

@@ -31,7 +31,7 @@ public class LinearRingTests extends ESTestCase {
             () -> validator.validate(new LinearRing(new double[] { 3, 4, 5 }, new double[] { 1, 2, 3 }))
         );
         assertEquals(
-            "first and last points of the linear ring must be the same (it must close itself): x[0]=3.0 x[2]=5.0 y[0]=1.0 " + "y[2]=3.0",
+            "first and last points of the linear ring must be the same (it must close itself): x[0]=3.0 x[2]=5.0 y[0]=1.0 y[2]=3.0",
             ex.getMessage()
         );
 

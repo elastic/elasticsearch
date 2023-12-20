@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Re-add repository">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-readd-repo"
+            id="cloud-readd-repo">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-readd-repo"
+            id="self-managed-readd-repo"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-readd-repo"
+       aria-labelledby="cloud-readd-repo">
+++++
+
+include::corrupt-repository.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-readd-repo"
+       aria-labelledby="self-managed-readd-repo"
+       hidden="">
+++++
+
+include::corrupt-repository.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

@@ -9,6 +9,8 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -26,7 +28,7 @@ import java.util.Collection;
 import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
@@ -62,7 +64,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null),
+                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),
@@ -76,7 +78,10 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.retentionLeasesSupplier(),
                 config.getPrimaryTermSupplier(),
                 config.getSnapshotCommitSupplier(),
-                config.getLeafSorter()
+                config.getLeafSorter(),
+                config.getRelativeTimeInNanosSupplier(),
+                config.getIndexCommitListener(),
+                config.isPromotableToPrimary()
             );
         }
 
@@ -88,22 +93,18 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
     // #10312
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
-        IndexService indexService = createIndex(
-            "index",
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build()
-        );
+        IndexService indexService = createIndex("index", indexSettings(1, 0).put("index.refresh_interval", -1).build());
         IndexShard shard = indexService.getShard(0);
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         // Force merge so we know all merges are done before we start deleting:
-        ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
+        ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(r);
         final RefreshStats refreshStats = shard.refreshStats();
         for (int i = 0; i < 100; i++) {
             client().prepareDelete("index", Integer.toString(i)).get();
         }
-        // need to assert busily as IndexingMemoryController refreshes in background
-        assertBusy(() -> assertThat(shard.refreshStats().getTotal(), greaterThan(refreshStats.getTotal() + 1)));
+        assertThat(shard.getEngineOrNull().getIndexBufferRAMBytesUsed(), lessThanOrEqualTo(ByteSizeUnit.KB.toBytes(1)));
     }
 }

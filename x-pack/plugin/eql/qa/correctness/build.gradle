@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-testclusters'
 
 import org.elasticsearch.gradle.testclusters.RunTask
@@ -14,7 +14,7 @@ dependencies {
 }
 
 File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
-  .orElse(providers.systemProperty('eql.test.credentials.file').forUseAtConfigurationTime())
+  .orElse(providers.systemProperty('eql.test.credentials.file'))
   .map { s -> new File(s)}
   .getOrNull()
 
@@ -41,7 +41,9 @@ def runTaskCluster = testClusters.register('runTask') {
 }
 
 tasks.named('javaRestTest').configure {
-  onlyIf { serviceAccountFile && BuildParams.inFipsJvm == false }
+  onlyIf("FIPS mode disabled and service accoutn file available") {
+      serviceAccountFile && BuildParams.inFipsJvm == false
+  }
 
   testLogging {
     showStandardStreams = true

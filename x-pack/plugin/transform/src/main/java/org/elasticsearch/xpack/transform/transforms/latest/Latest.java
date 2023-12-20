@@ -113,7 +113,12 @@ public class Latest extends AbstractCompositeAggFunction {
     }
 
     @Override
-    public void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener) {
+    public void deduceMappings(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        ActionListener<Map<String, String>> listener
+    ) {
         listener.onResponse(emptyMap());
     }
 

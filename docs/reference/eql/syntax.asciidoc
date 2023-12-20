@@ -243,7 +243,7 @@ my_field like  ("Value-*", "VALUE2", "VAL?")              // case-sensitive
 my_field like~ ("value-*", "value2", "val?")              // case-insensitive
 
 my_field regex  ("[vV]alue-[0-9]", "VALUE[^2].?", "VAL3") // case-sensitive
-my_field regex~  ("value-[0-9]", "value[^2].?", "val3")   // case-sensitive
+my_field regex~  ("value-[0-9]", "value[^2].?", "val3")   // case-insensitive
 ----
 
 `in` (case-sensitive)::
@@ -575,6 +575,40 @@ sequence with maxspan=15m
 ----
 
 [discrete]
+[[eql-missing-events]]
+==== Missing events
+
+Use `!` to match missing events: events in a timespan-constrained sequence that
+do not meet a given condition.
+
+[source,eql]
+----
+sequence with maxspan=1h
+  [ event_category_1 where condition_1 ]
+  ![ event_category_2 where condition_2 ]
+  [ event_category_3 where condition_3 ]
+  ...
+----
+
+Missing event clauses can be used at the beginning, at the end, and/or in the
+middle of a sequence, in any combination with positive event clauses. A sequence
+can have multiple missing event clauses, but needs to have at least one positive
+clause. <<eql-with-maxspan-keywords,`with maxspan`>> is mandatory when missing
+event clauses are present.
+
+
+*Example* +
+The following sequence query finds logon events that are not followed within 5
+seconds by a logoff event.
+
+[source,eql]
+----
+sequence by host.name, user.name with maxspan=5s
+  [ authentication where event.code : "4624" ]
+  ![ authentication where event.code : "4647" ]
+----
+
+[discrete]
 [[eql-by-keyword]]
 ==== `by` keyword
 
@@ -791,6 +825,47 @@ sequence
   [ process where event.type == "creation" ] by process.executable
   [ library where process.name == "regsvr32.exe" ] by dll.path with runs=3
 ----
+
+[discrete]
+[[eql-samples]]
+=== Samples
+
+You can use EQL samples to describe and match a chronologically unordered series
+of events. All events in a sample share the same value for one or more fields
+that are specified using the <<eql-by-keyword,`by` keyword>> (join keys). Each
+item in a sample is an event category and event condition, surrounded by square
+brackets (`[ ]`). Events are listed in the order of the filters they match.
+
+[source,eql]
+----
+sample by join_key
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+----
+
+*Example* + 
+The following EQL sample query returns up to 10 samples with unique values for
+`host`. Each sample consists of two events:
+
+. Start with an event with:
++
+--
+* An event category of `file`
+* A `file.extension` of `exe`
+--
+. Followed by an event with an event category of `process`
+
+[source,eql]
+----
+sample by host
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+
+Sample queries do not take into account the chronological ordering of events.
+The `with maxspan` and `with runs` statements as well as the `until` keyword are
+not supported. 
 
 [discrete]
 [[eql-functions]]

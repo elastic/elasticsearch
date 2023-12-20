@@ -21,6 +21,7 @@
             "Aggregations",
             "Allocation",
             "Analysis",
+            "Application",
             "Audit",
             "Authentication",
             "Authorization",
@@ -31,9 +32,12 @@
             "Client",
             "Cluster Coordination",
             "Data streams",
+            "DLM",
             "Discovery-Plugins",
             "Distributed",
+            "Downsampling",
             "EQL",
+            "ES|QL",
             "Engine",
             "FIPS",
             "Features",
@@ -56,6 +60,7 @@
             "Infra/Settings",
             "Infra/Transport API",
             "Ingest",
+            "Ingest Node",
             "Java High Level REST Client",
             "Java Low Level REST Client",
             "License",
@@ -82,6 +87,7 @@
             "TLS",
             "Transform",
             "TSDB",
+            "Vector Search",
             "Watcher"
           ]
         },
@@ -118,7 +124,82 @@
       "required": [
         "type",
         "summary"
-      ]
+      ],
+      "anyOf": [
+        {
+          "$comment": "PR number and area fields not required for known-issue type",
+          "if": {
+            "not": {
+              "properties": {
+                "type": {
+                  "const": "known-issue"
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pr",
+              "area"
+            ]
+          }
+        },
+        {
+          "$comment": "PR number and area fields not required for security type",
+          "if": {
+            "not": {
+              "properties": {
+                "type": {
+                  "const": "security"
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pr",
+              "area"
+            ]
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "breaking"
+              }
+            }
+          },
+          "then": {
+            "required": ["breaking"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "breaking-java"
+              }
+            }
+          },
+          "then": {
+            "required": ["breaking"]
+          }
+        }
+      ],
+      "if": {
+        "properties": {
+          "type": {
+            "const": "deprecation"
+          }
+        }
+      },
+      "then": {
+        "required": ["deprecation"]
+      },
+      "additionalProperties": false
     },
     "Highlight": {
       "properties": {
@@ -131,6 +212,7 @@
         },
         "body": {
           "type": "string",
+          "pattern": "(?s)^((?!```).)*$",
           "minLength": 1
         }
       },
@@ -138,6 +220,9 @@
         "title",
         "body"
       ],
+      "message": {
+        "pattern": "Changelog uses a triple-backtick (```) in a details section, but it must be formatted as a Asciidoc code block. For example:\n\n    [source,yaml]\n    ----\n    {\n      \"metrics.time\" : 10,\n      \"metrics.time.min\" : 1,\n      \"metrics.time.max\" : 500\n    }\n    ----\n"
+      },
       "additionalProperties": false
     },
     "CompatibilityChange": {
@@ -151,10 +236,12 @@
         },
         "details": {
           "type": "string",
+          "pattern": "(?s)^((?!```).)*$",
           "minLength": 1
         },
         "impact": {
           "type": "string",
+          "pattern": "(?s)^((?!```).)*$",
           "minLength": 1
         },
         "notable": {
@@ -170,15 +257,20 @@
         "details",
         "impact"
       ],
+      "message": {
+        "pattern": "Changelog uses a triple-backtick (```) in a details section, but it must be formatted as a Asciidoc code block. For example:\n\n    [source,yaml]\n    ----\n    {\n      \"metrics.time\" : 10,\n      \"metrics.time.min\" : 1,\n      \"metrics.time.max\" : 500\n    }\n    ----\n"
+      },
       "additionalProperties": false
     },
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Authorization",
         "Cluster and node setting",
         "Command line tool",
         "CRUD",
         "Index setting",
+        "Ingest",
         "JVM option",
         "Java API",
         "Logging",
@@ -186,6 +278,7 @@
         "Packaging",
         "Painless",
         "REST API",
+        "Rollup",
         "System requirement",
         "Transform"
       ]

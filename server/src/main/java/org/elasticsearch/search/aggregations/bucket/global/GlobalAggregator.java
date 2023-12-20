@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -24,20 +24,22 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.Map;
 
-public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
+public final class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
     private final Weight weight;
 
     public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext context, Map<String, Object> metadata)
         throws IOException {
 
         super(name, subFactories, context, null, CardinalityUpperBound.ONE, metadata);
-        weight = context.filterQuery(new MatchAllDocsQuery()).createWeight(context.searcher(), scoreMode(), 1.0f);
+        weight = context.searcher()
+            .rewrite(context.filterQuery(new MatchAllDocsQuery()))
+            .createWeight(context.searcher(), scoreMode(), 1.0f);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         // Run sub-aggregations on child documents
-        BulkScorer scorer = weight.bulkScorer(ctx);
+        BulkScorer scorer = weight.bulkScorer(aggCtx.getLeafReaderContext());
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -51,7 +53,7 @@ public class GlobalAggregator extends BucketsAggregator implements SingleBucketA
             public void setScorer(Scorable scorer) throws IOException {
                 sub.setScorer(scorer);
             }
-        }, ctx.reader().getLiveDocs());
+        }, aggCtx.getLeafReaderContext().reader().getLiveDocs());
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
 

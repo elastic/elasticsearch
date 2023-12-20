@@ -1,0 +1,6 @@
+pr: 100316
+summary: Parallelize stale index deletion
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 61513

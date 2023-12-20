@@ -11,6 +11,7 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
@@ -59,6 +62,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -76,6 +80,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
+            CircuitBreakerMetrics.NOOP.getParentTripCountTotal(),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -124,6 +129,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final AtomicInteger parentTripped = new AtomicInteger(0);
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -152,6 +158,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
+            CircuitBreakerMetrics.NOOP.getParentTripCountTotal(),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -216,6 +223,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .build();
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 clusterSettings,
                 Collections.emptyList(),
                 new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -258,6 +266,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         AtomicLong memoryUsage = new AtomicLong();
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -296,7 +305,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 "real usage: [181/181b], new bytes reserved: ["
                     + (reservationInBytes * 2)
                     + "/"
-                    + new ByteSizeValue(reservationInBytes * 2)
+                    + ByteSizeValue.ofBytes(reservationInBytes * 2)
                     + "]"
             )
         );
@@ -305,7 +314,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("fielddata=0/0b"));
         assertThat(
             exception.getMessage(),
-            containsString("request=" + requestCircuitBreakerUsed + "/" + new ByteSizeValue(requestCircuitBreakerUsed))
+            containsString("request=" + requestCircuitBreakerUsed + "/" + ByteSizeValue.ofBytes(requestCircuitBreakerUsed))
         );
         assertThat(exception.getMessage(), containsString("inflight_requests=0/0b"));
         assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
@@ -337,7 +346,9 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicReference<Consumer<Boolean>> onOverLimit = new AtomicReference<>(leader -> {});
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE / 2, Long.MAX_VALUE / 2));
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -347,6 +358,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 HierarchyCircuitBreakerService.createYoungGcCountSupplier(),
                 time::get,
                 interval,
+                fullGCInterval,
+                TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30)
             ) {
 
@@ -391,10 +404,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         for (int i = 0; i < threadCount; ++i) {
             threads.add(new Thread(() -> {
                 try {
-                    barrier.await(10, TimeUnit.SECONDS);
+                    safeAwait(barrier);
                     service.checkParentLimit(0, "test-thread");
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError(e);
                 } catch (CircuitBreakingException e) {
                     // very rare
                     logger.info("Thread got semi-unexpected circuit breaking exception", e);
@@ -423,6 +434,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         boolean saveTheDay = randomBoolean();
         AtomicBoolean overLimitTriggered = new AtomicBoolean();
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -472,6 +484,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsage = new AtomicLong();
 
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = new HierarchyCircuitBreakerService.G1OverLimitStrategy(
@@ -480,6 +493,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             () -> 0,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
             @Override
@@ -526,6 +541,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsageCounter = new AtomicLong();
         AtomicLong gcCounter = new AtomicLong();
         LongSupplier memoryUsageSupplier = () -> {
@@ -538,6 +554,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             gcCounter::incrementAndGet,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
 
@@ -560,13 +578,15 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(strategy.overLimit(input), sameInstance(input));
         assertThat(leaderTriggerCount.get(), equalTo(1));
         assertThat(gcCounter.get(), equalTo(2L));
-        assertThat(memoryUsageCounter.get(), equalTo(2L)); // 1 before gc count break and 1 to get resulting memory usage.
+        // 1 before gc count break, 1 for full GC check and 1 to get resulting memory usage.
+        assertThat(memoryUsageCounter.get(), equalTo(3L));
     }
 
     public void testG1OverLimitStrategyThrottling() throws InterruptedException, BrokenBarrierException, TimeoutException {
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE / 2, Long.MAX_VALUE / 2));
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsage = new AtomicLong();
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = new HierarchyCircuitBreakerService.G1OverLimitStrategy(
             JvmInfo.jvmInfo(),
@@ -574,6 +594,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             () -> 0,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
 
@@ -589,11 +611,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
         AtomicReference<CountDownLatch> countDown = new AtomicReference<>(new CountDownLatch(randomIntBetween(1, 20)));
         List<Thread> threads = IntStream.range(0, threadCount).mapToObj(i -> new Thread(() -> {
-            try {
-                barrier.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(barrier);
             do {
                 HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(
                     randomLongBetween(0, 100),
@@ -610,12 +628,12 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         })).toList();
 
         threads.forEach(Thread::start);
-        barrier.await(20, TimeUnit.SECONDS);
+        safeAwait(barrier);
 
         int iterationCount = randomIntBetween(1, 5);
         for (int i = 0; i < iterationCount; ++i) {
             memoryUsage.set(randomLongBetween(0, 100));
-            assertTrue(countDown.get().await(20, TimeUnit.SECONDS));
+            safeAwait(countDown.get());
             assertThat(leaderTriggerCount.get(), lessThanOrEqualTo(i + 1));
             assertThat(leaderTriggerCount.get(), greaterThanOrEqualTo(i / 2 + 1));
             time.addAndGet(randomLongBetween(interval, interval * 2));
@@ -656,6 +674,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             gcCounter::incrementAndGet,
             () -> 0,
             1,
+            1,
+            TimeValue.timeValueMillis(randomFrom(0, 5, 10)),
             TimeValue.timeValueMillis(randomFrom(0, 5, 10))
         ) {
 
@@ -663,12 +683,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             void overLimitTriggered(boolean leader) {
                 if (leader) {
                     startedBlocking.countDown();
-                    try {
-                        // this is the central assertion - the overLimit call below should complete in a timely manner.
-                        assertThat(blockingUntil.await(10, TimeUnit.SECONDS), is(true));
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    // this is the central assertion - the overLimit call below should complete in a timely manner.
+                    safeAwait(blockingUntil);
                 }
             }
         };
@@ -697,6 +713,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .build();
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 clusterSettings,
                 Collections.emptyList(),
                 new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -739,6 +756,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 clusterSettings,
                 Collections.emptyList(),
                 new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -770,6 +788,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Collections.singletonList(new BreakerSettings(CircuitBreaker.FIELDDATA, 100, 1.2)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -783,6 +802,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         iae = expectThrows(
             IllegalArgumentException.class,
             () -> new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Arrays.asList(new BreakerSettings("foo", 100, 1.2), new BreakerSettings("foo", 200, 0.1)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -797,6 +817,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     public void testCustomCircuitBreakers() {
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Arrays.asList(new BreakerSettings("foo", 100, 1.2), new BreakerSettings("bar", 200, 0.1)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -818,6 +839,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     public void testUpdatingUseRealMemory() {
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Collections.emptyList(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -847,6 +869,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 Collections.emptyList(),
                 clusterSettings
@@ -871,6 +894,79 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
                 service.getParentLimit()
             );
+        }
+    }
+
+    public void testBuildParentTripMessage() {
+        class TestChildCircuitBreaker extends NoopCircuitBreaker {
+            private final long used;
+
+            TestChildCircuitBreaker(long used) {
+                super("child");
+                this.used = used;
+            }
+
+            @Override
+            public long getUsed() {
+                return used;
+            }
+
+            @Override
+            public double getOverhead() {
+                return 1.0;
+            }
+        }
+
+        assertThat(
+            HierarchyCircuitBreakerService.buildParentTripMessage(
+                1L,
+                "test",
+                new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
+                6L,
+                false,
+                Map.of("child", new TestChildCircuitBreaker(7L), "otherChild", new TestChildCircuitBreaker(8L))
+            ),
+            oneOf(
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "usages [child=7/7b, otherChild=8/8b]",
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "usages [otherChild=8/8b, child=7/7b]"
+            )
+        );
+
+        assertThat(
+            HierarchyCircuitBreakerService.buildParentTripMessage(
+                1L,
+                "test",
+                new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
+                6L,
+                true,
+                Map.of()
+            ),
+            equalTo(
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "real usage: [2/2b], new bytes reserved: [1/1b], usages []"
+            )
+        );
+
+        try {
+            HierarchyCircuitBreakerService.permitNegativeValues = true;
+            assertThat(
+                HierarchyCircuitBreakerService.buildParentTripMessage(
+                    -1L,
+                    "test",
+                    new HierarchyCircuitBreakerService.MemoryUsage(-2L, -3L, -4L, -5L),
+                    -6L,
+                    true,
+                    Map.of("child1", new TestChildCircuitBreaker(-7L))
+                ),
+                equalTo(
+                    "[parent] Data too large, data for [test] would be [-3], which is larger than the limit of [-6], "
+                        + "real usage: [-2], new bytes reserved: [-1/-1b], usages [child1=-7]"
+                )
+            );
+        } finally {
+            HierarchyCircuitBreakerService.permitNegativeValues = false;
         }
     }
 }

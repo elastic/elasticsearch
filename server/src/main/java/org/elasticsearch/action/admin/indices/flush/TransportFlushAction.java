@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -46,13 +48,9 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
             client,
             actionFilters,
             indexNameExpressionResolver,
-            TransportShardFlushAction.TYPE
+            TransportShardFlushAction.TYPE,
+            transportService.getThreadPool().executor(ThreadPool.Names.FLUSH)
         );
-    }
-
-    @Override
-    protected ReplicationResponse newShardResponse() {
-        return new ReplicationResponse();
     }
 
     @Override

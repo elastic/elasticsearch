@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
@@ -21,11 +21,16 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ForecastRequestStatsTests extends AbstractSerializingTestCase<ForecastRequestStats> {
+public class ForecastRequestStatsTests extends AbstractXContentSerializingTestCase<ForecastRequestStats> {
 
     @Override
     protected ForecastRequestStats createTestInstance() {
         return createTestInstance("ForecastRequestStatsTest", randomAlphaOfLength(20));
+    }
+
+    @Override
+    protected ForecastRequestStats mutateInstance(ForecastRequestStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public ForecastRequestStats createTestInstance(String jobId, String forecastId) {

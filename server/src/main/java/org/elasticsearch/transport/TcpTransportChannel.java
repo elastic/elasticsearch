@@ -8,7 +8,8 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -21,8 +22,9 @@ public final class TcpTransportChannel implements TransportChannel {
     private final TcpChannel channel;
     private final String action;
     private final long requestId;
-    private final Version version;
+    private final TransportVersion version;
     private final Compression.Scheme compressionScheme;
+    private final ResponseStatsConsumer responseStatsConsumer;
     private final boolean isHandshake;
     private final Releasable breakerRelease;
 
@@ -31,8 +33,9 @@ public final class TcpTransportChannel implements TransportChannel {
         TcpChannel channel,
         String action,
         long requestId,
-        Version version,
+        TransportVersion version,
         Compression.Scheme compressionScheme,
+        ResponseStatsConsumer responseStatsConsumer,
         boolean isHandshake,
         Releasable breakerRelease
     ) {
@@ -42,6 +45,7 @@ public final class TcpTransportChannel implements TransportChannel {
         this.action = action;
         this.requestId = requestId;
         this.compressionScheme = compressionScheme;
+        this.responseStatsConsumer = responseStatsConsumer;
         this.isHandshake = isHandshake;
         this.breakerRelease = breakerRelease;
     }
@@ -54,7 +58,16 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            outboundHandler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake);
+            outboundHandler.sendResponse(
+                version,
+                channel,
+                requestId,
+                action,
+                response,
+                compressionScheme,
+                isHandshake,
+                responseStatsConsumer
+            );
         } finally {
             release(false);
         }
@@ -63,7 +76,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {
-            outboundHandler.sendErrorResponse(version, channel, requestId, action, exception);
+            outboundHandler.sendErrorResponse(version, channel, requestId, action, responseStatsConsumer, exception);
         } finally {
             release(true);
         }
@@ -88,11 +101,16 @@ public final class TcpTransportChannel implements TransportChannel {
     }
 
     @Override
-    public Version getVersion() {
+    public TransportVersion getVersion() {
         return version;
     }
 
     public TcpChannel getChannel() {
         return channel;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.format("TcpTransportChannel{req=%d}{%s}{%s}", requestId, action, channel);
     }
 }

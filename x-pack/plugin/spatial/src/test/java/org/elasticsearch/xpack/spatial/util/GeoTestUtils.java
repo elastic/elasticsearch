@@ -28,12 +28,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 
 import java.io.IOException;
 
@@ -48,9 +50,17 @@ public class GeoTestUtils {
         return reader;
     }
 
-    public static BinaryGeoShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
+    public static BinaryShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, name);
-        BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField(name);
+        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
+        field.add(indexer.indexShape(geometry), geometry);
+        return field;
+    }
+
+    // TODO: Should this be in a cartesian specific test class, and if so, which?
+    public static BinaryShapeDocValuesField binaryCartesianShapeDocValuesField(String name, Geometry geometry) {
+        CartesianShapeIndexer indexer = new CartesianShapeIndexer(name);
+        BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
         field.add(indexer.indexShape(geometry), geometry);
         return field;
     }
@@ -58,6 +68,12 @@ public class GeoTestUtils {
     public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) throws IOException {
         GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue();
         value.reset(binaryGeoShapeDocValuesField("test", geometry).binaryValue());
+        return value;
+    }
+
+    public static CartesianShapeValues.CartesianShapeValue cartesianShapeValue(Geometry geometry) throws IOException {
+        CartesianShapeValues.CartesianShapeValue value = new CartesianShapeValues.CartesianShapeValue();
+        value.reset(binaryCartesianShapeDocValuesField("test", geometry).binaryValue());
         return value;
     }
 

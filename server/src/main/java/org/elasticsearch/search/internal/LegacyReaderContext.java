@@ -16,7 +16,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.util.Objects;
 
-public class LegacyReaderContext extends ReaderContext {
+public final class LegacyReaderContext extends ReaderContext {
     private final ShardSearchRequest shardSearchRequest;
     private final ScrollContext scrollContext;
     private final Engine.Searcher searcher;

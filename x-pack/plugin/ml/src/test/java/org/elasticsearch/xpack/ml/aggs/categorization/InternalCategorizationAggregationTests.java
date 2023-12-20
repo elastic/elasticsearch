@@ -18,7 +18,7 @@ import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,7 +49,7 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY);
+        return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
     }
 
     @Override
@@ -62,6 +62,12 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
                 (p, c) -> ParsedCategorization.fromXContent(p, (String) c)
             )
         );
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/87240")
+    public void testReduceRandom() {
+        // The bug is in the assertReduced() method immediately below that the base class testReduceRandom() calls.
+        // To unmute after the bug is fixed, simply delete this entire method so that the base class method is used again.
     }
 
     @Override
@@ -116,5 +122,10 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
                 Long::sum
             )
         );
+    }
+
+    @Override
+    protected InternalCategorizationAggregation mutateInstance(InternalCategorizationAggregation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

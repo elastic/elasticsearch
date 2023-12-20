@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -29,20 +29,16 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
-import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
@@ -53,223 +49,199 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     public void testUpdateDesiredNodes() {
-        final DesiredNodes desiredNodes = putRandomDesiredNodes();
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+        final var response = updateDesiredNodes(updateDesiredNodesRequest);
+        assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(false)));
+        assertThat(response.dryRun(), is(equalTo(false)));
 
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
-        assertThat(metadata, is(notNullValue()));
-        final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
-        assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
+        final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
+    }
+
+    public void testDryRunUpdateDoesNotUpdateEmptyDesiredNodes() {
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
+            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
+        );
+        assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
+
+        expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
+    }
+
+    public void testDryRunUpdateDoesNotUpdateExistingDesiredNodes() {
+        UpdateDesiredNodesResponse response = updateDesiredNodes(randomUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        assertThat(response.dryRun(), is(equalTo(false)));
+
+        DesiredNodes desiredNodes = getLatestDesiredNodes();
+
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
+            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
+        );
+        assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
+
+        assertEquals(getLatestDesiredNodes(), desiredNodes);
     }
 
     public void testUpdateDesiredNodesIsIdempotent() {
-        final DesiredNodes desiredNodes = putRandomDesiredNodes();
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+        updateDesiredNodes(updateDesiredNodesRequest);
 
-        final List<DesiredNode> desiredNodesList = new ArrayList<>(desiredNodes.nodes());
+        final List<DesiredNode> desiredNodesList = new ArrayList<>(updateDesiredNodesRequest.getNodes());
         if (randomBoolean()) {
             Collections.shuffle(desiredNodesList, random());
         }
 
-        updateDesiredNodes(new DesiredNodes(desiredNodes.historyID(), desiredNodes.version(), desiredNodesList));
+        final var equivalentUpdateRequest = new UpdateDesiredNodesRequest(
+            updateDesiredNodesRequest.getHistoryID(),
+            updateDesiredNodesRequest.getVersion(),
+            desiredNodesList,
+            false
+        );
 
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodesMetadata metadata = DesiredNodesMetadata.fromClusterState(state);
-        assertThat(metadata, is(notNullValue()));
-        final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
-        assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
+        updateDesiredNodes(equivalentUpdateRequest);
+
+        final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
+        assertStoredDesiredNodesAreCorrect(equivalentUpdateRequest, latestDesiredNodes);
     }
 
     public void testGoingBackwardsWithinTheSameHistoryIsForbidden() {
-        final DesiredNodes desiredNodes = putRandomDesiredNodes();
-        final DesiredNodes backwardsDesiredNodes = new DesiredNodes(
-            desiredNodes.historyID(),
-            desiredNodes.version() - 1,
-            desiredNodes.nodes()
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final var backwardsUpdateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            updateDesiredNodesRequest.getHistoryID(),
+            updateDesiredNodesRequest.getVersion() - 1,
+            updateDesiredNodesRequest.getNodes(),
+            false
         );
 
         final VersionConflictException exception = expectThrows(
             VersionConflictException.class,
-            () -> updateDesiredNodes(backwardsDesiredNodes)
+            () -> updateDesiredNodes(backwardsUpdateDesiredNodesRequest)
         );
         assertThat(exception.getMessage(), containsString("has been superseded by version"));
     }
 
     public void testSameVersionWithDifferentContentIsForbidden() {
-        final DesiredNodes desiredNodes = putRandomDesiredNodes();
-        final DesiredNodes backwardsDesiredNodes = new DesiredNodes(
-            desiredNodes.historyID(),
-            desiredNodes.version(),
-            randomList(1, 10, () -> randomDesiredNode(Version.CURRENT, (settings) -> {}))
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final var updateDesiredNodesRequestWithSameHistoryIdAndVersionAndDifferentSpecs = new UpdateDesiredNodesRequest(
+            updateDesiredNodesRequest.getHistoryID(),
+            updateDesiredNodesRequest.getVersion(),
+            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
+            false
         );
 
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> updateDesiredNodes(backwardsDesiredNodes)
+            () -> updateDesiredNodes(updateDesiredNodesRequestWithSameHistoryIdAndVersionAndDifferentSpecs)
         );
         assertThat(exception.getMessage(), containsString("already exists with a different definition"));
     }
 
     public void testCanMoveToANewHistory() {
-        final DesiredNodes desiredNodes = putRandomDesiredNodes();
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+        updateDesiredNodes(updateDesiredNodesRequest);
 
         {
-            final ClusterState state = client().admin().cluster().prepareState().get().getState();
-            final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
-            assertThat(metadata, is(notNullValue()));
-            final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
-            assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
+            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+            assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
         }
 
-        final DesiredNodes newDesiredNodes = randomDesiredNodes();
-        final UpdateDesiredNodesResponse response = updateDesiredNodes(newDesiredNodes);
+        final var newUpdateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+        final var response = updateDesiredNodes(newUpdateDesiredNodesRequest);
         assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(true)));
 
         {
-            final ClusterState state = client().admin().cluster().prepareState().get().getState();
-            final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
-            assertThat(metadata, is(notNullValue()));
-            final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
-            assertThat(latestDesiredNodes, is(equalTo(newDesiredNodes)));
+            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+            assertStoredDesiredNodesAreCorrect(newUpdateDesiredNodesRequest, latestDesiredNodes);
         }
     }
 
     public void testAtLeastOneMaterNodeIsExpected() {
         {
-            final DesiredNodes desiredNodes = randomDesiredNodes(settings -> settings.put(NODE_ROLES_SETTING.getKey(), "data_hot"));
+            final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
+                Settings.builder().put(NODE_ROLES_SETTING.getKey(), "data_hot").build()
+            );
 
-            final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
+            final IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> updateDesiredNodes(updateDesiredNodesRequest)
+            );
             assertThat(exception.getMessage(), containsString("nodes must contain at least one master node"));
         }
 
         {
-            final DesiredNodes desiredNodes = randomDesiredNodes(settings -> {
-                if (randomBoolean()) {
-                    settings.put(NODE_ROLES_SETTING.getKey(), "master");
-                }
-            });
-
-            updateDesiredNodes(desiredNodes);
+            final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
+                Settings.builder().put(NODE_ROLES_SETTING.getKey(), "master").build()
+            );
+            updateDesiredNodes(updateDesiredNodesRequest);
         }
     }
 
-    public void testSettingsAreValidated() {
-        final DesiredNodes desiredNodes = randomDesiredNodes(
-            settings -> settings.put(SETTING_HTTP_TCP_KEEP_IDLE.getKey(), Integer.MIN_VALUE)
+    public void testUnknownSettingsAreAllowedInFutureVersions() {
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
+            Version.fromString("99.9.0"),
+            Settings.builder().put("desired_nodes.random_setting", Integer.MIN_VALUE).build()
         );
 
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(
-            exception.getSuppressed()[0].getMessage(),
-            containsString("Failed to parse value [-2147483648] for setting [http.tcp.keep_idle] must be >= -1")
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
+    }
+
+    public void testNodeProcessorsGetValidatedWithDesiredNodeProcessors() {
+        final int numProcessors = Math.max(Runtime.getRuntime().availableProcessors() + 1, 2048);
+        // This test verifies that the validation doesn't throw on desired nodes
+        // with a higher number of available processors than the node running the tests.
+        final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            randomList(
+                1,
+                20,
+                () -> randomDesiredNode(
+                    Version.CURRENT,
+                    Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
+                    numProcessors
+                )
+            ),
+            false
         );
+
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
+
+        assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
+        for (final var desiredNodeWithStatus : latestDesiredNodes) {
+            final var desiredNode = desiredNodeWithStatus.desiredNode();
+            assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
+        }
     }
 
     public void testNodeVersionIsValidated() {
-        final DesiredNodes desiredNodes = randomDesiredNodes(Version.CURRENT.previousMajor(), settings -> {});
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(Version.CURRENT.previousMajor(), Settings.EMPTY);
 
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> updateDesiredNodes(updateDesiredNodesRequest)
+        );
         assertThat(exception.getMessage(), containsString("Nodes with ids"));
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
         assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
         assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
     }
 
-    public void testUnknownSettingsAreForbiddenInKnownVersions() {
-        final DesiredNodes desiredNodes = randomDesiredNodes(
-            settings -> { settings.put("desired_nodes.random_setting", Integer.MIN_VALUE); }
-        );
-
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("unknown setting [desired_nodes.random_setting]"));
-    }
-
-    public void testUnknownSettingsAreAllowedInFutureVersions() {
-        final DesiredNodes desiredNodes = randomDesiredNodes(
-            Version.fromString("99.9.0"),
-            settings -> { settings.put("desired_nodes.random_setting", Integer.MIN_VALUE); }
-        );
-
-        updateDesiredNodes(desiredNodes);
-
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
-        assertThat(metadata, is(notNullValue()));
-        final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
-        assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
-    }
-
-    public void testNodeProcessorsGetValidatedWithDesiredNodeProcessors() {
-        final int numProcessors = Math.max(Runtime.getRuntime().availableProcessors() + 1, 2048);
-
-        {
-            final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(
-                NODE_PROCESSORS_SETTING.getKey(),
-                numProcessors + 1
-            );
-            final DesiredNodes desiredNodes = new DesiredNodes(
-                UUIDs.randomBase64UUID(),
-                randomIntBetween(1, 20),
-                randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, numProcessors, settingsConsumer))
-            );
-
-            final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-            assertThat(exception.getMessage(), containsString("Nodes with ids"));
-            assertThat(exception.getMessage(), containsString("contain invalid settings"));
-            assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-            assertThat(
-                exception.getSuppressed()[0].getMessage(),
-                containsString(
-                    String.format(
-                        Locale.ROOT,
-                        "Failed to parse value [%d] for setting [node.processors] must be <= %d",
-                        numProcessors + 1,
-                        numProcessors
-                    )
-                )
-            );
-        }
-
-        {
-            // This test verifies that the validation doesn't throw on desired nodes
-            // with a higher number of available processors than the node running the tests.
-            final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(NODE_PROCESSORS_SETTING.getKey(), numProcessors);
-            final DesiredNodes desiredNodes = new DesiredNodes(
-                UUIDs.randomBase64UUID(),
-                randomIntBetween(1, 20),
-                randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, numProcessors, settingsConsumer))
-            );
-
-            updateDesiredNodes(desiredNodes);
-
-            final ClusterState state = client().admin().cluster().prepareState().get().getState();
-            final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
-            assertThat(metadata, is(notNullValue()));
-            final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
-            assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
-            assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
-            for (DesiredNode desiredNode : latestDesiredNodes.nodes()) {
-                assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
-            }
-        }
-    }
-
     public void testUpdateDesiredNodesTasksAreBatchedCorrectly() throws Exception {
         final Runnable unblockClusterStateUpdateThread = blockClusterStateUpdateThread();
 
-        final List<DesiredNodes> proposedDesiredNodes = randomList(10, 20, DesiredNodesTestCase::randomDesiredNodes);
+        final List<UpdateDesiredNodesRequest> proposedDesiredNodes = randomList(10, 20, this::randomUpdateDesiredNodesRequest);
         final List<ActionFuture<UpdateDesiredNodesResponse>> updateDesiredNodesFutures = new ArrayList<>();
-        for (DesiredNodes desiredNodes : proposedDesiredNodes) {
-            final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
-                desiredNodes.historyID(),
-                desiredNodes.version(),
-                List.copyOf(desiredNodes.nodes())
-            );
+        for (final var request : proposedDesiredNodes) {
             // Use the master client to ensure the same updates ordering as in proposedDesiredNodesList
             updateDesiredNodesFutures.add(internalCluster().masterClient().execute(UpdateDesiredNodesAction.INSTANCE, request));
         }
@@ -284,22 +256,24 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             future.actionGet();
         }
 
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
-        final DesiredNodes latestProposedDesiredNodes = proposedDesiredNodes.get(proposedDesiredNodes.size() - 1);
-        assertThat(latestDesiredNodes, equalTo(latestProposedDesiredNodes));
+        final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+        final var latestUpdateDesiredNodesRequest = proposedDesiredNodes.get(proposedDesiredNodes.size() - 1);
+        assertStoredDesiredNodesAreCorrect(latestUpdateDesiredNodesRequest, latestDesiredNodes);
     }
 
     public void testDeleteDesiredNodesTasksAreBatchedCorrectly() throws Exception {
         if (randomBoolean()) {
-            putRandomDesiredNodes();
+            final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+            updateDesiredNodes(updateDesiredNodesRequest);
         }
 
         final Runnable unblockClusterStateUpdateThread = blockClusterStateUpdateThread();
 
         final List<ActionFuture<ActionResponse.Empty>> deleteDesiredNodesFutures = new ArrayList<>(15);
         for (int i = 0; i < 15; i++) {
-            deleteDesiredNodesFutures.add(client().execute(DeleteDesiredNodesAction.INSTANCE, new DeleteDesiredNodesAction.Request()));
+            deleteDesiredNodesFutures.add(
+                client().execute(TransportDeleteDesiredNodesAction.TYPE, new TransportDeleteDesiredNodesAction.Request())
+            );
         }
 
         for (ActionFuture<ActionResponse.Empty> future : deleteDesiredNodesFutures) {
@@ -312,7 +286,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             future.actionGet();
         }
 
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         assertThat(latestDesiredNodes, is(nullValue()));
     }
@@ -320,22 +294,63 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     public void testGetLatestDesiredNodes() {
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
 
-        final DesiredNodes desiredNodes = putRandomDesiredNodes();
-        assertThat(getLatestDesiredNodes(), is(equalTo(desiredNodes)));
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final var latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
     }
 
     public void testDeleteDesiredNodes() {
-        final DesiredNodes desiredNodes = putRandomDesiredNodes();
-        assertThat(getLatestDesiredNodes(), is(equalTo(desiredNodes)));
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final var latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
 
         deleteDesiredNodes();
 
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
     }
 
+    private void assertStoredDesiredNodesAreCorrect(UpdateDesiredNodesRequest updateDesiredNodesRequest, DesiredNodes latestDesiredNodes) {
+        assertThat(latestDesiredNodes.historyID(), is(equalTo(updateDesiredNodesRequest.getHistoryID())));
+        assertThat(latestDesiredNodes.version(), is(equalTo(updateDesiredNodesRequest.getVersion())));
+        assertThat(
+            latestDesiredNodes.nodes().stream().map(DesiredNodeWithStatus::desiredNode).toList(),
+            containsInAnyOrder(updateDesiredNodesRequest.getNodes().toArray())
+        );
+    }
+
+    private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest() {
+        return randomUpdateDesiredNodesRequest(Settings.EMPTY);
+    }
+
+    private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Settings settings) {
+        return randomUpdateDesiredNodesRequest(Version.CURRENT, settings);
+    }
+
+    private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Version version, Settings settings) {
+        return new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(2, 20),
+            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            false
+        );
+    }
+
+    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Version version, Settings settings) {
+        return new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(2, 20),
+            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            true
+        );
+    }
+
     private void deleteDesiredNodes() {
-        final DeleteDesiredNodesAction.Request request = new DeleteDesiredNodesAction.Request();
-        client().execute(DeleteDesiredNodesAction.INSTANCE, request).actionGet();
+        final TransportDeleteDesiredNodesAction.Request request = new TransportDeleteDesiredNodesAction.Request();
+        client().execute(TransportDeleteDesiredNodesAction.TYPE, request).actionGet();
     }
 
     private DesiredNodes getLatestDesiredNodes() {
@@ -344,18 +359,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         return response.getDesiredNodes();
     }
 
-    private DesiredNodes putRandomDesiredNodes() {
-        final DesiredNodes desiredNodes = randomDesiredNodes();
-        updateDesiredNodes(desiredNodes);
-        return desiredNodes;
-    }
-
-    private UpdateDesiredNodesResponse updateDesiredNodes(DesiredNodes desiredNodes) {
-        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
-            desiredNodes.historyID(),
-            desiredNodes.version(),
-            List.copyOf(desiredNodes.nodes())
-        );
+    private UpdateDesiredNodesResponse updateDesiredNodes(UpdateDesiredNodesRequest request) {
         return client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
     }
 
@@ -381,5 +385,4 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertTrue(blockingClusterStateUpdateTaskExecuting.await(10, TimeUnit.SECONDS));
         return unblockClusterStateUpdateTask::countDown;
     }
-
 }

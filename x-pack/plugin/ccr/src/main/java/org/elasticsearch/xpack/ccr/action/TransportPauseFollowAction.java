@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeAction<PauseFollowAction.Request> {
 
@@ -52,7 +52,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             actionFilters,
             PauseFollowAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksService = persistentTasksService;
     }
@@ -87,7 +87,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
                 return shardFollowTask.getFollowShardId().getIndexName().equals(request.getFollowIndex());
             })
             .map(PersistentTasksCustomMetadata.PersistentTask::getId)
-            .collect(Collectors.toList());
+            .toList();
 
         if (shardFollowTaskIds.isEmpty()) {
             listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));

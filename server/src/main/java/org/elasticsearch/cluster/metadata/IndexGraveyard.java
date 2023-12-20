@@ -8,7 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,10 +18,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -75,7 +79,7 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     public IndexGraveyard(final StreamInput in) throws IOException {
-        this.tombstones = Collections.unmodifiableList(in.readList(Tombstone::new));
+        this.tombstones = in.readCollectionAsImmutableList(Tombstone::new);
     }
 
     @Override
@@ -84,8 +88,8 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -123,12 +127,8 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        builder.startArray(TOMBSTONES_FIELD.getPreferredName());
-        for (Tombstone tombstone : tombstones) {
-            tombstone.toXContent(builder, params);
-        }
-        return builder.endArray();
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.array(TOMBSTONES_FIELD.getPreferredName(), tombstones.iterator());
     }
 
     public static IndexGraveyard fromXContent(final XContentParser parser) throws IOException {
@@ -142,7 +142,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeList(tombstones);
+        out.writeCollection(tombstones);
     }
 
     @Override
@@ -256,7 +256,7 @@ public final class IndexGraveyard implements Metadata.Custom {
         private final int removedCount;
 
         IndexGraveyardDiff(final StreamInput in) throws IOException {
-            added = Collections.unmodifiableList(in.readList((streamInput) -> new Tombstone(streamInput)));
+            added = in.readCollectionAsImmutableList(Tombstone::new);
             removedCount = in.readVInt();
         }
 
@@ -299,7 +299,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeList(added);
+            out.writeCollection(added);
             out.writeVInt(removedCount);
         }
 
@@ -334,8 +334,8 @@ public final class IndexGraveyard implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
     }
 

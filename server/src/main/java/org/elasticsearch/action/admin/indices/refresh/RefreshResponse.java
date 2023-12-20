@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -24,7 +25,7 @@ import java.util.List;
 public class RefreshResponse extends BroadcastResponse {
 
     private static final ConstructingObjectParser<RefreshResponse, Void> PARSER = new ConstructingObjectParser<>("refresh", true, arg -> {
-        BroadcastResponse response = (BroadcastResponse) arg[0];
+        BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
         return new RefreshResponse(
             response.getTotalShards(),
             response.getSuccessfulShards(),

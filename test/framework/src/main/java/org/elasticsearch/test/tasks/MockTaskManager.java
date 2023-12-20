@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
@@ -40,7 +41,7 @@ public class MockTaskManager extends TaskManager {
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        super(settings, threadPool, taskHeaders);
+        super(settings, threadPool, taskHeaders, Tracer.NOOP);
     }
 
     @Override
@@ -74,21 +75,6 @@ public class MockTaskManager extends TaskManager {
             logger.warn("trying to remove the same with id {} twice", task.getId());
         }
         return removedTask;
-    }
-
-    @Override
-    public void waitForTaskCompletion(Task task, long untilInNanos) {
-        for (MockTaskManagerListener listener : listeners) {
-            try {
-                listener.waitForTaskCompletion(task);
-            } catch (Exception e) {
-                logger.warn(
-                    () -> format("failed to notify task manager listener about waitForTaskCompletion the task with id %s", task.getId()),
-                    e
-                );
-            }
-        }
-        super.waitForTaskCompletion(task, untilInNanos);
     }
 
     public void addListener(MockTaskManagerListener listener) {

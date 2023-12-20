@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
@@ -22,7 +22,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRule> {
+public class DetectionRuleTests extends AbstractXContentSerializingTestCase<DetectionRule> {
 
     public void testBuildWithNeitherScopeNorCondition() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new DetectionRule.Builder().build());

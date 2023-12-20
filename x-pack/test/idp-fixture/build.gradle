@@ -1,42 +1,9 @@
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.Architecture
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
 
-apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.internal-distribution-download'
+dependencies {
+  testImplementation project(':test:framework')
 
-tasks.register("copyKeystore", Sync) {
-  from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  into "${buildDir}/certs"
-  doLast {
-    file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
-  }
-}
-
-elasticsearch_distributions {
-  docker {
-    type = DOCKER
-    architecture = Architecture.current()
-    version = VersionProperties.getElasticsearch()
-    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
-  }
-}
-
-tasks.named("preProcessFixture").configure {
-  dependsOn "copyKeystore", elasticsearch_distributions.docker
-  doLast {
-    File file = file("${testFixturesDir}/logs/node1")
-    file.mkdirs()
-    file.setWritable(true, false)
-  }
-}
-
-tasks.named('composeUp').configure {
-  dependsOn "preProcessFixture"
-}
-
-tasks.named('composePull').configure {
-  enabled = false // this task fails due to docker-compose oddities
+  api project(':test:fixtures:testcontainer-utils')
+  api "junit:junit:${versions.junit}"
 }

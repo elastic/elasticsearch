@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
@@ -88,6 +87,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         if (data.containsKey(INDEX_FIELD) || data.containsKey(TYPE_FIELD) || data.containsKey(ID_FIELD)) {
             data = mutableMap(data);
         }
+
         IndexRequest indexRequest = new IndexRequest();
         if (action.refreshPolicy != null) {
             indexRequest.setRefreshPolicy(action.refreshPolicy);
@@ -115,7 +115,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
-        IndexResponse response = ClientHelper.executeWithHeaders(
+        DocWriteResponse response = ClientHelper.executeWithHeaders(
             ctx.watch().status().getHeaders(),
             ClientHelper.WATCHER_ORIGIN,
             client,
@@ -226,9 +226,17 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
     /**
      * Extracts the specified field out of data map, or alternative falls back to the action value
      */
-    private String getField(String actionId, String watchId, String name, Map<String, Object> data, String fieldName, String defaultValue) {
-        Object obj = data.remove(fieldName);
-        if (obj != null) {
+    private static String getField(
+        String actionId,
+        String watchId,
+        String name,
+        Map<String, Object> data,
+        String fieldName,
+        String defaultValue
+    ) {
+        Object obj;
+        // map may be immutable - only try to remove if it's actually there
+        if (data.containsKey(fieldName) && (obj = data.remove(fieldName)) != null) {
             if (defaultValue != null) {
                 throw illegalState(
                     "could not execute action [{}] of watch [{}]. "
@@ -254,7 +262,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
      * @param data The map to make mutable
      * @return Always a {@linkplain HashMap}
      */
-    private Map<String, Object> mutableMap(Map<String, Object> data) {
+    private static Map<String, Object> mutableMap(Map<String, Object> data) {
         return data instanceof HashMap ? data : new HashMap<>(data);
     }
 
@@ -271,7 +279,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
     }
 
-    static void indexResponseToXContent(XContentBuilder builder, IndexResponse response) throws IOException {
+    static void indexResponseToXContent(XContentBuilder builder, DocWriteResponse response) throws IOException {
         builder.startObject()
             .field("created", response.getResult() == DocWriteResponse.Result.CREATED)
             .field("result", response.getResult().getLowercase())

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -100,11 +101,8 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
         ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            LOGGER,
-            threadPool,
-            MachineLearning.UTILITY_THREAD_POOL_NAME,
-            listener,
-            false
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            listener
         );
 
         latestSnapshotTimeStamp(jobId, ActionListener.wrap(latestTime -> {
@@ -190,6 +188,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             ModelSnapshot.TIMESTAMP.getPreferredName(),
             false,
             null,
+            null,
             snapshotsListener::onResponse,
             snapshotsListener::onFailure
         );
@@ -232,7 +231,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("[{}] Search for expired snapshots failed", e, job.getId()));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "[{}] Search for expired snapshots failed",
+                        RestStatus.TOO_MANY_REQUESTS,
+                        e,
+                        job.getId()
+                    )
+                );
             }
         };
     }

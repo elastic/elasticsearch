@@ -16,6 +16,8 @@ public final class UsernamesField {
     public static final String SYSTEM_ROLE = "_system";
     public static final String XPACK_SECURITY_NAME = "_xpack_security";
     public static final String XPACK_SECURITY_ROLE = "_xpack_security";
+    public static final String DATA_STREAM_LIFECYCLE_NAME = "_data_stream_lifecycle";
+    public static final String DATA_STREAM_LIFECYCLE_ROLE = "_data_stream_lifecycle";
     public static final String SECURITY_PROFILE_NAME = "_security_profile";
     public static final String SECURITY_PROFILE_ROLE = "_security_profile";
     public static final String XPACK_NAME = "_xpack";
@@ -28,6 +30,10 @@ public final class UsernamesField {
     public static final String APM_ROLE = "apm_system";
     public static final String ASYNC_SEARCH_NAME = "_async_search";
     public static final String ASYNC_SEARCH_ROLE = "_async_search";
+    public static final String STORAGE_USER_NAME = "_storage";
+    public static final String STORAGE_ROLE_NAME = "_storage";
+    public static final String SYNONYMS_USER_NAME = "_synonyms";
+    public static final String SYNONYMS_ROLE_NAME = "_synonyms";
 
     public static final String REMOTE_MONITORING_NAME = "remote_monitoring_user";
     public static final String REMOTE_MONITORING_COLLECTION_ROLE = "remote_monitoring_collector";

@@ -7,25 +7,28 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
     public void testOldIndicesCheck() {
-        Version createdWith = Version.fromString("1.0.0");
+        IndexVersion createdWith = IndexVersion.fromId(1000099);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(createdWith))
             .numberOfShards(1)
@@ -44,7 +47,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     }
 
     public void testTranslogRetentionSettings() {
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
@@ -71,7 +74,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     }
 
     public void testDefaultTranslogRetentionSettings() {
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
@@ -83,7 +86,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     }
 
     public void testIndexDataPathSetting() {
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         settings.put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), createTempDir());
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
@@ -105,7 +108,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     }
 
     public void testSimpleFSSetting() {
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "simplefs");
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
@@ -127,7 +130,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     }
 
     public void testFrozenIndex() {
-        Settings.Builder settings = settings(Version.CURRENT);
+        Settings.Builder settings = settings(IndexVersion.current());
         settings.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
@@ -144,5 +147,35 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testCamelCaseDeprecation() throws IOException {
+        String simpleMapping = "{\n\"_doc\": {"
+            + "\"properties\" : {\n"
+            + "   \"date_time_field\" : {\n"
+            + "       \"type\" : \"date\",\n"
+            + "       \"format\" : \"strictDateOptionalTime\"\n"
+            + "       }\n"
+            + "   }"
+            + "} }";
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(IndexVersions.V_7_0_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping(simpleMapping)
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Date fields use deprecated camel case formats",
+            "https://ela.st/es-deprecation-7-camel-case-format",
+            "Convert [date_time_field] format [strictDateOptionalTime] "
+                + "which contains deprecated camel case to snake case. [strictDateOptionalTime] to [strict_date_optional_time].",
+            false,
+            null
+        );
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        assertThat(issues, hasItem(expected));
     }
 }

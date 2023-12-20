@@ -11,6 +11,9 @@ package org.elasticsearch.gradle.internal.release;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -21,14 +24,15 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * This class models the contents of a changelog YAML file. We validate it using a
- * JSON Schema, as well as some programmatic checks in {@link ValidateChangelogEntryTask}.
+ * This class models the contents of a changelog YAML file. We validate it using a JSON Schema.
  * <ul>
  *   <li><code>buildSrc/src/main/resources/changelog-schema.json</code></li>
  *   <li><a href="https://json-schema.org/understanding-json-schema/">Understanding JSON Schema</a></li>
  * </ul>
  */
 public class ChangelogEntry {
+    private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
+
     private Integer pr;
     private List<Integer> issues;
     private String area;
@@ -49,6 +53,7 @@ public class ChangelogEntry {
         try {
             return yamlMapper.readValue(file, ChangelogEntry.class);
         } catch (IOException e) {
+            LOGGER.error("Failed to parse changelog from " + file.getAbsolutePath(), e);
             throw new UncheckedIOException(e);
         }
     }
@@ -99,6 +104,7 @@ public class ChangelogEntry {
 
     public void setHighlight(Highlight highlight) {
         this.highlight = highlight;
+        if (this.highlight != null) this.highlight.pr = this.pr;
     }
 
     public Breaking getBreaking() {
@@ -160,6 +166,7 @@ public class ChangelogEntry {
         private boolean notable;
         private String title;
         private String body;
+        private Integer pr;
 
         public boolean isNotable() {
             return notable;
@@ -187,6 +194,10 @@ public class ChangelogEntry {
 
         public String getAnchor() {
             return generatedAnchor(this.title);
+        }
+
+        public Integer getPr() {
+            return pr;
         }
 
         @Override

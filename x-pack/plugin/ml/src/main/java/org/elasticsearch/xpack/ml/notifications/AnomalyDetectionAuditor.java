@@ -12,7 +12,14 @@ import org.elasticsearch.xpack.core.ml.notifications.AnomalyDetectionAuditMessag
 
 public class AnomalyDetectionAuditor extends AbstractMlAuditor<AnomalyDetectionAuditMessage> {
 
-    public AnomalyDetectionAuditor(Client client, ClusterService clusterService) {
+    private final boolean includeNodeInfo;
+
+    public AnomalyDetectionAuditor(Client client, ClusterService clusterService, boolean includeNodeInfo) {
         super(client, AnomalyDetectionAuditMessage::new, clusterService);
+        this.includeNodeInfo = includeNodeInfo;
+    }
+
+    public boolean includeNodeInfo() {
+        return this.includeNodeInfo;
     }
 }

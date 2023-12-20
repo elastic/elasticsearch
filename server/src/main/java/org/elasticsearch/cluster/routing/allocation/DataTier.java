@@ -100,10 +100,15 @@ public class DataTier {
         final Map<String, Settings> tmpSettings = new HashMap<>();
         for (int i = 0, ordered_frozen_to_hot_tiersSize = ORDERED_FROZEN_TO_HOT_TIERS.size(); i < ordered_frozen_to_hot_tiersSize; i++) {
             String tier = ORDERED_FROZEN_TO_HOT_TIERS.get(i);
-            final String prefTierString = String.join(",", ORDERED_FROZEN_TO_HOT_TIERS.subList(i, ORDERED_FROZEN_TO_HOT_TIERS.size()))
-                .intern();
-            tmp.put(tier, prefTierString);
-            tmpSettings.put(tier, Settings.builder().put(DataTier.TIER_PREFERENCE, prefTierString).build());
+            if (tier.equals(DATA_FROZEN)) {
+                tmp.put(tier, DATA_FROZEN);
+                tmpSettings.put(DATA_FROZEN, Settings.builder().put(DataTier.TIER_PREFERENCE, DATA_FROZEN).build());
+            } else {
+                final String prefTierString = String.join(",", ORDERED_FROZEN_TO_HOT_TIERS.subList(i, ORDERED_FROZEN_TO_HOT_TIERS.size()))
+                    .intern();
+                tmp.put(tier, prefTierString);
+                tmpSettings.put(tier, Settings.builder().put(DataTier.TIER_PREFERENCE, prefTierString).build());
+            }
         }
         PREFERENCE_TIER_CONFIGURATIONS = Map.copyOf(tmp);
         PREFERENCE_TIER_CONFIGURATION_SETTINGS = Map.copyOf(tmpSettings);
@@ -135,23 +140,6 @@ public class DataTier {
             throw new IllegalArgumentException("invalid data tier [" + targetTier + "]");
         }
         return res;
-    }
-
-    /**
-     * Returns true iff the given settings have a data tier setting configured
-     */
-    public static boolean isExplicitDataTier(Settings settings) {
-        /*
-         * This method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is
-         * initialized. We do not want to trigger initialization prematurely because that will bake
-         *  the default roles before plugins have had a chance to register them. Therefore,
-         * to avoid initializing this setting prematurely, we avoid using the actual node roles
-         * setting instance here in favor of the string.
-         */
-        if (settings.hasValue("node.roles")) {
-            return settings.getAsList("node.roles").stream().anyMatch(DataTier::validTierName);
-        }
-        return false;
     }
 
     public static boolean isContentNode(DiscoveryNode discoveryNode) {

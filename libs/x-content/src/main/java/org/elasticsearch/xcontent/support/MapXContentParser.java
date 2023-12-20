@@ -43,7 +43,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     protected boolean doBooleanValue() throws IOException {
-        if (iterator != null && iterator.currentValue()instanceof Boolean aBoolean) {
+        if (iterator != null && iterator.currentValue() instanceof Boolean aBoolean) {
             return aBoolean;
         } else {
             throw new IllegalStateException("Cannot get boolean value for the current token " + currentToken());
@@ -201,7 +201,7 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public byte[] binaryValue() throws IOException {
-        if (iterator != null && iterator.currentValue()instanceof byte[] bytes) {
+        if (iterator != null && iterator.currentValue() instanceof byte[] bytes) {
             return bytes;
         } else {
             throw new IllegalStateException("Cannot get binary value for the current token " + currentToken());

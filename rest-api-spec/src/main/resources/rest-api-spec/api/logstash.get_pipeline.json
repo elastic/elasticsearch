@@ -12,6 +12,10 @@
     "url":{
       "paths":[
         {
+          "path":"/_logstash/pipeline",
+          "methods":[ "GET" ]
+        },
+        {
           "path":"/_logstash/pipeline/{id}",
           "methods":[ "GET" ],
           "parts":{

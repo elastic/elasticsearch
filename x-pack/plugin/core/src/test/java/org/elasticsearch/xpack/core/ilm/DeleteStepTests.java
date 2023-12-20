@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -39,8 +39,8 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -54,7 +54,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
     private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -125,7 +125,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             index1 = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
@@ -135,7 +135,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
             sourceIndexMetadata = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();

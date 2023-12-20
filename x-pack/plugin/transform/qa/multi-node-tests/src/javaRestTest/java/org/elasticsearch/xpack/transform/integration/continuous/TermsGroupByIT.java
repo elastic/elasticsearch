@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -24,6 +26,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97263")
 public class TermsGroupByIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-terms-pivot-test";
@@ -44,7 +47,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder();
         addCommonBuilderParameters(transformConfigBuilder);
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
-        transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
+        transformConfigBuilder.setDest(new DestConfig(NAME, null, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
         var groupConfig = TransformRestTestCase.createGroupConfig(
@@ -74,7 +77,8 @@ public class TermsGroupByIT extends ContinuousTestCase {
     @Override
     @SuppressWarnings("unchecked")
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        String query = """
+        Object[] args = new Object[] { termsField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "", metricField };
+        String query = Strings.format("""
             {
               "aggs": {
                 "event": {
@@ -95,7 +99,7 @@ public class TermsGroupByIT extends ContinuousTestCase {
               },
               "sort": ["event"]
             }
-            """.formatted(termsField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "", metricField);
+            """, args);
 
         var searchResponseSource = entityAsMap(
             search(CONTINUOUS_EVENTS_SOURCE_INDEX, query, Map.of("allow_partial_search_results", "false", "size", "0"))

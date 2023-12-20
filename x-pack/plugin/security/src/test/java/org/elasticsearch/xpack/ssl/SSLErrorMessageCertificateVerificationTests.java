@@ -141,6 +141,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                         + "\\];"
                         + " the server provided a certificate with subject name \\[CN=not-this-host\\],"
                         + " fingerprint \\[[0-9a-f]{40}\\], no keyUsage and no extendedKeyUsage;"
+                        + " the certificate is valid between \\[2019-10-18T06:59:15Z\\] and \\[2033-06-26T06:59:15Z\\]"
+                        + " \\(current time is \\[[0-9-]{10}T[0-9:.]*Z\\], certificate dates are valid\\);"
                         + " the session uses cipher suite \\[TLS_[A-Z0-9_]*\\] and protocol \\[TLSv[0-9.]*\\];"
                         + " the certificate has subject alternative names \\[DNS:not\\.this\\.host\\];"
                         + " the certificate is issued by \\[CN=Certificate Authority 1,OU=ssl-error-message-test,DC=elastic,DC=co\\]"

@@ -10,26 +10,26 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 
-import java.util.Objects;
-
 /**
  * Holds context for building Mapper objects from their Builders
  */
-public final class MapperBuilderContext {
+public class MapperBuilderContext {
 
     /**
      * The root context, to be used when building a tree of mappers
      */
-    public static final MapperBuilderContext ROOT = new MapperBuilderContext();
-
-    private final String path;
-
-    private MapperBuilderContext() {
-        this.path = null;
+    public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream);
     }
 
-    MapperBuilderContext(String path) {
-        this.path = Objects.requireNonNull(path);
+    private final String path;
+    private final boolean isSourceSynthetic;
+    private final boolean isDataStream;
+
+    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream) {
+        this.path = path;
+        this.isSourceSynthetic = isSourceSynthetic;
+        this.isDataStream = isDataStream;
     }
 
     /**
@@ -38,7 +38,7 @@ public final class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name) {
-        return new MapperBuilderContext(buildFullName(name));
+        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream);
     }
 
     /**
@@ -49,5 +49,19 @@ public final class MapperBuilderContext {
             return name;
         }
         return path + "." + name;
+    }
+
+    /**
+     * Is the {@code _source} field being reconstructed on the fly?
+     */
+    public boolean isSourceSynthetic() {
+        return isSourceSynthetic;
+    }
+
+    /**
+     * Are these mappings being built for a data stream index?
+     */
+    public boolean isDataStream() {
+        return isDataStream;
     }
 }

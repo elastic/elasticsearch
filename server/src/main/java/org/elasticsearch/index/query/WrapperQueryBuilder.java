@@ -10,7 +10,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -150,7 +151,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getParserConfig(), source)) {
 
-            final QueryBuilder queryBuilder = parseInnerQueryBuilder(qSourceParser).rewrite(context);
+            final QueryBuilder queryBuilder = parseTopLevelQuery(qSourceParser).rewrite(context);
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);
@@ -161,7 +162,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

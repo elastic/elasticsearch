@@ -1,0 +1,5 @@
+pr: 101535
+summary: Disable inter-segment concurrency when sorting by field
+area: Search
+type: enhancement
+issues: []

@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -24,8 +23,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
@@ -41,13 +38,10 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,12 +49,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -72,8 +63,15 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemIndexPlugin, Closeable, PersistentTaskPlugin, ActionPlugin {
     public static final Setting<Long> CACHE_SIZE = Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
-
-    static Set<String> DEFAULT_DATABASE_FILENAMES = Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb");
+    private static final int GEOIP_INDEX_MAPPINGS_VERSION = 1;
+    /**
+     * No longer used for determining the age of mappings, but system index descriptor
+     * code requires <em>something</em> be set. We use a value that can be parsed by
+     * old nodes in mixed-version clusters, just in case any old code exists that
+     * tries to parse <code>version</code> from index metadata, and that will indicate
+     * to these old nodes that the mappings are newer than they are.
+     */
+    private static final String LEGACY_VERSION_FIELD_VALUE = "8.12.0";
 
     private final SetOnce<IngestService> ingestService = new SetOnce<>();
     private final SetOnce<DatabaseNodeService> databaseRegistry = new SetOnce<>();
@@ -81,11 +79,12 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(
+        return List.of(
             CACHE_SIZE,
+            GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
+            GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloader.POLL_INTERVAL_SETTING,
-            GeoIpDownloaderTaskExecutor.ENABLED_SETTING
+            GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING
         );
     }
 
@@ -95,33 +94,33 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
         long cacheSize = CACHE_SIZE.get(parameters.env.settings());
         GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
-        DatabaseNodeService registry = new DatabaseNodeService(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
+        DatabaseNodeService registry = new DatabaseNodeService(
+            parameters.env,
+            parameters.client,
+            geoIpCache,
+            parameters.genericExecutor,
+            parameters.ingestService.getClusterService()
+        );
         databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry, parameters.ingestService.getClusterService()));
+        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         try {
-            String nodeId = nodeEnvironment.nodeId();
-            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get());
+            String nodeId = services.nodeEnvironment().nodeId();
+            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService(), ingestService.get());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
+        geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(
+            services.client(),
+            new HttpClient(),
+            services.clusterService(),
+            services.threadPool()
+        );
+        geoIpDownloaderTaskExecutor.init();
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }
 
@@ -194,7 +193,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             .setPrimaryIndex(DATABASES_INDEX)
             .setNetNew()
             .build();
-        return Collections.singleton(geoipDatabasesIndex);
+        return List.of(geoipDatabasesIndex);
     }
 
     @Override
@@ -212,7 +211,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT)
+                .field("version", LEGACY_VERSION_FIELD_VALUE)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, GEOIP_INDEX_MAPPINGS_VERSION)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

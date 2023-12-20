@@ -7,12 +7,13 @@
  */
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -169,10 +170,10 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         seqNoAndPrimaryTerm = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
+        docValueFields = in.readBoolean() ? in.readCollectionAsList(FieldAndFormat::new) : null;
         if (in.readBoolean()) {
             int size = in.readVInt();
-            scriptFields = new HashSet<>(size);
+            scriptFields = Sets.newHashSetWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 scriptFields.add(new ScriptField(in));
             }
@@ -188,9 +189,9 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
 
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
+                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
         }
     }
@@ -208,7 +209,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeBoolean(docValueFields != null);
         if (docValueFields != null) {
-            out.writeList(docValueFields);
+            out.writeCollection(docValueFields);
         }
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
@@ -223,15 +224,15 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeNamedWriteableList(sorts);
+            out.writeNamedWriteableCollection(sorts);
         }
         out.writeOptionalWriteable(highlightBuilder);
         out.writeOptionalWriteable(innerCollapseBuilder);
 
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
-                out.writeList(fetchFields);
+                out.writeCollection(fetchFields);
             }
         }
     }

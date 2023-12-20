@@ -1,5 +1,0 @@
-pr: 85518
-summary: Replace BYTE_BLOCK_SIZE - 2 with indexWriter#MAX_TERM_LENGTH
-area: Mapping
-type: enhancement
-issues: []

@@ -16,6 +16,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -175,6 +179,11 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
                 && Objects.equals(queryProvider, that.queryProvider)
                 && Objects.equals(evaluation, that.evaluation);
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "evaluate_data_frame", parentTaskId, headers);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -185,7 +194,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public Response(StreamInput in) throws IOException {
             super(in);
             this.evaluationName = in.readString();
-            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
+            this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetricResult.class);
         }
 
         public Response(String evaluationName, List<EvaluationMetricResult> metrics) {
@@ -204,7 +213,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(evaluationName);
-            out.writeNamedWriteableList(metrics);
+            out.writeNamedWriteableCollection(metrics);
         }
 
         @Override

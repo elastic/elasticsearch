@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * Base class that redirects a request to a node where the job task is running.
@@ -42,7 +43,7 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<Response> responseReader,
-        String nodeExecutor,
+        Executor nodeExecutor,
         AutodetectProcessManager processManager
     ) {
         super(actionName, clusterService, transportService, actionFilters, requestReader, responseReader, responseReader, nodeExecutor);
@@ -86,9 +87,9 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         // the actionlistener's onFailure
         if (tasks.isEmpty()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+                throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+                throw failedNodeExceptions.get(0);
             } else {
                 throw new IllegalStateException("No errors or response");
             }

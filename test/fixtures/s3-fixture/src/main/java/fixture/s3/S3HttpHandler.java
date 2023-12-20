@@ -11,8 +11,8 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -21,10 +21,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
@@ -43,7 +44,10 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.w3c.dom.Node.ELEMENT_NODE;
 
 /**
  * Minimal HTTP handler that acts as a S3 compliant server
@@ -51,10 +55,13 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 public class S3HttpHandler implements HttpHandler {
 
+    private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
+
     private final String bucket;
     private final String path;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
 
     public S3HttpHandler(final String bucket) {
         this(bucket, null);
@@ -80,21 +87,54 @@ public class S3HttpHandler implements HttpHandler {
                 } else {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
+            } else if (Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)) {
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+
+                final var prefix = params.get("prefix");
+
+                final var uploadsList = new StringBuilder();
+                uploadsList.append("<?xml version='1.0' encoding='UTF-8'?>");
+                uploadsList.append("<ListMultipartUploadsResult xmlns='http://s3.amazonaws.com/doc/2006-03-01/'>");
+                uploadsList.append("<Bucket>").append(bucket).append("</Bucket>");
+                uploadsList.append("<KeyMarker />");
+                uploadsList.append("<UploadIdMarker />");
+                uploadsList.append("<NextKeyMarker>--unused--</NextKeyMarker>");
+                uploadsList.append("<NextUploadIdMarker />");
+                uploadsList.append("<Delimiter />");
+                uploadsList.append("<Prefix>").append(prefix).append("</Prefix>");
+                uploadsList.append("<MaxUploads>10000</MaxUploads>");
+                uploadsList.append("<IsTruncated>false</IsTruncated>");
+
+                for (final var multipartUpload : uploads.values()) {
+                    if (multipartUpload.getPath().startsWith(prefix)) {
+                        multipartUpload.appendXml(uploadsList);
+                    }
+                }
+
+                uploadsList.append("</ListMultipartUploadsResult>");
+
+                byte[] response = uploadsList.toString().getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                exchange.getResponseBody().write(response);
+
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
-                final String uploadId = UUIDs.randomBase64UUID();
-                byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                    + "<InitiateMultipartUploadResult>\n"
-                    + "  <Bucket>"
-                    + bucket
-                    + "</Bucket>\n"
-                    + "  <Key>"
-                    + exchange.getRequestURI().getPath()
-                    + "</Key>\n"
-                    + "  <UploadId>"
-                    + uploadId
-                    + "</UploadId>\n"
-                    + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                blobs.put(multipartKey(uploadId, 0), BytesArray.EMPTY);
+                final var upload = new MultipartUpload(
+                    UUIDs.randomBase64UUID(),
+                    exchange.getRequestURI().getPath().substring(bucket.length() + 2)
+                );
+                uploads.put(upload.getUploadId(), upload);
+
+                final var uploadResult = new StringBuilder();
+                uploadResult.append("<?xml version='1.0' encoding='UTF-8'?>");
+                uploadResult.append("<InitiateMultipartUploadResult>");
+                uploadResult.append("<Bucket>").append(bucket).append("</Bucket>");
+                uploadResult.append("<Key>").append(upload.getPath()).append("</Key>");
+                uploadResult.append("<UploadId>").append(upload.getUploadId()).append("</UploadId>");
+                uploadResult.append("</InitiateMultipartUploadResult>");
+
+                byte[] response = uploadResult.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -103,53 +143,45 @@ public class S3HttpHandler implements HttpHandler {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
-                final String uploadId = params.get("uploadId");
-                if (blobs.containsKey(multipartKey(uploadId, 0))) {
+                final var upload = uploads.get(params.get("uploadId"));
+                if (upload == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    final int partNumber = Integer.parseInt(params.get("partNumber"));
-                    blobs.put(multipartKey(uploadId, partNumber), blob.v2());
+                    upload.addPart(blob.v1(), blob.v2());
                     exchange.getResponseHeaders().add("ETag", blob.v1());
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-                } else {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 }
 
             } else if (Regex.simpleMatch("POST /" + path + "/*?uploadId=*", request)) {
-                Streams.readFully(exchange.getRequestBody());
+
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-                final String uploadId = params.get("uploadId");
+                final var upload = uploads.remove(params.get("uploadId"));
+                if (upload == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
+                    blobs.put(exchange.getRequestURI().getPath(), blobContents);
 
-                final int nbParts = blobs.keySet()
-                    .stream()
-                    .filter(blobName -> blobName.startsWith(uploadId))
-                    .map(blobName -> blobName.replaceFirst(uploadId + '\n', ""))
-                    .mapToInt(Integer::parseInt)
-                    .max()
-                    .orElse(0);
-
-                final ByteArrayOutputStream blob = new ByteArrayOutputStream();
-                for (int partNumber = 0; partNumber <= nbParts; partNumber++) {
-                    BytesReference part = blobs.remove(multipartKey(uploadId, partNumber));
-                    if (part == null) {
-                        throw new AssertionError("Upload part is null");
-                    }
-                    part.writeTo(blob);
+                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<CompleteMultipartUploadResult>\n"
+                        + "<Bucket>"
+                        + bucket
+                        + "</Bucket>\n"
+                        + "<Key>"
+                        + exchange.getRequestURI().getPath()
+                        + "</Key>\n"
+                        + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
                 }
-                blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
-
-                byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                    + "<CompleteMultipartUploadResult>\n"
-                    + "<Bucket>"
-                    + bucket
-                    + "</Bucket>\n"
-                    + "<Key>"
-                    + exchange.getRequestURI().getPath()
-                    + "</Key>\n"
-                    + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                exchange.getResponseBody().write(response);
+            } else if (Regex.simpleMatch("DELETE /" + path + "/*?uploadId=*", request)) {
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                final var upload = uploads.remove(params.get("uploadId"));
+                exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + path + "/*", request)) {
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
@@ -279,10 +311,6 @@ public class S3HttpHandler implements HttpHandler {
         return blobs;
     }
 
-    private static String multipartKey(final String uploadId, int partNumber) {
-        return uploadId + "\n" + partNumber;
-    }
-
     private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
@@ -358,12 +386,58 @@ public class S3HttpHandler implements HttpHandler {
             }
             return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
         } catch (Exception e) {
+            logger.error("exception in parseRequestBody", e);
             exchange.sendResponseHeaders(500, 0);
             try (PrintStream printStream = new PrintStream(exchange.getResponseBody())) {
-                printStream.println(e.toString());
+                printStream.println(e);
                 e.printStackTrace(printStream);
             }
-            throw new AssertionError("parseRequestBody failed", e);
+            throw e;
+        }
+    }
+
+    static List<String> extractPartEtags(BytesReference completeMultipartUploadBody) {
+        try {
+            final var document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(completeMultipartUploadBody.streamInput());
+            final var parts = document.getElementsByTagName("Part");
+            final var result = new ArrayList<String>(parts.getLength());
+            for (int partIndex = 0; partIndex < parts.getLength(); partIndex++) {
+                final var part = parts.item(partIndex);
+                String etag = null;
+                int partNumber = -1;
+                final var childNodes = part.getChildNodes();
+                for (int childIndex = 0; childIndex < childNodes.getLength(); childIndex++) {
+                    final var childNode = childNodes.item(childIndex);
+                    if (childNode.getNodeType() == ELEMENT_NODE) {
+                        if (childNode.getNodeName().equals("ETag")) {
+                            etag = childNode.getTextContent();
+                        } else if (childNode.getNodeName().equals("PartNumber")) {
+                            partNumber = Integer.parseInt(childNode.getTextContent()) - 1;
+                        }
+                    }
+                }
+
+                if (etag == null || partNumber == -1) {
+                    throw new IllegalStateException("incomplete part details");
+                }
+
+                while (result.size() <= partNumber) {
+                    result.add(null);
+                }
+
+                if (result.get(partNumber) != null) {
+                    throw new IllegalStateException("duplicate part found");
+                }
+                result.set(partNumber, etag);
+            }
+
+            if (result.stream().anyMatch(Objects::isNull)) {
+                throw new IllegalStateException("missing part");
+            }
+
+            return result;
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 
@@ -396,5 +470,9 @@ public class S3HttpHandler implements HttpHandler {
             exchange.getResponseBody().write(response);
             exchange.close();
         }
+    }
+
+    MultipartUpload getUpload(String uploadId) {
+        return uploads.get(uploadId);
     }
 }

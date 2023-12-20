@@ -21,7 +21,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -86,9 +86,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -121,7 +121,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 wrapAnalyzer(analyzers.getSearchAnalyzer()),
                 wrapAnalyzer(analyzers.getSearchQuoteAnalyzer())
             );
-            return new AnnotatedTextFieldType(context.buildFullName(name), store.getValue(), tsi, meta.getValue());
+            return new AnnotatedTextFieldType(
+                context.buildFullName(name),
+                store.getValue(),
+                tsi,
+                context.isSourceSynthetic(),
+                meta.getValue()
+            );
         }
 
         @Override
@@ -142,7 +148,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 fieldType,
                 buildFieldType(fieldType, context),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 this
             );
         }
@@ -467,8 +473,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        private AnnotatedTextFieldType(String name, boolean store, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, true, store, tsi, meta);
+        private AnnotatedTextFieldType(
+            String name,
+            boolean store,
+            TextSearchInfo tsi,
+            boolean isSyntheticSource,
+            Map<String, String> meta
+        ) {
+            super(name, true, store, tsi, isSyntheticSource, null, meta, false, false);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
@@ -496,7 +508,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.builder = builder;
         this.indexAnalyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
     }

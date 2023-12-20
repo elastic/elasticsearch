@@ -8,7 +8,8 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -67,10 +68,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {
-        databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString, in -> {
-            long lastUpdate = in.readLong();
-            return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(), in.readLong());
-        }));
+        databases = input.readImmutableMap(in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(), in.readString(), in.readLong()));
     }
 
     public GeoIpTaskState put(String name, Metadata metadata) {
@@ -124,13 +122,13 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_13_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_13_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(databases, StreamOutput::writeString, (o, v) -> {
+        out.writeMap(databases, (o, v) -> {
             o.writeLong(v.lastUpdate);
             o.writeVInt(v.firstChunk);
             o.writeVInt(v.lastChunk);

@@ -8,13 +8,12 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.PluginsSynchronizer;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
@@ -42,7 +41,7 @@ import java.util.stream.Collectors;
  * This action cannot be called from the command line. It is used exclusively by Elasticsearch on startup, but only
  * if the config file exists and the distribution type allows it.
  */
-public class SyncPluginsAction implements PluginsSynchronizer {
+public class SyncPluginsAction {
     public static final String ELASTICSEARCH_PLUGINS_YML = "elasticsearch-plugins.yml";
     public static final String ELASTICSEARCH_PLUGINS_YML_CACHE = ".elasticsearch-plugins.yml.cache";
 
@@ -77,7 +76,6 @@ public class SyncPluginsAction implements PluginsSynchronizer {
      *
      * @throws Exception if anything goes wrong
      */
-    @Override
     public void execute() throws Exception {
         final Path configPath = this.env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
         final Path previousConfigPath = this.env.pluginsFile().resolve(ELASTICSEARCH_PLUGINS_YML_CACHE);
@@ -243,15 +241,15 @@ public class SyncPluginsAction implements PluginsSynchronizer {
                         throw new RuntimeException("Couldn't find a PluginInfo for [" + eachPluginId + "], which should be impossible");
                     });
 
-                if (info.getElasticsearchVersion().before(Version.CURRENT)) {
+                if (info.getElasticsearchVersion().toString().equals(Build.current().version()) == false) {
                     this.terminal.println(
                         Terminal.Verbosity.VERBOSE,
                         String.format(
                             Locale.ROOT,
-                            "Official plugin [%s] is out-of-date (%s versus %s), upgrading",
+                            "Official plugin [%s] is out-of-sync (%s versus %s), upgrading",
                             eachPluginId,
                             info.getElasticsearchVersion(),
-                            Version.CURRENT
+                            Build.current().version()
                         )
                     );
                     return true;
@@ -280,14 +278,14 @@ public class SyncPluginsAction implements PluginsSynchronizer {
 
                     // Check for a version mismatch, unless it's an official plugin since we can upgrade them.
                     if (InstallPluginAction.OFFICIAL_PLUGINS.contains(info.getName())
-                        && info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+                        && info.getElasticsearchVersion().toString().equals(Build.current().version()) == false) {
                         this.terminal.errorPrintln(
                             String.format(
                                 Locale.ROOT,
                                 "WARNING: plugin [%s] was built for Elasticsearch version %s but version %s is required",
                                 info.getName(),
                                 info.getElasticsearchVersion(),
-                                Version.CURRENT
+                                Build.current().version()
                             )
                         );
                     }

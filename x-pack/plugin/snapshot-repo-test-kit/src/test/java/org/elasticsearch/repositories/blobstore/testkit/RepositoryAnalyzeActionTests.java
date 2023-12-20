@@ -102,8 +102,8 @@ public class RepositoryAnalyzeActionTests extends ESTestCase {
 
     private static List<Long> getBlobSizes(long maxBlobSize, long maxTotalDataSize, int blobCount) {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("repo");
-        request.maxBlobSize(new ByteSizeValue(maxBlobSize));
-        request.maxTotalDataSize(new ByteSizeValue(maxTotalDataSize));
+        request.maxBlobSize(ByteSizeValue.ofBytes(maxBlobSize));
+        request.maxTotalDataSize(ByteSizeValue.ofBytes(maxTotalDataSize));
         request.blobCount(blobCount);
         return RepositoryAnalyzeAction.getBlobSizes(request);
     }

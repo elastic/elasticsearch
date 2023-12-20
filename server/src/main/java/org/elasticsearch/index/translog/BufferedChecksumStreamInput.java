@@ -101,7 +101,12 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
 
     @Override
     public int read() throws IOException {
-        return readByte() & 0xFF;
+        int b = delegate.read();
+        if (b == -1) {
+            return b;
+        }
+        digest.update((byte) b);
+        return b;
     }
 
     @Override

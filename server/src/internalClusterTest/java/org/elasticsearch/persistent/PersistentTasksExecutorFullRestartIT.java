@@ -34,10 +34,6 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         return Collections.singletonList(TestPersistentTasksPlugin.class);
     }
 
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testFullClusterRestart() throws Exception {
         PersistentTasksService service = internalCluster().getInstance(PersistentTasksService.class);
         int numberOfTasks = randomIntBetween(1, 10);
@@ -62,7 +58,7 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         assertBusy(() -> {
             // Wait for the task to start
             assertThat(
-                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
                 greaterThan(0)
             );
         });
@@ -83,7 +79,7 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         assertBusy(() -> {
             // Wait for all tasks to start
             assertThat(
-                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
                 equalTo(numberOfTasks)
             );
         });

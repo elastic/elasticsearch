@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Request;
 
-public class StopDatafeedActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class StopDatafeedActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -33,8 +33,8 @@ public class StopDatafeedActionRequestTests extends AbstractSerializingTestCase<
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

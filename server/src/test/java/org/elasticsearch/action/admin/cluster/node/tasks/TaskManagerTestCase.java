@@ -8,7 +8,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,6 +36,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -52,7 +54,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -118,12 +119,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public int failureCount() {
@@ -147,14 +148,11 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         ) {
             super(
                 actionName,
-                threadPool,
                 clusterService,
                 transportService,
                 new ActionFilters(new HashSet<>()),
-                request,
                 nodeRequest,
-                ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 
@@ -175,14 +173,20 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
             final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction = address -> {
-                discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
+            TaskManager taskManager;
+            if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
+                taskManager = new MockTaskManager(settings, threadPool, emptySet());
+            } else {
+                taskManager = new TaskManager(settings, threadPool, emptySet());
+            }
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(
                     settings,
-                    Version.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -194,18 +198,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 boundTransportAddressDiscoveryNodeFunction,
                 null,
-                Collections.emptySet()
-            ) {
-                @Override
-                protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-                    if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-                        return new MockTaskManager(settings, threadPool, taskHeaders);
-                    } else {
-                        return super.createTaskManager(settings, threadPool, taskHeaders);
-                    }
-                }
-            };
-            transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
+                taskManager,
+                Tracer.NOOP
+            );
+            taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());

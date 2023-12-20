@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
@@ -68,7 +68,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         if (randomBoolean()) {
             return new ShrinkAction(randomIntBetween(1, 100), null);
         } else {
-            return new ShrinkAction(null, new ByteSizeValue(randomIntBetween(1, 100)));
+            return new ShrinkAction(null, ByteSizeValue.ofBytes(randomIntBetween(1, 100)));
         }
     }
 
@@ -77,7 +77,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         if (action.getNumberOfShards() != null) {
             return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2), null);
         } else {
-            return new ShrinkAction(null, new ByteSizeValue(action.getMaxPrimaryShardSize().getBytes() + 1));
+            return new ShrinkAction(null, ByteSizeValue.ofBytes(action.getMaxPrimaryShardSize().getBytes() + 1));
         }
     }
 
@@ -92,11 +92,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     }
 
     public void testMaxPrimaryShardSize() {
-        ByteSizeValue maxPrimaryShardSize1 = new ByteSizeValue(10);
+        ByteSizeValue maxPrimaryShardSize1 = ByteSizeValue.ofBytes(10);
         Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1));
         assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_primary_shard_size]"));
 
-        ByteSizeValue maxPrimaryShardSize2 = new ByteSizeValue(0);
+        ByteSizeValue maxPrimaryShardSize2 = ByteSizeValue.ZERO;
         Exception e2 = expectThrows(Exception.class, () -> new ShrinkAction(null, maxPrimaryShardSize2));
         assertThat(e2.getMessage(), equalTo("[max_primary_shard_size] must be greater than 0"));
     }
@@ -112,7 +112,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         );
         String indexName = randomAlphaOfLength(5);
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(0);
         assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, false);
@@ -130,7 +130,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         String indexName = randomAlphaOfLength(5);
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(
-                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
                     .put(LifecycleSettings.SNAPSHOT_INDEX_NAME, randomAlphaOfLength(10))
             )
             .numberOfShards(numberOfShards * 2)
@@ -151,7 +151,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         );
         String indexName = randomAlphaOfLength(5);
         IndexMetadata.Builder indexMetadatBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(numShards)
             .numberOfReplicas(0);
         assertPerformAction(lifecycleName, indexName, indexMetadatBuilder, action, nextStepKey, false, false);
@@ -168,7 +168,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         );
         String indexName = randomAlphaOfLength(5);
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(0);
         assertPerformAction(lifecycleName, indexName, indexMetadataBuilder, action, nextStepKey, true, true);
@@ -211,11 +211,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         indexMetadataBuilder.putCustom(
                             LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                             LifecycleExecutionState.builder()
-                                .setPhase(step.getKey().getPhase())
+                                .setPhase(step.getKey().phase())
                                 .setPhaseTime(0L)
-                                .setAction(step.getKey().getAction())
+                                .setAction(step.getKey().action())
                                 .setActionTime(0L)
-                                .setStep(step.getKey().getName())
+                                .setStep(step.getKey().name())
                                 .setStepTime(0L)
                                 .build()
                                 .asMap()
@@ -262,24 +262,25 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             randomAlphaOfLengthBetween(1, 10)
         );
         List<Step> steps = action.toSteps(client, phase, nextStepKey);
-        assertThat(steps.size(), equalTo(17));
+        assertThat(steps.size(), equalTo(18));
         StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, WaitForNoFollowersStep.NAME);
-        StepKey expectedFourthKey = new StepKey(phase, ShrinkAction.NAME, ReadOnlyAction.NAME);
-        StepKey expectedFifthKey = new StepKey(phase, ShrinkAction.NAME, CheckTargetShardsCountStep.NAME);
-        StepKey expectedSixthKey = new StepKey(phase, ShrinkAction.NAME, CleanupShrinkIndexStep.NAME);
-        StepKey expectedSeventhKey = new StepKey(phase, ShrinkAction.NAME, GenerateUniqueIndexNameStep.NAME);
-        StepKey expectedEighthKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
-        StepKey expectedNinthKey = new StepKey(phase, ShrinkAction.NAME, CheckShrinkReadyStep.NAME);
-        StepKey expectedTenthKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
-        StepKey expectedEleventhKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
-        StepKey expectedTwelveKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
-        StepKey expectedThirteenKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
-        StepKey expectedFourteenKey = new StepKey(phase, ShrinkAction.NAME, ShrinkSetAliasStep.NAME);
-        StepKey expectedFifteenKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
-        StepKey expectedSixteenKey = new StepKey(phase, ShrinkAction.NAME, ReplaceDataStreamBackingIndexStep.NAME);
-        StepKey expectedSeventeenKey = new StepKey(phase, ShrinkAction.NAME, DeleteStep.NAME);
+        StepKey expectedFourthKey = new StepKey(phase, ShrinkAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
+        StepKey expectedFifthKey = new StepKey(phase, ShrinkAction.NAME, ReadOnlyAction.NAME);
+        StepKey expectedSixthKey = new StepKey(phase, ShrinkAction.NAME, CheckTargetShardsCountStep.NAME);
+        StepKey expectedSeventhKey = new StepKey(phase, ShrinkAction.NAME, CleanupShrinkIndexStep.NAME);
+        StepKey expectedEighthKey = new StepKey(phase, ShrinkAction.NAME, GenerateUniqueIndexNameStep.NAME);
+        StepKey expectedNinthKey = new StepKey(phase, ShrinkAction.NAME, SetSingleNodeAllocateStep.NAME);
+        StepKey expectedTenthKey = new StepKey(phase, ShrinkAction.NAME, CheckShrinkReadyStep.NAME);
+        StepKey expectedEleventhKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
+        StepKey expectedTwelveKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
+        StepKey expectedThirteenKey = new StepKey(phase, ShrinkAction.NAME, CopyExecutionStateStep.NAME);
+        StepKey expectedFourteenKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
+        StepKey expectedFifteenKey = new StepKey(phase, ShrinkAction.NAME, ShrinkSetAliasStep.NAME);
+        StepKey expectedSixteenKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
+        StepKey expectedSeventeenKey = new StepKey(phase, ShrinkAction.NAME, ReplaceDataStreamBackingIndexStep.NAME);
+        StepKey expectedEighteenKey = new StepKey(phase, ShrinkAction.NAME, DeleteStep.NAME);
 
         assertTrue(steps.get(0) instanceof AsyncBranchingStep);
         assertThat(steps.get(0).getKey(), equalTo(expectedFirstKey));
@@ -295,72 +296,76 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(2).getKey(), equalTo(expectedThirdKey));
         assertThat(steps.get(2).getNextStepKey(), equalTo(expectedFourthKey));
 
-        assertTrue(steps.get(3) instanceof ReadOnlyStep);
+        assertTrue(steps.get(3) instanceof WaitUntilTimeSeriesEndTimePassesStep);
         assertThat(steps.get(3).getKey(), equalTo(expectedFourthKey));
         assertThat(steps.get(3).getNextStepKey(), equalTo(expectedFifthKey));
 
-        assertTrue(steps.get(4) instanceof CheckTargetShardsCountStep);
+        assertTrue(steps.get(4) instanceof ReadOnlyStep);
         assertThat(steps.get(4).getKey(), equalTo(expectedFifthKey));
         assertThat(steps.get(4).getNextStepKey(), equalTo(expectedSixthKey));
 
-        assertTrue(steps.get(5) instanceof CleanupShrinkIndexStep);
+        assertTrue(steps.get(5) instanceof CheckTargetShardsCountStep);
         assertThat(steps.get(5).getKey(), equalTo(expectedSixthKey));
         assertThat(steps.get(5).getNextStepKey(), equalTo(expectedSeventhKey));
 
-        assertTrue(steps.get(6) instanceof GenerateUniqueIndexNameStep);
+        assertTrue(steps.get(6) instanceof CleanupShrinkIndexStep);
         assertThat(steps.get(6).getKey(), equalTo(expectedSeventhKey));
         assertThat(steps.get(6).getNextStepKey(), equalTo(expectedEighthKey));
 
-        assertTrue(steps.get(7) instanceof SetSingleNodeAllocateStep);
+        assertTrue(steps.get(7) instanceof GenerateUniqueIndexNameStep);
         assertThat(steps.get(7).getKey(), equalTo(expectedEighthKey));
         assertThat(steps.get(7).getNextStepKey(), equalTo(expectedNinthKey));
 
-        assertTrue(steps.get(8) instanceof ClusterStateWaitUntilThresholdStep);
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(8)).getStepToExecute(), is(instanceOf(CheckShrinkReadyStep.class)));
-        // assert in case the threshold is breached we go back to the "cleanup shrunk index" step
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(8)).getNextKeyOnThreshold(), is(expectedEighthKey));
+        assertTrue(steps.get(8) instanceof SetSingleNodeAllocateStep);
         assertThat(steps.get(8).getKey(), equalTo(expectedNinthKey));
         assertThat(steps.get(8).getNextStepKey(), equalTo(expectedTenthKey));
 
-        assertTrue(steps.get(9) instanceof ShrinkStep);
+        assertTrue(steps.get(9) instanceof ClusterStateWaitUntilThresholdStep);
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(9)).getStepToExecute(), is(instanceOf(CheckShrinkReadyStep.class)));
+        // assert in case the threshold is breached we go back to the "cleanup shrunk index" step
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(9)).getNextKeyOnThreshold(), is(expectedNinthKey));
         assertThat(steps.get(9).getKey(), equalTo(expectedTenthKey));
         assertThat(steps.get(9).getNextStepKey(), equalTo(expectedEleventhKey));
 
-        assertTrue(steps.get(10) instanceof ClusterStateWaitUntilThresholdStep);
+        assertTrue(steps.get(10) instanceof ShrinkStep);
         assertThat(steps.get(10).getKey(), equalTo(expectedEleventhKey));
         assertThat(steps.get(10).getNextStepKey(), equalTo(expectedTwelveKey));
+
+        assertTrue(steps.get(11) instanceof ClusterStateWaitUntilThresholdStep);
+        assertThat(steps.get(11).getKey(), equalTo(expectedTwelveKey));
+        assertThat(steps.get(11).getNextStepKey(), equalTo(expectedThirteenKey));
         assertThat(
-            ((ClusterStateWaitUntilThresholdStep) steps.get(10)).getStepToExecute(),
+            ((ClusterStateWaitUntilThresholdStep) steps.get(11)).getStepToExecute(),
             is(instanceOf(ShrunkShardsAllocatedStep.class))
         );
         // assert in case the threshold is breached we go back to the "cleanup shrunk index" step
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(10)).getNextKeyOnThreshold(), is(expectedSixthKey));
+        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(11)).getNextKeyOnThreshold(), is(expectedSeventhKey));
 
-        assertTrue(steps.get(11) instanceof CopyExecutionStateStep);
-        assertThat(steps.get(11).getKey(), equalTo(expectedTwelveKey));
-        assertThat(steps.get(11).getNextStepKey(), equalTo(expectedThirteenKey));
-
-        assertTrue(steps.get(12) instanceof BranchingStep);
+        assertTrue(steps.get(12) instanceof CopyExecutionStateStep);
         assertThat(steps.get(12).getKey(), equalTo(expectedThirteenKey));
-        expectThrows(IllegalStateException.class, () -> steps.get(12).getNextStepKey());
-        assertThat(((BranchingStep) steps.get(12)).getNextStepKeyOnFalse(), equalTo(expectedFourteenKey));
-        assertThat(((BranchingStep) steps.get(12)).getNextStepKeyOnTrue(), equalTo(expectedSixteenKey));
+        assertThat(steps.get(12).getNextStepKey(), equalTo(expectedFourteenKey));
 
-        assertTrue(steps.get(13) instanceof ShrinkSetAliasStep);
+        assertTrue(steps.get(13) instanceof BranchingStep);
         assertThat(steps.get(13).getKey(), equalTo(expectedFourteenKey));
-        assertThat(steps.get(13).getNextStepKey(), equalTo(expectedFifteenKey));
+        expectThrows(IllegalStateException.class, () -> steps.get(13).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(13)).getNextStepKeyOnFalse(), equalTo(expectedFifteenKey));
+        assertThat(((BranchingStep) steps.get(13)).getNextStepKeyOnTrue(), equalTo(expectedSeventeenKey));
 
-        assertTrue(steps.get(14) instanceof ShrunkenIndexCheckStep);
+        assertTrue(steps.get(14) instanceof ShrinkSetAliasStep);
         assertThat(steps.get(14).getKey(), equalTo(expectedFifteenKey));
-        assertThat(steps.get(14).getNextStepKey(), equalTo(nextStepKey));
+        assertThat(steps.get(14).getNextStepKey(), equalTo(expectedSixteenKey));
 
-        assertTrue(steps.get(15) instanceof ReplaceDataStreamBackingIndexStep);
+        assertTrue(steps.get(15) instanceof ShrunkenIndexCheckStep);
         assertThat(steps.get(15).getKey(), equalTo(expectedSixteenKey));
-        assertThat(steps.get(15).getNextStepKey(), equalTo(expectedSeventeenKey));
+        assertThat(steps.get(15).getNextStepKey(), equalTo(nextStepKey));
 
-        assertTrue(steps.get(16) instanceof DeleteStep);
+        assertTrue(steps.get(16) instanceof ReplaceDataStreamBackingIndexStep);
         assertThat(steps.get(16).getKey(), equalTo(expectedSeventeenKey));
-        assertThat(steps.get(16).getNextStepKey(), equalTo(expectedFifteenKey));
+        assertThat(steps.get(16).getNextStepKey(), equalTo(expectedEighteenKey));
+
+        assertTrue(steps.get(17) instanceof DeleteStep);
+        assertThat(steps.get(17).getKey(), equalTo(expectedEighteenKey));
+        assertThat(steps.get(17).getNextStepKey(), equalTo(expectedSixteenKey));
     }
 
     private void setUpIndicesStatsRequestMock(String index, boolean withError) {

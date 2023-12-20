@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.client;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -19,22 +18,19 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
- * Client that always response with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)},
- * {@link #executeLocally(ActionType, ActionRequest, ActionListener)}, or {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
- * for testing.
+ * Client that always response with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)} or
+ * {@link #executeLocally(ActionType, ActionRequest, ActionListener)} for testing.
  *
  * See also {@link NoOpClient} if you do not specifically need a {@link NodeClient}.
  */
@@ -42,18 +38,8 @@ public class NoOpNodeClient extends NodeClient {
 
     private final AtomicLong executionCount = new AtomicLong(0);
 
-    /**
-     * Build with {@link ThreadPool}. This {@linkplain ThreadPool} is terminated on {@link #close()}.
-     */
     public NoOpNodeClient(ThreadPool threadPool) {
         super(Settings.EMPTY, threadPool);
-    }
-
-    /**
-     * Create a new {@link TestThreadPool} for this client. This {@linkplain TestThreadPool} is terminated on {@link #close()}.
-     */
-    public NoOpNodeClient(String testName) {
-        super(Settings.EMPTY, new TestThreadPool(testName));
     }
 
     @Override
@@ -90,36 +76,12 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
-        ActionType<Response> action,
-        Request request,
-        TaskListener<Response> listener
-    ) {
-        executionCount.incrementAndGet();
-        listener.onResponse(null, null);
-        return null;
-    }
-
-    @Override
     public String getLocalNodeId() {
         return null;
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
+    public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
         return null;
-    }
-
-    @Override
-    public void close() {
-        try {
-            ThreadPool.terminate(threadPool(), 10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new ElasticsearchException(e.getMessage(), e);
-        }
-    }
-
-    public long getExecutionCount() {
-        return executionCount.get();
     }
 }

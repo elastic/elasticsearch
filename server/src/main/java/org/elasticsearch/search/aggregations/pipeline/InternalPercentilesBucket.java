@@ -118,12 +118,15 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public double value(String name) {
+        if (this.percents.length == 1 && this.name.equals(name)) {
+            return percentile(this.percents[0]);
+        }
         return percentile(Double.parseDouble(name));
     }
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).toList();
+        return Arrays.stream(percents).mapToObj(String::valueOf).toList();
     }
 
     @Override

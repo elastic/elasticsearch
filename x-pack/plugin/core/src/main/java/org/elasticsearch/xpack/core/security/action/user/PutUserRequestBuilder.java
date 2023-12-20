@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -34,11 +35,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         WriteRequestBuilder<PutUserRequestBuilder> {
 
     public PutUserRequestBuilder(ElasticsearchClient client) {
-        this(client, PutUserAction.INSTANCE);
-    }
-
-    public PutUserRequestBuilder(ElasticsearchClient client, PutUserAction action) {
-        super(client, action, new PutUserRequest());
+        super(client, PutUserAction.INSTANCE, new PutUserRequest());
     }
 
     public PutUserRequestBuilder username(String username) {
@@ -92,9 +89,12 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
 
     public PutUserRequestBuilder passwordHash(char[] passwordHash, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHash);
-        if (resolvedHasher.equals(configuredHasher) == false) {
+        if (resolvedHasher.equals(configuredHasher) == false
+            && Hasher.getAvailableAlgoStoredHash().contains(resolvedHasher.name().toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException(
-                "Provided password hash uses [" + resolvedHasher + "] but the configured hashing algorithm is [" + configuredHasher + "]"
+                "The provided password hash is not a hash or it could not be resolved to a supported hash algorithm. "
+                    + "The supported password hash algorithms are "
+                    + Hasher.getAvailableAlgoStoredHash().toString()
             );
         }
         if (request.passwordHash() != null) {

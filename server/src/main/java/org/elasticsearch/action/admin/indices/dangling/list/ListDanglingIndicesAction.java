@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.dangling.list;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Represents a request to list all dangling indices known to the cluster.
@@ -19,6 +20,6 @@ public class ListDanglingIndicesAction extends ActionType<ListDanglingIndicesRes
     public static final String NAME = "cluster:admin/indices/dangling/list";
 
     private ListDanglingIndicesAction() {
-        super(NAME, ListDanglingIndicesResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

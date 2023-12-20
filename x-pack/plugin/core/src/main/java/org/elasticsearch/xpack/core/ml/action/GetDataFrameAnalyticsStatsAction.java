@@ -18,7 +18,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,6 +40,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAnalyticsStatsAction.Response> {
 
@@ -71,7 +75,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             id = in.readString();
             allowNoMatch = in.readBoolean();
             pageParams = in.readOptionalWriteable(PageParams::new);
-            expandedIds = in.readStringList();
+            expandedIds = in.readStringCollectionAsList();
         }
 
         public void setExpandedIds(List<String> expandedIds) {
@@ -141,6 +145,11 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             Request other = (Request) obj;
             return Objects.equals(id, other.id) && allowNoMatch == other.allowNoMatch && Objects.equals(pageParams, other.pageParams);
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_data_frame_analytics_stats[%s]", id), parentTaskId, headers);
+        }
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
@@ -198,7 +207,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 id = in.readString();
                 state = DataFrameAnalyticsState.fromStream(in);
                 failureReason = in.readOptionalString();
-                progress = in.readList(PhaseProgress::new);
+                progress = in.readCollectionAsList(PhaseProgress::new);
                 dataCounts = new DataCounts(in);
                 memoryUsage = new MemoryUsage(in);
                 analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
@@ -303,7 +312,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 out.writeString(id);
                 state.writeTo(out);
                 out.writeOptionalString(failureReason);
-                out.writeList(progress);
+                out.writeCollection(progress);
                 dataCounts.writeTo(out);
                 memoryUsage.writeTo(out);
                 out.writeOptionalNamedWriteable(analysisStats);

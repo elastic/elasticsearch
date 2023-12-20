@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.core.security.action.service;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCase<GetServiceAccountRequest> {
 
     @Override
@@ -28,7 +26,7 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
     }
 
     @Override
-    protected GetServiceAccountRequest mutateInstance(GetServiceAccountRequest instance) throws IOException {
+    protected GetServiceAccountRequest mutateInstance(GetServiceAccountRequest instance) {
         if (randomBoolean()) {
             return new GetServiceAccountRequest(
                 randomValueOtherThan(instance.getNamespace(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),

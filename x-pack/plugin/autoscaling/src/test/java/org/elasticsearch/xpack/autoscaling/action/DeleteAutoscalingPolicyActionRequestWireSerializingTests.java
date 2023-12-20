@@ -23,4 +23,9 @@ public class DeleteAutoscalingPolicyActionRequestWireSerializingTests extends Ab
         return new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8));
     }
 
+    @Override
+    protected DeleteAutoscalingPolicyAction.Request mutateInstance(DeleteAutoscalingPolicyAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
 }

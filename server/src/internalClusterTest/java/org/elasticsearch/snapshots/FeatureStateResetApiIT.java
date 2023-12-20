@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -76,33 +77,25 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
                 ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
-                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("synonyms")
             )
         );
 
         // verify that both indices are gone
-        Exception e1 = expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(systemIndex1).get()
-        );
+        Exception e1 = expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex().addIndices(systemIndex1).get());
 
         assertThat(e1.getMessage(), containsString("no such index"));
 
-        Exception e2 = expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(associatedIndex).get()
-        );
+        Exception e2 = expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex().addIndices(associatedIndex).get());
 
         assertThat(e2.getMessage(), containsString("no such index"));
 
-        Exception e3 = expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(systemIndex2).get()
-        );
+        Exception e3 = expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex().addIndices(systemIndex2).get());
 
         assertThat(e3.getMessage(), containsString("no such index"));
 
-        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("my_index").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices("my_index").get();
 
         assertThat(response.getIndices(), arrayContaining("my_index"));
     }
@@ -145,7 +138,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN, "System indices for tests"));
+            return Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_PATTERN, "System indices for tests"));
         }
 
         @Override
@@ -173,7 +166,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN, "System indices for tests"));
+            return Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_PATTERN, "System indices for tests"));
         }
 
         @Override

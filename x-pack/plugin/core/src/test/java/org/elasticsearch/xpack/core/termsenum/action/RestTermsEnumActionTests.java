@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -52,7 +52,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
+    private static RestController controller = new RestController(null, client, new NoneCircuitBreakerService(), usageService, Tracer.NOOP);
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 
     /**

@@ -11,12 +11,21 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -24,7 +33,7 @@ import java.util.Map;
 
 public class ExceptionRootCauseFinderTests extends ESTestCase {
 
-    public void testFetFirstIrrecoverableExceptionFromBulkResponses() {
+    public void testGetFirstIrrecoverableExceptionFromBulkResponses() {
         Map<Integer, BulkItemResponse> bulkItemResponses = new HashMap<>();
 
         int id = 1;
@@ -34,7 +43,11 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
             BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new MapperParsingException("mapper parsing error"))
+                new BulkItemResponse.Failure(
+                    "the_index",
+                    "id",
+                    new DocumentParsingException(XContentLocation.UNKNOWN, "document parsing error")
+                )
             )
         );
         // 2
@@ -126,7 +139,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
             )
         );
 
-        assertFirstException(bulkItemResponses.values(), MapperParsingException.class, "mapper parsing error");
+        assertFirstException(bulkItemResponses.values(), DocumentParsingException.class, "document parsing error");
         bulkItemResponses.remove(1);
         assertFirstException(bulkItemResponses.values(), ResourceNotFoundException.class, "resource not found error");
         bulkItemResponses.remove(2);
@@ -144,11 +157,29 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
     }
 
+    public void testIsIrrecoverable() {
+        assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new MapperException("mappings problem")));
+        assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new TaskCancelledException("cancelled task")));
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new SearchContextMissingException(new ShardSearchContextId("session-id", 123, null))
+            )
+        );
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new CircuitBreakingException("circuit broken", CircuitBreaker.Durability.TRANSIENT)
+            )
+        );
+        assertTrue(ExceptionRootCauseFinder.isExceptionIrrecoverable(new IndexClosedException(new Index("index", "1234"))));
+        assertTrue(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(new DocumentParsingException(new XContentLocation(1, 2), "parse error"))
+        );
+    }
+
     private static void assertFirstException(Collection<BulkItemResponse> bulkItemResponses, Class<?> expectedClass, String message) {
         Throwable t = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses);
         assertNotNull(t);
         assertEquals(t.getClass(), expectedClass);
         assertEquals(t.getMessage(), message);
     }
-
 }

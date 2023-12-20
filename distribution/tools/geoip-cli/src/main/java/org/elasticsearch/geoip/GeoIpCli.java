@@ -33,7 +33,6 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
@@ -65,24 +64,24 @@ public class GeoIpCli extends Command {
     }
 
     @SuppressForbidden(reason = "file arg for cli")
-    private Path getPath(String file) {
+    private static Path getPath(String file) {
         return PathUtils.get(file);
     }
 
-    private void copyTgzToTarget(Path source, Path target) throws IOException {
+    private static void copyTgzToTarget(Path source, Path target) throws IOException {
         if (source.equals(target)) {
             return;
         }
         try (Stream<Path> files = Files.list(source)) {
-            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).collect(Collectors.toList())) {
+            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).toList()) {
                 Files.copy(path, target.resolve(path.getFileName()), StandardCopyOption.REPLACE_EXISTING);
             }
         }
     }
 
-    private void packDatabasesToTgz(Terminal terminal, Path source, Path target) throws IOException {
+    private static void packDatabasesToTgz(Terminal terminal, Path source, Path target) throws IOException {
         try (Stream<Path> files = Files.list(source)) {
-            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".mmdb")).collect(Collectors.toList())) {
+            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".mmdb")).toList()) {
                 String fileName = path.getFileName().toString();
                 Path compressedPath = target.resolve(fileName.replaceAll("mmdb$", "") + "tgz");
                 terminal.println("Found " + fileName + ", will compress it to " + compressedPath.getFileName());
@@ -103,7 +102,7 @@ public class GeoIpCli extends Command {
         }
     }
 
-    private void createOverviewJson(Terminal terminal, Path directory) throws IOException {
+    private static void createOverviewJson(Terminal terminal, Path directory) throws IOException {
         Path overview = directory.resolve("overview.json");
         try (
             Stream<Path> files = Files.list(directory);
@@ -111,7 +110,7 @@ public class GeoIpCli extends Command {
             XContentGenerator generator = XContentType.JSON.xContent().createGenerator(os)
         ) {
             generator.writeStartArray();
-            for (Path db : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).collect(Collectors.toList())) {
+            for (Path db : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).toList()) {
                 terminal.println("Adding " + db.getFileName() + " to overview.json");
                 MessageDigest md5 = MessageDigests.md5();
                 try (InputStream dis = new DigestInputStream(new BufferedInputStream(Files.newInputStream(db)), md5)) {
@@ -131,7 +130,7 @@ public class GeoIpCli extends Command {
         terminal.println("overview.json created");
     }
 
-    private byte[] createTarHeader(String name, long size) {
+    private static byte[] createTarHeader(String name, long size) {
         byte[] buf = new byte[512];
         byte[] sizeBytes = String.format(Locale.ROOT, "%1$012o", size).getBytes(StandardCharsets.UTF_8);
         byte[] nameBytes = name.substring(Math.max(0, name.length() - 100)).getBytes(StandardCharsets.US_ASCII);

@@ -11,9 +11,16 @@ package org.elasticsearch.gradle.test
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.Ignore
 
 class JavaRestTestPluginFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
+        configurationCacheCompatible = false
+    }
+
+    @Ignore('https://github.com/gradle/gradle/issues/21868')
     def "declares default dependencies"() {
         given:
         buildFile << """

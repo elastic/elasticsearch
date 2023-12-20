@@ -16,6 +16,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -30,7 +32,13 @@ import java.util.Collections;
 public class TransportNoopSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
     @Inject
     public TransportNoopSearchAction(TransportService transportService, ActionFilters actionFilters) {
-        super(NoopSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
+        super(
+            NoopPlugin.NOOP_SEARCH_ACTION.name(),
+            transportService,
+            actionFilters,
+            (Writeable.Reader<SearchRequest>) SearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     @Override

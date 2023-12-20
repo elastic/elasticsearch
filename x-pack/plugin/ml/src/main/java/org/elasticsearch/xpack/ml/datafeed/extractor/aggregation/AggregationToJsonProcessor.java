@@ -202,7 +202,7 @@ class AggregationToJsonProcessor {
             queueDocToWrite(keyValuePairs, docCount);
         }
 
-        addedLeafKeys.forEach(k -> keyValuePairs.remove(k));
+        addedLeafKeys.forEach(keyValuePairs::remove);
     }
 
     private void processDateHistogram(Histogram agg) throws IOException {
@@ -300,7 +300,7 @@ class AggregationToJsonProcessor {
      * Date Histograms have a {@link ZonedDateTime} object as the key,
      * Histograms have either a Double or Long.
      */
-    private long toHistogramKeyToEpoch(Object key) {
+    private static long toHistogramKeyToEpoch(Object key) {
         if (key instanceof ZonedDateTime) {
             return ((ZonedDateTime) key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
@@ -400,7 +400,7 @@ class AggregationToJsonProcessor {
 
     private boolean processGeoCentroid(GeoCentroid agg) {
         if (agg.count() > 0) {
-            keyValuePairs.put(agg.getName(), agg.centroid().getLat() + "," + agg.centroid().getLon());
+            keyValuePairs.put(agg.getName(), agg.centroid().getY() + "," + agg.centroid().getX());
             return true;
         }
         return false;
@@ -408,7 +408,7 @@ class AggregationToJsonProcessor {
 
     private boolean processPercentiles(Percentiles percentiles) {
         Iterator<Percentile> percentileIterator = percentiles.iterator();
-        boolean aggregationAdded = addMetricIfFinite(percentiles.getName(), percentileIterator.next().getValue());
+        boolean aggregationAdded = addMetricIfFinite(percentiles.getName(), percentileIterator.next().value());
         if (percentileIterator.hasNext()) {
             throw new IllegalArgumentException("Multi-percentile aggregation [" + percentiles.getName() + "] is not supported");
         }

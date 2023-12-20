@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -24,7 +23,9 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.GRACE_PERIOD_ADDED_VERSION;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.REPLACE_SHUTDOWN_TYPE_ADDED_VERSION;
+import static org.elasticsearch.core.Strings.format;
 
 public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
@@ -44,11 +45,14 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         private final TimeValue allocationDelay;
         @Nullable
         private final String targetNodeName;
+        @Nullable
+        private final TimeValue gracePeriod;
 
         private static final ParseField TYPE_FIELD = new ParseField("type");
         private static final ParseField REASON_FIELD = new ParseField("reason");
         private static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
         private static final ParseField TARGET_NODE_FIELD = new ParseField("target_node_name");
+        public static final ParseField GRACE_PERIOD_FIELD = new ParseField("grace_period");
 
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
             "put_node_shutdown_request",
@@ -58,7 +62,8 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
                 SingleNodeShutdownMetadata.Type.parse((String) a[0]),
                 (String) a[1],
                 a[2] == null ? null : TimeValue.parseTimeValue((String) a[2], "put-shutdown-node-request-" + nodeId),
-                (String) a[3]
+                (String) a[3],
+                a[4] == null ? null : TimeValue.parseTimeValue((String) a[4], "put-shutdown-node-request-" + nodeId)
             )
         );
 
@@ -67,6 +72,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ALLOCATION_DELAY_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TARGET_NODE_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), GRACE_PERIOD_FIELD);
         }
 
         public static Request parseRequest(String nodeId, XContentParser parser) {
@@ -78,13 +84,15 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             SingleNodeShutdownMetadata.Type type,
             String reason,
             @Nullable TimeValue allocationDelay,
-            @Nullable String targetNodeName
+            @Nullable String targetNodeName,
+            @Nullable TimeValue gracePeriod
         ) {
             this.nodeId = nodeId;
             this.type = type;
             this.reason = reason;
             this.allocationDelay = allocationDelay;
             this.targetNodeName = targetNodeName;
+            this.gracePeriod = gracePeriod;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -92,25 +100,34 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
             this.allocationDelay = in.readOptionalTimeValue();
-            if (in.getVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
                 this.targetNodeName = in.readOptionalString();
             } else {
                 this.targetNodeName = null;
+            }
+            if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
+                this.gracePeriod = in.readOptionalTimeValue();
+            } else {
+                this.gracePeriod = null;
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
-            if (out.getVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
+            if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)
+                && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
                 out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
             } else {
                 out.writeEnum(type);
             }
             out.writeString(reason);
             out.writeOptionalTimeValue(allocationDelay);
-            if (out.getVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
                 out.writeOptionalString(targetNodeName);
+            }
+            if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
+                out.writeOptionalTimeValue(gracePeriod);
             }
         }
 
@@ -132,6 +149,10 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         public String getTargetNodeName() {
             return targetNodeName;
+        }
+
+        public TimeValue getGracePeriod() {
+            return gracePeriod;
         }
 
         @Override
@@ -156,14 +177,28 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
             if (targetNodeName != null && type != SingleNodeShutdownMetadata.Type.REPLACE) {
                 arve.addValidationError(
-                    new ParameterizedMessage(
-                        "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
+                    format(
+                        "target node name is only valid for REPLACE type shutdowns, but was given type [%s] and target node name [%s]",
                         type,
                         targetNodeName
-                    ).getFormattedMessage()
+                    )
                 );
             } else if (targetNodeName == null && type == SingleNodeShutdownMetadata.Type.REPLACE) {
                 arve.addValidationError("target node name is required for REPLACE type shutdowns");
+            }
+
+            if (SingleNodeShutdownMetadata.Type.SIGTERM.equals(type)) {
+                if (gracePeriod == null) {
+                    arve.addValidationError("grace period is required for SIGTERM shutdowns");
+                }
+            } else if (gracePeriod != null) {
+                arve.addValidationError(
+                    format(
+                        "grace period is only valid for SIGTERM type shutdowns, but was given type [%s] and target node name [%s]",
+                        type,
+                        targetNodeName
+                    )
+                );
             }
 
             if (arve.validationErrors().isEmpty() == false) {

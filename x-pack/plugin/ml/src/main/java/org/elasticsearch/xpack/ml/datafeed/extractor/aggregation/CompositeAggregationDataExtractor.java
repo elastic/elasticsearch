@@ -91,6 +91,11 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
+    public void destroy() {
+        cancel();
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }
@@ -133,17 +138,21 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        Aggregations aggregations = searchResponse.getAggregations();
-        if (aggregations == null) {
-            return null;
+        try {
+            LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            Aggregations aggregations = searchResponse.getAggregations();
+            if (aggregations == null) {
+                return null;
+            }
+            CompositeAggregation compositeAgg = aggregations.get(compositeAggregationBuilder.getName());
+            if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
+                return null;
+            }
+            return aggregations;
+        } finally {
+            searchResponse.decRef();
         }
-        CompositeAggregation compositeAgg = aggregations.get(compositeAggregationBuilder.getName());
-        if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
-            return null;
-        }
-        return aggregations;
     }
 
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
@@ -153,7 +162,15 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             client,
             searchRequestBuilder::get
         );
-        checkForSkippedClusters(searchResponse);
+        boolean success = false;
+        try {
+            checkForSkippedClusters(searchResponse);
+            success = true;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
+        }
         return searchResponse;
     }
 

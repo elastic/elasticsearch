@@ -9,9 +9,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,7 +32,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
 
     public void testIndexTemplateMetadataXContentRoundTrip() throws Exception {
 
-        String template = """
+        String template = Strings.format("""
             {
               "index_patterns": [ ".test-*" ],
               "order": 1000,
@@ -48,7 +49,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            }""", randomAlphaOfLength(10), randomAlphaOfLength(10));
 
         BytesReference templateBytes = new BytesArray(template);
         final IndexTemplateMetadata indexTemplateMetadata;
@@ -93,8 +94,8 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                 randomInt(),
                 Collections.emptyList(),
                 Settings.EMPTY,
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of()
+                Map.of(),
+                Map.of()
             );
         });
         assertThat(emptyPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
@@ -106,13 +107,13 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                 randomInt(),
                 null,
                 Settings.EMPTY,
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of()
+                Map.of(),
+                Map.of()
             );
         });
         assertThat(nullPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got null"));
 
-        final String templateWithEmptyPattern = """
+        final String templateWithEmptyPattern = Strings.format("""
             {
               "index_patterns": [],
               "order": 1000,
@@ -129,7 +130,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            }""", randomAlphaOfLength(10), randomAlphaOfLength(10));
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -145,7 +146,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
             assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
         }
 
-        final String templateWithoutPattern = """
+        final String templateWithoutPattern = Strings.format("""
             {
               "order": 1000,
               "settings": {
@@ -164,7 +165,7 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            }""", randomAlphaOfLength(10), randomAlphaOfLength(10));
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,

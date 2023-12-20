@@ -15,6 +15,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -74,9 +75,22 @@ class SignificanceLookup {
         // If there is no provided background filter, but we are within a sampling context, our background docs need to take the sampling
         // context into account.
         // If there is a filter, that filter needs to take the sampling into account (if we are within a sampling context)
-        this.backgroundFilter = backgroundFilter == null
+        Query backgroundQuery = backgroundFilter == null
             ? samplingContext.buildSamplingQueryIfNecessary(context).orElse(null)
             : samplingContext.buildQueryWithSampler(backgroundFilter, context);
+        // Refilter to account for alias filters, if there are any.
+        if (backgroundQuery == null) {
+            Query matchAllDocsQuery = new MatchAllDocsQuery();
+            Query contextFiltered = context.filterQuery(matchAllDocsQuery);
+            if (contextFiltered != matchAllDocsQuery) {
+                this.backgroundFilter = contextFiltered;
+            } else {
+                this.backgroundFilter = null;
+            }
+        } else {
+            Query contextFiltered = context.filterQuery(backgroundQuery);
+            this.backgroundFilter = contextFiltered;
+        }
         /*
          * We need to use a superset size that includes deleted docs or we
          * could end up blowing up with bad statistics that cause us to blow
@@ -209,7 +223,7 @@ class SignificanceLookup {
             // for types that use the inverted index, we prefer using a terms
             // enum that will do a better job at reusing index inputs
             Term term = ((TermQuery) query).getTerm();
-            TermsEnum termsEnum = getTermsEnum(term.field());
+            TermsEnum termsEnum = getTermsEnum();
             if (termsEnum.seekExact(term.bytes())) {
                 return termsEnum.docFreq();
             }
@@ -219,10 +233,11 @@ class SignificanceLookup {
         if (backgroundFilter != null) {
             query = new BooleanQuery.Builder().add(query, Occur.FILTER).add(backgroundFilter, Occur.FILTER).build();
         }
-        return context.searcher().count(query);
+        // use a brand new index searcher as we want to run this query on the current thread
+        return new IndexSearcher(context.searcher().getIndexReader()).count(query);
     }
 
-    private TermsEnum getTermsEnum(String field) throws IOException {
+    private TermsEnum getTermsEnum() throws IOException {
         // TODO this method helps because of asMultiBucketAggregator. Once we remove it we can move this logic into the aggregators.
         if (termsEnum != null) {
             return termsEnum;

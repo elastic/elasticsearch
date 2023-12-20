@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> {
@@ -69,7 +69,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
         static {
             PARSER.declareInt(optionalConstructorArg(), FROM_FIELD);
             PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
-            PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseInnerQueryBuilder(p), QUERY_FIELD);
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseTopLevelQuery(p), QUERY_FIELD);
             PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {
                 String fieldName = null;
                 FieldSortBuilder result = null;
@@ -106,7 +106,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             size = in.readOptionalVInt();
             query = in.readOptionalNamedWriteable(QueryBuilder.class);
             if (in.readBoolean()) {
-                sorts = in.readList(FieldSortBuilder::new);
+                sorts = in.readCollectionAsList(FieldSortBuilder::new);
             } else {
                 sorts = null;
             }
@@ -154,7 +154,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             out.writeOptionalNamedWriteable(query);
             if (sorts != null) {
                 out.writeBoolean(true);
-                out.writeList(sorts);
+                out.writeCollection(sorts);
             } else {
                 out.writeBoolean(false);
             }
@@ -216,7 +216,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            watches = in.readList(Item::new);
+            watches = in.readCollectionAsList(Item::new);
             watchTotalCount = in.readVLong();
         }
 
@@ -230,7 +230,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(watches);
+            out.writeCollection(watches);
             out.writeVLong(watchTotalCount);
         }
 

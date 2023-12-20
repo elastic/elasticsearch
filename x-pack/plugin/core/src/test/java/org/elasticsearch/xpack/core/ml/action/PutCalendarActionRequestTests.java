@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.calendars.CalendarTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
-public class PutCalendarActionRequestTests extends AbstractSerializingTestCase<PutCalendarAction.Request> {
+public class PutCalendarActionRequestTests extends AbstractXContentSerializingTestCase<PutCalendarAction.Request> {
 
     private final String calendarId = JobTests.randomValidJobId();
 
@@ -22,13 +22,13 @@ public class PutCalendarActionRequestTests extends AbstractSerializingTestCase<P
     }
 
     @Override
-    protected Writeable.Reader<PutCalendarAction.Request> instanceReader() {
-        return PutCalendarAction.Request::new;
+    protected PutCalendarAction.Request mutateInstance(PutCalendarAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<PutCalendarAction.Request> instanceReader() {
+        return PutCalendarAction.Request::new;
     }
 
     @Override

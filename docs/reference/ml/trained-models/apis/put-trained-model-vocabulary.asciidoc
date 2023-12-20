@@ -9,8 +9,6 @@
 Creates a trained model vocabulary.
 This is supported only for natural language processing (NLP) models.
 
-preview::[]
-
 [[ml-put-trained-model-vocabulary-request]]
 == {api-request-title}
 
@@ -50,13 +48,18 @@ The model vocabulary. Must not be empty.
 The model merges used in byte-pair encoding. The merges must be sub-token pairs, space delimited, and in order of
 preference. Example: ["f o", "fo o"]. Must be provided for RoBERTa and BART style models.
 
+`scores`::
+(Optional, array)
+Vocabulary value scores used by sentence-piece tokenization. Must have the same length as `vocabulary`.
+Required for unigram sentence-piece tokenized models like XLMRoberta and T5.
+
 [[ml-put-trained-model-vocabulary-example]]
 == {api-examples-title}
 
 The following example shows how to create a model vocabulary for a
 previously stored trained model configuration.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/vocabulary
 {
@@ -67,7 +70,7 @@ PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-englis
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TEST[s/\.\.\./"[PAD]"/ skip:TBD]
 
 The API returns the following results:
 

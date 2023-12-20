@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -40,12 +41,19 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
-        ActionRequestValidationException validationException = request.validate();
+        final ActionRequestValidationException validationException;
+        try {
+            validationException = request.validate();
+        } catch (Exception e) {
+            assert false : new AssertionError("validating of request [" + request + "] threw exception", e);
+            logger.warn("validating of request [" + request + "] threw exception", e);
+            listener.onFailure(e);
+            return;
+        }
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-
         if (task != null && request.getShouldStoreResult()) {
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
@@ -104,11 +112,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         @Override
         public void onResponse(Response response) {
-            try {
-                taskManager.storeResult(task, response, delegate);
-            } catch (Exception e) {
-                delegate.onFailure(e);
-            }
+            ActionListener.run(delegate, l -> taskManager.storeResult(task, response, l));
         }
 
         @Override
@@ -120,5 +124,15 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 delegate.onFailure(inner);
             }
         }
+    }
+
+    /**
+     * A method to use as a placeholder in implementations of {@link TransportAction} which only ever run on the local node, and therefore
+     * do not need to serialize or deserialize any messages. See also {@link Writeable.Reader#localOnly()}.
+     */
+    // TODO remove this when https://github.com/elastic/elasticsearch/issues/100111 is resolved
+    public static <T> T localOnly() {
+        assert false : "local-only action";
+        throw new UnsupportedOperationException("local-only action");
     }
 }

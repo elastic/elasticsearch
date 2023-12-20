@@ -18,6 +18,11 @@ public class StartILMRequestTests extends AbstractWireSerializingTestCase<StartI
     }
 
     @Override
+    protected StartILMRequest mutateInstance(StartILMRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<StartILMRequest> instanceReader() {
         return StartILMRequest::new;
     }

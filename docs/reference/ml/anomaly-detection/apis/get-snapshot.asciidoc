@@ -18,7 +18,7 @@ Retrieves information about model snapshots.
 [[ml-get-snapshot-prereqs]]
 == {api-prereq-title}
 
-Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
 `machine_learning_user` built-in role.
 
 [[ml-get-snapshot-path-parms]]
@@ -42,7 +42,7 @@ specifying `*` as the snapshot ID, or by omitting the snapshot ID.
 == {api-query-parms-title}
 
 `desc`::
-  (Optional, Boolean) If true, the results are sorted in descending order. 
+  (Optional, Boolean) If true, the results are sorted in descending order.
   Defaults to `false`.
 
 `end`::
@@ -80,7 +80,7 @@ You can also specify the query parameters in the request body; the exception are
 (Optional, integer) Skips the specified number of snapshots. Defaults to `0`.
 
 `size`:::
-(Optional, integer) Specifies the maximum number of snapshots to obtain. 
+(Optional, integer) Specifies the maximum number of snapshots to obtain.
 Defaults to `100`.
 ====
 
@@ -105,7 +105,13 @@ properties:
 (date) The timestamp of the latest bucket result.
 
 `min_version`::
-(string) The minimum version required to be able to restore the model snapshot.
+(string) The minimum {ml} configuration version number required to be
+able to restore the model snapshot.
+
+NOTE: From {es} 8.10.0,  a new version number is used to
+track the configuration and state changes in the {ml} plugin. This new
+version number is decoupled from the product version and will increment
+independently. The `min_version` value represents the new version number.
 
 //Begin model_size_stats
 `model_size_stats`::

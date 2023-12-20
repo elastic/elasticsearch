@@ -30,30 +30,16 @@ public class GroupedActionListenerTests extends ESTestCase {
 
     public void testNotifications() throws InterruptedException {
         AtomicReference<Collection<Integer>> resRef = new AtomicReference<>();
-        ActionListener<Collection<Integer>> result = new ActionListener<Collection<Integer>>() {
-            @Override
-            public void onResponse(Collection<Integer> integers) {
-                resRef.set(integers);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        ActionListener<Collection<Integer>> result = ActionTestUtils.assertNoFailureListener(resRef::set);
         final int groupSize = randomIntBetween(10, 1000);
         AtomicInteger count = new AtomicInteger();
-        GroupedActionListener<Integer> listener = new GroupedActionListener<>(result, groupSize);
+        GroupedActionListener<Integer> listener = new GroupedActionListener<>(groupSize, result);
         int numThreads = randomIntBetween(2, 5);
         Thread[] threads = new Thread[numThreads];
         CyclicBarrier barrier = new CyclicBarrier(numThreads);
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
                 int c;
                 while ((c = count.incrementAndGet()) <= groupSize) {
                     listener.onResponse(c - 1);
@@ -90,7 +76,7 @@ public class GroupedActionListenerTests extends ESTestCase {
             }
         };
         int size = randomIntBetween(3, 4);
-        GroupedActionListener<Integer> listener = new GroupedActionListener<>(result, size);
+        GroupedActionListener<Integer> listener = new GroupedActionListener<>(size, result);
         listener.onResponse(0);
         IOException ioException = new IOException();
         RuntimeException rtException = new RuntimeException();
@@ -111,7 +97,7 @@ public class GroupedActionListenerTests extends ESTestCase {
     public void testConcurrentFailures() throws InterruptedException {
         AtomicReference<Exception> finalException = new AtomicReference<>();
         int numGroups = randomIntBetween(10, 100);
-        GroupedActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(r -> {}, finalException::set), numGroups);
+        GroupedActionListener<Void> listener = new GroupedActionListener<>(numGroups, ActionListener.wrap(r -> {}, finalException::set));
         ExecutorService executorService = Executors.newFixedThreadPool(numGroups);
         for (int i = 0; i < numGroups; i++) {
             executorService.submit(() -> listener.onFailure(new IOException()));
@@ -133,7 +119,7 @@ public class GroupedActionListenerTests extends ESTestCase {
      */
     public void testRepeatNotificationForTheSameException() {
         final AtomicReference<Exception> finalException = new AtomicReference<>();
-        final GroupedActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(r -> {}, finalException::set), 2);
+        final GroupedActionListener<Void> listener = new GroupedActionListener<>(2, ActionListener.wrap(r -> {}, finalException::set));
         final Exception e = new Exception();
         // repeat notification for the same exception
         listener.onFailure(e);

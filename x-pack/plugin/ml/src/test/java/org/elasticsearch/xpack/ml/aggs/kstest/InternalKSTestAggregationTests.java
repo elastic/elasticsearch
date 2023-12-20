@@ -14,7 +14,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,7 +28,7 @@ public class InternalKSTestAggregationTests extends InternalAggregationTestCase<
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY);
+        return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
     }
 
     @Override
@@ -67,5 +67,10 @@ public class InternalKSTestAggregationTests extends InternalAggregationTestCase<
     protected void assertFromXContent(InternalKSTestAggregation aggregation, ParsedAggregation parsedAggregation) {
         ParsedKSTest ks = (ParsedKSTest) parsedAggregation;
         assertThat(ks.getModes(), equalTo(aggregation.getModeValues()));
+    }
+
+    @Override
+    protected InternalKSTestAggregation mutateInstance(InternalKSTestAggregation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

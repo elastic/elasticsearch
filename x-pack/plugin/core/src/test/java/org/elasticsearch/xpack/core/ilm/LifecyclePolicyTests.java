@@ -13,13 +13,12 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
+public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<LifecyclePolicy> {
 
     private String lifecycleName;
 
@@ -59,14 +58,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new)
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new)
             )
         );
     }
@@ -101,7 +100,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     new ParseField(SearchableSnapshotAction.NAME),
                     SearchableSnapshotAction::parse
                 ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupILMAction.NAME), RollupILMAction::parse)
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
             )
         );
         return new NamedXContentRegistry(entries);
@@ -140,7 +139,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             }
             phases.put(phase, new Phase(phase, after, actions));
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta(), randomOptionalBoolean());
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
@@ -231,7 +230,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         } else {
             phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta(), randomOptionalBoolean());
     }
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
@@ -259,7 +258,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             case UnfollowAction.NAME -> UnfollowAction.INSTANCE;
             case SearchableSnapshotAction.NAME -> new SearchableSnapshotAction("repo", randomBoolean());
             case MigrateAction.NAME -> MigrateAction.DISABLED;
-            case RollupILMAction.NAME -> RollupILMActionTests.randomInstance();
+            case DownsampleAction.NAME -> DownsampleActionTests.randomInstance();
             default -> throw new IllegalArgumentException("invalid action [" + action + "]");
         };
     }
@@ -277,14 +276,16 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             String phaseName = randomAlphaOfLength(10);
             phases.put(phaseName, new Phase(phaseName, after, actions));
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
+        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta(), randomOptionalBoolean());
     }
 
     @Override
-    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) throws IOException {
+    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) {
         String name = instance.getName();
         Map<String, Phase> phases = instance.getPhases();
-        switch (between(0, 1)) {
+        Map<String, Object> metadata = instance.getMetadata();
+        Boolean deprecated = instance.getDeprecated();
+        switch (between(0, 3)) {
             case 0 -> name = name + randomAlphaOfLengthBetween(1, 5);
             case 1 -> {
                 // Remove the frozen phase, because it makes a lot of invalid phases when randomly mutating an existing policy
@@ -304,9 +305,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 phases = new LinkedHashMap<>(phases);
                 phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
             }
+            case 2 -> metadata = randomValueOtherThan(metadata, LifecyclePolicyTests::randomMeta);
+            case 3 -> deprecated = instance.isDeprecated() ? randomFrom(false, null) : true;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta());
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, metadata, deprecated);
     }
 
     @Override

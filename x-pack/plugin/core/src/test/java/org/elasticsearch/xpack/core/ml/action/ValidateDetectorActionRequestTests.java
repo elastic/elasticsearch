@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 
-public class ValidateDetectorActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class ValidateDetectorActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -26,13 +26,13 @@ public class ValidateDetectorActionRequestTests extends AbstractSerializingTestC
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

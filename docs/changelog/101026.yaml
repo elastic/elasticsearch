@@ -1,0 +1,5 @@
+pr: 101026
+summary: Remove `auto_configure` privilege for profiling
+area: Authorization
+type: enhancement
+issues: []

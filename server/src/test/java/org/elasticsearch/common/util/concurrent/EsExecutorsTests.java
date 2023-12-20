@@ -10,6 +10,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -20,11 +21,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -49,7 +53,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -118,7 +122,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -172,7 +176,7 @@ public class EsExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    public void testScaleUp() throws Exception {
+    public void testScaleUp() {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
@@ -194,23 +198,19 @@ public class EsExecutorsTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(() -> {
                 latch.countDown();
-                try {
-                    barrier.await();
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(barrier);
             });
 
             // wait until thread executes this task
             // otherwise, a task might be queued
-            latch.await();
+            safeAwait(latch);
         }
 
-        barrier.await();
+        safeAwait(barrier);
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
-        barrier.await();
+        safeAwait(barrier);
         terminate(pool);
     }
 
@@ -236,23 +236,19 @@ public class EsExecutorsTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(() -> {
                 latch.countDown();
-                try {
-                    barrier.await();
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(barrier);
             });
 
             // wait until thread executes this task
             // otherwise, a task might be queued
-            latch.await();
+            safeAwait(latch);
         }
 
-        barrier.await();
+        safeAwait(barrier);
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
-        barrier.await();
+        safeAwait(barrier);
         assertBusy(() -> {
             assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
             assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
@@ -271,7 +267,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             for (int i = 0; i < actions; i++) {
@@ -306,7 +302,7 @@ public class EsExecutorsTests extends ESTestCase {
                 assertThat(
                     message,
                     either(containsString("on EsThreadPoolExecutor[name = " + getName())).or(
-                        containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())
+                        containsString("on TaskExecutionTimeTrackingEsThreadPoolExecutor[name = " + getName())
                     )
                 );
                 assertThat(message, containsString("queue capacity = " + queue));
@@ -351,7 +347,7 @@ public class EsExecutorsTests extends ESTestCase {
             assertThat(
                 message,
                 either(containsString("on EsThreadPoolExecutor[name = " + getName())).or(
-                    containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())
+                    containsString("on TaskExecutionTimeTrackingEsThreadPoolExecutor[name = " + getName())
                 )
             );
             assertThat(message, containsString("queue capacity = " + queue));
@@ -377,7 +373,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             executor.execute(() -> {
@@ -414,7 +410,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             Runnable r = () -> {
@@ -437,19 +433,72 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testNodeProcessorsBound() {
-        final Setting<Integer> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
+        final Setting<Processors> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
         final int available = Runtime.getRuntime().availableProcessors();
-        final int processors = randomIntBetween(available + 1, Integer.MAX_VALUE);
+        final double processors = randomDoubleBetween(available + Math.ulp(available), Float.MAX_VALUE, true);
         final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
         final String expected = String.format(
             Locale.ROOT,
-            "Failed to parse value [%d] for setting [%s] must be <= %d",
+            "Failed to parse value [%s] for setting [%s] must be <= %d",
             processors,
             processorsSetting.getKey(),
             available
         );
         assertThat(e, hasToString(containsString(expected)));
+    }
+
+    public void testNodeProcessorsIsRoundedUpWhenUsingFloats() {
+        assertThat(
+            EsExecutors.allocatedProcessors(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), Double.MIN_VALUE).build()),
+            is(equalTo(1))
+        );
+
+        assertThat(
+            EsExecutors.allocatedProcessors(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build()),
+            is(equalTo(1))
+        );
+
+        assertThat(
+            EsExecutors.allocatedProcessors(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1.2).build()),
+            is(equalTo(2))
+        );
+
+        assertThat(
+            EsExecutors.allocatedProcessors(
+                Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), Runtime.getRuntime().availableProcessors()).build()
+            ),
+            is(equalTo(Runtime.getRuntime().availableProcessors()))
+        );
+    }
+
+    public void testNodeProcessorsFloatValidation() {
+        final Setting<Processors> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), 0.0).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), Double.NaN).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), Double.POSITIVE_INFINITY).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), Double.NEGATIVE_INFINITY).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
+
+        {
+            final Settings settings = Settings.builder().put(processorsSetting.getKey(), -1.5).build();
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
+        }
     }
 
 }

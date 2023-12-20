@@ -16,18 +16,19 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
@@ -35,8 +36,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -52,7 +55,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
     public static final String NAME = "indices:monitor/fleet/global_checkpoints";
 
     private GetGlobalCheckpointsAction() {
-        super(NAME, GetGlobalCheckpointsAction.Response::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -65,10 +68,6 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             this.globalCheckpoints = globalCheckpoints;
         }
 
-        public Response(StreamInput in) {
-            throw new AssertionError("GetGlobalCheckpointsAction should not be sent over the wire.");
-        }
-
         public long[] globalCheckpoints() {
             return globalCheckpoints;
         }
@@ -78,8 +77,8 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new AssertionError("GetGlobalCheckpointsAction should not be sent over the wire.");
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
         }
 
         @Override
@@ -149,26 +148,34 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         public IndicesOptions indicesOptions() {
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
+        }
     }
 
-    public static class TransportAction extends org.elasticsearch.action.support.TransportAction<Request, Response> {
+    public static class LocalAction extends TransportAction<Request, Response> {
 
         private final ClusterService clusterService;
         private final NodeClient client;
         private final IndexNameExpressionResolver resolver;
+        private final ThreadPool threadPool;
 
         @Inject
-        public TransportAction(
+        public LocalAction(
             final ActionFilters actionFilters,
             final TransportService transportService,
             final ClusterService clusterService,
             final NodeClient client,
-            final IndexNameExpressionResolver resolver
+            final IndexNameExpressionResolver resolver,
+            final ThreadPool threadPool
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
             this.client = client;
             this.resolver = resolver;
+            this.threadPool = threadPool;
         }
 
         @Override
@@ -180,7 +187,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 index = resolver.concreteSingleIndex(state, request);
             } catch (IndexNotFoundException e) {
                 if (request.waitForIndex()) {
-                    handleIndexNotReady(request, listener);
+                    handleIndexNotReady(state, request, listener);
                 } else {
                     listener.onFailure(e);
                 }
@@ -194,7 +201,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 new CheckpointFetcher(client, request, listener, indexMetadata, request.timeout()).run();
             } else {
                 if (request.waitForIndex()) {
-                    handleIndexNotReady(request, listener);
+                    handleIndexNotReady(state, request, listener);
                 } else {
                     int active = routingTable.primaryShardsActive();
                     int total = indexMetadata.getNumberOfShards();
@@ -205,60 +212,72 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             }
         }
 
-        private void handleIndexNotReady(final Request request, final ActionListener<Response> responseListener) {
+        private void handleIndexNotReady(ClusterState initialState, Request request, ActionListener<Response> listener) {
             long startNanos = System.nanoTime();
-            client.admin()
-                .cluster()
-                .prepareHealth(request.index)
-                .setLocal(true)
-                .setTimeout(request.timeout())
-                .setWaitForYellowStatus()
-                .setWaitForNoInitializingShards(true)
-                .execute(new ActionListener<>() {
-                    @Override
-                    public void onResponse(ClusterHealthResponse healthResponse) {
-                        final long elapsedNanos = System.nanoTime() - startNanos;
-                        final ClusterState state = clusterService.state();
-                        final Index index;
-                        try {
-                            index = resolver.concreteSingleIndex(state, request);
-                        } catch (Exception e) {
-                            responseListener.onFailure(e);
-                            return;
-                        }
+            var observer = new ClusterStateObserver(initialState, clusterService, request.timeout(), logger, threadPool.getThreadContext());
 
-                        final IndexMetadata indexMetadata = state.getMetadata().index(index);
-                        final IndexRoutingTable routingTable = state.routingTable().index(index);
-
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    try {
+                        var index = resolver.concreteSingleIndex(state, request);
+                        long elapsedNanos = System.nanoTime() - startNanos;
                         long remainingNanos = request.timeout().nanos() - elapsedNanos;
-                        if (routingTable.allPrimaryShardsActive() && remainingNanos > 0) {
+                        if (remainingNanos > 0) {
                             new CheckpointFetcher(
                                 client,
                                 request,
-                                responseListener,
-                                indexMetadata,
+                                listener,
+                                state.getMetadata().index(index),
                                 TimeValue.timeValueNanos(remainingNanos)
                             ).run();
                         } else {
-                            int active = routingTable.primaryShardsActive();
-                            int total = indexMetadata.getNumberOfShards();
-                            responseListener.onFailure(
+                            listener.onFailure(
                                 new UnavailableShardsException(
                                     null,
                                     "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                     request.timeout(),
-                                    total,
-                                    active
+                                    state.getMetadata().index(index).getNumberOfShards(),
+                                    state.routingTable().index(index).primaryShardsActive()
                                 )
                             );
                         }
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        responseListener.onFailure(e);
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    try {
+                        var state = clusterService.state();
+                        var index = resolver.concreteSingleIndex(state, request);
+                        listener.onFailure(
+                            new UnavailableShardsException(
+                                null,
+                                "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
+                                request.timeout(),
+                                state.getMetadata().index(index).getNumberOfShards(),
+                                state.routingTable().index(index).primaryShardsActive()
+                            )
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                     }
-                });
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+            }, state -> {
+                try {
+                    var index = resolver.concreteSingleIndex(state, request);
+                    return state.routingTable().index(index).allPrimaryShardsActive();
+                } catch (Exception e) {
+                    return false;
+                }
+            }, request.timeout());
         }
 
         private static class CheckpointFetcher extends ActionRunnable<Response> {

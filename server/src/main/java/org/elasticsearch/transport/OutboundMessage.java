@@ -7,7 +7,8 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,7 +29,7 @@ abstract class OutboundMessage extends NetworkMessage {
 
     OutboundMessage(
         ThreadContext threadContext,
-        Version version,
+        TransportVersion version,
         byte status,
         long requestId,
         Compression.Scheme compressionScheme,
@@ -39,7 +40,7 @@ abstract class OutboundMessage extends NetworkMessage {
     }
 
     BytesReference serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
-        bytesStream.setVersion(version);
+        bytesStream.setTransportVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 
         // The compressible bytes stream will not close the underlying bytes stream
@@ -56,7 +57,7 @@ abstract class OutboundMessage extends NetworkMessage {
         final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
         final BytesReference zeroCopyBuffer;
         try {
-            stream.setVersion(version);
+            stream.setTransportVersion(version);
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
@@ -115,7 +116,7 @@ abstract class OutboundMessage extends NetworkMessage {
         Request(
             ThreadContext threadContext,
             Writeable message,
-            Version version,
+            TransportVersion version,
             String action,
             long requestId,
             boolean isHandshake,
@@ -128,7 +129,7 @@ abstract class OutboundMessage extends NetworkMessage {
         @Override
         protected void writeVariableHeader(StreamOutput stream) throws IOException {
             super.writeVariableHeader(stream);
-            if (version.before(Version.V_8_0_0)) {
+            if (version.before(TransportVersions.V_8_0_0)) {
                 // empty features array
                 stream.writeStringArray(Strings.EMPTY_ARRAY);
             }
@@ -165,7 +166,7 @@ abstract class OutboundMessage extends NetworkMessage {
         Response(
             ThreadContext threadContext,
             Writeable message,
-            Version version,
+            TransportVersion version,
             long requestId,
             boolean isHandshake,
             Compression.Scheme compressionScheme

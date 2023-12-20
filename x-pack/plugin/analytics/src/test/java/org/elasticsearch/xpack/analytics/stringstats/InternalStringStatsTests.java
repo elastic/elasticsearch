@@ -93,7 +93,7 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected InternalStringStats mutateInstance(InternalStringStats instance) throws IOException {
+    protected InternalStringStats mutateInstance(InternalStringStats instance) {
         String name = instance.getName();
         long count = instance.getCount();
         long totalLength = instance.getTotalLength();

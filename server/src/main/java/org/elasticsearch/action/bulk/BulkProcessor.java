@@ -12,17 +12,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.ScheduledExecutorServiceScheduler;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -205,47 +205,6 @@ public class BulkProcessor implements Closeable {
     }
 
     /**
-     * @param client The client that executes the bulk operations
-     * @param listener The BulkProcessor listener that gets called on bulk events
-     * @param flushScheduler The scheduler that is used to flush
-     * @param retryScheduler The scheduler that is used for retries
-     * @param onClose The runnable instance that is executed on close. Consumers are required to clean up the schedulers.
-     * @return the builder for BulkProcessor
-     */
-    public static Builder builder(Client client, Listener listener, Scheduler flushScheduler, Scheduler retryScheduler, Runnable onClose) {
-        Objects.requireNonNull(client, "client");
-        Objects.requireNonNull(listener, "listener");
-        return new Builder(client::bulk, listener, flushScheduler, retryScheduler, onClose);
-    }
-
-    /**
-     * @param client The client that executes the bulk operations
-     * @param listener The BulkProcessor listener that gets called on bulk events
-     * @return the builder for BulkProcessor
-     * @deprecated Use {@link #builder(BiConsumer, Listener, String)}
-     * with client::bulk as the first argument, or {@link #builder(org.elasticsearch.client.internal.Client,
-     * org.elasticsearch.action.bulk.BulkProcessor.Listener, org.elasticsearch.threadpool.Scheduler,
-     * org.elasticsearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
-     */
-    @Deprecated
-    public static Builder builder(Client client, Listener listener) {
-        Objects.requireNonNull(client, "client");
-        Objects.requireNonNull(listener, "listener");
-        return new Builder(client::bulk, listener, client.threadPool(), client.threadPool(), () -> {});
-    }
-
-    /**
-     * @param consumer The consumer that is called to fulfil bulk operations
-     * @param listener The BulkProcessor listener that gets called on bulk events
-     * @return the builder for BulkProcessor
-     * @deprecated use {@link #builder(BiConsumer, Listener, String)} instead
-     */
-    @Deprecated
-    public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener) {
-        return builder(consumer, listener, "anonymous-bulk-processor");
-    }
-
-    /**
      * @param consumer The consumer that is called to fulfil bulk operations
      * @param listener The BulkProcessor listener that gets called on bulk events
      * @param name     The name of this processor, e.g. to identify the scheduler threads
@@ -263,9 +222,7 @@ public class BulkProcessor implements Closeable {
     }
 
     private static Scheduler buildScheduler(ScheduledThreadPoolExecutor scheduledThreadPoolExecutor) {
-        return (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-            scheduledThreadPoolExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-        );
+        return new ScheduledExecutorServiceScheduler(scheduledThreadPoolExecutor);
     }
 
     private final int bulkActions;
@@ -277,7 +234,7 @@ public class BulkProcessor implements Closeable {
 
     private BulkRequest bulkRequest;
     private final Supplier<BulkRequest> bulkRequestSupplier;
-    private Supplier<Boolean> flushSupplier;
+    private final Supplier<Boolean> flushSupplier;
     private final BulkRequestHandler bulkRequestHandler;
     private final Runnable onClose;
 
@@ -481,7 +438,7 @@ public class BulkProcessor implements Closeable {
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, true, xContentType, RestApiVersion.current());
+            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, null, true, xContentType, RestApiVersion.current());
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
             lock.unlock();
@@ -507,7 +464,7 @@ public class BulkProcessor implements Closeable {
                 }
             };
         }
-        return scheduler.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.GENERIC);
+        return scheduler.scheduleWithFixedDelay(new Flush(), flushInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     // needs to be executed under a lock

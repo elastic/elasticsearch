@@ -9,7 +9,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             google_storage_bucket=elasticsearch-ci-thirdparty
             google_storage_base_path=%BRANCH%
       - shell: |

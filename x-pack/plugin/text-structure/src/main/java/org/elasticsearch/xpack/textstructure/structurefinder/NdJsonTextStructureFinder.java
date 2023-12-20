@@ -44,9 +44,10 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
 
         List<String> sampleMessages = Arrays.asList(sample.split("\n"));
         for (String sampleMessage : sampleMessages) {
-            XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, sampleMessage);
-            sampleRecords.add(parser.mapOrdered());
-            timeoutChecker.check("NDJSON parsing");
+            try (XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, sampleMessage)) {
+                sampleRecords.add(parser.mapOrdered());
+                timeoutChecker.check("NDJSON parsing");
+            }
         }
 
         TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.NDJSON).setCharset(charsetName)
@@ -68,6 +69,7 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
+                .setEcsCompatibility(overrides.getEcsCompatibility())
                 .setIngestPipeline(
                     TextStructureUtils.makeIngestPipelineDefinition(
                         null,
@@ -79,13 +81,14 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
                         timeField.v1(),
                         timeField.v2().getJavaTimestampFormats(),
                         needClientTimeZone,
-                        timeField.v2().needNanosecondPrecision()
+                        timeField.v2().needNanosecondPrecision(),
+                        overrides.getEcsCompatibility()
                     )
                 );
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
 
         Map<String, Object> fieldMappings = mappingsAndFieldStats.v1();
         if (timeField != null) {

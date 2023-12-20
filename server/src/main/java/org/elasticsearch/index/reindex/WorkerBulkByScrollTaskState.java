@@ -252,7 +252,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
             this.scheduled = threadPool.schedule(() -> {
                 throttledNanos.addAndGet(delay.nanos());
                 command.run();
-            }, delay, ThreadPool.Names.GENERIC);
+            }, delay, threadPool.generic());
         }
 
         DelayedPrepareBulkRequest rethrottle(float newRequestsPerSecond) {

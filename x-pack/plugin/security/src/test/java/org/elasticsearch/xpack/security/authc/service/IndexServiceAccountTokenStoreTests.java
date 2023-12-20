@@ -132,10 +132,11 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
 
         securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
@@ -214,12 +215,12 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final Map<String, Object> creatorMap = (Map<String, Object>) sourceMap.get("creator");
         assertThat(creatorMap, notNullValue());
-        assertThat(creatorMap.get("principal"), equalTo(authentication.getUser().principal()));
-        assertThat(creatorMap.get("full_name"), equalTo(authentication.getUser().fullName()));
-        assertThat(creatorMap.get("email"), equalTo(authentication.getUser().email()));
-        assertThat(creatorMap.get("metadata"), equalTo(authentication.getUser().metadata()));
-        assertThat(creatorMap.get("realm"), equalTo(authentication.getSourceRealm().getName()));
-        assertThat(creatorMap.get("realm_type"), equalTo(authentication.getSourceRealm().getType()));
+        assertThat(creatorMap.get("principal"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
+        assertThat(creatorMap.get("full_name"), equalTo(authentication.getEffectiveSubject().getUser().fullName()));
+        assertThat(creatorMap.get("email"), equalTo(authentication.getEffectiveSubject().getUser().email()));
+        assertThat(creatorMap.get("metadata"), equalTo(authentication.getEffectiveSubject().getUser().metadata()));
+        assertThat(creatorMap.get("realm"), equalTo(authentication.getEffectiveSubject().getRealm().getName()));
+        assertThat(creatorMap.get("realm_type"), equalTo(authentication.getEffectiveSubject().getRealm().getType()));
 
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse1 = future1.get();
         assertNotNull(createServiceAccountTokenResponse1);
@@ -265,9 +266,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     .mapToObj(
                         i -> new SearchHit(
                             randomIntBetween(0, Integer.MAX_VALUE),
-                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i],
-                            Map.of(),
-                            Map.of()
+                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i]
                         )
                     )
                     .toArray(SearchHit[]::new);
@@ -281,18 +280,10 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     null,
                     0
                 );
-
-                final SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
+                ActionListener.respondAndRelease(
+                    l,
+                    new SearchResponse(internalSearchResponse, randomAlphaOfLengthBetween(3, 8), 1, 1, 0, 10, null, null)
                 );
-                l.onResponse(searchResponse);
             } else if (r instanceof ClearScrollRequest) {
                 l.onResponse(new ClearScrollResponse(true, 1));
             } else {
@@ -377,7 +368,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     public void testIndexStateIssues() {
         // Index not exists
         Mockito.reset(securityIndex);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
         when(securityIndex.indexExists()).thenReturn(false);
 
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -396,11 +387,13 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
         // Index exists but not available
         Mockito.reset(securityIndex);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isAvailable()).thenReturn(false);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
         final ElasticsearchException e = new ElasticsearchException("fail");
-        when(securityIndex.getUnavailableReason()).thenReturn(e);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(e);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(e);
 
         final PlainActionFuture<Collection<TokenInfo>> future3 = new PlainActionFuture<>();
         store.findTokensFor(accountId, future3);

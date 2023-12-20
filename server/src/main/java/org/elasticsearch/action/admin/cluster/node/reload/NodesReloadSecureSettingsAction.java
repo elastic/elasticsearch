@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class NodesReloadSecureSettingsAction extends ActionType<NodesReloadSecureSettingsResponse> {
 
@@ -16,6 +17,6 @@ public class NodesReloadSecureSettingsAction extends ActionType<NodesReloadSecur
     public static final String NAME = "cluster:admin/nodes/reload_secure_settings";
 
     private NodesReloadSecureSettingsAction() {
-        super(NAME, NodesReloadSecureSettingsResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

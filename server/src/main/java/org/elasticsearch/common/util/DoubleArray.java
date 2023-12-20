@@ -8,10 +8,19 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
 /**
  * Abstraction of an array of double values.
  */
-public interface DoubleArray extends BigArray {
+public interface DoubleArray extends BigArray, Writeable {
+
+    static DoubleArray readFrom(StreamInput in) throws IOException {
+        return new ReleasableDoubleArray(in);
+    }
 
     /**
      * Get an element given its index.

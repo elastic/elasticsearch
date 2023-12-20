@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -19,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,22 +31,18 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
     implements
         ToXContentFragment {
 
-    public NodesReloadSecureSettingsResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public NodesReloadSecureSettingsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodesReloadSecureSettingsResponse.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeResponse::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesReloadSecureSettingsResponse.NodeResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -69,15 +65,7 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
 
     @Override
     public String toString() {
-        try {
-            final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (final IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this, true, true);
     }
 
     public static class NodeResponse extends BaseNodeResponse {

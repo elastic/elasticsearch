@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
@@ -19,14 +20,13 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,7 +40,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY);
+        return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
     }
 
     @Override
@@ -222,5 +222,10 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
             expectThrows(InvalidAggregationPathException.class, () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
+    }
+
+    @Override
+    protected InternalInferenceAggregation mutateInstance(InternalInferenceAggregation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

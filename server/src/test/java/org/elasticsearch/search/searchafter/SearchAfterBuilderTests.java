@@ -10,9 +10,13 @@ package org.elasticsearch.search.searchafter;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -22,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -212,7 +217,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
                 return null;
             }
 
@@ -236,5 +241,27 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
         type = extractSortType(new SortedSetSortField("field", false));
         assertThat(type, equalTo(SortField.Type.STRING));
+    }
+
+    public void testBuildFieldDocWithCollapse() {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SearchAfterBuilder.buildFieldDoc(
+                new SortAndFormats(new Sort(), new DocValueFormat[] { DocValueFormat.RAW }),
+                new Object[] { 1 },
+                "collapse_field"
+            )
+        );
+        assertThat(e.getMessage(), containsString("Cannot use [collapse] in conjunction with"));
+
+        FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(
+            new SortAndFormats(
+                new Sort(new SortField("collapse_field", SortField.Type.STRING)),
+                new DocValueFormat[] { DocValueFormat.RAW }
+            ),
+            new Object[] { "foo" },
+            "collapse_field"
+        );
+        assertEquals(fieldDoc.toString(), new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { new BytesRef("foo") }).toString());
     }
 }

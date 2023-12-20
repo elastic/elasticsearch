@@ -1,9 +1,0 @@
-{es} {version} requires Java 17 or later.  
-There is not yet a FIPS-certified security module for Java 17 
-that you can use when running {es} {version} in FIPS 140-2 mode.
-If you run in FIPS 140-2 mode, you will either need to request
-an exception from your security organization to upgrade to {es} {version}, 
-or remain on {es} 7.x until Java 17 is certified. 
-ifeval::["{release-state}"=="released"]
-Alternatively, consider using {ess} in the FedRAMP-certified GovCloud region.
-endif::[]

@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,6 +32,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected boolean isConfigurable() {
+        return true;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck(
             "enabled",
@@ -42,9 +48,18 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
             dm -> assertFalse(dm.metadataMapper(SourceFieldMapper.class).enabled())
         );
+        checker.registerUpdateCheck(
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject()),
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
+            dm -> assertTrue(dm.metadataMapper(SourceFieldMapper.class).isSynthetic())
+        );
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
         checker.registerConflictCheck("excludes", b -> b.array("excludes", "foo*"));
-        checker.registerConflictCheck("synthetic", b -> b.field("synthetic", true));
+        checker.registerConflictCheck(
+            "mode",
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject())
+        );
     }
 
     public void testNoFormat() throws Exception {
@@ -163,13 +178,64 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     public void testSourceObjectContainsExtraTokens() throws Exception {
         DocumentMapper documentMapper = createDocumentMapper(mapping(b -> {}));
 
-        MapperParsingException exception = expectThrows(
-            MapperParsingException.class,
+        Exception exception = expectThrows(
+            DocumentParsingException.class,
             // extra end object (invalid JSON))
             () -> documentMapper.parse(new SourceToParse("1", new BytesArray("{}}"), XContentType.JSON))
         );
-        assertNotNull(exception.getRootCause());
-        assertThat(exception.getRootCause().getMessage(), containsString("Unexpected close marker '}'"));
+        assertNotNull(exception.getCause());
+        assertThat(exception.getCause().getMessage(), containsString("Unexpected close marker '}'"));
     }
 
+    public void testSyntheticDisabledNotSupported() {
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                topMapping(b -> b.startObject("_source").field("enabled", false).field("mode", "synthetic").endObject())
+            )
+        );
+        assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
+    }
+
+    public void testSyntheticUpdates() throws Exception {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "_source" : { "mode" : "synthetic" } } }
+            """);
+
+        SourceFieldMapper mapper = mapperService.documentMapper().sourceMapper();
+        assertTrue(mapper.enabled());
+        assertTrue(mapper.isSynthetic());
+
+        merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "synthetic" } } }
+            """);
+        mapper = mapperService.documentMapper().sourceMapper();
+        assertTrue(mapper.enabled());
+        assertTrue(mapper.isSynthetic());
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("{}"));
+        assertNull(doc.rootDoc().get(SourceFieldMapper.NAME));
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "stored" } } }
+            """));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [mode] from [synthetic] to [stored]"));
+
+        merge(mapperService, """
+            { "_doc" : { "_source" : { "mode" : "disabled" } } }
+            """);
+        mapper = mapperService.documentMapper().sourceMapper();
+        assertFalse(mapper.enabled());
+        assertFalse(mapper.isSynthetic());
+    }
+
+    public void testSyntheticSourceInTimeSeries() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("time_series_dimension", true);
+        });
+        DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
+        assertTrue(mapper.sourceMapper().isSynthetic());
+        assertEquals("{\"_source\":{\"mode\":\"synthetic\"}}", mapper.sourceMapper().toString());
+    }
 }

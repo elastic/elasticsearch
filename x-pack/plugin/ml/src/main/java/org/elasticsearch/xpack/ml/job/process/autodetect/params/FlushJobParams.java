@@ -41,18 +41,25 @@ public class FlushJobParams {
      */
     private final boolean waitForNormalization;
 
+    /**
+     * Should the flush request trigger a refresh or not.
+     */
+    private final boolean refreshRequired;
+
     private FlushJobParams(
         boolean calcInterim,
         TimeRange timeRange,
         Long advanceTimeSeconds,
         Long skipTimeSeconds,
-        boolean waitForNormalization
+        boolean waitForNormalization,
+        boolean refreshRequired
     ) {
         this.calcInterim = calcInterim;
         this.timeRange = Objects.requireNonNull(timeRange);
         this.advanceTimeSeconds = advanceTimeSeconds;
         this.skipTimeSeconds = skipTimeSeconds;
         this.waitForNormalization = waitForNormalization;
+        this.refreshRequired = refreshRequired;
     }
 
     public boolean shouldCalculateInterim() {
@@ -93,6 +100,10 @@ public class FlushJobParams {
         return waitForNormalization;
     }
 
+    public boolean isRefreshRequired() {
+        return refreshRequired;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -105,12 +116,14 @@ public class FlushJobParams {
         return calcInterim == that.calcInterim
             && Objects.equals(timeRange, that.timeRange)
             && Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds)
-            && Objects.equals(skipTimeSeconds, that.skipTimeSeconds);
+            && Objects.equals(skipTimeSeconds, that.skipTimeSeconds)
+            && waitForNormalization == that.waitForNormalization
+            && refreshRequired == that.refreshRequired;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds);
+        return Objects.hash(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization, refreshRequired);
     }
 
     public static class Builder {
@@ -119,6 +132,7 @@ public class FlushJobParams {
         private String advanceTime;
         private String skipTime;
         private boolean waitForNormalization = true;
+        private boolean refreshRequired = true;
 
         public Builder calcInterim(boolean value) {
             calcInterim = value;
@@ -145,6 +159,11 @@ public class FlushJobParams {
             return this;
         }
 
+        public Builder refreshRequired(boolean refreshRequired) {
+            this.refreshRequired = refreshRequired;
+            return this;
+        }
+
         public FlushJobParams build() {
             checkValidFlushArgumentsCombination();
             Long advanceTimeSeconds = parseTimeParam("advance_time", advanceTime);
@@ -154,7 +173,7 @@ public class FlushJobParams {
                     "advance_time [" + advanceTime + "] must be later than skip_time [" + skipTime + "]"
                 );
             }
-            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization);
+            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization, refreshRequired);
         }
 
         private void checkValidFlushArgumentsCombination() {
@@ -167,14 +186,14 @@ public class FlushJobParams {
             }
         }
 
-        private Long parseTimeParam(String name, String value) {
+        private static Long parseTimeParam(String name, String value) {
             if (Strings.isNullOrEmpty(value)) {
                 return null;
             }
             return paramToEpochIfValidOrThrow(name, value) / TimeRange.MILLISECONDS_IN_SECOND;
         }
 
-        private long paramToEpochIfValidOrThrow(String paramName, String date) {
+        private static long paramToEpochIfValidOrThrow(String paramName, String date) {
             if (TimeRange.NOW.equals(date)) {
                 return System.currentTimeMillis();
             }
@@ -189,14 +208,14 @@ public class FlushJobParams {
             return epoch;
         }
 
-        private void checkFlushParamIsEmpty(String paramName, String paramValue) {
+        private static void checkFlushParamIsEmpty(String paramName, String paramValue) {
             if (paramValue.isEmpty() == false) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_FLUSH_PARAMS_UNEXPECTED, paramName);
                 throw new IllegalArgumentException(msg);
             }
         }
 
-        private boolean isValidTimeRange(TimeRange timeRange) {
+        private static boolean isValidTimeRange(TimeRange timeRange) {
             return timeRange.getStart().isEmpty() == false || (timeRange.getStart().isEmpty() && timeRange.getEnd().isEmpty());
         }
     }

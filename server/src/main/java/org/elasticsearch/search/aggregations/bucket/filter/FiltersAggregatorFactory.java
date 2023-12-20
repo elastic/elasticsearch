@@ -22,10 +22,11 @@ import java.util.Map;
 
 public class FiltersAggregatorFactory extends AggregatorFactory {
 
-    private final List<QueryToFilterAdapter<?>> filters;
+    private final List<QueryToFilterAdapter> filters;
     private final boolean keyed;
     private final boolean otherBucket;
     private final String otherBucketKey;
+    private final boolean keyedBucket;
 
     public FiltersAggregatorFactory(
         String name,
@@ -33,6 +34,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         boolean keyed,
         boolean otherBucket,
         String otherBucketKey,
+        boolean keyedBucket,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactories,
@@ -42,6 +44,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;
+        this.keyedBucket = keyedBucket;
         this.filters = new ArrayList<>(filters.size());
         for (KeyedFilter f : filters) {
             this.filters.add(QueryToFilterAdapter.build(context.searcher(), f.key(), context.buildQuery(f.filter())));
@@ -57,6 +60,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
             filters,
             keyed,
             otherBucket ? otherBucketKey : null,
+            keyedBucket,
             context,
             parent,
             cardinality,

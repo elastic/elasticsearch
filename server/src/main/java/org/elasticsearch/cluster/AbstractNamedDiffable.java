@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +48,7 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
          * is unnecessary.
          */
         @Nullable
-        private final Version minimalSupportedVersion;
+        private final TransportVersion minimalSupportedVersion;
 
         /**
          * Creates simple diff with changes
@@ -62,7 +62,7 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
         /**
          * Creates simple diff without changes
          */
-        CompleteNamedDiff(String name, Version minimalSupportedVersion) {
+        CompleteNamedDiff(String name, TransportVersion minimalSupportedVersion) {
             this.part = null;
             this.name = name;
             this.minimalSupportedVersion = minimalSupportedVersion;
@@ -108,7 +108,7 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             assert minimalSupportedVersion != null : "shouldn't be called on the diff that was de-serialized from the stream";
             return minimalSupportedVersion;
         }

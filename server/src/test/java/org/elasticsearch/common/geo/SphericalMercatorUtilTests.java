@@ -66,4 +66,17 @@ public class SphericalMercatorUtilTests extends ESTestCase {
         assertThat(mercatorRect.getMinY(), Matchers.equalTo(latToSphericalMercator(rect.getMinY())));
         assertThat(mercatorRect.getMaxY(), Matchers.equalTo(latToSphericalMercator(rect.getMaxY())));
     }
+
+    public void testLatitudeExactMath() {
+        // check that the maths we are using are precise to 1mm from the strict maths
+        for (int i = 0; i < 10000; i++) {
+            double lat = randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, true);
+            assertEquals(lat + "", strictLatToSphericalMercator(lat), latToSphericalMercator(lat), 1e-3);
+        }
+    }
+
+    private static double strictLatToSphericalMercator(double lat) {
+        double y = Math.log(Math.tan((90 + Math.max(lat, Math.nextUp(-90.0))) * Math.PI / 360)) / (Math.PI / 180);
+        return y * SphericalMercatorUtils.MERCATOR_BOUNDS / 180;
+    }
 }

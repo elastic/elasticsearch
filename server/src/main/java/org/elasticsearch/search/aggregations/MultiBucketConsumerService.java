@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,8 +66,8 @@ public class MultiBucketConsumerService {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+            super.writeTo(out, nestedExceptionsWriter);
             out.writeInt(maxBuckets);
         }
 
@@ -75,7 +77,7 @@ public class MultiBucketConsumerService {
 
         @Override
         public RestStatus status() {
-            return RestStatus.SERVICE_UNAVAILABLE;
+            return RestStatus.BAD_REQUEST;
         }
 
         @Override
@@ -91,6 +93,7 @@ public class MultiBucketConsumerService {
      * {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
      */
     public static class MultiBucketConsumer implements IntConsumer {
+        private static final Logger logger = LogManager.getLogger(MultiBucketConsumer.class);
         private final int limit;
         private final CircuitBreaker breaker;
 
@@ -108,6 +111,7 @@ public class MultiBucketConsumerService {
             if (value != 0) {
                 count += value;
                 if (count > limit) {
+                    logger.warn("Too many buckets (max [{}], count [{}])", limit, count);
                     throw new TooManyBucketsException(
                         "Trying to create too many buckets. Must be less than or equal to: ["
                             + limit
@@ -125,20 +129,16 @@ public class MultiBucketConsumerService {
             }
         }
 
-        public void reset() {
-            this.count = 0;
-        }
-
         public int getCount() {
             return count;
-        }
-
-        public int getLimit() {
-            return limit;
         }
     }
 
     public MultiBucketConsumer create() {
         return new MultiBucketConsumer(maxBucket, breaker);
+    }
+
+    public int getLimit() {
+        return maxBucket;
     }
 }

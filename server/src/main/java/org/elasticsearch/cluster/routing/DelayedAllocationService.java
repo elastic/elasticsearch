@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
@@ -28,6 +29,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * The {@link DelayedAllocationService} listens to cluster state changes and checks
@@ -39,7 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * This class is responsible for choosing the next (closest) delay expiration of a
  * delayed shard to schedule a reroute to remove the delay marker.
  * The actual removal of the delay marker happens in
- * {@link AllocationService#removeDelayMarkers(RoutingAllocation)}, triggering yet
+ * {@link AllocationService.RerouteStrategy#removeDelayMarkers(RoutingAllocation)}, triggering yet
  * another cluster change event.
  */
 public class DelayedAllocationService extends AbstractLifecycleComponent implements ClusterStateListener {
@@ -94,13 +97,14 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                     logger.warn("failed to submit schedule/execute reroute post unassigned shard", e);
                     removeIfSameTask(DelayedRerouteTask.this);
                 }
-            }, nextDelay, ThreadPool.Names.SAME);
+            }, nextDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
             removeIfSameTask(this);
-            return allocationService.reroute(currentState, "assign delayed unassigned shards");
+            // rerouteCompletionIsNotRequired() as this update is scheduled and is not triggered by user request
+            return allocationService.reroute(currentState, "assign delayed unassigned shards", rerouteCompletionIsNotRequired());
         }
 
         @Override
@@ -125,6 +129,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
+    @SuppressWarnings("this-escape")
     @Inject
     public DelayedAllocationService(ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
         this.threadPool = threadPool;

@@ -31,9 +31,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
 
     public void testTransformFields() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("idx")
+            indicesAdmin().prepareCreate("idx")
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("properties")
@@ -49,15 +47,10 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .add(
-                client().prepareIndex()
-                    .setIndex("idx")
-                    .setId("1")
-                    .setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject())
+                prepareIndex("idx").setId("1").setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject())
             )
             .add(
-                client().prepareIndex()
-                    .setIndex("idx")
-                    .setId("2")
+                prepareIndex("idx").setId("2")
                     .setSource(
                         jsonBuilder().startObject().field("name", "second").startObject("foo").field("what", "ever").endObject().endObject()
                     )
@@ -92,9 +85,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         new ExecuteWatchRequestBuilder(client(), "_second").setRecordExecution(true).get();
 
         assertBusy(() -> {
-            GetFieldMappingsResponse response = client().admin()
-                .indices()
-                .prepareGetFieldMappings(".watcher-history*")
+            GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings(".watcher-history*")
                 .setFields("result.actions.transform.payload")
                 .includeDefaults(true)
                 .get();

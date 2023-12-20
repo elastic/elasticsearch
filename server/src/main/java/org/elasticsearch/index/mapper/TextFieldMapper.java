@@ -47,24 +47,29 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -78,12 +83,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
-public class TextFieldMapper extends FieldMapper {
+public final class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
@@ -96,15 +100,16 @@ public class TextFieldMapper extends FieldMapper {
         public static final int INDEX_PREFIX_MIN_CHARS = 2;
         public static final int INDEX_PREFIX_MAX_CHARS = 5;
 
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setOmitNorms(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setTokenized(true);
+            ft.setStored(false);
+            ft.setStoreTermVectors(false);
+            ft.setOmitNorms(false);
+            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
         /**
@@ -230,7 +235,7 @@ public class TextFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
         private final Parameter<Boolean> store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, false);
@@ -254,11 +259,16 @@ public class TextFieldMapper extends FieldMapper {
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
             "eager_global_ordinals",
             true,
-            m -> ((TextFieldMapper) m).eagerGlobalOrdinals,
+            m -> ((TextFieldMapper) m).fieldType().eagerGlobalOrdinals,
             false
         );
 
-        final Parameter<Boolean> indexPhrases = Parameter.boolParam("index_phrases", false, m -> ((TextFieldMapper) m).indexPhrases, false);
+        final Parameter<Boolean> indexPhrases = Parameter.boolParam(
+            "index_phrases",
+            false,
+            m -> ((TextFieldMapper) m).fieldType().indexPhrases,
+            false
+        );
         final Parameter<PrefixConfig> indexPrefixes = new Parameter<>(
             "index_prefixes",
             false,
@@ -274,10 +284,10 @@ public class TextFieldMapper extends FieldMapper {
         final TextParams.Analyzers analyzers;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, Version.CURRENT, indexAnalyzers);
+            this(name, IndexVersion.current(), indexAnalyzers);
         }
 
-        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -334,7 +344,12 @@ public class TextFieldMapper extends FieldMapper {
                 meta };
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context, Version indexCreatedVersion) {
+        private TextFieldType buildFieldType(
+            FieldType fieldType,
+            MultiFields multiFields,
+            MapperBuilderContext context,
+            IndexVersion indexCreatedVersion
+        ) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             if (analyzers.positionIncrementGap.isConfigured()) {
@@ -350,13 +365,37 @@ public class TextFieldMapper extends FieldMapper {
                 ft = new LegacyTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
                 // ignore fieldData and eagerGlobalOrdinals
             } else {
-                ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
-                ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
+                ft = new TextFieldType(
+                    context.buildFullName(name),
+                    index.getValue(),
+                    store.getValue(),
+                    tsi,
+                    context.isSourceSynthetic(),
+                    syntheticSourceDelegate(fieldType, multiFields),
+                    meta.getValue(),
+                    eagerGlobalOrdinals.getValue(),
+                    indexPhrases.getValue()
+                );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
                 }
             }
             return ft;
+        }
+
+        private static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
+            if (fieldType.stored()) {
+                return null;
+            }
+            for (Mapper sub : multiFields) {
+                if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
+                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                        return kwd.fieldType();
+                    }
+                }
+            }
+            return null;
         }
 
         private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, FieldType fieldType, TextFieldType tft) {
@@ -373,7 +412,7 @@ public class TextFieldMapper extends FieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(Version.V_7_2_1) ? name() : context.buildFullName(name);
+            String fullName = indexCreatedVersion.before(IndexVersions.V_7_2_1) ? name() : context.buildFullName(name);
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);
@@ -411,7 +450,6 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Cannot set index_phrases on field [" + name() + "] if positions are not enabled");
             }
             FieldType phraseFieldType = new FieldType(fieldType);
-            parent.setIndexPhrases();
             PhraseWrappedAnalyzer a = new PhraseWrappedAnalyzer(
                 analyzers.getIndexAnalyzer().analyzer(),
                 analyzers.positionIncrementGap.get()
@@ -419,27 +457,9 @@ public class TextFieldMapper extends FieldMapper {
             return new SubFieldInfo(parent.name() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
         }
 
-        public Map<String, NamedAnalyzer> indexAnalyzers(String name, SubFieldInfo phraseFieldInfo, SubFieldInfo prefixFieldInfo) {
-            Map<String, NamedAnalyzer> analyzers = new HashMap<>();
-            NamedAnalyzer main = this.analyzers.getIndexAnalyzer();
-            analyzers.put(name, main);
-            if (phraseFieldInfo != null) {
-                analyzers.put(
-                    phraseFieldInfo.field,
-                    new NamedAnalyzer(main.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldInfo.analyzer)
-                );
-            }
-            if (prefixFieldInfo != null) {
-                analyzers.put(
-                    prefixFieldInfo.field,
-                    new NamedAnalyzer(main.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldInfo.analyzer)
-                );
-            }
-            return analyzers;
-        }
-
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
@@ -448,30 +468,19 @@ public class TextFieldMapper extends FieldMapper {
                 indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
-            TextFieldType tft = buildFieldType(fieldType, context, indexCreatedVersion);
+            TextFieldType tft = buildFieldType(fieldType, multiFields, context, indexCreatedVersion);
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
             for (Mapper mapper : multiFields) {
                 if (mapper.name().endsWith(FAST_PHRASE_SUFFIX) || mapper.name().endsWith(FAST_PREFIX_SUFFIX)) {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
                 }
             }
-            return new TextFieldMapper(
-                name,
-                fieldType,
-                tft,
-                indexAnalyzers(tft.name(), phraseFieldInfo, prefixFieldInfo),
-                prefixFieldInfo,
-                phraseFieldInfo,
-                multiFields,
-                copyTo.build(),
-                this
-            );
+            return new TextFieldMapper(name, fieldType, tft, prefixFieldInfo, phraseFieldInfo, multiFields, copyTo, this);
         }
     }
 
-    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()),
@@ -579,7 +588,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             List<Automaton> automata = new ArrayList<>();
             if (caseInsensitive) {
-                automata.add(AutomatonQueries.toCaseInsensitiveString(value, Integer.MAX_VALUE));
+                automata.add(AutomatonQueries.toCaseInsensitiveString(value));
             } else {
                 automata.add(Automata.makeString(value));
             }
@@ -588,8 +597,9 @@ public class TextFieldMapper extends FieldMapper {
                 automata.add(Automata.makeAnyChar());
             }
             Automaton automaton = Operations.concatenate(automata);
-            AutomatonQuery query = new AutomatonQuery(new Term(name(), value + "*"), automaton);
-            query.setRewriteMethod(method);
+            AutomatonQuery query = method == null
+                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
+                : new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
                 .build();
@@ -632,7 +642,7 @@ public class TextFieldMapper extends FieldMapper {
         private final String field;
 
         SubFieldInfo(String field, FieldType fieldType, Analyzer analyzer) {
-            this.fieldType = fieldType;
+            this.fieldType = Mapper.freezeAndDeduplicateFieldType(fieldType);
             this.analyzer = analyzer;
             this.field = field;
         }
@@ -644,12 +654,34 @@ public class TextFieldMapper extends FieldMapper {
         private boolean fielddata;
         private FielddataFrequencyFilter filter;
         private PrefixFieldType prefixFieldType;
-        private boolean indexPhrases = false;
-        private boolean eagerGlobalOrdinals = false;
+        private final boolean indexPhrases;
+        private final boolean eagerGlobalOrdinals;
+        private final boolean isSyntheticSource;
+        /**
+         * In some configurations text fields use a sub-keyword field to provide
+         * their values for synthetic source. This is that field. Or null if we're
+         * not running in synthetic _source or synthetic source doesn't need it.
+         */
+        private final KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate;
 
-        public TextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+        public TextFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            TextSearchInfo tsi,
+            boolean isSyntheticSource,
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
+            Map<String, String> meta,
+            boolean eagerGlobalOrdinals,
+            boolean indexPhrases
+        ) {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
+            this.isSyntheticSource = isSyntheticSource;
+            // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
+            this.syntheticSourceDelegate = syntheticSourceDelegate;
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+            this.indexPhrases = indexPhrases;
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
@@ -662,15 +694,23 @@ public class TextFieldMapper extends FieldMapper {
                 meta
             );
             fielddata = false;
+            isSyntheticSource = false;
+            syntheticSourceDelegate = null;
+            eagerGlobalOrdinals = false;
+            indexPhrases = false;
         }
 
-        public TextFieldType(String name) {
+        public TextFieldType(String name, boolean isSyntheticSource) {
             this(
                 name,
                 true,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                Collections.emptyMap()
+                isSyntheticSource,
+                null,
+                Collections.emptyMap(),
+                false,
+                false
             );
         }
 
@@ -708,10 +748,6 @@ public class TextFieldMapper extends FieldMapper {
             this.prefixFieldType = new PrefixFieldType(this, minChars, maxChars);
         }
 
-        void setIndexPhrases() {
-            this.indexPhrases = true;
-        }
-
         public PrefixFieldType getPrefixFieldType() {
             return this.prefixFieldType;
         }
@@ -739,7 +775,8 @@ public class TextFieldMapper extends FieldMapper {
             Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
             if (method == null
                 || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
-                || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
+                || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
                 return new ConstantScoreQuery(tq);
             }
             return tq;
@@ -758,7 +795,9 @@ public class TextFieldMapper extends FieldMapper {
                 SpanMultiTermQueryWrapper<?> spanMulti = new SpanMultiTermQueryWrapper<>(
                     new PrefixQuery(new Term(name(), indexedValueForSearch(value)))
                 );
-                spanMulti.setRewriteMethod(method);
+                if (method != null) {
+                    spanMulti.setRewriteMethod(method);
+                }
                 return spanMulti;
             }
         }
@@ -894,36 +933,139 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            if (fielddata == false) {
-                throw new IllegalArgumentException(
-                    "Text fields are not optimised for operations that require per-document "
-                        + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
-                        + "keyword field instead. Alternatively, set fielddata=true on ["
-                        + name()
-                        + "] in order to load "
-                        + "field data by uninverting the inverted index. Note that this can use significant memory."
+        public boolean isAggregatable() {
+            return fielddata;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (syntheticSourceDelegate != null) {
+                return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
+                    @Override
+                    protected String delegatingTo() {
+                        return syntheticSourceDelegate.name();
+                    }
+                };
+            }
+            /*
+             * If this is a sub-text field try and return the parent's loader. Text
+             * fields will always be slow to load and if the parent is exact then we
+             * should use that instead.
+             */
+            String parentField = blContext.parentField(name());
+            if (parentField != null) {
+                MappedFieldType parent = blContext.lookup().fieldType(parentField);
+                if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                            @Override
+                            protected String delegatingTo() {
+                                return kwd.name();
+                            }
+                        };
+                    }
+                }
+            }
+            if (isStored()) {
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
+            }
+            if (isSyntheticSource) {
+                /*
+                 * When we're in synthetic source mode we don't currently
+                 * support text fields that are not stored and are not children
+                 * of perfect keyword fields. We'd have to load from the parent
+                 * field and then convert the result to a string.
+                 */
+                return null;
+            }
+            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+            if (operation == FielddataOperation.SEARCH) {
+                if (fielddata == false) {
+                    throw new IllegalArgumentException(
+                        "Fielddata is disabled on ["
+                            + name()
+                            + "] in ["
+                            + fieldDataContext.fullyQualifiedIndexName()
+                            + "]. Text fields are not optimised for operations that require per-document "
+                            + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
+                            + "keyword field instead. Alternatively, set fielddata=true on ["
+                            + name()
+                            + "] in order to load "
+                            + "field data by uninverting the inverted index. Note that this can use significant memory."
+                    );
+                }
+                return new PagedBytesIndexFieldData.Builder(
+                    name(),
+                    filter.minFreq,
+                    filter.maxFreq,
+                    filter.minSegmentSize,
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new DelegateDocValuesField(
+                        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                        n
+                    )
                 );
             }
-            return new PagedBytesIndexFieldData.Builder(
+
+            if (operation != FielddataOperation.SCRIPT) {
+                throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
+            }
+            if (isSyntheticSource) {
+                if (isStored()) {
+                    return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
+                        name(),
+                        CoreValuesSourceType.KEYWORD,
+                        TextDocValuesField::new
+                    ) {
+                        @Override
+                        protected BytesRef storedToBytesRef(Object stored) {
+                            return new BytesRef((String) stored);
+                        }
+                    };
+                }
+                if (syntheticSourceDelegate != null) {
+                    return syntheticSourceDelegate.fielddataBuilder(fieldDataContext);
+                }
+                /*
+                 * We *shouldn't fall to this exception. The mapping should be
+                 * rejected because we've enabled synthetic source but not configured
+                 * the index properly. But we give it a nice message anyway just in
+                 * case.
+                 */
+                throw new IllegalArgumentException(
+                    "fetching values from a text field ["
+                        + name()
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
+                );
+            }
+            return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
-                filter.minFreq,
-                filter.maxFreq,
-                filter.minSegmentSize,
                 CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                fieldDataContext.lookupSupplier().get(),
+                TextDocValuesField::new
             );
         }
 
+        public boolean isSyntheticSource() {
+            return isSyntheticSource;
+        }
+
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate() {
+            return syntheticSourceDelegate;
+        }
     }
 
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, meta);
+            super(name, indexed, stored, tsi, false, null, meta, false, false);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -959,10 +1101,13 @@ public class TextFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             // Disable scoring
-            return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
+            return new ConstantScoreQuery(
+                super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod)
+            );
         }
 
         @Override
@@ -1019,7 +1164,7 @@ public class TextFieldMapper extends FieldMapper {
 
     }
 
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
     private final boolean index;
     private final boolean store;
     private final String indexOptions;
@@ -1029,22 +1174,17 @@ public class TextFieldMapper extends FieldMapper {
     private final NamedAnalyzer indexAnalyzer;
     private final IndexAnalyzers indexAnalyzers;
     private final int positionIncrementGap;
-    private final boolean eagerGlobalOrdinals;
     private final PrefixConfig indexPrefixes;
     private final FielddataFrequencyFilter freqFilter;
     private final boolean fieldData;
-    private final boolean indexPhrases;
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    private final Map<String, NamedAnalyzer> indexAnalyzerMap;
-
-    protected TextFieldMapper(
+    private TextFieldMapper(
         String simpleName,
         FieldType fieldType,
         TextFieldType mappedFieldType,
-        Map<String, NamedAnalyzer> indexAnalyzers,
         SubFieldInfo prefixFieldInfo,
         SubFieldInfo phraseFieldInfo,
         MultiFields multiFields,
@@ -1057,7 +1197,7 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexCreatedVersion = builder.indexCreatedVersion;
@@ -1070,17 +1210,28 @@ public class TextFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
         this.termVectors = builder.termVectors.getValue();
-        this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
-        this.indexPhrases = builder.indexPhrases.getValue();
-        this.indexAnalyzerMap = Map.copyOf(indexAnalyzers);
     }
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return indexAnalyzerMap;
+        Map<String, NamedAnalyzer> analyzersMap = new HashMap<>();
+        analyzersMap.put(name(), indexAnalyzer);
+        if (phraseFieldInfo != null) {
+            analyzersMap.put(
+                phraseFieldInfo.field,
+                new NamedAnalyzer(indexAnalyzer.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldInfo.analyzer)
+            );
+        }
+        if (prefixFieldInfo != null) {
+            analyzersMap.put(
+                prefixFieldInfo.field,
+                new NamedAnalyzer(indexAnalyzer.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldInfo.analyzer)
+            );
+        }
+        return analyzersMap;
     }
 
     @Override
@@ -1273,12 +1424,18 @@ public class TextFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
+        if (store) {
+            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    b.value((String) value);
+                }
+            };
+        }
         for (Mapper sub : this) {
             if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                 KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                if (kwd.fieldType().hasDocValues()
-                    && kwd.hasNormalizer() == false
-                    && kwd.fieldType().ignoreAbove() == KeywordFieldMapper.Defaults.IGNORE_ABOVE) {
+                if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
 
                     return kwd.syntheticFieldLoader(simpleName());
                 }
@@ -1287,8 +1444,8 @@ public class TextFieldMapper extends FieldMapper {
         throw new IllegalArgumentException(
             String.format(
                 Locale.ROOT,
-                "field [%s] of type [%s] doesn't support synthetic source unless it has a sub-field of"
-                    + " type [keyword] with doc values enabled and without ignore_above or a normalizer",
+                "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
+                    + " type [keyword] with doc values or stored and without a normalizer",
                 name(),
                 typeName()
             )

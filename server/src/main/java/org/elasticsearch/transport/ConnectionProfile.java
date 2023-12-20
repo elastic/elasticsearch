@@ -134,6 +134,7 @@ public final class ConnectionProfile {
     private final TimeValue pingInterval;
     private final Compression.Enabled compressionEnabled;
     private final Compression.Scheme compressionScheme;
+    private final String transportProfile;
 
     private ConnectionProfile(
         List<ConnectionTypeHandle> handles,
@@ -142,7 +143,8 @@ public final class ConnectionProfile {
         TimeValue handshakeTimeout,
         TimeValue pingInterval,
         Compression.Enabled compressionEnabled,
-        Compression.Scheme compressionScheme
+        Compression.Scheme compressionScheme,
+        String transportProfile
     ) {
         this.handles = handles;
         this.numConnections = numConnections;
@@ -151,6 +153,7 @@ public final class ConnectionProfile {
         this.pingInterval = pingInterval;
         this.compressionEnabled = compressionEnabled;
         this.compressionScheme = compressionScheme;
+        this.transportProfile = Objects.requireNonNull(transportProfile, "transport profile name must not be null");
     }
 
     /**
@@ -165,6 +168,7 @@ public final class ConnectionProfile {
         private Compression.Enabled compressionEnabled;
         private Compression.Scheme compressionScheme;
         private TimeValue pingInterval;
+        private String transportProfile = TransportSettings.DEFAULT_PROFILE;
 
         /** create an empty builder */
         public Builder() {}
@@ -179,6 +183,7 @@ public final class ConnectionProfile {
             compressionEnabled = source.getCompressionEnabled();
             compressionScheme = source.getCompressionScheme();
             pingInterval = source.getPingInterval();
+            transportProfile = source.getTransportProfile();
         }
 
         /**
@@ -247,6 +252,11 @@ public final class ConnectionProfile {
             return this;
         }
 
+        public Builder setTransportProfile(String transportProfile) {
+            this.transportProfile = transportProfile;
+            return this;
+        }
+
         /**
          * Creates a new {@link ConnectionProfile} based on the added connections.
          * @throws IllegalStateException if any of the {@link org.elasticsearch.transport.TransportRequestOptions.Type} enum is missing
@@ -264,7 +274,8 @@ public final class ConnectionProfile {
                 handshakeTimeout,
                 pingInterval,
                 compressionEnabled,
-                compressionScheme
+                compressionScheme,
+                transportProfile
             );
         }
 
@@ -312,6 +323,10 @@ public final class ConnectionProfile {
      */
     public int getNumConnections() {
         return numConnections;
+    }
+
+    public String getTransportProfile() {
+        return transportProfile;
     }
 
     /**

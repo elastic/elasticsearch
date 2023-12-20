@@ -11,7 +11,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<get-snapshot-repo-api,get snapshot repository API>>.
 ====
 
-Returns the <<snapshots-repositories,snapshot repositories>> for a cluster.
+Returns the <<snapshots-register-repository,snapshot repositories>> for a cluster.
 
 
 [[cat-repositories-api-request]]

@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -143,7 +144,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         return termValuesList;
     }
 
-    List<List<Object>> docTerms(List<TermValues> termValuesList, int doc) throws IOException {
+    static List<List<Object>> docTerms(List<TermValues> termValuesList, int doc) throws IOException {
         List<List<Object>> terms = new ArrayList<>();
         for (TermValues termValues : termValuesList) {
             List<Object> collectValues = termValues.collectValues(doc);
@@ -176,15 +177,15 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      */
     static List<Object> unpackTerms(BytesRef termsBytes) {
         try (StreamInput input = new BytesArray(termsBytes).streamInput()) {
-            return input.readList(StreamInput::readGenericValue);
+            return input.readCollectionAsList(StreamInput::readGenericValue);
         } catch (IOException ex) {
             throw ExceptionsHelper.convertToRuntime(ex);
         }
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        List<TermValues> termValuesList = termValuesList(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        List<TermValues> termValuesList = termValuesList(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -351,8 +352,8 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      * Handles non-float and date doc values
      */
     static class LongTermValuesSource implements TermValuesSource {
-        ValuesSource.Numeric source;
-        InternalMultiTerms.KeyConverter converter;
+        final ValuesSource.Numeric source;
+        final InternalMultiTerms.KeyConverter converter;
 
         LongTermValuesSource(ValuesSourceConfig config) {
             this.source = (ValuesSource.Numeric) config.getValuesSource();
@@ -395,7 +396,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      * Handles float and date doc values
      */
     static class DoubleTermValuesSource implements TermValuesSource {
-        ValuesSource.Numeric source;
+        final ValuesSource.Numeric source;
 
         DoubleTermValuesSource(ValuesSourceConfig config) {
             this.source = (ValuesSource.Numeric) config.getValuesSource();

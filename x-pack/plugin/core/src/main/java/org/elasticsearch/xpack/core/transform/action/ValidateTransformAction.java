@@ -105,12 +105,12 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            this.destIndexMappings = in.readMap(StreamInput::readString, StreamInput::readString);
+            this.destIndexMappings = in.readMap(StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(destIndexMappings, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(destIndexMappings, StreamOutput::writeString);
         }
 
         public Map<String, String> getDestIndexMappings() {

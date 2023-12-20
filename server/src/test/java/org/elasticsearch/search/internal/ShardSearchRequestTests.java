@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -17,10 +18,12 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -28,7 +31,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,9 +41,12 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,7 +56,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardSearchRequestTests extends AbstractSearchTestCase {
     private static final IndexMetadata BASE_METADATA = IndexMetadata.builder("test")
-        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
         .numberOfShards(1)
         .numberOfReplicas(1)
         .build();
@@ -73,14 +80,17 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        SearchRequest searchRequest = createSearchRequest();
+        return createShardSearchReqest(createSearchRequest());
+    }
+
+    private ShardSearchRequest createShardSearchReqest(SearchRequest searchRequest) {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
             String[] strings = generateRandomStringArray(10, 10, false, false);
-            filteringAliases = new AliasFilter(RandomQueryBuilder.createQuery(random()), strings);
+            filteringAliases = AliasFilter.of(RandomQueryBuilder.createQuery(random()), strings);
         } else {
-            filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
+            filteringAliases = AliasFilter.EMPTY;
         }
         ShardSearchContextId shardSearchContextId = null;
         TimeValue keepAlive = null;
@@ -204,21 +214,33 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                     .xContent()
                     .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)
             ) {
-                return parseInnerQueryBuilder(parser);
+                return parseTopLevelQuery(parser);
             }
         }, indexMetadata, aliasNames);
     }
 
     public void testChannelVersion() throws Exception {
         ShardSearchRequest request = createShardSearchRequest();
-        Version channelVersion = Version.CURRENT;
+        TransportVersion channelVersion = TransportVersion.current();
         assertThat(request.getChannelVersion(), equalTo(channelVersion));
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+            if (request.isForceSyntheticSource()) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_4_0, TransportVersion.current());
+            }
+            if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_7_0, TransportVersion.current());
+            }
+            if (request.source() != null && request.source().rankBuilder() != null) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_8_0, TransportVersion.current());
+            }
+            if (request.source() != null && request.source().subSearches().size() >= 2) {
+                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_500_020, TransportVersion.current());
+            }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
-            channelVersion = Version.min(channelVersion, version);
+            channelVersion = TransportVersion.min(channelVersion, version);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));
             if (randomBoolean()) {
                 request = new ShardSearchRequest(request);
@@ -235,5 +257,21 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         };
         shardSearchRequest.cacheKey(differentiator);
         assertThat(invoked.get(), is(true));
+    }
+
+    public void testForceSyntheticUnsupported() throws IOException {
+        SearchRequest request = createSearchRequest();
+        if (request.source() != null) {
+            request.source().rankBuilder(null);
+            if (request.source().subSearches().size() >= 2) {
+                request.source().subSearches(new ArrayList<>());
+            }
+        }
+        request.setForceSyntheticSource(true);
+        ShardSearchRequest shardRequest = createShardSearchReqest(request);
+        StreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersions.V_8_3_0);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> shardRequest.writeTo(out));
+        assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 }

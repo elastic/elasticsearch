@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -30,19 +31,19 @@ import java.util.concurrent.BlockingQueue;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
+public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin implements ReloadablePlugin {
     private static final Logger logger = LogManager.getLogger(TimeWarpedWatcher.class);
 
     // use a single clock across all nodes using this plugin, this lets keep it static
     private static final ClockMock clock = new ClockMock();
+    private final Watcher watcher;
 
     public TimeWarpedWatcher(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         logger.info("using time warped watchers plugin");
 
         TimeWarpedWatcher thisVar = this;
-
-        plugins.add(new Watcher(settings) {
+        this.watcher = new Watcher(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
@@ -72,7 +73,13 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
             protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
                 return new SyncTriggerEventConsumer(executionService);
             }
-        });
+        };
+        plugins.add(watcher);
+    }
+
+    @Override
+    public void reload(Settings settings) throws Exception {
+        this.watcher.reload(settings);
     }
 
     public static class SameThreadExecutor implements WatchExecutor {

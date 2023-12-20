@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -27,16 +28,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Results of the {@link TopHitsAggregator}.
  */
 public class InternalTopHits extends InternalAggregation implements TopHits {
-    private int from;
-    private int size;
-    private TopDocsAndMaxScore topDocs;
-    private SearchHits searchHits;
+    private final int from;
+    private final int size;
+    private final TopDocsAndMaxScore topDocs;
+    private final SearchHits searchHits;
 
     public InternalTopHits(
         String name,
@@ -96,7 +98,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        final SearchHits[] shardHits = new SearchHits[aggregations.size()];
         final int from;
         final int size;
         if (reduceContext.isFinalReduce()) {
@@ -111,63 +112,64 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
         final TopDocs reducedTopDocs;
         final TopDocs[] shardDocs;
-
-        if (topDocs.topDocs instanceof TopFieldDocs) {
-            Sort sort = new Sort(((TopFieldDocs) topDocs.topDocs).fields);
+        final float maxScore;
+        if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
             shardDocs = new TopFieldDocs[aggregations.size()];
-            for (int i = 0; i < shardDocs.length; i++) {
-                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                shardDocs[i] = topHitsAgg.topDocs.topDocs;
-                shardHits[i] = topHitsAgg.searchHits;
-                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
-                    doc.shardIndex = i;
-                }
-            }
-            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+            maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
+            reducedTopDocs = TopDocs.merge(new Sort(topFieldDocs.fields), from, size, (TopFieldDocs[]) shardDocs);
         } else {
             shardDocs = new TopDocs[aggregations.size()];
-            for (int i = 0; i < shardDocs.length; i++) {
-                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                shardDocs[i] = topHitsAgg.topDocs.topDocs;
-                shardHits[i] = topHitsAgg.searchHits;
-                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
-                    doc.shardIndex = i;
-                }
-            }
+            maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
             reducedTopDocs = TopDocs.merge(from, size, shardDocs);
         }
-
-        float maxScore = Float.NaN;
-        for (InternalAggregation agg : aggregations) {
-            InternalTopHits topHitsAgg = (InternalTopHits) agg;
-            if (Float.isNaN(topHitsAgg.topDocs.maxScore) == false) {
-                if (Float.isNaN(maxScore)) {
-                    maxScore = topHitsAgg.topDocs.maxScore;
-                } else {
-                    maxScore = Math.max(maxScore, topHitsAgg.topDocs.maxScore);
-                }
-            }
-        }
-
-        final int[] tracker = new int[shardHits.length];
-        SearchHit[] hits = new SearchHit[reducedTopDocs.scoreDocs.length];
-        for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
-            ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
-            int position;
-            do {
-                position = tracker[scoreDoc.shardIndex]++;
-            } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
-            hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
-        }
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
+
         return new InternalTopHits(
             name,
             this.from,
             this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits, maxScore),
+            extractSearchHits(aggregations, reducedTopDocs, shardDocs, maxScore),
             getMetadata()
         );
+    }
+
+    private static SearchHits extractSearchHits(
+        List<InternalAggregation> aggregations,
+        TopDocs reducedTopDocs,
+        TopDocs[] shardDocs,
+        float maxScore
+    ) {
+        final int[] tracker = new int[aggregations.size()];
+        ScoreDoc[] scoreDocs = reducedTopDocs.scoreDocs;
+        SearchHit[] hits = new SearchHit[scoreDocs.length];
+        for (int i = 0; i < scoreDocs.length; i++) {
+            ScoreDoc scoreDoc = scoreDocs[i];
+            int shardIndex = scoreDoc.shardIndex;
+            TopDocs topDocsForShard = shardDocs[shardIndex];
+            int position;
+            do {
+                position = tracker[shardIndex]++;
+            } while (topDocsForShard.scoreDocs[position] != scoreDoc);
+            hits[i] = ((InternalTopHits) aggregations.get(shardIndex)).searchHits.getAt(position);
+        }
+        return new SearchHits(hits, reducedTopDocs.totalHits, maxScore);
+    }
+
+    private static float reduceAndFindMaxScore(List<InternalAggregation> aggregations, TopDocs[] shardDocs) {
+        float maxScore = Float.NaN;
+        for (int i = 0; i < shardDocs.length; i++) {
+            InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+            shardDocs[i] = topHitsAgg.topDocs.topDocs;
+            for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                doc.shardIndex = i;
+            }
+            final float max = topHitsAgg.topDocs.maxScore;
+            if (Float.isNaN(max) == false) {
+                maxScore = Float.isNaN(maxScore) ? max : Math.max(maxScore, max);
+            }
+        }
+        return maxScore;
     }
 
     @Override
@@ -180,18 +182,57 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         return true;
     }
 
+    // Supported property prefixes.
+    private static final String SOURCE = "_source";
+    private static final String SORT_VALUE = "_sort";
+    private static final String SCORE = "_score";
+
     @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
-        } else {
-            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
+        if (path.size() != 1) {
+            throw new IllegalArgumentException(
+                "property paths for top_hits ["
+                    + getName()
+                    + "] can only contain a single field in _source, score or sort values, got "
+                    + path
+            );
+        }
+
+        String[] tokens = path.get(0).toLowerCase(Locale.ROOT).split(":|>|\\.");
+        if (searchHits.getHits().length > 1) {
+            throw new IllegalArgumentException("property paths for top_hits [" + getName() + "] require configuring it with size to 1");
+        }
+        SearchHit topHit = searchHits.getAt(0);
+        if (tokens[0].equals(SORT_VALUE)) {
+            Object[] sortValues = topHit.getSortValues();
+            if (sortValues != null) {
+                if (sortValues.length != 1) {
+                    throw new IllegalArgumentException(
+                        "property path for top_hits [\" + getName() + \"] requires a single sort value, got " + sortValues.length
+                    );
+                }
+                return sortValues[0];
+            }
+        } else if (tokens[0].equals(SCORE)) {
+            return topHit.getScore();
+        } else if (tokens[0].equals(SOURCE)) {
+            Map<String, Object> sourceAsMap = topHit.getSourceAsMap();
+            if (sourceAsMap != null) {
+                Object property = sourceAsMap.get(tokens[1]);
+                if (property != null) {
+                    return property;
+                }
+            }
+        }
+        throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        searchHits.toXContent(builder, params);
+        ChunkedToXContent.wrapAsToXContent(searchHits).toXContent(builder, params);
         return builder;
     }
 

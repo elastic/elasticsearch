@@ -45,6 +45,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     // min time to trigger delayed execution, this avoids scheduling tasks with super short amount of time
     private static final TimeValue MIN_THROTTLE_WAIT_TIME = TimeValue.timeValueMillis(10);
 
+    @SuppressWarnings("this-escape")
     private final ActionListener<SearchResponse> searchResponseListener = ActionListener.wrap(
         this::onSearchResponse,
         this::finishWithSearchFailure
@@ -77,16 +78,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // with wrapping the command in RunOnce we ensure the command isn't executed twice, e.g. if the
             // future is already running and cancel returns true
             this.command = new RunOnce(command);
-            this.scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
+            this.scheduled = threadPool.schedule(command, delay, threadPool.generic());
         }
 
         public void reschedule(TimeValue delay) {
             // note: cancel return true if the runnable is currently executing
             if (scheduled.cancel()) {
                 if (delay.duration() > 0) {
-                    scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
+                    scheduled = threadPool.schedule(command, delay, threadPool.generic());
                 } else {
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(command::run);
+                    threadPool.generic().execute(command);
                 }
             }
         }
@@ -418,20 +419,17 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private void finishWithSearchFailure(Exception exc) {
         stats.incrementSearchFailures();
-        onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
+        finishWithFailure(exc);
     }
 
     private void finishWithIndexingFailure(Exception exc) {
         stats.incrementIndexingFailures();
-        onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
+        finishWithFailure(exc);
     }
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
-        finishAndSetState();
-        afterFinishOrFailure();
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private IndexerState finishAndSetState() {

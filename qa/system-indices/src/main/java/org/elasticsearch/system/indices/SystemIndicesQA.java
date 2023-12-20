@@ -9,7 +9,6 @@
 
 package org.elasticsearch.system.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -38,6 +37,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -73,15 +73,15 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )
-                .setOrigin("net-new")
+                .setOrigin(TASKS_ORIGIN)
                 .setVersionMetaKey("version")
-                .setPrimaryIndex(".net-new-system-index-" + Version.CURRENT.major)
+                .setPrimaryIndex(".net-new-system-index-primary")
                 .build(),
             SystemIndexDescriptor.builder()
                 .setIndexPattern(INTERNAL_UNMANAGED_INDEX_NAME)
                 .setDescription("internal unmanaged system index")
                 .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
-                .setOrigin("qa")
+                .setOrigin(TASKS_ORIGIN)
                 .setAliasName(".internal-unmanaged-alias")
                 .build(),
             SystemIndexDescriptor.builder()
@@ -96,9 +96,9 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )
-                .setOrigin("qa")
+                .setOrigin(TASKS_ORIGIN)
                 .setVersionMetaKey("version")
-                .setPrimaryIndex(".internal-managed-index-" + Version.CURRENT.major)
+                .setPrimaryIndex(".internal-managed-index-primary")
                 .setAliasName(".internal-managed-alias")
                 .build()
         );
@@ -109,7 +109,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")
@@ -153,7 +153,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
             return channel -> client.admin()
                 .indices()
-                .create(new CreateIndexRequest(".net-new-system-index-" + Version.CURRENT.major), new RestToXContentListener<>(channel));
+                .create(new CreateIndexRequest(".net-new-system-index-primary"), new RestToXContentListener<>(channel));
         }
 
         @Override
@@ -175,7 +175,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-            IndexRequest indexRequest = new IndexRequest(".net-new-system-index-" + Version.CURRENT.major);
+            IndexRequest indexRequest = new IndexRequest(".net-new-system-index-primary");
             indexRequest.source(request.requiredContent(), request.getXContentType());
             indexRequest.id(request.param("id"));
             indexRequest.setRefreshPolicy(request.param("refresh"));

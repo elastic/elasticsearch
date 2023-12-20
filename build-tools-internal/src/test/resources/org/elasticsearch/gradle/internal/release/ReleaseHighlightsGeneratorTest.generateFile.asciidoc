@@ -4,10 +4,9 @@
 coming::[{minor-version}]
 
 Here are the highlights of what's new and improved in {es} {minor-version}!
-ifeval::[\{release-state}\"!=\"unreleased\"]
+ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
-endif::[]
 
 // Add previous release to the list
 Other versions:
@@ -17,23 +16,31 @@ Other versions:
 | {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
 
+endif::[]
+
 // tag::notable-highlights[]
 
 [discrete]
-[[notable_release_highlight_number_1]]
-=== Notable release highlight number 1
-Notable release body number 1
+[[notable_release_highlight_number_123]]
+=== Notable release highlight number 123
+Notable release body number 123
+
+{es-pull}123[#123]
 
 [discrete]
-[[notable_release_highlight_number_2]]
-=== Notable release highlight number 2
-Notable release body number 2
+[[notable_release_highlight_number_456]]
+=== Notable release highlight number 456
+Notable release body number 456
+
+{es-pull}456[#456]
 
 // end::notable-highlights[]
 
 
 [discrete]
-[[notable_release_highlight_number_3]]
-=== Notable release highlight number 3
-Notable release body number 3
+[[notable_release_highlight_number_789]]
+=== Notable release highlight number 789
+Notable release body number 789
+
+{es-pull}789[#789]
 

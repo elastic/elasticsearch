@@ -8,25 +8,34 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -35,22 +44,33 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
-    public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
+    public static final String NAME = "indices:data/read/field_caps";
+    public static final ActionType<FieldCapabilitiesResponse> TYPE = new ActionType<>(NAME, FieldCapabilitiesResponse::new);
+    public static final String ACTION_NODE_NAME = NAME + "[n]";
+    public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
     private final ThreadPool threadPool;
+    private final Executor searchCoordinationExecutor;
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -67,15 +87,23 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         IndicesService indicesService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(
+            NAME,
+            transportService,
+            actionFilters,
+            FieldCapabilitiesRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
+        );
         this.threadPool = threadPool;
+        this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesService = indicesService;
         transportService.registerRequestHandler(
             ACTION_NODE_NAME,
-            ThreadPool.Names.SEARCH_COORDINATION,
+            this.searchCoordinationExecutor,
             FieldCapabilitiesNodeRequest::new,
             new NodeTransportHandler()
         );
@@ -84,9 +112,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+    }
+
+    private void doExecuteForked(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
+        assert task instanceof CancellableTask;
+        final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
@@ -107,61 +142,100 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         checkIndexBlocks(clusterState, concreteIndices);
-
+        final FailureCollector indexFailures = new FailureCollector();
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
-        final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
+        final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
+        final Runnable releaseResourcesOnCancel = () -> {
+            LOGGER.trace("clear index responses on cancellation");
+            indexFailures.clear();
+            indexResponses.clear();
+            indexMappingHashToResponses.clear();
+        };
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+                return;
+            }
             if (resp.canMatch() && resp.getIndexMappingHash() != null) {
-                Map<String, IndexFieldCapabilities> curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp.get());
+                FieldCapabilitiesIndexResponse curr = indexMappingHashToResponses.putIfAbsent(resp.getIndexMappingHash(), resp);
                 if (curr != null) {
-                    resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), resp.getIndexMappingHash(), curr, true);
+                    resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
                 }
             }
             indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+            }
         };
-        final FailureCollector indexFailures = new FailureCollector();
-        // One for each cluster including the local cluster
-        final CountDown completionCounter = new CountDown(1 + remoteClusterIndices.size());
-        final Runnable countDown = createResponseMerger(request, completionCounter, indexResponses, indexFailures, listener);
-        final RequestDispatcher requestDispatcher = new RequestDispatcher(
-            clusterService,
-            transportService,
-            task,
-            request,
-            localIndices,
-            nowInMillis,
-            concreteIndices,
-            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            handleIndexResponse,
-            indexFailures::collect,
-            countDown
-        );
-        requestDispatcher.execute();
+        final BiConsumer<String, Exception> handleIndexFailure = (index, error) -> {
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+                return;
+            }
+            indexFailures.collect(index, error);
+            if (fieldCapTask.isCancelled()) {
+                releaseResourcesOnCancel.run();
+            }
+        };
+        final var finishedOrCancelled = new AtomicBoolean();
+        fieldCapTask.addListener(() -> {
+            if (finishedOrCancelled.compareAndSet(false, true)) {
+                releaseResourcesOnCancel.run();
+            }
+        });
+        try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
+            finishedOrCancelled.set(true);
+            if (fieldCapTask.notifyIfCancelled(listener)) {
+                releaseResourcesOnCancel.run();
+            } else {
+                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
+            }
+        })) {
+            // local cluster
+            final RequestDispatcher requestDispatcher = new RequestDispatcher(
+                clusterService,
+                transportService,
+                task,
+                request,
+                localIndices,
+                nowInMillis,
+                concreteIndices,
+                searchCoordinationExecutor,
+                handleIndexResponse,
+                handleIndexFailure,
+                refs.acquire()::close
+            );
+            requestDispatcher.execute();
 
-        // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
-        // send us back all individual index results.
-        for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
-            String clusterAlias = remoteIndices.getKey();
-            OriginalIndices originalIndices = remoteIndices.getValue();
-            Client remoteClusterClient = transportService.getRemoteClusterService().getRemoteClusterClient(threadPool, clusterAlias);
-            FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
-            remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
-                for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
-                    String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
-                    handleIndexResponse.accept(
-                        new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
-                    );
-                }
-                for (FieldCapabilitiesFailure failure : response.getFailures()) {
-                    Exception ex = failure.getException();
-                    indexFailures.collectRemoteException(ex, clusterAlias, failure.getIndices());
-                }
-                countDown.run();
-            }, ex -> {
-                indexFailures.collectRemoteException(ex, clusterAlias, originalIndices.indices());
-                countDown.run();
-            }));
+            // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
+            // send us back all individual index results.
+            for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
+                String clusterAlias = remoteIndices.getKey();
+                OriginalIndices originalIndices = remoteIndices.getValue();
+                Client remoteClusterClient = transportService.getRemoteClusterService()
+                    .getRemoteClusterClient(threadPool, clusterAlias, searchCoordinationExecutor);
+                FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
+                ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
+                    for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
+                        String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
+                        handleIndexResponse.accept(
+                            new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
+                        );
+                    }
+                    for (FieldCapabilitiesFailure failure : response.getFailures()) {
+                        Exception ex = failure.getException();
+                        for (String index : failure.getIndices()) {
+                            handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                        }
+                    }
+                }, ex -> {
+                    for (String index : originalIndices.indices()) {
+                        handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                    }
+                });
+                remoteClusterClient.fieldCaps(remoteRequest, ActionListener.releaseAfter(remoteListener, refs.acquire()));
+            }
         }
     }
 
@@ -172,38 +246,29 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private Runnable createResponseMerger(
+    private void mergeIndexResponses(
         FieldCapabilitiesRequest request,
-        CountDown completionCounter,
+        CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
-        return () -> {
-            if (completionCounter.countDown()) {
-                List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-                if (indexResponses.size() > 0) {
-                    if (request.isMergeResults()) {
-                        // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
-                        // on a transport thread in case of large numbers of indices and/or fields
-                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
-                            .submit(ActionRunnable.supply(listener, () -> merge(indexResponses, request, new ArrayList<>(failures))));
-                    } else {
-                        listener.onResponse(
-                            new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures))
-                        );
-                    }
-                } else {
-                    // we have no responses at all, maybe because of errors
-                    if (indexFailures.isEmpty() == false) {
-                        // throw back the first exception
-                        listener.onFailure(failures.iterator().next().getException());
-                    } else {
-                        listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
-                    }
-                }
+        List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
+        if (indexResponses.size() > 0) {
+            if (request.isMergeResults()) {
+                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
+            } else {
+                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
             }
-        };
+        } else {
+            // we have no responses at all, maybe because of errors
+            if (indexFailures.isEmpty() == false) {
+                // throw back the first exception
+                listener.onFailure(failures.get(0).getException());
+            } else {
+                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
+            }
+        }
     }
 
     private static FieldCapabilitiesRequest prepareRemoteRequest(
@@ -224,51 +289,145 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         return remoteRequest;
     }
 
-    private FieldCapabilitiesResponse merge(
+    private static boolean hasSameMappingHash(FieldCapabilitiesIndexResponse r1, FieldCapabilitiesIndexResponse r2) {
+        return r1.getIndexMappingHash() != null
+            && r2.getIndexMappingHash() != null
+            && r1.getIndexMappingHash().equals(r2.getIndexMappingHash());
+    }
+
+    private static FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
+        CancellableTask task,
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
-        final List<FieldCapabilitiesIndexResponse> indexResponses = indexResponsesMap.values()
-            .stream()
-            .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
-            .toList();
-        final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
+        task.ensureNotCancelled();
+        final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values().toArray(new FieldCapabilitiesIndexResponse[0]);
+        Arrays.sort(indexResponses, Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName));
+        final String[] indices = Arrays.stream(indexResponses).map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
-        for (FieldCapabilitiesIndexResponse response : indexResponses) {
-            innerMerge(responseMapBuilder, request, response);
+        int lastPendingIndex = 0;
+        for (int i = 1; i <= indexResponses.length; i++) {
+            if (i == indexResponses.length || hasSameMappingHash(indexResponses[lastPendingIndex], indexResponses[i]) == false) {
+                final String[] subIndices;
+                if (lastPendingIndex == 0 && i == indexResponses.length) {
+                    subIndices = indices;
+                } else {
+                    subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
+                }
+                innerMerge(subIndices, responseMapBuilder, request, indexResponses[lastPendingIndex]);
+                lastPendingIndex = i;
+            }
         }
-        final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
-        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
-            final Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
-            if (request.includeUnmapped()) {
-                addUnmappedFields(indices, entry.getKey(), typeMapBuilder);
+
+        task.ensureNotCancelled();
+        Map<String, Map<String, FieldCapabilities>> responseMap = Maps.newMapWithExpectedSize(responseMapBuilder.size());
+        if (request.includeUnmapped()) {
+            collectResponseMapIncludingUnmapped(indices, responseMapBuilder, responseMap);
+        } else {
+            collectResponseMap(responseMapBuilder, responseMap);
+        }
+
+        // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
+        // log relevant "5xx" errors that occurred in this 2xx response to ensure they are only logged once.
+        // These failures have already been deduplicated, before this method was called.
+        for (FieldCapabilitiesFailure failure : failures) {
+            if (shouldLogException(failure.getException())) {
+                LOGGER.warn(
+                    "Field caps partial-results Exception for indices " + Arrays.toString(failure.getIndices()),
+                    failure.getException()
+                );
             }
-            boolean multiTypes = typeMapBuilder.size() > 1;
-            final Map<String, FieldCapabilities> typeMap = new HashMap<>();
-            for (Map.Entry<String, FieldCapabilities.Builder> fieldEntry : typeMapBuilder.entrySet()) {
-                typeMap.put(fieldEntry.getKey(), fieldEntry.getValue().build(multiTypes));
-            }
-            responseMap.put(entry.getKey(), Collections.unmodifiableMap(typeMap));
         }
         return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
     }
 
-    private static void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
-        final Set<String> mappedIndices = new HashSet<>();
-        typeMap.values().forEach(t -> t.getIndices(mappedIndices));
-        if (mappedIndices.size() != indices.length) {
-            final FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
-            for (String index : indices) {
-                if (mappedIndices.contains(index) == false) {
-                    unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
-                }
+    private static boolean shouldLogException(Exception e) {
+        // ConnectTransportExceptions are thrown when a cluster marked with skip_unavailable=false are not available for searching
+        // (Clusters marked with skip_unavailable=false return a different error that is considered a 4xx error.)
+        // In such a case, the field-caps endpoint returns a 200 (unless all clusters failed).
+        // To keep the logs from being too noisy, we choose not to log the ConnectTransportException here.
+        return e instanceof org.elasticsearch.transport.ConnectTransportException == false
+            && ExceptionsHelper.status(e).getStatus() >= 500
+            && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false;
+    }
+
+    private static void collectResponseMapIncludingUnmapped(
+        String[] indices,
+        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        Map<String, Map<String, FieldCapabilities>> responseMap
+    ) {
+        final Set<String> mappedScratch = new HashSet<>();
+        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
+            var typeMapBuilder = entry.getValue().entrySet();
+
+            // do this directly, rather than using the builder, to save creating a whole lot of objects we don't need
+            mappedScratch.clear();
+            for (Map.Entry<String, FieldCapabilities.Builder> b : typeMapBuilder) {
+                b.getValue().getIndices(mappedScratch);
             }
-            typeMap.put("unmapped", unmapped);
+            var unmapped = getUnmappedFields(indices, entry.getKey(), mappedScratch);
+
+            final int resSize = typeMapBuilder.size() + (unmapped == null ? 0 : 1);
+            final Map<String, FieldCapabilities> res = capabilities(resSize, typeMapBuilder);
+            if (unmapped != null) {
+                res.put("unmapped", unmapped.apply(resSize > 1));
+            }
+            responseMap.put(entry.getKey(), Collections.unmodifiableMap(res));
         }
     }
 
-    private void innerMerge(
+    private static void collectResponseMap(
+        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        Map<String, Map<String, FieldCapabilities>> responseMap
+    ) {
+        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
+            var typeMapBuilder = entry.getValue().entrySet();
+            responseMap.put(entry.getKey(), Collections.unmodifiableMap(capabilities(typeMapBuilder.size(), typeMapBuilder)));
+        }
+    }
+
+    private static Map<String, FieldCapabilities> capabilities(int resSize, Set<Map.Entry<String, FieldCapabilities.Builder>> builders) {
+        boolean multiTypes = resSize > 1;
+        final Map<String, FieldCapabilities> res = Maps.newHashMapWithExpectedSize(resSize);
+        for (Map.Entry<String, FieldCapabilities.Builder> e : builders) {
+            res.put(e.getKey(), e.getValue().build(multiTypes));
+        }
+        return res;
+    }
+
+    @Nullable
+    private static Function<Boolean, FieldCapabilities> getUnmappedFields(String[] indices, String field, Set<String> mappedIndices) {
+        if (mappedIndices.size() != indices.length) {
+            return mt -> {
+                final String[] diff;
+                if (mt) {
+                    diff = new String[indices.length - mappedIndices.size()];
+                    Iterator<String> indicesIter = Iterators.forArray(indices);
+                    for (int i = 0; i < diff.length; i++) {
+                        diff[i] = nextIndex(indicesIter, mappedIndices);
+                    }
+                } else {
+                    diff = null;
+                }
+                return new FieldCapabilities(field, "unmapped", false, false, false, false, null, diff, null, null, null, null, Map.of());
+            };
+        }
+        return null;
+    }
+
+    private static String nextIndex(Iterator<String> iter, Set<String> filtered) {
+        while (true) {
+            String index = iter.next();
+            if (filtered.contains(index) == false) {
+                return index;
+            }
+        }
+    }
+
+    private static void innerMerge(
+        String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
         FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
@@ -283,17 +442,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
-            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
-                fieldCap.getType(),
-                key -> new FieldCapabilities.Builder(field, key)
-            );
+            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.type(), key -> new FieldCapabilities.Builder(field, key));
             builder.add(
-                response.getIndexName(),
+                indices,
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
                 fieldCap.isDimension(),
-                fieldCap.getMetricType(),
+                fieldCap.metricType(),
                 fieldCap.meta()
             );
         }
@@ -309,7 +465,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         private final Map<String, Exception> failuresByIndex = Collections.synchronizedMap(new HashMap<>());
 
         List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
-            Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(new HashMap<>());
+            Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = new HashMap<>();
             for (Map.Entry<String, Exception> failure : failuresByIndex.entrySet()) {
                 String index = failure.getKey();
                 Exception e = failure.getValue();
@@ -332,10 +488,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             failuresByIndex.putIfAbsent(index, e);
         }
 
-        void collectRemoteException(Exception ex, String clusterAlias, String[] remoteIndices) {
-            for (String failedIndex : remoteIndices) {
-                collect(RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex), ex);
-            }
+        void clear() {
+            failuresByIndex.clear();
         }
 
         boolean isEmpty() {
@@ -346,7 +500,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private class NodeTransportHandler implements TransportRequestHandler<FieldCapabilitiesNodeRequest> {
         @Override
         public void messageReceived(FieldCapabilitiesNodeRequest request, TransportChannel channel, Task task) throws Exception {
-            final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel, ACTION_NODE_NAME, request);
+            assert task instanceof CancellableTask;
+            final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel);
             ActionListener.completeWith(listener, () -> {
                 final List<FieldCapabilitiesIndexResponse> allResponses = new ArrayList<>();
                 final Map<ShardId, Exception> allFailures = new HashMap<>();
@@ -357,14 +512,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
                 final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
+                final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
                     for (ShardId shardId : shardIds) {
                         try {
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
+                                (CancellableTask) task,
                                 shardId,
-                                request.fields(),
+                                fieldNameFilter,
                                 request.filters(),
                                 request.allowedTypes(),
                                 request.indexFilter(),

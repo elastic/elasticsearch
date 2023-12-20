@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -21,7 +22,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 /**
@@ -29,7 +30,8 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
  */
 public final class TransportCreateApiKeyAction extends HandledTransportAction<CreateApiKeyRequest, CreateApiKeyResponse> {
 
-    private final ApiKeyGenerator generator;
+    private final ApiKeyService apiKeyService;
+    private final ApiKeyUserRoleDescriptorResolver resolver;
     private final SecurityContext securityContext;
 
     @Inject
@@ -41,8 +43,9 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         CompositeRolesStore rolesStore,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(CreateApiKeyAction.NAME, transportService, actionFilters, CreateApiKeyRequest::new);
-        this.generator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
+        super(CreateApiKeyAction.NAME, transportService, actionFilters, CreateApiKeyRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.apiKeyService = apiKeyService;
+        this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
         this.securityContext = context;
     }
 
@@ -60,7 +63,13 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
                 );
                 return;
             }
-            generator.generateApiKey(authentication, request, listener);
+            resolver.resolveUserRoleDescriptors(
+                authentication,
+                ActionListener.wrap(
+                    roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),
+                    listener::onFailure
+                )
+            );
         }
     }
 

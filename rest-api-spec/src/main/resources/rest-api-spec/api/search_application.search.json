@@ -1,0 +1,39 @@
+{
+  "search_application.search": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/search-application-search.html",
+      "description": "Perform a search against a search application"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/search_application/{name}/_search",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the search application to be searched"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "Search parameters, including template parameters that override defaults",
+      "required": false
+    }
+  }
+}

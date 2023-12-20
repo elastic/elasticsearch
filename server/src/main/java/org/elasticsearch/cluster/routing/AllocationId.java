@@ -63,7 +63,7 @@ public class AllocationId implements ToXContentObject, Writeable {
     @Nullable
     private final String relocationId;
 
-    AllocationId(StreamInput in) throws IOException {
+    public AllocationId(StreamInput in) throws IOException {
         this.id = in.readString();
         this.relocationId = in.readOptionalString();
     }

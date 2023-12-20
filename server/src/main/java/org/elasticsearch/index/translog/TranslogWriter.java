@@ -11,7 +11,6 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
@@ -67,6 +67,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     // callback that's called whenever an operation with a given sequence number is successfully persisted.
     private final LongConsumer persistedSequenceNumberConsumer;
+    private final OperationListener operationListener;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     // lock order try(Releasable lock = writeLock.acquire()) -> synchronized(this)
@@ -83,6 +84,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final DiskIoBufferPool diskIoBufferPool;
 
+    // package private for testing
+    LastModifiedTimeCache lastModifiedTimeCache;
+
+    // package private for testing
+    record LastModifiedTimeCache(long lastModifiedTime, long totalOffset, long syncedOffset) {}
+
     private TranslogWriter(
         final ShardId shardId,
         final Checkpoint initialCheckpoint,
@@ -97,7 +104,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
-        final DiskIoBufferPool diskIoBufferPool
+        final DiskIoBufferPool diskIoBufferPool,
+        final OperationListener operationListener
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position()
@@ -124,6 +132,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.diskIoBufferPool = diskIoBufferPool;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
+        this.operationListener = operationListener;
+        this.lastModifiedTimeCache = new LastModifiedTimeCache(-1, -1, -1);
     }
 
     public static TranslogWriter create(
@@ -141,7 +151,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
-        DiskIoBufferPool diskIoBufferPool
+        DiskIoBufferPool diskIoBufferPool,
+        final OperationListener operationListener
+
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -157,7 +169,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 initialGlobalCheckpoint,
                 initialMinTranslogGen
             );
-            writeCheckpoint(checkpointChannel, checkpointFile, checkpoint);
+            Checkpoint.write(checkpointChannel, checkpointFile, checkpoint);
             final LongSupplier writerGlobalCheckpointSupplier;
             if (Assertions.ENABLED) {
                 writerGlobalCheckpointSupplier = () -> {
@@ -183,7 +195,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                diskIoBufferPool
+                diskIoBufferPool,
+                operationListener
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -241,6 +254,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert assertNoSeqNumberConflict(seqNo, data);
 
             location = new Translog.Location(generation, offset, data.length());
+            operationListener.operationAdded(data, seqNo, location);
             bufferedBytes = buffer.size();
         }
 
@@ -332,7 +346,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * raising the exception.
      */
     public void sync() throws IOException {
-        syncUpTo(Long.MAX_VALUE);
+        syncUpTo(Long.MAX_VALUE, SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
 
     /**
@@ -448,10 +462,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      *
      * @return <code>true</code> if this call caused an actual sync operation
      */
-    final boolean syncUpTo(long offset) throws IOException {
-        if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
+    final boolean syncUpTo(long offset, long globalCheckpointToPersist) throws IOException {
+        if ((lastSyncedCheckpoint.offset < offset || lastSyncedCheckpoint.globalCheckpoint < globalCheckpointToPersist) && syncNeeded()) {
+            assert globalCheckpointToPersist <= globalCheckpointSupplier.getAsLong()
+                : "globalCheckpointToPersist ["
+                    + globalCheckpointToPersist
+                    + "] greater than global checkpoint ["
+                    + globalCheckpointSupplier.getAsLong()
+                    + "]";
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
-                if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
+                if ((lastSyncedCheckpoint.offset < offset || lastSyncedCheckpoint.globalCheckpoint < globalCheckpointToPersist)
+                    && syncNeeded()) {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
@@ -486,7 +507,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
                             channel.force(false);
                         }
-                        writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync);
+                        Checkpoint.write(checkpointChannel, checkpointPath, checkpointToSync);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
@@ -592,11 +613,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
     }
 
-    private static void writeCheckpoint(final FileChannel fileChannel, final Path checkpointFile, final Checkpoint checkpoint)
-        throws IOException {
-        Checkpoint.write(fileChannel, checkpointFile, checkpoint);
-    }
-
     /**
      * The last synced checkpoint for this translog.
      *
@@ -634,5 +650,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     protected final boolean isClosed() {
         return closed.get();
+    }
+
+    @Override
+    public long getLastModifiedTime() throws IOException {
+        if (lastModifiedTimeCache.totalOffset() != totalOffset || lastModifiedTimeCache.syncedOffset() != lastSyncedCheckpoint.offset) {
+            long mtime = super.getLastModifiedTime();
+            lastModifiedTimeCache = new LastModifiedTimeCache(mtime, totalOffset, lastSyncedCheckpoint.offset);
+        }
+        return lastModifiedTimeCache.lastModifiedTime();
     }
 }

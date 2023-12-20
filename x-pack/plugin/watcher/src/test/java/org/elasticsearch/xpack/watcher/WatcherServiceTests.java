@@ -7,28 +7,28 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -64,7 +65,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -109,9 +113,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).state(IndexMetadata.State.CLOSE).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
 
@@ -140,9 +142,7 @@ public class WatcherServiceTests extends ESTestCase {
         // cluster state setup, with one node, one shard
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
 
@@ -182,21 +182,23 @@ public class WatcherServiceTests extends ESTestCase {
             null,
             1
         );
-        SearchResponse scrollSearchResponse = new SearchResponse(
-            scrollSearchSections,
-            "scrollId",
-            1,
-            1,
-            0,
-            10,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(scrollSearchResponse);
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(
+                    scrollSearchSections,
+                    "scrollId",
+                    1,
+                    1,
+                    0,
+                    10,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                )
+            );
             return null;
-        }).when(client).execute(eq(SearchScrollAction.INSTANCE), any(SearchScrollRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportSearchScrollAction.TYPE), any(SearchScrollRequest.class), anyActionListener());
 
         // one search response containing active and inactive watches
         int count = randomIntBetween(2, 200);
@@ -204,7 +206,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = new SearchHit(1, id, Collections.emptyMap(), Collections.emptyMap());
+            SearchHit hit = new SearchHit(1, id);
             hit.version(1L);
             hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever"));
             hits[i] = hit;
@@ -222,35 +224,65 @@ public class WatcherServiceTests extends ESTestCase {
         }
         SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
-        SearchResponse searchResponse = new SearchResponse(
-            sections,
-            "scrollId",
-            1,
-            1,
-            0,
-            10,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
+            );
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
 
         doAnswer(invocation -> {
             ActionListener<ClearScrollResponse> listener = (ActionListener<ClearScrollResponse>) invocation.getArguments()[2];
             listener.onResponse(new ClearScrollResponse(true, 1));
             return null;
-        }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(ClearScrollRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class), anyActionListener());
 
-        service.start(clusterState, () -> {});
+        service.start(clusterState, () -> {}, exception -> {});
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(triggerService).start(captor.capture());
         List<Watch> watches = captor.getValue();
         watches.forEach(watch -> assertThat(watch.status().state().isActive(), is(true)));
         assertThat(watches, hasSize(activeWatchCount));
+    }
+
+    public void testExceptionHandling() {
+        /*
+         * This tests that if the WatcherService throws an exception while refreshing indices that the exception is handled by the
+         * exception consumer rather than being propagated higher in the stack.
+         */
+        TriggerService triggerService = mock(TriggerService.class);
+        TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        ExecutionService executionService = mock(ExecutionService.class);
+        WatchParser parser = mock(WatchParser.class);
+        final ElasticsearchTimeoutException exception = new ElasticsearchTimeoutException(new TimeoutException("Artifical timeout"));
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            parser,
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void refreshWatches(IndexMetadata indexMetadata) {
+                throw exception;
+            }
+        };
+
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
+        csBuilder.metadata(metadataBuilder);
+        ClusterState clusterState = csBuilder.build();
+
+        AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+        service.start(clusterState, () -> { fail("Excepted an exception"); }, exceptionReference::set);
+        assertThat(exceptionReference.get(), equalTo(exception));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -320,13 +352,7 @@ public class WatcherServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode() {
-        return new DiscoveryNode(
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create("node");
     }
 
     @SuppressWarnings("unchecked")

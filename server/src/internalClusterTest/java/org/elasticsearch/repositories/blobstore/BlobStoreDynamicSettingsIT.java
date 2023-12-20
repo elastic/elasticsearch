@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -18,6 +19,11 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -120,5 +126,34 @@ public class BlobStoreDynamicSettingsIT extends AbstractSnapshotIntegTestCase {
 
         unblockNode(repoName, dataNode);
         assertSuccessful(snapshot1);
+    }
+
+    public void testDefaultRateLimits() throws Exception {
+        boolean nodeBandwidthSettingsSet = randomBoolean();
+        Settings.Builder nodeSettings = Settings.builder();
+        if (randomBoolean()) {
+            nodeSettings = nodeSettings.put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100m");
+        }
+        if (nodeBandwidthSettingsSet) {
+            nodeSettings = nodeSettings.put(NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.getKey(), "100m")
+                .put(NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.getKey(), "100m")
+                .put(NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.getKey(), "100m");
+        }
+        final String node = internalCluster().startMasterOnlyNode(nodeSettings.build());
+
+        String repoName = "test-repo";
+        createRepository(repoName, "mock", randomRepositorySettings());
+        final BlobStoreRepository repository = getRepositoryOnNode("test-repo", node);
+
+        RateLimiter snapshotRateLimiter = repository.getSnapshotRateLimiter();
+        if (nodeBandwidthSettingsSet) {
+            assertNull("default snapshot rate limiter should be null", snapshotRateLimiter);
+        } else {
+            assertThat("default snapshot speed should be 40mb/s", snapshotRateLimiter.getMBPerSec(), equalTo(40.0));
+        }
+        RateLimiter restoreRateLimiter = repository.getRestoreRateLimiter();
+        assertNull("default restore rate limiter should be null", restoreRateLimiter);
+
+        deleteRepository("test-repo");
     }
 }

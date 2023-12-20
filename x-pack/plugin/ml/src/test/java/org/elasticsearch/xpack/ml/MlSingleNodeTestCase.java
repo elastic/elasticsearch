@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -68,7 +70,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         // Disable native ML autodetect_process as the c++ controller won't be available
         newSettings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         newSettings.put(MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey(), ByteSizeValue.ofBytes(1024));
-        newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        newSettings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // Disable security otherwise delete-by-query action fails to get authorized
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -99,7 +101,9 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
             // Needed for scaled_float
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            // Needed for wildcard fields
+            Wildcard.class
         );
     }
 
@@ -116,7 +120,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     protected void waitForMlTemplates() throws Exception {
         // block until the templates are installed
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
         });
     }
@@ -162,7 +166,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
         return tp;
     }
 
@@ -200,9 +204,9 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                IngestScript.Factory factory = (vars, ctx) -> new IngestScript(vars, ctx) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {}
+                    public void execute() {}
                 };
                 return context.factoryClazz.cast(factory);
             }

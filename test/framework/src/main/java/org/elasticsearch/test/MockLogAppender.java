@@ -8,29 +8,35 @@
 package org.elasticsearch.test;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
+import org.apache.logging.log4j.core.config.Property;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Releasable;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
 public class MockLogAppender extends AbstractAppender {
 
-    private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
+    private final List<WrappedLoggingExpectation> expectations;
 
-    private List<LoggingExpectation> expectations;
-
-    public MockLogAppender() throws IllegalAccessException {
-        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
+    public MockLogAppender() {
+        super("mock", null, null, false, Property.EMPTY_ARRAY);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
@@ -40,7 +46,7 @@ public class MockLogAppender extends AbstractAppender {
     }
 
     public void addExpectation(LoggingExpectation expectation) {
-        expectations.add(expectation);
+        expectations.add(new WrappedLoggingExpectation(expectation));
     }
 
     @Override
@@ -71,7 +77,7 @@ public class MockLogAppender extends AbstractAppender {
 
         public AbstractEventExpectation(String name, String logger, Level level, String message) {
             this.name = name;
-            this.logger = getLoggerName(logger);
+            this.logger = logger;
             this.level = level;
             this.message = message;
             this.saw = false;
@@ -202,10 +208,69 @@ public class MockLogAppender extends AbstractAppender {
 
     }
 
-    private static String getLoggerName(String name) {
-        if (name.startsWith("org.elasticsearch.")) {
-            name = name.substring("org.elasticsearch.".length());
+    /**
+     * A wrapper around {@link LoggingExpectation} to detect if the assertMatched method has been called
+     */
+    private static class WrappedLoggingExpectation implements LoggingExpectation {
+
+        private final AtomicBoolean assertMatchedCalled = new AtomicBoolean(false);
+        private final LoggingExpectation delegate;
+
+        private WrappedLoggingExpectation(LoggingExpectation delegate) {
+            this.delegate = Objects.requireNonNull(delegate);
         }
-        return COMMON_PREFIX + name;
+
+        @Override
+        public void match(LogEvent event) {
+            delegate.match(event);
+        }
+
+        @Override
+        public void assertMatched() {
+            try {
+                delegate.assertMatched();
+            } finally {
+                assertMatchedCalled.set(true);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+    }
+
+    public Releasable capturing(Class<?>... classes) {
+        start();
+        final var loggers = Arrays.stream(classes).map(LogManager::getLogger).toArray(Logger[]::new);
+        for (final var logger : loggers) {
+            Loggers.addAppender(logger, this);
+        }
+        return () -> {
+            for (final var logger : loggers) {
+                Loggers.removeAppender(logger, this);
+            }
+            stop();
+            // check that all expectations have been evaluated before this is released
+            for (WrappedLoggingExpectation expectation : expectations) {
+                assertThat(
+                    "Method assertMatched() not called on LoggingExpectation instance before release: " + expectation,
+                    expectation.assertMatchedCalled.get(),
+                    is(true)
+                );
+            }
+        };
+    }
+
+    /**
+     * Executes an action and verifies expectations against the provided logger
+     */
+    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation expectation) {
+        MockLogAppender mockAppender = new MockLogAppender();
+        try (var ignored = mockAppender.capturing(loggerOwner)) {
+            mockAppender.addExpectation(expectation);
+            action.run();
+            mockAppender.assertAllExpectationsMatched();
+        }
     }
 }

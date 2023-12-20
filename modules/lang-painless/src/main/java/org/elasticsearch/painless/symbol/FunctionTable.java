@@ -12,7 +12,6 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.invoke.MethodType;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +60,7 @@ public class FunctionTable {
             this.functionName = Objects.requireNonNull(functionName);
             this.mangledName = Objects.requireNonNull(mangle) + this.functionName;
             this.returnType = Objects.requireNonNull(returnType);
-            this.typeParameters = Collections.unmodifiableList(Objects.requireNonNull(typeParameters));
+            this.typeParameters = List.copyOf(typeParameters);
             this.isInternal = isInternal;
             this.isStatic = isStatic;
 

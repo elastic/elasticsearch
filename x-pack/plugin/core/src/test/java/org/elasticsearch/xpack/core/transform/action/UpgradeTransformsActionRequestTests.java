@@ -12,8 +12,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Request;
 
-import java.io.IOException;
-
 public class UpgradeTransformsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
@@ -27,7 +25,7 @@ public class UpgradeTransformsActionRequestTests extends AbstractWireSerializing
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         boolean dryRun = instance.isDryRun();
         TimeValue timeout = instance.timeout();
 

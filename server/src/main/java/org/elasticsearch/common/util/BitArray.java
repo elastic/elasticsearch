@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -17,7 +19,10 @@ import org.elasticsearch.core.Releasables;
  * The underlying long array grows lazily based on the biggest index
  * that needs to be set.
  */
-public final class BitArray implements Releasable {
+public final class BitArray implements Accountable, Releasable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BitArray.class);
+
     private final BigArrays bigArrays;
     private LongArray bits;
 
@@ -37,6 +42,18 @@ public final class BitArray implements Releasable {
         long wordNum = wordNum(index);
         bits = bigArrays.grow(bits, wordNum + 1);
         bits.set(wordNum, bits.get(wordNum) | bitmask(index));
+    }
+
+    /**
+     * Set the {@code index}th bit and return {@code true} if the bit was set already.
+     */
+    public boolean getAndSet(long index) {
+        long wordNum = wordNum(index);
+        bits = bigArrays.grow(bits, wordNum + 1);
+        long word = bits.get(wordNum);
+        long bitMask = bitmask(index);
+        bits.set(wordNum, word | bitMask);
+        return (word & bitMask) != 0;
     }
 
     /** this = this OR other */
@@ -118,6 +135,11 @@ public final class BitArray implements Releasable {
 
     private static long bitmask(long index) {
         return 1L << index;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(bits);
     }
 
     @Override

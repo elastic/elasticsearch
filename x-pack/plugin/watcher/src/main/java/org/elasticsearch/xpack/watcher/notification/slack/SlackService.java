@@ -48,6 +48,7 @@ public class SlackService extends NotificationService<SlackAccount> {
 
     private final HttpClient httpClient;
 
+    @SuppressWarnings("this-escape")
     public SlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super("slack", settings, clusterSettings, SlackService.getDynamicSettings(), SlackService.getSecureSettings());
         this.httpClient = httpClient;

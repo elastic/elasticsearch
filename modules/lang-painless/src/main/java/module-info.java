@@ -13,7 +13,7 @@ module org.elasticsearch.painless {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
 
-    requires antlr4.runtime;
+    requires org.antlr.antlr4.runtime;
     requires org.apache.lucene.core;
     requires org.objectweb.asm;
     requires org.objectweb.asm.commons;

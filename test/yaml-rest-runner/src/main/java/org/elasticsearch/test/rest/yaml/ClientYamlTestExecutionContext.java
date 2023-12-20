@@ -19,6 +19,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.rest.Stash;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,6 +30,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 /**
  * Execution context passed across the REST tests.
@@ -48,16 +51,49 @@ public class ClientYamlTestExecutionContext {
 
     private ClientYamlTestResponse response;
 
+    private final Version esVersion;
+
+    private final String os;
+    private final Predicate<String> clusterFeaturesPredicate;
+
     private final boolean randomizeContentType;
+    private final BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate;
 
     public ClientYamlTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
-        boolean randomizeContentType
+        boolean randomizeContentType,
+        final Version esVersion,
+        final Predicate<String> clusterFeaturesPredicate,
+        final String os
+    ) {
+        this(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType,
+            esVersion,
+            clusterFeaturesPredicate,
+            os,
+            (ignoreApi, ignorePath) -> true
+        );
+    }
+
+    public ClientYamlTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        boolean randomizeContentType,
+        final Version esVersion,
+        final Predicate<String> clusterFeaturesPredicate,
+        final String os,
+        BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
     ) {
         this.clientYamlTestClient = clientYamlTestClient;
         this.clientYamlTestCandidate = clientYamlTestCandidate;
         this.randomizeContentType = randomizeContentType;
+        this.esVersion = esVersion;
+        this.clusterFeaturesPredicate = clusterFeaturesPredicate;
+        this.os = os;
+        this.pathPredicate = pathPredicate;
     }
 
     /**
@@ -183,7 +219,7 @@ public class ClientYamlTestExecutionContext {
         Map<String, String> headers,
         NodeSelector nodeSelector
     ) throws IOException {
-        return clientYamlTestClient(apiName).callApi(apiName, params, entity, headers, nodeSelector);
+        return clientYamlTestClient(apiName).callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
     }
 
     protected ClientYamlTestClient clientYamlTestClient(String apiName) {
@@ -214,18 +250,18 @@ public class ClientYamlTestExecutionContext {
      * @return the version of the oldest node in the cluster
      */
     public Version esVersion() {
-        return clientYamlTestClient.getEsVersion();
-    }
-
-    public Version masterVersion() {
-        return clientYamlTestClient.getMasterVersion();
+        return esVersion;
     }
 
     public String os() {
-        return clientYamlTestClient.getOs();
+        return os;
     }
 
     public ClientYamlTestCandidate getClientYamlTestCandidate() {
         return clientYamlTestCandidate;
+    }
+
+    public boolean clusterHasFeature(String featureId) {
+        return clusterFeaturesPredicate.test(featureId);
     }
 }

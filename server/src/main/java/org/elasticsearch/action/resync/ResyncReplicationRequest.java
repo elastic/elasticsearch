@@ -65,7 +65,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         super.writeTo(out);
         out.writeZLong(trimAboveSeqNo);
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
-        out.writeArray(Translog.Operation::writeOperation, operations);
+        out.writeArray(operations);
     }
 
     @Override

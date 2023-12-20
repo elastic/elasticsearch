@@ -89,7 +89,7 @@ public class HttpClientStatsTracker {
                 threadPool.absoluteTimeInMillis()
             )
         );
-        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+        httpChannel.addCloseListener(ActionListener.running(() -> {
             try {
                 final ClientStatsBuilder disconnectedClientStats = httpChannelStats.remove(httpChannel);
                 if (disconnectedClientStats != null) {
@@ -145,7 +145,7 @@ public class HttpClientStatsTracker {
             final LongPredicate keepTimePredicate = closeTimeMillis -> currentTimeMillis - closeTimeMillis <= maxClosedChannelAgeMillis;
             pruneStaleClosedChannelStats(keepTimePredicate);
             return Stream.concat(
-                closedChannelStats.stream().filter(c -> keepTimePredicate.test(c.closedTimeMillis)),
+                closedChannelStats.stream().filter(c -> keepTimePredicate.test(c.closedTimeMillis())),
                 httpChannelStats.values().stream().map(c -> c.build(NOT_CLOSED))
             ).toList();
         } else {
@@ -164,7 +164,7 @@ public class HttpClientStatsTracker {
                     return;
                 }
 
-                if (keepTimePredicate.test(nextStats.closedTimeMillis)) {
+                if (keepTimePredicate.test(nextStats.closedTimeMillis())) {
                     // the list elements are pretty much in the order in which the channels were closed so keep all the remaining items
                     return;
                 }

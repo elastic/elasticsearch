@@ -11,9 +11,10 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,6 +28,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestXPackUsageAction extends BaseRestHandler {
 
     @Override
@@ -53,7 +55,7 @@ public class RestXPackUsageAction extends BaseRestHandler {
                     builder.field(usage.name(), usage);
                 }
                 builder.endObject();
-                return new BytesRestResponse(OK, builder);
+                return new RestResponse(OK, builder);
             }
         });
     }

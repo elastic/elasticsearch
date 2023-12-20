@@ -10,15 +10,15 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +28,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest endpoint to delete a Role from the security index
  */
-public class RestDeleteRoleAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.INTERNAL)
+public class RestDeleteRoleAction extends NativeRoleBaseRestHandler {
 
     public RestDeleteRoleAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -56,7 +57,7 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(
+                    return new RestResponse(
                         response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
                         builder.startObject().field("found", response.found()).endObject()
                     );

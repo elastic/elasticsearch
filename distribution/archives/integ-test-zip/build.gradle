@@ -8,7 +8,7 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 // The integ-test-distribution is published to maven
 apply plugin: 'elasticsearch.publish'
@@ -21,7 +21,9 @@ tasks.named("processJavaRestTestResources").configure {
 }
 
 // make the pom file name use elasticsearch instead of the project name
-archivesBaseName = "elasticsearch"
+base {
+  archivesName = "elasticsearch"
+}
 ext.buildDist = parent.tasks.named("buildIntegTestZip")
 
 publishing {

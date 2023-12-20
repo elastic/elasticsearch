@@ -1,0 +1,79 @@
+---
+"Create index with camel case on format (allowed with warning in 7.x)":
+  - skip:
+      version: "8.0.0 - "
+      reason:  "at version 8.0.0, camel case is not allowed"
+      features: "warnings"
+  - do:
+      warnings:
+        - "Camel case format name strictDateOptionalTime is deprecated and will be removed in a future version. Use snake case name strict_date_optional_time instead."
+      indices.create:
+        index: camel_case_on_format
+        body:
+          settings:
+            index:
+              number_of_replicas: 2
+          mappings:
+            "properties":
+              "date_field":
+                "type": "date"
+                "format": "strictDateOptionalTime"
+
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "camel_case_on_format"}}'
+          - '{"date_field": "2019-02-01T00:00+01:00"}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: camel_case_on_format
+        body:
+          query:
+            range:
+              date_field:
+                gte: "2019-01-01T00:00+01:00"
+                lte: "2019-03-01T00:00+01:00"
+  - match: { hits.total: 1 }
+
+---
+"Create index with camel case on format (when bwc version is > 8.0.0)":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "at version 8.0.0, camel case is not allowed"
+      features: "warnings"
+  - do:
+      indices.create:
+        index: camel_case_on_format
+        body:
+          settings:
+            index:
+              number_of_replicas: 2
+          mappings:
+            "properties":
+              "date_field":
+                "type": "date"
+                "format": "strict_date_optional_time"
+
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "camel_case_on_format"}}'
+          - '{"date_field": "2019-02-01T00:00+01:00"}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: camel_case_on_format
+        body:
+          query:
+            range:
+              date_field:
+                gte: "2019-01-01T00:00+01:00"
+                lte: "2019-03-01T00:00+01:00"
+  - match: { hits.total: 1 }

@@ -58,10 +58,6 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-    public String type() {
-        return type;
-    }
-
     protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
 
     /**
@@ -92,11 +88,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         builder.startObject(type);
 
         if (overrideBucketsPath() == false && bucketsPaths != null) {
-            builder.startArray(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName());
-            for (String path : bucketsPaths) {
-                builder.value(path);
-            }
-            builder.endArray();
+            builder.array(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName(), bucketsPaths);
         }
 
         internalXContent(builder, params);

@@ -64,6 +64,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         }
         instance.partial(randomBoolean());
         instance.includeAliases(randomBoolean());
+        instance.quiet(randomBoolean());
 
         if (randomBoolean()) {
             Map<String, Object> indexSettings = new HashMap<>();
@@ -127,10 +128,15 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
     public void testSource() throws IOException {
         RestoreSnapshotRequest original = createTestInstance();
         original.snapshotUuid(null); // cannot be set via the REST API
+        original.quiet(false); // cannot be set via the REST API
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        Map<String, Object> map = parser.mapOrdered();
+        Map<String, Object> map;
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+        ) {
+            map = parser.mapOrdered();
+        }
 
         // we will only restore properties from the map that are contained in the request body. All other
         // properties are restored from the original (in the actual REST action this is restored from the
@@ -172,8 +178,11 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {
         XContentBuilder builder = request.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        return parser.mapOrdered();
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+        ) {
+            return parser.mapOrdered();
+        }
     }
 }

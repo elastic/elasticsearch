@@ -10,6 +10,8 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
 import static java.util.Collections.singletonMap;
 
 public class EqualsTests extends ScriptTestCase {
@@ -182,5 +184,38 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(false, exec("HashMap a = new HashMap(); return null === a;"));
         assertEquals(true, exec("HashMap a = new HashMap(); return null != a;"));
         assertEquals(true, exec("HashMap a = new HashMap(); return null !== a;"));
+    }
+
+    public void testStringEquals() {
+        assertEquals(false, exec("def x = null; return \"a\" == x"));
+        assertEquals(true, exec("def x = \"a\"; return \"a\" == x"));
+        assertEquals(true, exec("def x = null; return \"a\" != x"));
+        assertEquals(false, exec("def x = \"a\"; return \"a\" != x"));
+
+        assertEquals(false, exec("def x = null; return x == \"a\""));
+        assertEquals(true, exec("def x = \"a\"; return x == \"a\""));
+        assertEquals(true, exec("def x = null; return x != \"a\""));
+        assertEquals(false, exec("def x = \"a\"; return x != \"a\""));
+    }
+
+    public void testStringEqualsMethodCall() {
+        assertBytecodeExists("def x = \"a\"; return \"a\" == x", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return \"a\" != x", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return x == \"a\"", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+    }
+
+    public void testEqualsNullCheck() {
+        // get the same callsite working once, then with a null
+        // need to specify call site depth as 0 to force MIC to execute
+        assertEquals(false, exec("""
+            def list = [2, 2, 3, 3, 4, null];
+            boolean b;
+            for (int i=0; i<list.length; i+=2) {
+                b = list[i] == list[i+1];
+                b = list[i+1] == 10;
+                b = 10 == list[i+1];
+            }
+            return b;
+            """, Map.of(), Map.of(CompilerSettings.INITIAL_CALL_SITE_DEPTH, "0"), false));
     }
 }

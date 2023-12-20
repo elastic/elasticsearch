@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.security.rest.action.service;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
@@ -18,12 +21,12 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRestHandler {
 
     public RestClearServiceAccountTokenStoreCacheAction(Settings settings, XPackLicenseState licenseState) {
@@ -51,7 +54,7 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
             // This is the wildcard case for tokenNames
             req.keys(namespace + "/" + service + "/");
         } else {
-            final Set<String> qualifiedTokenNames = new HashSet<>(tokenNames.length);
+            final Set<String> qualifiedTokenNames = Sets.newHashSetWithExpectedSize(tokenNames.length);
             for (String name : tokenNames) {
                 if (false == Validation.isValidServiceAccountTokenName(name)) {
                     throw new IllegalArgumentException(Validation.formatInvalidServiceTokenNameErrorMessage(name));

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,7 +56,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             GetRepositoriesRequest::new,
             indexNameExpressionResolver,
             GetRepositoriesResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
@@ -76,7 +77,12 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
         ClusterState state,
         final ActionListener<GetRepositoriesResponse> listener
     ) {
-        listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(getRepositories(state, request.repositories()))));
+        RepositoriesResult result = getRepositories(state, request.repositories());
+        if (result.hasMissingRepositories()) {
+            listener.onFailure(new RepositoryMissingException(String.join(", ", result.missing())));
+        } else {
+            listener.onResponse(new GetRepositoriesResponse(new RepositoriesMetadata(result.metadata)));
+        }
     }
 
     /**
@@ -84,13 +90,14 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
      *
      * @param state     Cluster state
      * @param repoNames Repository names or patterns to get metadata for
-     * @return list of repository metadata
+     * @return a result with the repository metadata that were found in the cluster state and the missing repositories
      */
-    public static List<RepositoryMetadata> getRepositories(ClusterState state, String[] repoNames) {
-        RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+    public static RepositoriesResult getRepositories(ClusterState state, String[] repoNames) {
+        RepositoriesMetadata repositories = RepositoriesMetadata.get(state);
         if (isMatchAll(repoNames)) {
-            return repositories.repositories();
+            return new RepositoriesResult(repositories.repositories());
         }
+        final List<String> missingRepositories = new ArrayList<>();
         final List<String> includePatterns = new ArrayList<>();
         final List<String> excludePatterns = new ArrayList<>();
         boolean seenWildcard = false;
@@ -102,7 +109,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                     seenWildcard = true;
                 } else {
                     if (repositories.repository(repositoryOrPattern) == null) {
-                        throw new RepositoryMissingException(repositoryOrPattern);
+                        missingRepositories.add(repositoryOrPattern);
                     }
                 }
                 includePatterns.add(repositoryOrPattern);
@@ -119,6 +126,20 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
                 }
             }
         }
-        return List.copyOf(repositoryListBuilder);
+        return new RepositoriesResult(List.copyOf(repositoryListBuilder), missingRepositories);
+    }
+
+    /**
+     * A holder class that consists of the repository metadata and the names of the repositories that were not found in the cluster state.
+     */
+    public record RepositoriesResult(List<RepositoryMetadata> metadata, List<String> missing) {
+
+        RepositoriesResult(List<RepositoryMetadata> repositoryMetadata) {
+            this(repositoryMetadata, List.of());
+        }
+
+        boolean hasMissingRepositories() {
+            return missing.isEmpty() == false;
+        }
     }
 }

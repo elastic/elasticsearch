@@ -30,6 +30,12 @@
         }
       ]
     },
+    "params": {
+      "dry_run": {
+        "type": "boolean",
+        "description": "Simulate the update"
+      }
+    },
     "body":{
       "description":"the specification of the desired nodes",
       "required":true

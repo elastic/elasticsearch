@@ -22,7 +22,10 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
+import static java.util.stream.Collectors.toUnmodifiableSet;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
@@ -90,21 +93,19 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (shardRouting.unassigned()) {
+        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // only for unassigned - we filter allocation right after the index creation (for shard shrinking) to ensure
             // that once it has been allocated post API the replicas can be allocated elsewhere without user interaction
             // this is a setting that can only be set within the system!
-            IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
-            DiscoveryNodeFilters initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMd.getInitialRecoveryFilters());
-            if (initialRecoveryFilters != null
-                && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                && initialRecoveryFilters.match(node.node()) == false) {
+            DiscoveryNodeFilters initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMetadata.getInitialRecoveryFilters());
+            if (initialRecoveryFilters != null && initialRecoveryFilters.match(node.node()) == false) {
                 String explanation =
                     "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index";
                 return allocation.decision(Decision.NO, NAME, explanation, initialRecoveryFilters);
             }
         }
-        return shouldFilter(shardRouting, node.node(), allocation);
+        return shouldFilter(indexMetadata, node.node(), allocation);
     }
 
     @Override
@@ -113,8 +114,8 @@ public class FilterAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(shardRouting, node.node(), allocation);
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return shouldFilter(indexMetadata, node.node(), allocation);
     }
 
     @Override
@@ -123,16 +124,6 @@ public class FilterAllocationDecider extends AllocationDecider {
         if (decision != null) return decision;
 
         decision = shouldIndexFilter(indexMetadata, node, allocation);
-        if (decision != null) return decision;
-
-        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
-    }
-
-    private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
-        Decision decision = shouldClusterFilter(node, allocation);
-        if (decision != null) return decision;
-
-        decision = shouldIndexFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node, allocation);
         if (decision != null) return decision;
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
@@ -206,7 +197,7 @@ public class FilterAllocationDecider extends AllocationDecider {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "node does not cluster setting [%s] filters [%s]",
+                    "node does not match cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX,
                     clusterIncludeFilters
                 );
@@ -236,5 +227,20 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     private void setClusterExcludeFilters(Map<String, List<String>> filters) {
         clusterExcludeFilters = DiscoveryNodeFilters.trimTier(DiscoveryNodeFilters.buildFromKeyValues(OR, filters));
+    }
+
+    @Override
+    public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+            var indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            var initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMetadata.getInitialRecoveryFilters());
+
+            if (initialRecoveryFilters != null) {
+                return Optional.of(
+                    allocation.nodes().stream().filter(initialRecoveryFilters::match).map(DiscoveryNode::getId).collect(toUnmodifiableSet())
+                );
+            }
+        }
+        return super.getForcedInitialShardAllocationToNodes(shardRouting, allocation);
     }
 }

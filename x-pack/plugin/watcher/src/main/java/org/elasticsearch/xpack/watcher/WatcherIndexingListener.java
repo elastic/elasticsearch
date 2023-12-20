@@ -234,7 +234,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         RoutingNode routingNode = state.getRoutingNodes().node(localNodeId);
 
         // no local shards, exit early
-        List<ShardRouting> localShardRouting = routingNode.shardsWithState(watchIndex, STARTED, RELOCATING);
+        List<ShardRouting> localShardRouting = routingNode.shardsWithState(watchIndex, STARTED, RELOCATING).toList();
         if (localShardRouting.isEmpty()) {
             configuration = INACTIVE;
         } else {
@@ -281,7 +281,6 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         Set<ShardId> clusterStateLocalShardIds = state.getRoutingNodes()
             .node(localNodeId)
             .shardsWithState(watchIndex, STARTED, RELOCATING)
-            .stream()
             .map(ShardRouting::shardId)
             .collect(Collectors.toSet());
         Set<ShardId> configuredLocalShardIds = new HashSet<>(configuration.localShards.keySet());
@@ -329,7 +328,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * - then store the size of the allocation ids and the index position
      *   data.put(ShardId(".watch", 0), new Tuple(1, 4))
      */
-    Map<ShardId, ShardAllocationConfiguration> getLocalShardAllocationIds(List<ShardRouting> localShards, IndexRoutingTable routingTable) {
+    static Map<ShardId, ShardAllocationConfiguration> getLocalShardAllocationIds(
+        List<ShardRouting> localShards,
+        IndexRoutingTable routingTable
+    ) {
         Map<ShardId, ShardAllocationConfiguration> data = Maps.newMapWithExpectedSize(localShards.size());
 
         for (ShardRouting shardRouting : localShards) {

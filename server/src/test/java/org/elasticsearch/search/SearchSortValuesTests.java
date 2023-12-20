@@ -12,7 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,7 +23,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSortValues> {
+public class SearchSortValuesTests extends AbstractXContentSerializingTestCase<SearchSortValues> {
 
     public static SearchSortValues createTestItem(XContentType xContentType, boolean transportSerialization) {
         int size = randomIntBetween(1, 20);

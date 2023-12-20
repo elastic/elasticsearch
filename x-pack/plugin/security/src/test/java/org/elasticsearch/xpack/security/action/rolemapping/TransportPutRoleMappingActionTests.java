@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.security.action.rolemapping;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
@@ -29,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -55,7 +60,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store);
+        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, mock(ClusterService.class), store);
 
         requestRef = new AtomicReference<>(null);
 
@@ -94,7 +99,39 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         request.setMetadata(metadata);
         request.setEnabled(true);
         final PlainActionFuture<PutRoleMappingResponse> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), request, future);
+        action.doExecuteProtected(mock(Task.class), request, future);
         return future.get();
+    }
+
+    public void testReservedStateHandler() throws Exception {
+        assertEquals(ReservedRoleMappingAction.NAME, action.reservedStateHandlerName().get());
+        String json = """
+            {
+               "everyone_kibana": {
+                  "enabled": true,
+                  "roles": [ "kibana_user" ],
+                  "rules": { "field": { "username": "*" } },
+                  "metadata": {
+                     "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
+                  }
+               },
+               "everyone_fleet": {
+                  "enabled": true,
+                  "roles": [ "fleet_user" ],
+                  "rules": { "field": { "username": "*" } },
+                  "metadata": {
+                     "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7"
+                  }
+               }
+            }""";
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            ReservedRoleMappingAction roleMappingAction = new ReservedRoleMappingAction(store);
+            var parsedResult = roleMappingAction.fromXContent(parser);
+
+            for (var mapping : parsedResult) {
+                assertThat(action.modifiedKeys(PutRoleMappingRequest.fromMapping(mapping)), containsInAnyOrder(mapping.getName()));
+            }
+        }
     }
 }

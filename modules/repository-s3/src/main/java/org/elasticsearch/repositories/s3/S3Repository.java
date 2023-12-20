@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.s3;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -18,25 +17,32 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -56,19 +62,25 @@ import java.util.function.Function;
  */
 class S3Repository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     static final String TYPE = "s3";
+
+    /** The access key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.insecureString("access_key");
+
+    /** The secret key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.insecureString("secret_key");
 
     /**
      * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
      * the available memory for smaller heaps.
      */
-    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
+    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = ByteSizeValue.ofBytes(
         Math.max(
             ByteSizeUnit.MB.toBytes(5), // minimum value
             Math.min(ByteSizeUnit.MB.toBytes(100), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
-        ),
-        ByteSizeUnit.BYTES
+        )
     );
 
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
@@ -141,12 +153,12 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
      * backwards compatible snapshot format from before
-     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link org.elasticsearch.Version#V_7_6_0}).
+     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link IndexVersions#V_7_6_0}).
      * This delay is necessary so that the eventually consistent nature of AWS S3 does not randomly result in repository corruption when
      * doing repository operations in rapid succession on a repository in the old metadata format.
      * This setting should not be adjusted in production when working with an AWS S3 backed repository. Doing so risks the repository
      * becoming silently corrupted. To get rid of this waiting period, either create a new S3 repository or remove all snapshots older than
-     * {@link org.elasticsearch.Version#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
+     * {@link IndexVersions#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
      * format and disable the cooldown period.
      */
     static final Setting<TimeValue> COOLDOWN_PERIOD = Setting.timeSetting(
@@ -181,6 +193,8 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     private final TimeValue coolDown;
 
+    private final Executor snapshotExecutor;
+
     /**
      * Constructs an s3 backed repository
      */
@@ -190,7 +204,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final RepositoriesMetrics repositoriesMetrics
     ) {
         super(
             metadata,
@@ -199,9 +214,11 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            repositoriesMetrics
         );
         this.service = service;
+        this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -232,6 +249,16 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
+        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            // provided repository settings
+            deprecationLogger.critical(
+                DeprecationCategory.SECURITY,
+                "s3_repository_secret_settings",
+                "Using s3 access/secret key from repository settings. Instead "
+                    + "store these in named clients and the elasticsearch keystore for secure settings."
+            );
+        }
+
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
 
         logger.debug(
@@ -256,31 +283,65 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
 
     @Override
-    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+    public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
+        final FinalizeSnapshotContext wrappedFinalizeContext;
         if (SnapshotsService.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
-            finalizeSnapshotContext = new FinalizeSnapshotContext(
+            final ListenableFuture<Void> metadataDone = new ListenableFuture<>();
+            wrappedFinalizeContext = new FinalizeSnapshotContext(
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
                 finalizeSnapshotContext.clusterMetadata(),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                delayedListener(finalizeSnapshotContext)
+                delayedListener(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
+                info -> metadataDone.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        finalizeSnapshotContext.onDone(info);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : e; // never fails
+                    }
+                })
             );
+        } else {
+            wrappedFinalizeContext = finalizeSnapshotContext;
         }
-        super.finalizeSnapshot(finalizeSnapshotContext);
+        super.finalizeSnapshot(wrappedFinalizeContext);
     }
 
     @Override
-    public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
-    ) {
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
-            listener = delayedListener(listener);
-        }
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener listener) {
+        return new SnapshotDeleteListener() {
+            @Override
+            public void onDone() {
+                listener.onDone();
+            }
+
+            @Override
+            public void onRepositoryDataWritten(RepositoryData repositoryData) {
+                logCooldownInfo();
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                    assert cancellable != null;
+                    listener.onRepositoryDataWritten(repositoryData);
+                }, coolDown, snapshotExecutor));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logCooldownInfo();
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                    assert cancellable != null;
+                    listener.onFailure(e);
+                }, coolDown, snapshotExecutor));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
+        };
     }
 
     /**
@@ -297,11 +358,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             public void onResponse(T response) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(
-                        ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)),
-                        coolDown,
-                        ThreadPool.Names.SNAPSHOT
-                    )
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)), coolDown, snapshotExecutor)
                 );
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
@@ -310,7 +367,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             public void onFailure(Exception e) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, ThreadPool.Names.SNAPSHOT)
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, snapshotExecutor)
                 );
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
@@ -341,7 +398,18 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata, bigArrays);
+        return new S3BlobStore(
+            service,
+            bucket,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            metadata,
+            bigArrays,
+            threadPool,
+            repositoriesMetrics
+        );
     }
 
     // only use for testing

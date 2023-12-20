@@ -56,6 +56,8 @@ A feature state contains the indices and data streams used to store
 configurations, history, and other data for an Elastic feature, such as {es}
 security or {kib}.
 
+TIP: To retrieve a list of feature states, use the <<get-features-api,Features API>>.
+
 A feature state typically includes one or more <<system-indices,system indices
 or system data streams>>. It may also include regular indices and data streams
 used by the feature. For example, a feature state may include a regular index
@@ -113,8 +115,6 @@ any restored indices must be compatible.
 [[snapshot-cluster-compatibility]]
 === Snapshot version compatibility
 
-include::snapshot-vers-compat.asciidoc[]
-
 You can't restore a snapshot to an earlier version of {es}. For example, you
 can't restore a snapshot taken in 7.6.0 to a cluster running 7.5.0.
 
@@ -148,11 +148,11 @@ include::cluster-index-compat.asciidoc[]
 You can't restore an index to an earlier version of {es}. For example, you can't
 restore an index created in 7.6.0 to a cluster running 7.5.0.
 
-A compatible snapshot can contain indices created in an incompatible version.
-For example, a snapshot of a {prev-major-last} cluster can contain an index
-created in 6.8. If you try to restore the 6.8 index to an {minor-version}
-cluster, the restore attempt will fail. Keep this in mind if you take a snapshot
-before upgrading a cluster.
+A compatible snapshot can contain indices created in an older incompatible
+version. For example, a snapshot of a {prev-major-last} cluster can contain an
+index created in 6.8. Restoring the 6.8 index to an {minor-version} cluster
+fails unless you can use the <<archive-indices,archive functionality>>. Keep
+this in mind if you take a snapshot before upgrading a cluster.
 
 As a workaround, you can first restore the index to another cluster running the
 latest version of {es} that's compatible with both the index and your current
@@ -199,14 +199,17 @@ contents of the repository then future snapshot or restore operations may fail,
 reporting corruption or other data inconsistencies, or may appear to succeed
 having silently lost some of your data.
 
-You may however safely <<snapshots-repository-backup,restore a repository from
-a backup>> as long as
+You may however safely <<snapshots-repository-backup,restore a repository from a
+backup>> as long as
 
 . The repository is not registered with {es} while you are restoring its
 contents.
 
 . When you have finished restoring the repository its contents are exactly as
 they were when you took the backup.
+
+If you no longer need any of the snapshots in a repository, unregister it from
+{es} before deleting its contents from the underlying storage.
 
 Additionally, snapshots may contain security-sensitive information, which you
 may wish to <<cluster-state-snapshots,store in a dedicated repository>>.

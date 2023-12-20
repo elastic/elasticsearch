@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -29,16 +30,14 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -61,24 +60,20 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
-import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
+import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpdate> {
+public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
 
     private ClusterState clusterState;
 
     @Before
     public void init() {
         clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
     }
 
     @Override
@@ -102,7 +97,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setIndices(DatafeedConfigTests.randomStringList(1, 10));
         }
         if (randomBoolean()) {
-            builder.setQuery(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            builder.setQuery(createTestQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             int scriptsSize = randomInt(3);
@@ -166,13 +161,13 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -269,7 +264,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("foo", "foo-feed");
         datafeedBuilder.setIndices(Collections.singletonList("i_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
-        QueryProvider queryProvider = createRandomValidQueryProvider("a", "b");
+        QueryProvider queryProvider = createTestQueryProvider("a", "b");
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         update.setIndices(Collections.singletonList("i_2"));
         update.setQueryDelay(TimeValue.timeValueSeconds(42));
@@ -355,19 +350,18 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     }
 
     public void testSerializationOfComplexAggsBetweenVersions() throws IOException {
-        MaxAggregationBuilder maxTime = AggregationBuilders.max("timestamp").field("timestamp");
-        AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("bytes_in_avg").field("system.network.in.bytes");
-        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder = PipelineAggregatorBuilders.derivative(
+        MaxAggregationBuilder maxTime = new MaxAggregationBuilder("timestamp").field("timestamp");
+        AvgAggregationBuilder avgAggregationBuilder = new AvgAggregationBuilder("bytes_in_avg").field("system.network.in.bytes");
+        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder = new DerivativePipelineAggregationBuilder(
             "bytes_in_derivative",
             "bytes_in_avg"
         );
-        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder = PipelineAggregatorBuilders.bucketScript(
+        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder = new BucketScriptPipelineAggregationBuilder(
             "non_negative_bytes",
             Collections.singletonMap("bytes", "bytes_in_derivative"),
             new Script("params.bytes > 0 ? params.bytes : null")
         );
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("histogram_buckets")
-            .field("timestamp")
+        DateHistogramAggregationBuilder dateHistogram = new DateHistogramAggregationBuilder("histogram_buckets").field("timestamp")
             .fixedInterval(new DateHistogramInterval("300000ms"))
             .timeZone(ZoneOffset.UTC)
             .subAggregation(maxTime)
@@ -390,14 +384,11 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         );
         DatafeedUpdate datafeedUpdate = datafeedUpdateBuilder.build();
 
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.CURRENT);
+            output.setTransportVersion(TransportVersion.current());
             datafeedUpdate.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.CURRENT);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
                 DatafeedUpdate streamedDatafeedUpdate = new DatafeedUpdate(in);
                 assertEquals(datafeedUpdate, streamedDatafeedUpdate);
 

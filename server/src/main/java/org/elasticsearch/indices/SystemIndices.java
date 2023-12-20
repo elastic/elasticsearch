@@ -8,7 +8,8 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -16,10 +17,12 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -28,12 +31,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -50,6 +55,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_DESCRIPTOR;
+import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
@@ -105,12 +113,22 @@ public class SystemIndices {
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 
+    private static final Logger logger = LogManager.getLogger(SystemIndices.class);
+
     /**
      * This is the source for non-plugin system features.
      */
     private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
-        new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
+        new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)),
+        new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR))
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
+
+    public static final Map<String, SystemIndexDescriptor.MappingsVersion> SERVER_SYSTEM_MAPPINGS_VERSIONS =
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS.values()
+            .stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
 
     /**
      * The node's full list of system features is stored here. The map is keyed
@@ -136,6 +154,7 @@ public class SystemIndices {
      *                                These features come from plugins and modules. Non-plugin system
      *                                features such as Tasks will be added automatically.
      */
+    @SuppressWarnings("this-escape")
     public SystemIndices(List<Feature> pluginAndModuleFeatures) {
         featureDescriptors = buildFeatureMap(pluginAndModuleFeatures);
         indexDescriptors = featureDescriptors.values()
@@ -159,7 +178,7 @@ public class SystemIndices {
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
             Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(featureDescriptors))),
-            Integer.MAX_VALUE
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
     }
@@ -173,22 +192,16 @@ public class SystemIndices {
                     .stream()
                     // The below filter & map are inside the enclosing flapMap so that we have access to both the feature and the descriptor
                     .filter(descriptor -> overlaps(descriptor.getIndexPattern(), suffixPattern) == false)
-                    .map(
-                        descriptor -> new ParameterizedMessage(
-                            "pattern [{}] from feature [{}]",
-                            descriptor.getIndexPattern(),
-                            feature.getName()
-                        ).getFormattedMessage()
-                    )
+                    .map(descriptor -> format("pattern [%s] from feature [%s]", descriptor.getIndexPattern(), feature.getName()))
             )
             .toList();
         if (descriptorsWithNoRoomForSuffix.isEmpty() == false) {
             throw new IllegalStateException(
-                new ParameterizedMessage(
-                    "the following system index patterns do not allow suffix [{}] required to allow upgrades: [{}]",
+                format(
+                    "the following system index patterns do not allow suffix [%s] required to allow upgrades: [%s]",
                     UPGRADED_INDEX_SUFFIX,
                     descriptorsWithNoRoomForSuffix
-                ).getFormattedMessage()
+                )
             );
         }
     }
@@ -249,7 +262,9 @@ public class SystemIndices {
             .collect(
                 Collectors.toUnmodifiableMap(
                     Entry::getKey,
-                    entry -> new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))
+                    entry -> new CharacterRunAutomaton(
+                        MinimizationOperations.minimize(entry.getValue(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                    )
                 )
             );
     }
@@ -334,6 +349,11 @@ public class SystemIndices {
      * @return The matching {@link SystemIndexDescriptor} or {@code null} if no descriptor is found
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
+        return findMatchingDescriptor(indexDescriptors, name);
+    }
+
+    @Nullable
+    static SystemIndexDescriptor findMatchingDescriptor(SystemIndexDescriptor[] indexDescriptors, String name) {
         SystemIndexDescriptor matchingDescriptor = null;
         for (SystemIndexDescriptor systemIndexDescriptor : indexDescriptors) {
             if (systemIndexDescriptor.matchesIndexPattern(name)) {
@@ -404,7 +424,7 @@ public class SystemIndices {
             .stream()
             .map(SystemIndices::featureToIndexAutomaton)
             .reduce(Operations::union);
-        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
+        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
@@ -415,7 +435,9 @@ public class SystemIndices {
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
-        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
+        return new CharacterRunAutomaton(
+            MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+        );
     }
 
     private static Automaton featureToIndexAutomaton(Feature feature) {
@@ -435,7 +457,7 @@ public class SystemIndices {
             .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
             .reduce(Operations::union);
 
-        return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Integer.MAX_VALUE) : EMPTY;
+        return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) : EMPTY;
     }
 
     private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> featureDescriptors) {
@@ -448,7 +470,7 @@ public class SystemIndices {
             .stream()
             .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
             .reduce(Operations::union);
-        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
+        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     private static Automaton featureToDataStreamBackingIndicesAutomaton(Feature feature) {
@@ -508,7 +530,7 @@ public class SystemIndices {
             );
         } else {
             return new IllegalArgumentException(
-                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " use and access is reserved for system operations"
+                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " may not be accessed by product [" + product + "]"
             );
         }
     }
@@ -681,6 +703,12 @@ public class SystemIndices {
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
+    }
+
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMappingsVersions() {
+        return getSystemIndexDescriptors().stream()
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .collect(Collectors.toMap(SystemIndexDescriptor::getPrimaryIndex, SystemIndexDescriptor::getMappingsVersion));
     }
 
     /**
@@ -860,39 +888,15 @@ public class SystemIndices {
             return postMigrationFunction;
         }
 
-        /**
-         * Clean up the state of a feature
-         * @param indexDescriptors List of descriptors of a feature's system indices
-         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
-         * @param name Name of the feature, used in logging
-         * @param clusterService A clusterService, for retrieving cluster metadata
-         * @param client A client, for issuing delete requests
-         * @param listener A listener to return success or failure of cleanup
-         */
-        public static void cleanUpFeature(
-            Collection<? extends IndexPatternMatcher> indexDescriptors,
-            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
+        private static void cleanUpFeatureForIndices(
             String name,
-            ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateStatus> listener
+            String[] indexNames,
+            final ActionListener<ResetFeatureStateStatus> listener
         ) {
-            Metadata metadata = clusterService.state().getMetadata();
-
-            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
-                .map(descriptor -> descriptor.getMatchingIndices(metadata))
-                .flatMap(List::stream)
-                .toList();
-
-            if (allIndices.isEmpty()) {
-                // if no actual indices match the pattern, we can stop here
-                listener.onResponse(ResetFeatureStateStatus.success(name));
-                return;
-            }
-
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-            deleteIndexRequest.indices(allIndices.toArray(Strings.EMPTY_ARRAY));
-            client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
+            deleteIndexRequest.indices(indexNames);
+            client.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     listener.onResponse(ResetFeatureStateStatus.success(name));
@@ -903,6 +907,75 @@ public class SystemIndices {
                     listener.onResponse(ResetFeatureStateStatus.failure(name, e));
                 }
             });
+        }
+
+        /**
+         * Clean up the state of a feature
+         * @param indexDescriptors List of descriptors of a feature's system indices
+         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
+         * @param name Name of the feature, used in logging
+         * @param clusterService A clusterService, for retrieving cluster metadata
+         * @param client A client, for issuing delete requests
+         * @param listener A listener to return success or failure of cleanup
+         */
+        public static void cleanUpFeature(
+            Collection<SystemIndexDescriptor> indexDescriptors,
+            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
+            String name,
+            ClusterService clusterService,
+            Client client,
+            final ActionListener<ResetFeatureStateStatus> listener
+        ) {
+            Metadata metadata = clusterService.state().getMetadata();
+
+            final List<Exception> exceptions = new ArrayList<>();
+            final CheckedConsumer<ResetFeatureStateStatus, Exception> handleResponse = resetFeatureStateStatus -> {
+                if (resetFeatureStateStatus.getStatus() == ResetFeatureStateStatus.Status.FAILURE) {
+                    synchronized (exceptions) {
+                        exceptions.add(resetFeatureStateStatus.getException());
+                    }
+                }
+            };
+
+            try (var listeners = new RefCountingListener(listener.map(ignored -> {
+                if (exceptions.isEmpty()) {
+                    return ResetFeatureStateStatus.success(name);
+                } else {
+                    for (final var exception : exceptions) {
+                        logger.warn(() -> "error while resetting feature [" + name + "]", exception);
+                    }
+                    return ResetFeatureStateStatus.failure(
+                        name,
+                        new Exception(exceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", ", "[", "]")))
+                    );
+                }
+            }))) {
+
+                // Send cleanup for the associated indices, they don't need special origin since they are not protected
+                String[] associatedIndices = associatedIndexDescriptors.stream()
+                    .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream())
+                    .toArray(String[]::new);
+                if (associatedIndices.length > 0) {
+                    cleanUpFeatureForIndices(name, client, associatedIndices, listeners.acquire(handleResponse));
+                }
+
+                // One descriptor at a time, create an originating client and clean up the feature
+                for (final var indexDescriptor : indexDescriptors) {
+                    List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
+                    if (matchingIndices.isEmpty() == false) {
+                        final Client clientWithOrigin = (indexDescriptor.getOrigin() == null)
+                            ? client
+                            : new OriginSettingClient(client, indexDescriptor.getOrigin());
+
+                        cleanUpFeatureForIndices(
+                            name,
+                            clientWithOrigin,
+                            matchingIndices.toArray(Strings.EMPTY_ARRAY),
+                            listeners.acquire(handleResponse)
+                        );
+                    }
+                }
+            }
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.

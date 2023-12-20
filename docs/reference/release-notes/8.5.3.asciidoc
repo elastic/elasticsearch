@@ -1,0 +1,55 @@
+[[release-notes-8.5.3]]
+== {es} version 8.5.3
+
+Also see <<breaking-changes-8.5,Breaking changes in 8.5>>.
+
+[[known-issues-8.5.3]]
+[float]
+=== Known issues
+
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
+
+[[bug-8.5.3]]
+[float]
+=== Bug fixes
+
+Infra/Core::
+* Add `trace.id` to request trace logs {es-pull}91772[#91772] (issue: {es-issue}88174[#88174])
+* `DoPrivileged` in `ElasticsearchEncaughtExceptionHandler` and check modify thread {es-pull}91704[#91704] (issue: {es-issue}91650[#91650])
+
+Ingest Node::
+* Handle any exception thrown while generating source for an `IngestDocument` {es-pull}91981[#91981]
+
+Machine Learning::
+* ML stats failures should not stop the usage API working {es-pull}91917[#91917] (issue: {es-issue}91893[#91893])
+
+Stats::
+* Fix NPE in IndexService getNodeMappingStats {es-pull}91334[#91334] (issue: {es-issue}91259[#91259])
+
+Transform::
+* Fix failure when resolving indices from CCS {es-pull}91622[#91622] (issue: {es-issue}91550[#91550])
+
+[[enhancement-8.5.3]]
+[float]
+=== Enhancements
+
+Ingest Node::
+* Refactor enrich maintenance coordination logic {es-pull}90931[#90931]
+
+TLS::
+* Support SAN/dnsName for restricted trust {es-pull}91946[#91946]
+
+[[upgrade-8.5.3]]
+[float]
+=== Upgrades
+
+Engine::
+* Upgrade Lucene to version 9.4.2 {es-pull}91823[#91823]
+
+

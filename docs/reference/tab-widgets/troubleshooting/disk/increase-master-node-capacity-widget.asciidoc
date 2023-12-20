@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Increase master node capacity">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-increase-master-node-capacity"
+            id="cloud-increase-data-node-capacity">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-increase-master-node-capacity"
+            id="self-managed-increase-master-node-capacity"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-increase-master-node-capacity"
+       aria-labelledby="cloud-increase-master-node-capacity">
+++++
+
+include::increase-master-node-capacity.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-increase-master-node-capacity"
+       aria-labelledby="self-managed-increase-master-node-capacity"
+       hidden="">
+++++
+
+include::increase-master-node-capacity.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

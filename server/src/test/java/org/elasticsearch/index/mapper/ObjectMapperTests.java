@@ -8,43 +8,42 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
-                {
-                     "object": {
-                       "array":[
-                       {
-                         "object": { "value": "value" }
-                       },
-                       {
-                         "object":"value"
-                       }
-                       ]
-                     },
-                     "value":"value"
-                   }""".indent(1)), XContentType.JSON))
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
+            {
+                 "object": {
+                   "array":[
+                   {
+                     "object": { "value": "value" }
+                   },
+                   {
+                     "object":"value"
+                   }
+                   ]
+                 },
+                 "value":"value"
+               }""".indent(1)), XContentType.JSON)));
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
     }
 
@@ -198,7 +197,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         String update = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -219,7 +217,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         );
         DocumentMapper mapper = mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(update),
+            List.of(new CompressedXContent(mapping), new CompressedXContent(update)),
             MergeReason.INDEX_TEMPLATE
         );
 
@@ -268,7 +266,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         String firstUpdate = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -284,11 +281,16 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
+
+        // We can only check such assertion in sequential merges. Bulk merges allow such type substitution as it replaces entire field
+        // mapping subtrees
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstUpdate), MergeReason.INDEX_TEMPLATE)
         );
-        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field2] with an object mapping"));
+        assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [object.field2] with a nested mapping"));
 
         String secondUpdate = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -311,27 +313,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field1] with an object mapping"));
     }
 
-    public void testEmptyName() throws Exception {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "text")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
-
-        // Empty name not allowed in index created after 5.0
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
-    }
-
     public void testUnknownLegacyFields() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", "unknown");
             b.field("unknown_setting", 5);
@@ -341,7 +324,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testUnmappedLegacyFields() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", CompletionFieldMapper.CONTENT_TYPE);
             b.field("unknown_setting", 5);
@@ -396,23 +379,39 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [service] has subobjects set to false hence it does not support inner object [time]",
+            "Failed to parse mapping: Tried to add subobject [time] to object [service] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("metrics.service");
+            {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("time");
+                    b.field("type", "nested");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add nested object [time] to object [service] which does not support subobjects",
             exception.getMessage()
         );
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
-        MapperService mapperService = createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
-            {
-                b.startObject("metrics.service.time");
-                b.field("type", "long");
-                b.endObject();
-                b.startObject("metrics.service.time.max");
-                b.field("type", "long");
-                b.endObject();
-            }
+        MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service.time");
+            b.field("type", "long");
+            b.endObject();
+            b.startObject("metrics.service.time.max");
+            b.field("type", "long");
             b.endObject();
         }));
         assertNotNull(mapperService.fieldType("metrics.service.time"));
@@ -425,18 +424,13 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseRootWithInnerObject() {
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-            b.field("subobjects", false);
-            b.startObject("properties");
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service.time");
             {
-                b.startObject("metrics.service.time");
+                b.startObject("properties");
                 {
-                    b.startObject("properties");
-                    {
-                        b.startObject("max");
-                        b.field("type", "long");
-                        b.endObject();
-                    }
+                    b.startObject("max");
+                    b.field("type", "long");
                     b.endObject();
                 }
                 b.endObject();
@@ -444,8 +438,19 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [_doc] has subobjects set to false hence it does not support inner object "
-                + "[metrics.service.time]",
+            "Failed to parse mapping: Tried to add subobject [metrics.service.time] to object [_doc] which does not support subobjects",
+            exception.getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseRootWithInnerNested() {
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mappingNoSubobjects(b -> {
+            b.startObject("metrics.service");
+            b.field("type", "nested");
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Tried to add nested object [metrics.service] to object [_doc] which does not support subobjects",
             exception.getMessage()
         );
     }
@@ -469,14 +474,52 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })))
-        );
+        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+            b.field("subobjects", true);
+        }))));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
+    }
+
+    /**
+     * Makes sure that an empty object mapper returns {@code null} from
+     * {@link SourceLoader.SyntheticFieldLoader#docValuesLoader}. This
+     * is important because it allows us to skip whole chains of empty
+     * fields when loading synthetic {@code _source}.
+     */
+    public void testSyntheticSourceDocValuesEmpty() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("o").field("type", "object").endObject()));
+        ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+    }
+
+    /**
+     * Makes sure that an object mapper containing only fields without
+     * doc values returns {@code null} from
+     * {@link SourceLoader.SyntheticFieldLoader#docValuesLoader}. This
+     * is important because it allows us to skip whole chains of empty
+     * fields when loading synthetic {@code _source}.
+     */
+    public void testSyntheticSourceDocValuesFieldWithout() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("o").startObject("properties");
+            {
+                b.startObject("kwd");
+                {
+                    b.field("type", "keyword");
+                    b.field("doc_values", false);
+                    b.field("store", true);
+                }
+                b.endObject();
+            }
+            b.endObject().endObject();
+        }));
+        ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
     }
 }

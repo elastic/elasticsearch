@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.ml.support;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -30,11 +33,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
@@ -75,15 +80,19 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -92,6 +101,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -101,6 +111,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -117,12 +128,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
     // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
-    private static final Set<String> UNRELATED_TASKS = Set.of(ListTasksAction.NAME);
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
+    private static final Set<String> UNRELATED_TASKS = Set.of(TransportListTasksAction.TYPE.name(), HealthNode.TASK_NAME);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -130,7 +136,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        settings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(MonitoringService.ENABLED.getKey(), false);
@@ -154,7 +160,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
             DataStreamsPlugin.class,
             // To remove errors from parsing build in templates that contain scaled_float
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
@@ -166,7 +173,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     @Before
     public void ensureTemplatesArePresent() throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
         }, 20, TimeUnit.SECONDS);
     }
@@ -289,7 +296,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
         return tp;
     }
 
@@ -452,7 +459,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         ListTasksRequest request = new ListTasksRequest().setDetailed(true);
 
         assertBusy(() -> {
-            ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
+            ListTasksResponse response = client.execute(TransportListTasksAction.TYPE, request).get();
             List<String> activeTasks = response.getTasks()
                 .stream()
                 .filter(t -> UNRELATED_TASKS.stream().noneMatch(name -> t.action().startsWith(name)))
@@ -508,6 +515,31 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         return jobNode.get();
     }
 
+    protected void assertRecentLastTaskStateChangeTime(String taskId, Duration howRecent, String queryNode) {
+        ClusterStateRequest csRequest = new ClusterStateRequest().clear().metadata(true);
+        ClusterStateResponse csResponse = client(queryNode).execute(ClusterStateAction.INSTANCE, csRequest).actionGet();
+        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        assertNotNull(tasks);
+        PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(taskId);
+        assertNotNull(task);
+        assertThat(task.getState(), instanceOf(MlTaskState.class));
+        MlTaskState state = (MlTaskState) task.getState();
+        assertNotNull(state.getLastStateChangeTime());
+        Instant now = Instant.now();
+        assertTrue(
+            "["
+                + taskId
+                + " has last state change time ["
+                + state.getLastStateChangeTime()
+                + "] that is more than ["
+                + howRecent
+                + "] behind current time ["
+                + now
+                + "]",
+            state.getLastStateChangeTime().isAfter(now.minus(howRecent))
+        );
+    }
+
     /**
      * Sets delayed allocation to 0 to make sure we have tests are not delayed
      */
@@ -553,9 +585,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                IngestScript.Factory factory = (vars, ctx) -> new IngestScript(vars, ctx) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {}
+                    public void execute() {}
                 };
                 return context.factoryClazz.cast(factory);
             }

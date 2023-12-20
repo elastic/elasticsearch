@@ -50,6 +50,10 @@ This tool has a number of modes:
   {es}. This may sometimes allow you to downgrade to an earlier version of
   {es}.
 
+:tool-name: node
+include::cli-jvm-options.asciidoc[]
+:!tool-name:
+
 [[node-tool-repurpose]]
 [discrete]
 ==== Changing the role of a node
@@ -280,12 +284,13 @@ unsafely-bootstrapped cluster.
 Unsafe cluster bootstrapping is only possible if there is at least one
 surviving master-eligible node. If there are no remaining master-eligible nodes
 then the cluster metadata is completely lost. However, the individual data
-nodes also contain a copy of the index metadata corresponding with their
-shards. This sometimes allows a new cluster to import these shards as
-<<modules-gateway-dangling-indices,dangling indices>>. You can sometimes
-recover some indices after the loss of all master-eligible nodes in a cluster
+nodes also contain a copy of the index metadata corresponding with their shards. This sometimes allows a new cluster to import these shards as
+<<dangling-indices,dangling indices>>. You can sometimes
+recover some indices after the loss of all main-eligible nodes in a cluster
 by creating a new cluster and then using the `elasticsearch-node
-detach-cluster` command to move any surviving nodes into this new cluster.
+detach-cluster` command to move any surviving nodes into this new cluster. Once the new cluster is fully formed,
+use the <<dangling-indices-api,Dangling indices API>> to list, import or delete
+any dangling indices.
 
 There is a risk of data loss when importing a dangling index because data nodes
 may not have the most recent copy of the index metadata and do not have any
@@ -311,10 +316,12 @@ cluster formed as described above.
 below. Verify that the tool reported `Node was successfully detached from the
 cluster`.
 5. If necessary, configure each data node to
-<<modules-discovery-hosts-providers,discover the new cluster>>.
+<<discovery-hosts-providers,discover the new cluster>>.
 6. Start each data node and verify that it has joined the new cluster.
 7. Wait for all recoveries to have completed, and investigate the data in the
-cluster to discover if any was lost during this process.
+cluster to discover if any was lost during this process. Use the
+<<dangling-indices-api,Dangling indices API>> to list, import or delete any
+dangling indices.
 
 The message `Node was successfully detached from the cluster` does not mean
 that there has been no data loss, it just means that tool was able to complete

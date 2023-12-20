@@ -10,6 +10,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -78,7 +79,7 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
         final String[] expectedErrors = new String[] { randomAlphaOfLengthBetween(4, 10), randomAlphaOfLengthBetween(5, 9) };
         final AtomicInteger counter = new AtomicInteger(0);
         final Response response = mock(Response.class);
-        final StringEntity entity = new StringEntity("""
+        final StringEntity entity = new StringEntity(Strings.format("""
             {
               "took": 4,
               "errors": true,
@@ -114,7 +115,7 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
                   }
                 }
               ]
-            }""".formatted(expectedErrors[0], expectedErrors[1]), ContentType.APPLICATION_JSON);
+            }""", expectedErrors[0], expectedErrors[1]), ContentType.APPLICATION_JSON);
 
         when(response.getEntity()).thenReturn(entity);
 

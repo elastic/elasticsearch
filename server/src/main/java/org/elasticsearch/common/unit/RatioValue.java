@@ -63,4 +63,22 @@ public class RatioValue {
 
         }
     }
+
+    /**
+     * Returns the percent as a string with no trailing zeros and the '%' suffix.
+     */
+    public String formatNoTrailingZerosPercent() {
+        String value = String.valueOf(getAsPercent());
+        int i = value.length() - 1;
+        while (i >= 0 && value.charAt(i) == '0') {
+            i--;
+        }
+        if (i < 0) {
+            return "0%";
+        } else if (value.charAt(i) == '.') {
+            return value.substring(0, i) + "%";
+        } else {
+            return value.substring(0, Math.min(i + 1, value.length())) + "%";
+        }
+    }
 }

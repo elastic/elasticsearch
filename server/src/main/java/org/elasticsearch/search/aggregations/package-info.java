@@ -33,7 +33,7 @@
  * of the appropriate type, which in turn builds the
  * {@link org.elasticsearch.search.aggregations.Aggregator} for that node.  This
  * collects the data from that shard, via
- * {@link org.elasticsearch.search.aggregations.Aggregator#getLeafCollector(org.apache.lucene.index.LeafReaderContext)}
+ * {@link org.elasticsearch.search.aggregations.Aggregator#getLeafCollector(AggregationExecutionContext)}
  * more or less.  These values are shipped back to the coordinating node, which
  * performs the reduction on them (partial reductions in place on the data nodes
  * are also possible).</p>

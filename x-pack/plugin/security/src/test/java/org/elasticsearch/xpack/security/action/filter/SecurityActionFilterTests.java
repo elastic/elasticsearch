@@ -12,19 +12,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.MockIndicesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +39,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -95,8 +97,12 @@ public class SecurityActionFilterTests extends ESTestCase {
         );
         ClusterState state = mock(ClusterState.class);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("id1", buildNewFakeTransportAddress(), Version.CURRENT))
-            .add(new DiscoveryNode("id2", buildNewFakeTransportAddress(), Version.CURRENT.minimumCompatibilityVersion()))
+            .add(DiscoveryNodeUtils.create("id1"))
+            .add(
+                DiscoveryNodeUtils.builder("id2")
+                    .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                    .build()
+            )
             .build();
         when(state.nodes()).thenReturn(nodes);
 
@@ -182,7 +188,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "foo");
             threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
             if (hasExistingAccessControl) {
-                threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
+                new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
             }
         } else {
             assertNull(AuditUtil.extractRequestId(threadContext));
@@ -196,8 +202,9 @@ public class SecurityActionFilterTests extends ESTestCase {
             requestIdFromAuthn.set(AuditUtil.generateRequestId(threadContext));
             callback.onResponse(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), anyActionListener());
+        }).when(authcService).authenticate(eq(action), eq(request), eq(InternalUsers.SYSTEM_USER), anyActionListener());
         IndicesAccessControl authzAccessControl = mock(IndicesAccessControl.class);
+        when(authzAccessControl.isGranted()).thenReturn(true);
         mockAuthorize(authzAccessControl);
 
         filter.apply(task, action, request, listener, chain);
@@ -212,7 +219,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         }
         assertNotNull(authenticationSetOnce.get());
         assertNotEquals(authentication, authenticationSetOnce.get());
-        assertEquals(SystemUser.INSTANCE, authenticationSetOnce.get().getUser());
+        assertEquals(InternalUsers.SYSTEM_USER, authenticationSetOnce.get().getEffectiveSubject().getUser());
         assertThat(accessControlSetOnce.get(), sameInstance(authzAccessControl));
         assertThat(requestIdOnActionHandler.get(), is(requestIdFromAuthn.get()));
     }
@@ -222,7 +229,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomFrom("*", "_all", "test*")
         );
-        String action = randomFrom(CloseIndexAction.NAME, OpenIndexAction.NAME, DeleteIndexAction.NAME);
+        String action = randomFrom(TransportCloseIndexAction.NAME, OpenIndexAction.NAME, TransportDeleteIndexAction.TYPE.name());
         ActionListener listener = mock(ActionListener.class);
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
@@ -242,7 +249,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), anyActionListener());
+        }).when(authcService).authenticate(eq(action), eq(request), eq(InternalUsers.SYSTEM_USER), anyActionListener());
         doAnswer((i) -> {
             ActionListener<Void> callback = (ActionListener<Void>) i.getArguments()[3];
             callback.onResponse(null);
@@ -284,7 +291,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             AuditUtil.generateRequestId(threadContext);
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), anyActionListener());
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(InternalUsers.SYSTEM_USER), anyActionListener());
         if (randomBoolean()) {
             doThrow(exception).when(authzService).authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
         } else {
@@ -310,7 +317,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             threadContext.putHeader("_xpack_audit_request_id", requestId);
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), anyActionListener());
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(InternalUsers.SYSTEM_USER), anyActionListener());
     }
 
     private void mockAuthorize() {
@@ -323,7 +330,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
             callback.onResponse(null);
             return Void.TYPE;
         }).when(authzService).authorize(any(Authentication.class), any(String.class), any(TransportRequest.class), anyActionListener());

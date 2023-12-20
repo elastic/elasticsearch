@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,11 +33,14 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -48,11 +50,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
@@ -70,13 +74,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
     public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
-        private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
         private final AutoCreateIndex autoCreateIndex;
         private final SystemIndices systemIndices;
 
-        private final ClusterStateTaskExecutor<CreateIndexTask> executor;
+        private final MasterServiceTaskQueue<CreateIndexTask> taskQueue;
 
         @Inject
         public TransportAction(
@@ -100,30 +103,35 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 CreateIndexRequest::new,
                 indexNameExpressionResolver,
                 CreateIndexResponse::new,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             this.systemIndices = systemIndices;
-            this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            executor = (currentState, taskContexts) -> {
-                ClusterState state = currentState;
-                final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
+            this.taskQueue = clusterService.createTaskQueue("auto-create", Priority.URGENT, batchExecutionContext -> {
+                final var listener = new AllocationActionMultiListener<CreateIndexResponse>(threadPool.getThreadContext());
+                final var taskContexts = batchExecutionContext.taskContexts();
+                final var successfulRequests = Maps.<CreateIndexRequest, List<String>>newMapWithExpectedSize(taskContexts.size());
+                var state = batchExecutionContext.initialState();
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    try {
-                        state = task.execute(state, successfulRequests, taskContext);
+                    try (var ignored = taskContext.captureResponseHeaders()) {
+                        state = task.execute(state, successfulRequests, taskContext, listener);
                         assert successfulRequests.containsKey(task.request);
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }
                 }
-                if (state != currentState) {
-                    state = allocationService.reroute(state, "auto-create");
+                if (state != batchExecutionContext.initialState()) {
+                    try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                        state = allocationService.reroute(state, "auto-create", listener.reroute());
+                    }
+                } else {
+                    listener.noRerouteNeeded();
                 }
                 return state;
-            };
+            });
         }
 
         @Override
@@ -133,11 +141,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             ClusterState state,
             ActionListener<CreateIndexResponse> listener
         ) {
-            clusterService.submitStateUpdateTask(
+            taskQueue.submitTask(
                 "auto create [" + request.index() + "]",
                 new CreateIndexTask(request, listener),
-                ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-                executor
+                request.masterNodeTimeout()
             );
         }
 
@@ -160,12 +167,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 listener.onFailure(e);
             }
 
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                assert false : "should not be called";
+            private ClusterStateAckListener getAckListener(
+                String indexName,
+                AllocationActionMultiListener<CreateIndexResponse> allocationActionMultiListener
+            ) {
+                return getAckListener(List.of(indexName), allocationActionMultiListener);
             }
 
-            private ClusterStateAckListener getAckListener(String indexName) {
+            private ClusterStateAckListener getAckListener(
+                List<String> indexNames,
+                AllocationActionMultiListener<CreateIndexResponse> allocationActionMultiListener
+            ) {
                 return new ClusterStateAckListener() {
                     @Override
                     public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -174,23 +186,24 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     @Override
                     public void onAllNodesAcked() {
-                        activeShardsObserver.waitForActiveShards(
-                            new String[] { indexName },
+                        ActiveShardsObserver.waitForActiveShards(
+                            clusterService,
+                            indexNames.toArray(String[]::new),
                             ActiveShardCount.DEFAULT,
                             request.timeout(),
-                            shardsAcked -> listener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
-                            listener::onFailure
+                            allocationActionMultiListener.delay(listener)
+                                .map(shardsAcked -> new CreateIndexResponse(true, shardsAcked, indexNames.get(0)))
                         );
                     }
 
                     @Override
                     public void onAckFailure(Exception e) {
-                        listener.onResponse(new CreateIndexResponse(false, false, indexName));
+                        allocationActionMultiListener.delay(listener).onResponse(new CreateIndexResponse(false, false, indexNames.get(0)));
                     }
 
                     @Override
                     public void onAckTimeout() {
-                        listener.onResponse(new CreateIndexResponse(false, false, indexName));
+                        allocationActionMultiListener.delay(listener).onResponse(new CreateIndexResponse(false, false, indexNames.get(0)));
                     }
 
                     @Override
@@ -207,12 +220,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
              */
             ClusterState execute(
                 ClusterState currentState,
-                Map<CreateIndexRequest, String> successfulRequests,
-                ClusterStateTaskExecutor.TaskContext<CreateIndexTask> taskContext
+                Map<CreateIndexRequest, List<String>> successfulRequests,
+                ClusterStateTaskExecutor.TaskContext<CreateIndexTask> taskContext,
+                AllocationActionMultiListener<CreateIndexResponse> allocationActionMultiListener
             ) throws Exception {
                 final var previousIndexName = successfulRequests.get(request);
                 if (previousIndexName != null) {
-                    taskContext.success(getAckListener(previousIndexName));
+                    taskContext.success(getAckListener(previousIndexName, allocationActionMultiListener));
                     return currentState;
                 }
 
@@ -241,11 +255,21 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.timeout(),
                         false
                     );
-                    ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
+                    assert createRequest.performReroute() == false
+                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
+                    ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
+                        createRequest,
+                        currentState,
+                        rerouteCompletionIsNotRequired()
+                    );
 
-                    final var indexName = clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName();
-                    taskContext.success(getAckListener(indexName));
-                    successfulRequests.put(request, indexName);
+                    final var dataStream = clusterState.metadata().dataStreams().get(request.index());
+                    final var backingIndexName = dataStream.getIndices().get(0).getName();
+                    final var indexNames = dataStream.getFailureIndices().isEmpty()
+                        ? List.of(backingIndexName)
+                        : List.of(backingIndexName, dataStream.getFailureIndices().get(0).getName());
+                    taskContext.success(getAckListener(indexNames, allocationActionMultiListener));
+                    successfulRequests.put(request, indexNames);
                     return clusterState;
                 } else {
                     final var indexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
@@ -259,8 +283,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                         if (shouldAutoCreate == false) {
                             // The index already exists.
-                            taskContext.success(getAckListener(indexName));
-                            successfulRequests.put(request, indexName);
+                            taskContext.success(getAckListener(indexName, allocationActionMultiListener));
+                            successfulRequests.put(request, List.of(indexName));
                             return currentState;
                         }
                     }
@@ -272,10 +296,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     if (isManagedSystemIndex) {
                         final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                            currentState.nodes().getSmallestNonClientNodeVersion()
+                            currentState.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
                         );
                         if (descriptor == null) {
-                            final String message = mainDescriptor.getMinimumNodeVersionMessage("auto-create index");
+                            final String message = mainDescriptor.getMinimumMappingsVersionMessage("auto-create index");
                             logger.warn(message);
                             throw new IllegalStateException(message);
                         }
@@ -297,9 +321,16 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest = buildUpdateRequest(indexName);
                     }
 
-                    final var clusterState = createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
-                    taskContext.success(getAckListener(indexName));
-                    successfulRequests.put(request, indexName);
+                    assert updateRequest.performReroute() == false
+                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
+                    final var clusterState = createIndexService.applyCreateIndexRequest(
+                        currentState,
+                        updateRequest,
+                        false,
+                        rerouteCompletionIsNotRequired()
+                    );
+                    taskContext.success(getAckListener(indexName, allocationActionMultiListener));
+                    successfulRequests.put(request, List.of(indexName));
                     return clusterState;
                 }
             }

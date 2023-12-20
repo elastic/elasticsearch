@@ -13,8 +13,11 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -27,12 +30,20 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTasksResponse> {
+public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTasksResponseTests.CancelTasksResponseWrapper> {
+
+    // CancelTasksResponse doesn't directly implement ToXContent because it has multiple XContent representations, so we must wrap here
+    public record CancelTasksResponseWrapper(CancelTasksResponse in) implements ToXContentObject {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            return ChunkedToXContent.wrapAsToXContent(in.groupedByNone()).toXContent(builder, params);
+        }
+    }
 
     @Override
-    protected CancelTasksResponse createTestInstance() {
+    protected CancelTasksResponseWrapper createTestInstance() {
         List<TaskInfo> randomTasks = randomTasks();
-        return new CancelTasksResponse(randomTasks, Collections.emptyList(), Collections.emptyList());
+        return new CancelTasksResponseWrapper(new CancelTasksResponse(randomTasks, Collections.emptyList(), Collections.emptyList()));
     }
 
     private static List<TaskInfo> randomTasks() {
@@ -50,7 +61,9 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
     }
 
     @Override
-    protected void assertEqualInstances(CancelTasksResponse expectedInstance, CancelTasksResponse newInstance) {
+    protected void assertEqualInstances(CancelTasksResponseWrapper expectedInstanceWrapper, CancelTasksResponseWrapper newInstanceWrapper) {
+        final var expectedInstance = expectedInstanceWrapper.in();
+        final var newInstance = newInstanceWrapper.in();
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.getTasks(), equalTo(expectedInstance.getTasks()));
         ListTasksResponseTests.assertOnNodeFailures(newInstance.getNodeFailures(), expectedInstance.getNodeFailures());
@@ -58,17 +71,12 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
     }
 
     @Override
-    protected CancelTasksResponse doParseInstance(XContentParser parser) {
-        return CancelTasksResponse.fromXContent(parser);
+    protected CancelTasksResponseWrapper doParseInstance(XContentParser parser) {
+        return new CancelTasksResponseWrapper(CancelTasksResponse.fromXContent(parser));
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected boolean assertToXContentEquivalence() {
         return true;
     }
 
@@ -78,7 +86,7 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
      */
     public void testFromXContentWithFailures() throws IOException {
-        Supplier<CancelTasksResponse> instanceSupplier = CancelTasksResponseTests::createTestInstanceWithFailures;
+        Supplier<CancelTasksResponseWrapper> instanceSupplier = CancelTasksResponseTests::createTestInstanceWithFailures;
         // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
         // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
@@ -98,7 +106,7 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
         );
     }
 
-    private static CancelTasksResponse createTestInstanceWithFailures() {
+    private static CancelTasksResponseWrapper createTestInstanceWithFailures() {
         int numNodeFailures = randomIntBetween(0, 3);
         List<FailedNodeException> nodeFailures = new ArrayList<>(numNodeFailures);
         for (int i = 0; i < numNodeFailures; i++) {
@@ -109,7 +117,7 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
         for (int i = 0; i < numTaskFailures; i++) {
             taskFailures.add(new TaskOperationFailure(randomAlphaOfLength(5), randomLong(), new IllegalStateException()));
         }
-        return new CancelTasksResponse(randomTasks(), taskFailures, nodeFailures);
+        return new CancelTasksResponseWrapper(new CancelTasksResponse(randomTasks(), taskFailures, nodeFailures));
     }
 
 }

@@ -1,6 +1,0 @@
-pr: 86405
-summary: Faster GET _cluster/settings API
-area: Infra/Core
-type: enhancement
-issues:
- - 82342

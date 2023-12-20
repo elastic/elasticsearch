@@ -32,9 +32,9 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -44,10 +44,11 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -56,12 +57,19 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.QueryStringQueryParser;
+import org.elasticsearch.script.field.TextDocValuesField;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -74,6 +82,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -208,10 +218,9 @@ public class TextFieldMapperTests extends MapperTestCase {
                 } }
             )
         );
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
-            Map.of()
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
         );
     }
 
@@ -225,10 +234,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("1234", fields.get(0).stringValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -259,24 +268,24 @@ public class TextFieldMapperTests extends MapperTestCase {
     public void testEnableStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().stored());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().stored());
     }
 
     public void testDisableIndex() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("index", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
     }
 
     public void testDisableNorms() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("norms", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().omitNorms());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().omitNorms());
     }
 
     public void testIndexOptions() throws IOException {
@@ -310,9 +319,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         for (Map.Entry<String, IndexOptions> entry : supportedOptions.entrySet()) {
             String field = entry.getKey();
             IndexOptions options = entry.getValue();
-            IndexableField[] fields = doc.rootDoc().getFields(field);
-            assertEquals(1, fields.length);
-            assertEquals(options, fields[0].fieldType().indexOptions());
+            List<IndexableField> fields = doc.rootDoc().getFields(field);
+            assertEquals(1, fields.size());
+            assertEquals(options, fields.get(0).fieldType().indexOptions());
         }
     }
 
@@ -320,10 +329,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
@@ -364,10 +373,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
@@ -527,16 +536,23 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testFielddata() throws IOException {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
+        assertFalse(disabledMapper.fieldType("field").isAggregatable());
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            () -> disabledMapper.fieldType("field")
+                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
-        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Fielddata is disabled on [field] in [index]. "
+                    + "Text fields are not optimised for operations that require per-document field data"
+            )
+        );
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }); // no exception
-                                                                                                                         // this time
-
+        enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test")); // no exception
+        assertTrue(enabledMapper.fieldType("field").isAggregatable());
         e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "text").field("index", false).field("fielddata", true)))
@@ -789,10 +805,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapperService.documentMapper()
             .parse(source(b -> b.array("field", "Some English text that is going to be very useful", "bad", "Prio 1")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
-        assertEquals(3, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field._index_phrase");
+        assertEquals(3, fields.size());
 
-        try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(fields[0].name(), f -> null), null)) {
+        try (TokenStream ts = fields.get(0).tokenStream(mapperService.indexAnalyzer(fields.get(0).name(), f -> null), null)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             assertTrue(ts.incrementToken());
@@ -800,7 +816,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
             MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
             TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
             assertEquals(1, td.totalHits.value);
@@ -842,7 +858,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext context = createSearchExecutionContext(ms);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new NormsFieldExistsQuery("foo.bar")), q);
+        assertEquals(new ConstantScoreQuery(new FieldExistsQuery("foo.bar")), q);
     }
 
     private static void assertAnalyzesTo(Analyzer analyzer, String field, String input, String[] output) throws IOException {
@@ -874,8 +890,8 @@ public class TextFieldMapperTests extends MapperTestCase {
 
             ParsedDocument doc = ms.documentMapper()
                 .parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
-            IndexableField[] fields = doc.rootDoc().getFields("field._index_prefix");
-            assertEquals(1, fields.length);
+            List<IndexableField> fields = doc.rootDoc().getFields("field._index_prefix");
+            assertEquals(1, fields.size());
             withLuceneIndex(ms, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check we can index
 
             assertAnalyzesTo(
@@ -1095,12 +1111,35 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport().example();
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("ignore_malformed not supported", ignoreMalformed);
+        boolean storeTextField = randomBoolean();
+        boolean storedKeywordField = storeTextField || randomBoolean();
+        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
+        KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+            randomBoolean() ? null : between(10, 100),
+            storedKeywordField,
+            nullValue,
+            false == storeTextField
+        );
         return new SyntheticSourceSupport() {
             @Override
-            public SyntheticSourceExample example() throws IOException {
-                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
+            public SyntheticSourceExample example(int maxValues) {
+                SyntheticSourceExample delegate = keywordSupport.example(maxValues);
+                if (storeTextField) {
+                    return new SyntheticSourceExample(
+                        delegate.inputValue(),
+                        delegate.result(),
+                        delegate.result(),
+                        b -> b.field("type", "text").field("store", true)
+                    );
+                }
+                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), delegate.blockLoaderResult(), b -> {
                     b.field("type", "text");
                     b.startObject("fields");
                     {
@@ -1115,8 +1154,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
                 Matcher<String> err = equalTo(
-                    "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                    "field [field] of type [text] doesn't support synthetic source unless it is stored or"
+                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
                 );
                 return List.of(
                     new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
@@ -1126,17 +1165,6 @@ public class TextFieldMapperTests extends MapperTestCase {
                         {
                             b.startObject("l");
                             b.field("type", "long");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("kwd");
-                            b.field("type", "keyword");
-                            b.field("ignore_above", 10);
                             b.endObject();
                         }
                         b.endObject();
@@ -1158,6 +1186,11 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> ((BytesRef) v).utf8ToString();
+    }
+
+    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
@@ -1173,7 +1206,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         expectThrows(MapperParsingException.class, () -> createMapperService(startingMapping));
 
-        MapperService mapperService = createMapperService(Version.fromString("5.0.0"), startingMapping);
+        MapperService mapperService = createMapperService(IndexVersion.fromId(5000099), startingMapping);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
 
         merge(mapperService, startingMapping);
@@ -1190,14 +1223,14 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(mapping);
         assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
 
-        mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
+        mapperService = createMapperService(IndexVersion.fromId(5000099), mapping);
         assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
 
         MapperService finalMapperService = mapperService;
         expectThrows(
             IllegalArgumentException.class,
             () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
-                .fielddataBuilder("test", null)
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
         );
     }
 
@@ -1206,7 +1239,139 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(mapping);
         assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
 
-        mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
+        mapperService = createMapperService(IndexVersion.fromId(5000099), mapping);
         assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "text").field("store", true)));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testDocValuesLoadedFromSubStoredKeywordSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("raw").field("type", "keyword").field("doc_values", false).field("store", true).endObject();
+            }
+            b.endObject();
+        }));
+        for (String input : new String[] {
+            "foo",       // Won't be tokenized
+            "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
+        }) {
+            assertScriptDocValues(mapper, input, equalTo(List.of(input)));
+        }
+    }
+
+    public void testEmpty() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        var d0 = source(b -> b.field("field", new String[0]));
+        var d1 = source(b -> b.field("field", ""));
+        var d2 = source(b -> b.field("field", "hello"));
+        var d3 = source(b -> b.nullField("field"));
+        withLuceneIndex(mapperService, iw -> {
+            for (SourceToParse src : List.of(d0, d1, d2, d3)) {
+                iw.addDocument(mapperService.documentMapper().parse(src).rootDoc());
+            }
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            MappedFieldType ft = mapperService.fieldType("field");
+            SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
+                throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
+            } : SourceProvider.fromStoredFields();
+            SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
+            IndexFieldData<?> sfd = ft.fielddataBuilder(
+                new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+            ).build(null, null);
+            LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
+            TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
+            SortedBinaryDocValues dv = scriptDV.getInput();
+            assertFalse(dv.advanceExact(0));
+            assertTrue(dv.advanceExact(1));
+            assertTrue(dv.advanceExact(2));
+            assertFalse(dv.advanceExact(3));
+        });
+    }
+
+    @Override
+    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+        String parentName = mapper.mappingLookup().parentField(ft.name());
+        if (parentName == null) {
+            TextFieldMapper.TextFieldType text = (TextFieldType) ft;
+            return text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues();
+        }
+        MappedFieldType parent = mapper.fieldType(parentName);
+        if (false == parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+            throw new UnsupportedOperationException();
+        }
+        KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
+        return kwd.hasDocValues();
+    }
+
+    public void testBlockLoaderFromParentColumnReader() throws IOException {
+        testBlockLoaderFromParent(true, randomBoolean());
+    }
+
+    public void testBlockLoaderParentFromRowStrideReader() throws IOException {
+        testBlockLoaderFromParent(false, randomBoolean());
+    }
+
+    private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
+        boolean storeParent = randomBoolean();
+        KeywordFieldMapperTests.KeywordSyntheticSourceSupport kwdSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+            null,
+            storeParent,
+            null,
+            false == storeParent
+        );
+        SyntheticSourceExample example = kwdSupport.example(5);
+        CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
+            b.startObject("field");
+            {
+                example.mapping().accept(b);
+                b.startObject("fields").startObject("sub");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject().endObject();
+            }
+            b.endObject();
+        };
+        MapperService mapper = createMapperService(syntheticSource ? syntheticSourceMapping(buildFields) : mapping(buildFields));
+        testBlockLoader(columnReader, example, mapper, "field.sub");
     }
 }

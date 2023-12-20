@@ -22,6 +22,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -81,7 +82,8 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        ExecutorSelector executorSelector
+        ExecutorSelector executorSelector,
+        Tracer tracer
     ) {
         super(
             clusterService,
@@ -92,7 +94,8 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             responseCollectorService,
             circuitBreakerService,
-            executorSelector
+            executorSelector,
+            tracer
         );
     }
 
@@ -125,10 +128,16 @@ public class MockSearchService extends SearchService {
         ReaderContext readerContext,
         ShardSearchRequest request,
         SearchShardTask task,
+        ResultsType resultsType,
         boolean includeAggregations
     ) throws IOException {
-        SearchContext searchContext = super.createContext(readerContext, request, task, includeAggregations);
-        onCreateSearchContext.accept(searchContext);
+        SearchContext searchContext = super.createContext(readerContext, request, task, resultsType, includeAggregations);
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
         return searchContext;
     }
 

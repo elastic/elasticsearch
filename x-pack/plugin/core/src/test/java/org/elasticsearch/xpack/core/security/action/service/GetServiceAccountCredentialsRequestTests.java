@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.containsString;
 
 public class GetServiceAccountCredentialsRequestTests extends AbstractWireSerializingTestCase<GetServiceAccountCredentialsRequest> {
@@ -30,7 +28,7 @@ public class GetServiceAccountCredentialsRequestTests extends AbstractWireSerial
     }
 
     @Override
-    protected GetServiceAccountCredentialsRequest mutateInstance(GetServiceAccountCredentialsRequest instance) throws IOException {
+    protected GetServiceAccountCredentialsRequest mutateInstance(GetServiceAccountCredentialsRequest instance) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> new GetServiceAccountCredentialsRequest(
                 randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),

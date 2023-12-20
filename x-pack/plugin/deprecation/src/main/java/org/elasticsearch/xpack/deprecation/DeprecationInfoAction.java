@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -135,10 +134,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         Map<DeprecationIssue, List<String>> issueToListOfNodesMap = new HashMap<>();
         for (List<Tuple<DeprecationIssue, String>> similarIssues : issuesToMerge) {
             DeprecationIssue leastCommonDenominator = DeprecationIssue.getIntersectionOfRemovableSettings(
-                similarIssues.stream().map(Tuple::v1).collect(Collectors.toList())
+                similarIssues.stream().map(Tuple::v1).toList()
             );
             issueToListOfNodesMap.computeIfAbsent(leastCommonDenominator, (key) -> new ArrayList<>())
-                .addAll(similarIssues.stream().map(Tuple::v2).collect(Collectors.toList()));
+                .addAll(similarIssues.stream().map(Tuple::v2).toList());
         }
         return issueToListOfNodesMap;
     }
@@ -152,15 +151,15 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            clusterSettingsIssues = in.readList(DeprecationIssue::new);
-            nodeSettingsIssues = in.readList(DeprecationIssue::new);
-            indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
-            if (in.getVersion().before(Version.V_7_11_0)) {
-                List<DeprecationIssue> mlIssues = in.readList(DeprecationIssue::new);
+            clusterSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
+            nodeSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
+            indexSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
+            if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
+                List<DeprecationIssue> mlIssues = in.readCollectionAsList(DeprecationIssue::new);
                 pluginSettingsIssues = new HashMap<>();
                 pluginSettingsIssues.put("ml_settings", mlIssues);
             } else {
-                pluginSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+                pluginSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
             }
         }
 
@@ -202,13 +201,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(clusterSettingsIssues);
-            out.writeList(nodeSettingsIssues);
-            out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getVersion().before(Version.V_7_11_0)) {
-                out.writeList(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
+            out.writeCollection(clusterSettingsIssues);
+            out.writeCollection(nodeSettingsIssues);
+            out.writeMap(indexSettingsIssues, StreamOutput::writeCollection);
+            if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {
+                out.writeCollection(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
             } else {
-                out.writeMapOfLists(pluginSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+                out.writeMap(pluginSettingsIssues, StreamOutput::writeCollection);
             }
         }
 
@@ -312,7 +311,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         metadataBuilder.persistentSettings(
             metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
         );
-        ImmutableOpenMap.Builder<String, IndexMetadata> indicesBuilder = ImmutableOpenMap.builder(state.getMetadata().indices());
+        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().indices());
         for (String indexName : indexNames) {
             IndexMetadata indexMetadata = state.getMetadata().index(indexName);
             IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
@@ -321,7 +320,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             filteredIndexMetadataBuilder.settings(filteredSettings);
             indicesBuilder.put(indexName, filteredIndexMetadataBuilder.build());
         }
-        metadataBuilder.indices(indicesBuilder.build());
+        metadataBuilder.indices(indicesBuilder);
         clusterStateBuilder.metadata(metadataBuilder);
         return clusterStateBuilder.build();
     }

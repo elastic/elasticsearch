@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -46,10 +46,12 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     private String pitId;
     private final TimeValue keepAlive;
+    private final QueryBuilder filter;
 
     public PITAwareQueryClient(EqlSession eqlSession) {
         super(eqlSession);
         this.keepAlive = eqlSession.configuration().requestTimeout();
+        this.filter = eqlSession.configuration().filter();
     }
 
     @Override
@@ -106,7 +108,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
         if (CollectionUtils.isEmpty(indices) == false) {
             request.indices(Strings.EMPTY_ARRAY);
             QueryBuilder indexQuery = indices.length == 1 ? termQuery(GetResult._INDEX, indices[0]) : termsQuery(GetResult._INDEX, indices);
-            RuntimeUtils.addFilter(indexQuery, source);
+            RuntimeUtils.combineFilters(source, indexQuery);
         }
     }
 
@@ -131,19 +133,23 @@ public class PITAwareQueryClient extends BasicQueryClient {
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
             .keepAlive(keepAlive);
-        client.execute(OpenPointInTimeAction.INSTANCE, request, wrap(r -> {
+        request.indexFilter(filter);
+        client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
             runnable.run();
-        }, listener::onFailure));
+        }));
     }
 
     @Override
     public void close(ActionListener<Boolean> listener) {
-        client.execute(
-            ClosePointInTimeAction.INSTANCE,
-            new ClosePointInTimeRequest(pitId),
-            map(listener, ClosePointInTimeResponse::isSucceeded)
-        );
-        pitId = null;
+        // the pitId could be null as a consequence of a failure on openPIT
+        if (pitId != null) {
+            client.execute(
+                TransportClosePointInTimeAction.TYPE,
+                new ClosePointInTimeRequest(pitId),
+                map(listener, ClosePointInTimeResponse::isSucceeded)
+            );
+            pitId = null;
+        }
     }
 }

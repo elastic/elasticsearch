@@ -51,6 +51,7 @@ setup:
             match_all: {}
 
   - set: {_scroll_id: scroll_id}
+  - match: { _shards.successful: 5 }
   - match: {hits.total:      3    }
   - length: {hits.hits:      3    }
   - match: {hits.hits.0._id: "2" }
@@ -160,6 +161,7 @@ setup:
             match_all: {}
 
   - set: {_scroll_id: scroll_id}
+  - match: { _shards.successful: 5 }
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
 

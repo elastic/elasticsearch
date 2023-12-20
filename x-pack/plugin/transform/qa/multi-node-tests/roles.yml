@@ -1,0 +1,37 @@
+source_index_access:
+  cluster:
+    # This is always required because the REST client uses it to find the version of Elasticsearch it's talking to
+    - cluster:monitor/main
+    - cluster:monitor/tasks/lists
+  indices:
+    # Give access to the source indices because the transform roles alone do not provide access to non-transform indices
+    - names: [ 'transform-permissions-*-index' ]
+      privileges:
+        - create_index
+        - indices:admin/refresh
+        - read
+        - write
+        - view_index_metadata
+        - indices:data/write/bulk
+        - indices:data/write/index
+
+dest_index_access:
+  indices:
+    # Give access to the destination indices
+    - names: [ 'transform-permissions-*-dest' ]
+      privileges:
+        - create_index
+        - indices:admin/refresh
+        - read
+        - write
+        - view_index_metadata
+        - indices:data/write/bulk
+        - indices:data/write/index
+
+fleet_index_access:
+  indices:
+    # Give access to the Fleet indices (which are system indices)
+    - names: [ '.fleet*' ]
+      privileges:
+        - all
+      allow_restricted_indices: true

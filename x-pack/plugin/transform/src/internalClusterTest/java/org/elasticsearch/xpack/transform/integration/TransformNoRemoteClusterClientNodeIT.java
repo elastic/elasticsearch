@@ -148,7 +148,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
     private static TransformConfig randomConfig(String transformId, String sourceIndex) {
         return new TransformConfig.Builder().setId(transformId)
             .setSource(new SourceConfig(sourceIndex))
-            .setDest(new DestConfig("my-dest-index", null))
+            .setDest(new DestConfig("my-dest-index", null, null))
             .setPivotConfig(PivotConfigTests.randomPivotConfig())
             .build();
     }

@@ -10,17 +10,19 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
@@ -104,7 +107,12 @@ public final class DatafeedManager {
     ) {
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
-                final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
+                // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
+                final String[] indices = request.getDatafeed()
+                    .getIndices()
+                    .stream()
+                    .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
+                    .toArray(String[]::new);
 
                 final String username = securityContext.getUser().principal();
                 final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
@@ -122,15 +130,19 @@ public final class DatafeedManager {
 
                 ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
                     if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name());
                     } else {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name(), RollupSearchAction.NAME);
                     }
-                    privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
-                    client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    if (indices.length == 0) {
+                        privResponseListener.onResponse(new HasPrivilegesResponse());
+                    } else {
+                        privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    }
                 }, e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name());
                         privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                         client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                     } else {
@@ -154,26 +166,34 @@ public final class DatafeedManager {
         }
     }
 
-    public void getDatafeeds(GetDatafeedsAction.Request request, ActionListener<QueryPage<DatafeedConfig>> listener) {
-
+    public void getDatafeeds(
+        GetDatafeedsAction.Request request,
+        @Nullable TaskId parentTaskId,
+        ActionListener<QueryPage<DatafeedConfig>> listener
+    ) {
         datafeedConfigProvider.expandDatafeedConfigs(
             request.getDatafeedId(),
             request.allowNoMatch(),
-            ActionListener.wrap(datafeedBuilders ->
-
-            // Build datafeeds
-            listener.onResponse(
-                new QueryPage<>(
-                    datafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList()),
-                    datafeedBuilders.size(),
-                    DatafeedConfig.RESULTS_FIELD
-                )
-            ), listener::onFailure)
+            parentTaskId,
+            ActionListener.wrap(
+                datafeedBuilders -> listener.onResponse(
+                    new QueryPage<>(
+                        datafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList()),
+                        datafeedBuilders.size(),
+                        DatafeedConfig.RESULTS_FIELD
+                    )
+                ),
+                listener::onFailure
+            )
         );
     }
 
-    public void getDatafeedsByJobIds(Set<String> jobIds, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
-        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, listener);
+    public void getDatafeedsByJobIds(
+        Set<String> jobIds,
+        @Nullable TaskId parentTaskId,
+        ActionListener<Map<String, DatafeedConfig.Builder>> listener
+    ) {
+        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, parentTaskId, listener);
     }
 
     public void updateDatafeed(
@@ -219,7 +239,8 @@ public final class DatafeedManager {
             client,
             state,
             request.masterNodeTimeout(),
-            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure)
+            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }
 
@@ -235,7 +256,7 @@ public final class DatafeedManager {
 
         String datafeedId = request.getDatafeedId();
 
-        datafeedConfigProvider.getDatafeedConfig(datafeedId, ActionListener.wrap(datafeedConfigBuilder -> {
+        datafeedConfigProvider.getDatafeedConfig(datafeedId, null, ActionListener.wrap(datafeedConfigBuilder -> {
             String jobId = datafeedConfigBuilder.build().getJobId();
             JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
             jobDataDeleter.deleteDatafeedTimingStats(
@@ -251,7 +272,7 @@ public final class DatafeedManager {
 
     }
 
-    private PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
+    private static PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.getDatafeedTask(datafeedId, tasks);
     }
@@ -297,10 +318,7 @@ public final class DatafeedManager {
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
             request.getDatafeed(),
             headers,
-            ActionListener.wrap(
-                indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
-                listener::onFailure
-            )
+            ActionListener.wrap(response -> listener.onResponse(new PutDatafeedAction.Response(response.v1())), listener::onFailure)
         );
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {
@@ -315,7 +333,8 @@ public final class DatafeedManager {
                 client,
                 clusterState,
                 request.masterNodeTimeout(),
-                ActionListener.wrap(mappingsUpdated, listener::onFailure)
+                ActionListener.wrap(mappingsUpdated, listener::onFailure),
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             );
         };
 

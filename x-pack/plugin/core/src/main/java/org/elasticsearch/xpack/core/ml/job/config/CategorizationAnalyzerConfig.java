@@ -61,6 +61,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     public static final ParseField TOKEN_FILTERS = AnalyzeAction.Fields.TOKEN_FILTERS;
     public static final ParseField CHAR_FILTERS = AnalyzeAction.Fields.CHAR_FILTERS;
 
+    public static final int MAX_TOKEN_COUNT = 100;
+
     /**
      * This method is only used in the unit tests - in production code this config is always parsed as a fragment.
      */
@@ -204,6 +206,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             .addCategorizationFilters(categorizationFilters)
             .setTokenizer("ml_standard")
             .addDateWordsTokenFilter()
+            .addLimitFilter()
             .build();
     }
 
@@ -226,17 +229,17 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
 
     public CategorizationAnalyzerConfig(StreamInput in) throws IOException {
         analyzer = in.readOptionalString();
-        charFilters = in.readList(NameOrDefinition::new);
+        charFilters = in.readCollectionAsList(NameOrDefinition::new);
         tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-        tokenFilters = in.readList(NameOrDefinition::new);
+        tokenFilters = in.readCollectionAsList(NameOrDefinition::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(analyzer);
-        out.writeList(charFilters);
+        out.writeCollection(charFilters);
         out.writeOptionalWriteable(tokenizer);
-        out.writeList(tokenFilters);
+        out.writeCollection(tokenFilters);
     }
 
     public String getAnalyzer() {
@@ -291,11 +294,14 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      */
     public Map<String, Object> asMap(NamedXContentRegistry xContentRegistry) throws IOException {
         String strRep = Strings.toString(this);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-            strRep
-        );
-        return parser.mapOrdered();
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                strRep
+            )
+        ) {
+            return parser.mapOrdered();
+        }
     }
 
     @Override
@@ -426,6 +432,14 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                 )
             );
             addTokenFilter(tokenFilter);
+            return this;
+        }
+
+        Builder addLimitFilter() {
+            Map<String, Object> limitFilter = new HashMap<>();
+            limitFilter.put("type", "limit");
+            limitFilter.put("max_token_count", MAX_TOKEN_COUNT);
+            addTokenFilter(limitFilter);
             return this;
         }
 

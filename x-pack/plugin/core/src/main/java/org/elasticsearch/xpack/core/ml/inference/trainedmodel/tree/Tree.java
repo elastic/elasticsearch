@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +30,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
@@ -81,11 +82,11 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     public Tree(StreamInput in) throws IOException {
-        this.featureNames = Collections.unmodifiableList(in.readStringList());
-        this.nodes = Collections.unmodifiableList(in.readList(TreeNode::new));
+        this.featureNames = in.readCollectionAsImmutableList(StreamInput::readString);
+        this.nodes = in.readCollectionAsImmutableList(TreeNode::new);
         this.targetType = TargetType.fromStream(in);
         if (in.readBoolean()) {
-            this.classificationLabels = Collections.unmodifiableList(in.readStringList());
+            this.classificationLabels = in.readCollectionAsImmutableList(StreamInput::readString);
         } else {
             this.classificationLabels = null;
         }
@@ -213,7 +214,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private void detectCycle() {
-        Set<Integer> visited = new HashSet<>(nodes.size());
+        Set<Integer> visited = Sets.newHashSetWithExpectedSize(nodes.size());
         Queue<Integer> toVisit = new ArrayDeque<>(nodes.size());
         toVisit.add(0);
         while (toVisit.isEmpty() == false) {
@@ -287,14 +288,14 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     @Override
-    public Version getMinimalCompatibilityVersion() {
+    public TransportVersion getMinimalCompatibilityVersion() {
         if (nodes.stream().filter(TreeNode::isLeaf).anyMatch(t -> t.getLeafValue().length > 1)) {
-            return Version.V_7_7_0;
+            return TransportVersions.V_7_7_0;
         }
-        return Version.V_7_6_0;
+        return TransportVersions.V_7_6_0;
     }
 
-    public static class Builder {
+    public static final class Builder {
         private List<String> featureNames;
         private ArrayList<TreeNode.Builder> nodes;
         private int numNodes;

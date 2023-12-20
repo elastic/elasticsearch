@@ -12,6 +12,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -44,6 +45,11 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         }
     }
 
+    @Override
+    protected ConstantScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new ConstantScoreQueryBuilder(queryBuilder);
+    }
+
     /**
      * test that missing "filter" element causes {@link ParsingException}
      */
@@ -57,12 +63,12 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
      * test that "filter" does not accept an array of queries, throws {@link ParsingException}
      */
     public void testNoArrayAsFilterElements() throws IOException {
-        String queryString = """
+        String queryString = Strings.format("""
             {
               "%s": {
                 "filter": [ { "term": { "foo": "a" } }, { "term": { "foo": "x" } } ]
               }
-            }""".formatted(ConstantScoreQueryBuilder.NAME);
+            }""", ConstantScoreQueryBuilder.NAME);
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
         assertThat(e.getMessage(), containsString("unexpected token [START_ARRAY]"));
     }

@@ -181,7 +181,7 @@ public class LongHashTests extends ESTestCase {
     }
 
     public void testAllocation() {
-        MockBigArrays.assertFitsIn(new ByteSizeValue(160), bigArrays -> new LongHash(1, bigArrays));
+        MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(160), bigArrays -> new LongHash(1, bigArrays));
     }
 
     private static void assertAllIn(Set<Long> longs, LongHash hash) {

@@ -34,8 +34,8 @@ data into the Elastic Stack and access it right away. When you define a runtime
 field, you can immediately use it in search requests, aggregations, filtering,
 and sorting.
 
-If you make a runtime field an indexed field, you don't need to modify any
-queries that refer to the runtime field. Better yet, you can refer to some
+If you change a runtime field into an indexed field, you don't need to modify
+any queries that refer to the runtime field. Better yet, you can refer to some
 indices where the field is a runtime field, and other indices where the field
 is an indexed field. You have the flexibility to choose which fields to index
 and which ones to keep as runtime fields.
@@ -53,12 +53,12 @@ combined use less resources and reduce your operating costs.
 Runtime fields can replace many of the ways you can use scripting with the
 `_search` API. How you use a runtime field is impacted by the number of
 documents that the included script runs against. For example, if you're using
-the `fields` parameter on the `_search` API to 
+the `fields` parameter on the `_search` API to
 <<runtime-retrieving-fields,retrieve the values of a runtime field>>, the script
 runs only against the top hits just like script fields do.
 
 You can use <<script-fields,script fields>> to access values in `_source` and
-return calculated values based on a script valuation. Runtime fields have these
+return calculated values based on a script valuation. Runtime fields have the
 same capabilities, but provide greater flexibility because you can query and
 aggregate on runtime fields in a search request. Script fields can only fetch
 values.
@@ -77,7 +77,7 @@ If you move a script from any of these sections in a search request to a
 runtime field that is computing values from the same number of documents, the
 performance should be about the same. The performance for these features is
 largely dependent upon the calculations that the included script is running and
-how many documents the script runs against. 
+how many documents the script runs against.
 
 [discrete]
 [[runtime-compromises]]
@@ -88,9 +88,9 @@ the runtime script.
 
 To balance search performance and flexibility, index fields that you'll
 frequently search for and filter on, such as a timestamp. {es} automatically
-uses these indexed fields first when running a query, resulting in a fast 
-response time. You can then use runtime fields to limit the number of fields 
-that {es} needs to calculate values for. Using indexed fields in tandem with 
+uses these indexed fields first when running a query, resulting in a fast
+response time. You can then use runtime fields to limit the number of fields
+that {es} needs to calculate values for. Using indexed fields in tandem with
 runtime fields provides flexibility in the data that you index and how you
 define queries for other fields.
 
@@ -110,9 +110,9 @@ against runtime fields.
 You map runtime fields by adding a `runtime` section under the mapping
 definition and defining
 <<modules-scripting-using,a Painless script>>. This script has access to the
-entire context of a document, including the original `_source` and any mapped
-fields plus their values. At query time, the script runs and generates values
-for each scripted field that is required for the query.
+entire context of a document, including the original `_source` via `params._source`
+and any mapped fields plus their values. At query time, the script runs and
+generates values for each scripted field that is required for the query.
 
 .Emitting runtime field values
 ****
@@ -227,6 +227,16 @@ with `params._source` (such as `params._source.day_of_week`). For simplicity,
 defining a runtime field in the mapping definition without a script is the
 recommended option, whenever possible.
 
+[[runtime-errorhandling]]
+==== Ignoring script errors on runtime fields
+
+Scripts can throw errors at runtime, e.g. on accessing missing or invalid values
+in documents or because of performing invalid operations. The `on_script_error`
+parameter can be used to control error behaviour when this happens. Setting this
+parameter to `continue` will have the effect of silently ignoring all errors on
+this runtime field. The default `fail` value will cause a shard failure which
+gets reported in the search response.
+
 [[runtime-updating-scripts]]
 ==== Updating and removing runtime fields
 
@@ -267,8 +277,7 @@ as part of the `runtime_mappings` section, just as you would if
 
 Defining a runtime field in a search request uses the same format as defining
 a runtime field in the index mapping. Just copy the field definition from
-the `runtime_mappings` in the search request to the `runtime` section of the
-index mapping.
+the `runtime` in the index mapping to the `runtime_mappings` section of the search request.
 
 The following search request adds a `day_of_week` field to the
 `runtime_mappings` section. The field values will be calculated dynamically,
@@ -817,6 +826,10 @@ experimental[]
 The <<search-fields,`fields`>> parameter on the `_search` API can also be used to retrieve fields from
 the related indices via runtime fields with a type of `lookup`.
 
+NOTE: Fields that are retrieved by runtime fields of type `lookup` can be used
+to enrich the hits in a search response. It's not possible to query or aggregate
+on these fields.
+
 [source,console]
 ----
 POST ip_location/_doc?refresh
@@ -929,14 +942,14 @@ can define runtime fields in the
 decide to index a runtime field for greater performance, just move the full
 runtime field definition (including the script) to the context of an index
 mapping. {es} automatically uses these indexed fields to drive queries,
-resulting in a fast response time. This capability means you can write a 
+resulting in a fast response time. This capability means you can write a
 script only once, and apply it to any context that supports runtime fields.
 
 NOTE: Indexing a `composite` runtime field is currently not supported.
 
-You can then use runtime fields to limit the number of fields that {es} needs 
-to calculate values for. Using indexed fields in tandem with runtime fields 
-provides flexibility in the data that you index and how you define queries for 
+You can then use runtime fields to limit the number of fields that {es} needs
+to calculate values for. Using indexed fields in tandem with runtime fields
+provides flexibility in the data that you index and how you define queries for
 other fields.
 
 IMPORTANT: After indexing a runtime field, you cannot update the included
@@ -1358,9 +1371,9 @@ field within a document. A grok pattern is like a regular expression that
 supports aliased expressions that you can reuse.
 
 The script matches on the `%{COMMONAPACHELOG}` log pattern, which understands
-the structure of Apache logs. If the pattern matches, the script emits the
-value of the matching IP address. If the pattern doesn't match
-(`clientip != null`), the script just returns the field value without crashing.
+the structure of Apache logs. If the pattern matches (`clientip != null`),
+the script emits the value of the matching IP address. If the pattern doesn't
+match, the script just returns the field value without crashing.
 
 [source,console]
 ----
@@ -1414,9 +1427,9 @@ GET my-index-000001/_search
 
 [[runtime-examples-grok-composite]]
 ==== Define a composite runtime field
-You can also define a _composite_ runtime field to emit multiple fields from a 
-single script. You can define a set of typed subfields and emit a map of 
-values. At search time, each subfield retrieves the value associated with 
+You can also define a _composite_ runtime field to emit multiple fields from a
+single script. You can define a set of typed subfields and emit a map of
+values. At search time, each subfield retrieves the value associated with
 their name in the map. This means that you only need to specify your grok
 pattern one time and can return multiple values:
 
@@ -1464,11 +1477,11 @@ GET my-index-000001/_search
 ----
 // TEST[continued]
 
-The API returns the following result. Because `http` is a `composite` runtime 
+The API returns the following result. Because `http` is a `composite` runtime
 field, the response includes each of the sub-fields under `fields`, including
-any associated values that match the query. Without building your data structure 
+any associated values that match the query. Without building your data structure
 in advance, you can search and explore your data in meaningful ways to
-experiment and determine which fields to index. 
+experiment and determine which fields to index.
 
 [source,console-result]
 ----

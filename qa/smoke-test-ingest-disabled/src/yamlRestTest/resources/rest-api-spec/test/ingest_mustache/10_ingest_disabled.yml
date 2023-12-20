@@ -28,7 +28,7 @@
   - match: { acknowledged: true }
 
 ---
-"Test ingest simulate API works fine when node.ingest is set to false":
+"Test ingest simulate API fails when node.ingest is set to false":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -47,6 +47,7 @@
   - match: { acknowledged: true }
 
   - do:
+      catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
       ingest.simulate:
         id: "my_pipeline"
         body: >
@@ -61,11 +62,6 @@
               }
             ]
           }
-  - length: { docs: 1 }
-  - match: { docs.0.doc._source.foo: "bar" }
-  - match: { docs.0.doc._source.field2: "_value" }
-  - length: { docs.0.doc._ingest: 1 }
-  - is_true: docs.0.doc._ingest.timestamp
 
 ---
 "Test index api with pipeline id fails when node.ingest is set to false":

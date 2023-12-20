@@ -7,16 +7,19 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -40,6 +43,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
     private final Client client;
     private final AtomicReference<Integer> maxBuckets = new AtomicReference<>();
     private final SecurityContext securityContext;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportEvaluateDataFrameAction(
@@ -50,7 +54,13 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
         Client client,
         ClusterService clusterService
     ) {
-        super(EvaluateDataFrameAction.NAME, transportService, actionFilters, EvaluateDataFrameAction.Request::new);
+        super(
+            EvaluateDataFrameAction.NAME,
+            transportService,
+            actionFilters,
+            EvaluateDataFrameAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.client = client;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -58,6 +68,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
             : null;
         this.maxBuckets.set(MAX_BUCKET_SETTING.get(clusterService.getSettings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBuckets);
+        this.clusterService = clusterService;
     }
 
     private void setMaxBuckets(int maxBuckets) {
@@ -70,6 +81,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
         EvaluateDataFrameAction.Request request,
         ActionListener<EvaluateDataFrameAction.Response> listener
     ) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<List<Void>> resultsListener = ActionListener.wrap(unused -> {
             EvaluateDataFrameAction.Response response = new EvaluateDataFrameAction.Response(
                 request.getEvaluation().getName(),
@@ -80,7 +92,13 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
 
         // Create an immutable collection of parameters to be used by evaluation metrics.
         EvaluationParameters parameters = new EvaluationParameters(maxBuckets.get());
-        EvaluationExecutor evaluationExecutor = new EvaluationExecutor(threadPool, client, parameters, request, securityContext);
+        EvaluationExecutor evaluationExecutor = new EvaluationExecutor(
+            threadPool,
+            new ParentTaskAssigningClient(client, parentTaskId),
+            parameters,
+            request,
+            securityContext
+        );
         evaluationExecutor.execute(resultsListener);
     }
 
@@ -128,13 +146,13 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
                 SearchRequest searchRequest = new SearchRequest(request.getIndices()).source(searchSourceBuilder);
                 useSecondaryAuthIfAvailable(
                     securityContext,
-                    () -> client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+                    () -> client.execute(TransportSearchAction.TYPE, searchRequest, listener.delegateFailureAndWrap((l, searchResponse) -> {
                         evaluation.process(searchResponse);
                         if (evaluation.hasAllResults() == false) {
                             add(nextTask());
                         }
-                        listener.onResponse(null);
-                    }, listener::onFailure))
+                        l.onResponse(null);
+                    }))
                 );
             };
         }

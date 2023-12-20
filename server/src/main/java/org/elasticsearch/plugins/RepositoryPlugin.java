@@ -8,11 +8,12 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -39,7 +40,8 @@ public interface RepositoryPlugin {
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         return Collections.emptyMap();
     }
@@ -67,7 +69,7 @@ public interface RepositoryPlugin {
      *
      * returns null if no check is provided
      */
-    default BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+    default BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
         return null;
     }
 

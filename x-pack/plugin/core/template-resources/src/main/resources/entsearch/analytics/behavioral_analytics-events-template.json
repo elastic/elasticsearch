@@ -1,0 +1,17 @@
+{
+  "index_patterns": ["${event_data_stream.index_pattern}"],
+  "data_stream": {
+    "allow_custom_routing": true
+  },
+  "priority": 100,
+  "composed_of": [
+    "behavioral_analytics-events-settings",
+    "behavioral_analytics-events-mappings"
+  ],
+  "allow_auto_create": false,
+  "_meta": {
+    "description": "Built-in template applied by default to behavioral analytics event data streams.",
+    "managed": true
+  },
+  "version": ${xpack.entsearch.analytics.template.version}
+}

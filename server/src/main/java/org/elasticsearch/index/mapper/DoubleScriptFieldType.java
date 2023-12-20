@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -27,11 +29,9 @@ import org.elasticsearch.search.runtime.DoubleScriptFieldTermsQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
@@ -43,22 +43,25 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             DoubleFieldScript.Factory factory,
             Script script,
-            Map<String, String> meta
+            Map<String, String> meta,
+            OnScriptError onScriptError
         ) {
-            return new DoubleScriptFieldType(name, factory, script, meta);
+            return new DoubleScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
-        DoubleFieldScript.Factory getParseFromSourceFactory() {
+        protected DoubleFieldScript.Factory getParseFromSourceFactory() {
             return DoubleFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        DoubleFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected DoubleFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return DoubleFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -67,10 +70,16 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         return new Builder(name).createRuntimeField(DoubleFieldScript.PARSE_FROM_SOURCE);
     }
 
-    DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    DoubleScriptFieldType(
+        String name,
+        DoubleFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -97,8 +106,13 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     }
 
     @Override
-    public DoubleScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new DoubleScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), DoubleDocValuesField::new);
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+    }
+
+    @Override
+    public DoubleScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new DoubleScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), DoubleDocValuesField::new);
     }
 
     @Override
@@ -138,7 +152,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }
-        Set<Long> terms = new HashSet<>(values.size());
+        Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {
             terms.add(Double.doubleToLongBits(NumberType.objectToDouble(value)));
         }

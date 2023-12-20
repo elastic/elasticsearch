@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Mapping;
@@ -64,8 +64,8 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
         );
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(new SourceToParse("1", bytes, XContentType.JSON))
         );
         assertThat(

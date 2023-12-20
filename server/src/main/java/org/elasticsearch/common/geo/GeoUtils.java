@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -37,12 +38,6 @@ public class GeoUtils {
     /** Minimum valid longitude in degrees. */
     public static final double MIN_LON = -180.0;
 
-    public static final String LATITUDE = "lat";
-    public static final String LONGITUDE = "lon";
-    public static final String GEOHASH = "geohash";
-    public static final String COORDINATES = "coordinates";
-    public static final String TYPE = "type";
-
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
 
@@ -51,9 +46,6 @@ public class GeoUtils {
 
     /** Earth mean radius defined by WGS 84 in meters */
     public static final double EARTH_MEAN_RADIUS = 6371008.7714D;      // meters (WGS 84)
-
-    /** Earth axis ratio defined by WGS 84 (0.996647189335) */
-    public static final double EARTH_AXIS_RATIO = EARTH_SEMI_MINOR_AXIS / EARTH_SEMI_MAJOR_AXIS;
 
     /** Earth ellipsoid equator length in meters */
     public static final double EARTH_EQUATOR = 2 * Math.PI * EARTH_SEMI_MAJOR_AXIS;
@@ -508,14 +500,6 @@ public class GeoUtils {
         return precision;
     }
 
-    /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */
-    public static double maxRadialDistanceMeters(final double centerLat, final double centerLon) {
-        if (Math.abs(centerLat) == MAX_LAT) {
-            return SloppyMath.haversinMeters(centerLat, centerLon, 0, centerLon);
-        }
-        return SloppyMath.haversinMeters(centerLat, centerLon, centerLat, (MAX_LON + centerLon) % 360);
-    }
-
     /** Return the distance (in meters) between 2 lat,lon geo points using the haversine method implemented by lucene */
     public static double arcDistance(double lat1, double lon1, double lat2, double lon2) {
         return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
@@ -554,7 +538,7 @@ public class GeoUtils {
                 @Override
                 public double doubleValue() throws IOException {
                     final GeoPoint from = fromPoints[0];
-                    final GeoPoint to = singleValues.geoPointValue();
+                    final GeoPoint to = singleValues.pointValue();
                     return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
                 }
 
@@ -581,6 +565,34 @@ public class GeoUtils {
                 }
             };
         }
+    }
+
+    /**
+     * Transforms the provided longitude to the equivalent in lucene quantize space.
+     */
+    public static double quantizeLon(double lon) {
+        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
+    }
+
+    /**
+     * Transforms the provided latitude to the equivalent in lucene quantize space.
+     */
+    public static double quantizeLat(double lat) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+    }
+
+    /**
+     * Transforms the provided longitude to the previous longitude in lucene quantize space.
+     */
+    public static double quantizeLonDown(double lon) {
+        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon) - 1);
+    }
+
+    /**
+     * Transforms the provided latitude to the next latitude in lucene quantize space.
+     */
+    public static double quantizeLatUp(double lat) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat) + 1);
     }
 
     private GeoUtils() {}

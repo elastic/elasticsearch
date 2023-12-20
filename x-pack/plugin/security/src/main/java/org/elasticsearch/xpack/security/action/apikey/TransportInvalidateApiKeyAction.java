@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -38,7 +39,8 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
             InvalidateApiKeyAction.NAME,
             transportService,
             actionFilters,
-            (Writeable.Reader<InvalidateApiKeyRequest>) InvalidateApiKeyRequest::new
+            (Writeable.Reader<InvalidateApiKeyRequest>) InvalidateApiKeyRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
@@ -59,7 +61,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
             assert username == null;
             assert realms == null;
             // restrict username and realm to current authenticated user.
-            username = authentication.getUser().principal();
+            username = authentication.getEffectiveSubject().getUser().principal();
             realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
 

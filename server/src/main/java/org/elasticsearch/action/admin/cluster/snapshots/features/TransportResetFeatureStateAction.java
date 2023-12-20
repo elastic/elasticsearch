@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,7 +55,7 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
             ResetFeatureStateRequest::fromStream,
             indexNameExpressionResolver,
             ResetFeatureStateResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
         this.client = client;
@@ -73,11 +74,11 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
 
         final int features = systemIndices.getFeatures().size();
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> groupedActionListener = new GroupedActionListener<>(
+            systemIndices.getFeatures().size(),
             listener.map(responses -> {
                 assert features == responses.size();
                 return new ResetFeatureStateResponse(new ArrayList<>(responses));
-            }),
-            systemIndices.getFeatures().size()
+            })
         );
 
         for (SystemIndices.Feature feature : systemIndices.getFeatures()) {

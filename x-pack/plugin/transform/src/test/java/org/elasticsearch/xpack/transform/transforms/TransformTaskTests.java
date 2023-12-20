@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -28,9 +29,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
@@ -66,23 +70,26 @@ import static org.mockito.Mockito.when;
 
 public class TransformTaskTests extends ESTestCase {
 
+    private TestThreadPool threadPool;
     private Client client;
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
+        if (threadPool != null) {
+            threadPool.close();
         }
-        client = new NoOpClient(getTestName());
+        threadPool = createThreadPool();
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
+        threadPool.close();
     }
 
     // see https://github.com/elastic/elasticsearch/issues/48957
     public void testStopOnFailedTaskWithStoppedIndexer() {
+        Clock clock = Clock.systemUTC();
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
@@ -90,9 +97,14 @@ public class TransformTaskTests extends ESTestCase {
         TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
         TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
-            Clock.systemUTC(),
+            clock,
             Settings.EMPTY,
-            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
+            new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                null,
+                (TaskManager) null
+            ),
             transformsConfigManager,
             auditor
         );
@@ -100,7 +112,7 @@ public class TransformTaskTests extends ESTestCase {
             transformsConfigManager,
             transformsCheckpointService,
             auditor,
-            mock(SchedulerEngine.class)
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO)
         );
 
         TransformState transformState = new TransformState(
@@ -111,7 +123,8 @@ public class TransformTaskTests extends ESTestCase {
             "because",
             null,
             null,
-            false
+            false,
+            null
         );
 
         TransformTask transformTask = new TransformTask(
@@ -119,10 +132,9 @@ public class TransformTaskTests extends ESTestCase {
             "some_type",
             "some_action",
             TaskId.EMPTY_TASK_ID,
-            client,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            mock(SchedulerEngine.class),
+            new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
             Collections.emptyMap()
@@ -189,7 +201,8 @@ public class TransformTaskTests extends ESTestCase {
             "because",
             null,
             null,
-            false
+            false,
+            null
         );
 
         TransformTask transformTask = new TransformTask(
@@ -197,10 +210,9 @@ public class TransformTaskTests extends ESTestCase {
             "some_type",
             "some_action",
             TaskId.EMPTY_TASK_ID,
-            client,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
-            mock(SchedulerEngine.class),
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             auditor,
             threadPool,
             Collections.emptyMap()
@@ -210,13 +222,7 @@ public class TransformTaskTests extends ESTestCase {
 
         transformTask.init(mock(PersistentTasksService.class), taskManager, "task-id", 42);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        transformTask.fail(
-            "because",
-            ActionListener.wrap(
-                r -> { listenerCalled.compareAndSet(false, true); },
-                e -> { fail("setting transform task to failed failed with: " + e); }
-            )
-        );
+        transformTask.fail(null, "because", ActionTestUtils.assertNoFailureListener(r -> { listenerCalled.compareAndSet(false, true); }));
 
         TransformState state = transformTask.getState();
         assertEquals(TransformTaskState.FAILED, state.getTaskState());
@@ -399,7 +405,51 @@ public class TransformTaskTests extends ESTestCase {
         assertThat(TransformTask.findTransformTasks(Set.of("transform-4", "transform-5"), clusterState), is(empty()));
     }
 
+    public void testApplyNewAuthState() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+
+        TransformState transformState = new TransformState(
+            TransformTaskState.FAILED,
+            IndexerState.STOPPED,
+            null,
+            0L,
+            "because",
+            null,
+            null,
+            false,
+            AuthorizationState.green()
+        );
+
+        TransformTask transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams(transformConfig.getId()),
+            transformState,
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            auditor,
+            threadPool,
+            Collections.emptyMap()
+        );
+        assertThat(transformTask.getContext().getAuthState().getStatus(), is(equalTo(HealthStatus.GREEN)));
+
+        transformTask.applyNewAuthState(AuthorizationState.red(new ElasticsearchSecurityException("missing permissions")));
+        assertThat(transformTask.getContext().getAuthState().getStatus(), is(equalTo(HealthStatus.RED)));
+        assertThat(transformTask.getContext().getAuthState().getLastAuthError(), is(equalTo("missing permissions")));
+
+        transformTask.applyNewAuthState(AuthorizationState.green());
+        assertThat(transformTask.getContext().getAuthState().getStatus(), is(equalTo(HealthStatus.GREEN)));
+
+        transformTask.applyNewAuthState(null);
+        assertThat(transformTask.getContext().getAuthState(), is(nullValue()));
+    }
+
     private static TransformTaskParams createTransformTaskParams(String transformId) {
-        return new TransformTaskParams(transformId, Version.CURRENT, TimeValue.timeValueSeconds(10), false);
+        return new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, TimeValue.timeValueSeconds(10), false);
     }
 }

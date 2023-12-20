@@ -1,4 +1,0 @@
-pr: 85065
-summary: More optimal forced merges when max_num_segments is greater than 1
-area: Engine
-type: enhancement

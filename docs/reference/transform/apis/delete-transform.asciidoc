@@ -36,6 +36,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 current state. The default value is `false`, meaning that the {transform} must be
 `stopped` before it can be deleted.
 
+`delete_dest_index`::
+(Optional, Boolean) When `true`, the destination index is deleted together with
+the {transform}. The default value is `false`, meaning that the destination
+index will not be deleted.
+
 `timeout`::
 (Optional, time)
 Period to wait for a response. If no response is received before the timeout

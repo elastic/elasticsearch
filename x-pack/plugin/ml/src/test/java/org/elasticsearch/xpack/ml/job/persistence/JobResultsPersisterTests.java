@@ -7,14 +7,16 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -56,6 +58,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -74,7 +77,6 @@ public class JobResultsPersisterTests extends ESTestCase {
     private static final String JOB_ID = "foo";
 
     private Client client;
-    private OriginSettingClient originSettingClient;
     private ArgumentCaptor<BulkRequest> bulkRequestCaptor;
     private JobResultsPersister persister;
 
@@ -83,7 +85,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         client = mock(Client.class);
         doAnswer(withResponse(mock(BulkResponse.class))).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
-        originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        OriginSettingClient originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         persister = new JobResultsPersister(originSettingClient, buildResultsPersisterService(originSettingClient));
     }
 
@@ -222,8 +224,8 @@ public class JobResultsPersisterTests extends ESTestCase {
 
     public void testBulkRequestExecutesWhenReachMaxDocs() {
         JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo");
-        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
         for (int i = 0; i <= JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
+            ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, i);
             bulkBuilder.persistModelPlot(modelPlot);
         }
 
@@ -282,7 +284,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testPersistDatafeedTimingStats() {
         DatafeedTimingStats timingStats = new DatafeedTimingStats(
             "foo",
@@ -291,7 +292,11 @@ public class JobResultsPersisterTests extends ESTestCase {
             666.0,
             new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0)
         );
-        persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
+        persister.persistDatafeedTimingStats(
+            timingStats,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
 
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
@@ -325,18 +330,17 @@ public class JobResultsPersisterTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     private void testPersistQuantilesSync(SearchHits searchHits, String expectedIndexOrAlias) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getHits()).thenReturn(searchHits);
-        doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         Quantiles quantiles = new Quantiles("foo", new Date(), "bar");
         persister.persistQuantiles(quantiles, () -> false);
 
         InOrder inOrder = inOrder(client);
-        inOrder.verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        inOrder.verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
         inOrder.verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
         inOrder.verifyNoMoreInteractions();
 
@@ -366,18 +370,18 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(searchHits);
-        doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(indexResponse)).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
 
         Quantiles quantiles = new Quantiles("foo", new Date(), "bar");
-        ActionListener<IndexResponse> indexResponseListener = mock(ActionListener.class);
+        ActionListener<DocWriteResponse> indexResponseListener = mock(ActionListener.class);
         persister.persistQuantiles(quantiles, WriteRequest.RefreshPolicy.IMMEDIATE, indexResponseListener);
 
         InOrder inOrder = inOrder(client, indexResponseListener);
-        inOrder.verify(client).execute(eq(SearchAction.INSTANCE), any(), any());
-        inOrder.verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        inOrder.verify(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+        inOrder.verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         inOrder.verify(indexResponseListener).onResponse(any());
         inOrder.verifyNoMoreInteractions();
 
@@ -423,7 +427,7 @@ public class JobResultsPersisterTests extends ESTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp, null);
         ExecutorService executor = mock(ExecutorService.class);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
@@ -433,7 +437,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
 
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }

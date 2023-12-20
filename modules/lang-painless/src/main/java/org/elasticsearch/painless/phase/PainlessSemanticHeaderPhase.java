@@ -14,8 +14,8 @@ import org.elasticsearch.painless.node.SFunction;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptScope;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class PainlessSemanticHeaderPhase extends DefaultSemanticHeaderPhase {
 
@@ -31,16 +31,15 @@ public class PainlessSemanticHeaderPhase extends DefaultSemanticHeaderPhase {
 
             if (functionTable.getFunction(functionKey) != null) {
                 throw userFunctionNode.createError(
-                    new IllegalArgumentException("invalid function definition: " + "found duplicate function [" + functionKey + "].")
+                    new IllegalArgumentException("invalid function definition: found duplicate function [" + functionKey + "].")
                 );
             }
 
             Class<?> returnType = scriptClassInfo.getExecuteMethodReturnType();
-            List<Class<?>> typeParameters = new ArrayList<>();
-
-            for (MethodArgument methodArgument : scriptClassInfo.getExecuteArguments()) {
-                typeParameters.add(methodArgument.getClazz());
-            }
+            List<Class<?>> typeParameters = scriptClassInfo.getExecuteArguments()
+                .stream()
+                .map(MethodArgument::clazz)
+                .collect(Collectors.toList());
 
             functionTable.addFunction(functionName, returnType, typeParameters, true, false);
         } else {

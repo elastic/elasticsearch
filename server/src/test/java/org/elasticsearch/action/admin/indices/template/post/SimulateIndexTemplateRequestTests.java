@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -37,11 +36,12 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
         PutComposableIndexTemplateAction.Request newTemplateRequest = new PutComposableIndexTemplateAction.Request(randomAlphaOfLength(4));
         newTemplateRequest.indexTemplate(ComposableIndexTemplateTests.randomInstance());
         req.indexTemplateRequest(newTemplateRequest);
+        req.includeDefaults(randomBoolean());
         return req;
     }
 
     @Override
-    protected SimulateIndexTemplateRequest mutateInstance(SimulateIndexTemplateRequest instance) throws IOException {
+    protected SimulateIndexTemplateRequest mutateInstance(SimulateIndexTemplateRequest instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
@@ -52,9 +52,7 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
 
     public void testAddingGlobalTemplateWithHiddenIndexSettingIsIllegal() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate.Builder().indexPatterns(List.of("*"))
-            .template(template)
-            .build();
+        ComposableIndexTemplate globalTemplate = ComposableIndexTemplate.builder().indexPatterns(List.of("*")).template(template).build();
 
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);

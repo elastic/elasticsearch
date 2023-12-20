@@ -10,27 +10,26 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -58,60 +57,80 @@ public class RestTable {
     }
 
     public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {
-        RestRequest request = channel.request();
-        XContentBuilder builder = channel.newBuilder();
-        List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
+        final RestRequest request = channel.request();
+        final List<Integer> rowOrder = getRowOrder(table, channel.request());
+        final List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
 
-        builder.startArray();
-        List<Integer> rowOrder = getRowOrder(table, request);
-        for (Integer row : rowOrder) {
-            builder.startObject();
-            for (DisplayHeader header : displayHeaders) {
-                builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
-            }
-            builder.endObject();
-        }
-        builder.endArray();
-        return new BytesRestResponse(RestStatus.OK, builder);
+        return RestResponse.chunked(
+            RestStatus.OK,
+            ChunkedRestResponseBody.fromXContent(
+                ignored -> Iterators.concat(
+                    Iterators.single((builder, params) -> builder.startArray()),
+                    Iterators.map(rowOrder.iterator(), row -> (builder, params) -> {
+                        builder.startObject();
+                        for (DisplayHeader header : displayHeaders) {
+                            builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
+                        }
+                        builder.endObject();
+                        return builder;
+                    }),
+                    Iterators.single((builder, params) -> builder.endArray())
+                ),
+                ToXContent.EMPTY_PARAMS,
+                channel,
+                null
+            )
+        );
     }
 
-    public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
+    public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) {
         RestRequest request = channel.request();
         boolean verbose = request.paramAsBoolean("v", false);
 
         List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);
-
-        BytesStream bytesOut = Streams.flushOnCloseStream(channel.bytesOutput());
-        UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOut);
         int lastHeader = headers.size() - 1;
-        if (verbose) {
-            for (int col = 0; col < headers.size(); col++) {
-                DisplayHeader header = headers.get(col);
-                boolean isLastColumn = col == lastHeader;
-                pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out, isLastColumn);
-                if (isLastColumn == false) {
-                    out.append(" ");
-                }
-            }
-            out.append("\n");
-        }
-
         List<Integer> rowOrder = getRowOrder(table, request);
 
-        for (Integer row : rowOrder) {
-            for (int col = 0; col < headers.size(); col++) {
-                DisplayHeader header = headers.get(col);
-                boolean isLastColumn = col == lastHeader;
-                pad(table.getAsMap().get(header.name).get(row), width[col], request, out, isLastColumn);
-                if (isLastColumn == false) {
-                    out.append(" ");
-                }
-            }
-            out.append("\n");
-        }
-        out.close();
-        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+        return RestResponse.chunked(
+            RestStatus.OK,
+            ChunkedRestResponseBody.fromTextChunks(
+                RestResponse.TEXT_CONTENT_TYPE,
+                Iterators.concat(
+                    // optional header
+                    verbose ? Iterators.single(writer -> {
+                        for (int col = 0; col < headers.size(); col++) {
+                            DisplayHeader header = headers.get(col);
+                            boolean isLastColumn = col == lastHeader;
+                            pad(
+                                new Table.Cell(header.display, table.findHeaderByName(header.name)),
+                                width[col],
+                                request,
+                                writer,
+                                isLastColumn
+                            );
+                            if (isLastColumn == false) {
+                                writer.append(" ");
+                            }
+                        }
+                        writer.append("\n");
+                    }) : Collections.emptyIterator(),
+                    // body
+                    Iterators.map(rowOrder.iterator(), row -> writer -> {
+                        for (int col = 0; col < headers.size(); col++) {
+                            DisplayHeader header = headers.get(col);
+                            boolean isLastColumn = col == lastHeader;
+                            pad(table.getAsMap().get(header.name).get(row), width[col], request, writer, isLastColumn);
+                            if (isLastColumn == false) {
+                                writer.append(" ");
+                            }
+                        }
+                        writer.append("\n");
+                    })
+                ),
+                null
+            )
+        );
     }
 
     static List<Integer> getRowOrder(Table table, RestRequest request) {
@@ -218,7 +237,7 @@ public class RestTable {
      * or some headers are contained twice due to matching aliases
      */
     private static Set<String> expandHeadersFromRequest(Table table, RestRequest request) {
-        Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
+        Set<String> headers = Sets.newLinkedHashSetWithExpectedSize(table.getHeaders().size());
 
         // check headers and aliases
         for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
@@ -298,11 +317,11 @@ public class RestTable {
         return width;
     }
 
-    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out) throws IOException {
+    public static void pad(Table.Cell cell, int width, RestRequest request, Writer out) throws IOException {
         pad(cell, width, request, out, false);
     }
 
-    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out, boolean isLast) throws IOException {
+    public static void pad(Table.Cell cell, int width, RestRequest request, Writer out, boolean isLast) throws IOException {
         String sValue = renderValue(request, cell.value);
         int length = sValue == null ? 0 : sValue.length();
         byte leftOver = (byte) (width - length);

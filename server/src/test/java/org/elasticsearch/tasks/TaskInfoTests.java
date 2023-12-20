@@ -13,7 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
+public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo> {
 
     @Override
     protected TaskInfo doParseInstance(XContentParser parser) {
@@ -60,12 +60,13 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
 
     @Override
     protected TaskInfo mutateInstance(TaskInfo info) {
-        switch (between(0, 9)) {
+        switch (between(0, 10)) {
             case 0:
                 TaskId taskId = new TaskId(info.taskId().getNodeId() + randomAlphaOfLength(5), info.taskId().getId());
                 return new TaskInfo(
                     taskId,
                     info.type(),
+                    info.node(),
                     info.action(),
                     info.description(),
                     info.status(),
@@ -80,6 +81,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type() + randomAlphaOfLength(5),
+                    info.node(),
                     info.action(),
                     info.description(),
                     info.status(),
@@ -94,6 +96,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
+                    info.node(),
                     info.action() + randomAlphaOfLength(5),
                     info.description(),
                     info.status(),
@@ -108,6 +111,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
+                    info.node(),
                     info.action(),
                     info.description() + randomAlphaOfLength(5),
                     info.status(),
@@ -123,6 +127,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
+                    info.node(),
                     info.action(),
                     info.description(),
                     newStatus,
@@ -137,6 +142,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
+                    info.node(),
                     info.action(),
                     info.description(),
                     info.status(),
@@ -151,6 +157,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
+                    info.node(),
                     info.action(),
                     info.description(),
                     info.status(),
@@ -176,6 +183,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
+                    info.node(),
                     info.action(),
                     info.description(),
                     info.status(),
@@ -191,6 +199,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
+                    info.node(),
                     info.action(),
                     info.description(),
                     info.status(),
@@ -212,6 +221,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 return new TaskInfo(
                     info.taskId(),
                     info.type(),
+                    info.node(),
                     info.action(),
                     info.description(),
                     info.status(),
@@ -222,13 +232,29 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.parentTaskId(),
                     headers
                 );
+            case 10:
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    randomAlphaOfLength(10),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers()
+                );
             default:
                 throw new IllegalStateException();
         }
     }
 
     static TaskInfo randomTaskInfo() {
-        TaskId taskId = randomTaskId();
+        String nodeId = randomAlphaOfLength(5);
+        TaskId taskId = randomTaskId(nodeId);
         String type = randomAlphaOfLength(5);
         String action = randomAlphaOfLength(5);
         Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
@@ -237,13 +263,14 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         long runningTimeNanos = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
-        TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
+        TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId(randomAlphaOfLength(5));
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
         return new TaskInfo(
             taskId,
             type,
+            nodeId,
             action,
             description,
             status,
@@ -256,8 +283,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         );
     }
 
-    private static TaskId randomTaskId() {
-        return new TaskId(randomAlphaOfLength(5), randomLong());
+    private static TaskId randomTaskId(String nodeId) {
+        return new TaskId(nodeId, randomLong());
     }
 
     private static RawTaskStatus randomRawTaskStatus() {

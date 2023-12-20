@@ -8,8 +8,13 @@
 
 package org.elasticsearch.script.field;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -20,7 +25,8 @@ import java.net.InetAddress;
 /**
  * IP address for use in scripting.
  */
-public class IPAddress implements ToXContent {
+public class IPAddress implements ToXContentObject, GenericNamedWriteable {
+    static final String NAMED_WRITEABLE_NAME = "IPAddress";
     protected final InetAddress address;
 
     IPAddress(InetAddress address) {
@@ -29,6 +35,14 @@ public class IPAddress implements ToXContent {
 
     public IPAddress(String address) {
         this.address = InetAddresses.forString(address);
+    }
+
+    public IPAddress(StreamInput input) throws IOException {
+        this(input.readString());
+    }
+
+    public void writeTo(StreamOutput output) throws IOException {
+        output.writeString(toString());
     }
 
     public boolean isV4() {
@@ -50,7 +64,12 @@ public class IPAddress implements ToXContent {
     }
 
     @Override
-    public boolean isFragment() {
-        return false;
+    public String getWriteableName() {
+        return NAMED_WRITEABLE_NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.IP_ADDRESS_WRITEABLE;
     }
 }

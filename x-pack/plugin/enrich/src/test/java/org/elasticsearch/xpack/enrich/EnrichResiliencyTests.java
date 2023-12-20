@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -52,7 +53,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
             .put(EnrichPlugin.CACHE_SIZE.getKey(), 0)
             .put(EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.getKey(), 1)
             .put(EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.getKey(), 1)
-            .put(EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.getKey(), 10)
+            .put(EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.getKey(), 2)
             // TODO Fix the test so that it runs with security enabled
             // https://github.com/elastic/elasticsearch/issues/75940
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
@@ -153,7 +154,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
         client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+        assertHitCount(client().search(new SearchRequest(enrichedIndexName)), successfulItems);
     }
 
     public void testWriteThreadLivenessWithPipeline() throws Exception {
@@ -276,6 +277,6 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
         client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+        assertHitCount(client().search(new SearchRequest(enrichedIndexName)), successfulItems);
     }
 }

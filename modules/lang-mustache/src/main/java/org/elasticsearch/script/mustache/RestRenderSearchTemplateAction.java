@@ -11,6 +11,8 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,6 +23,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestRenderSearchTemplateAction extends BaseRestHandler {
 
     @Override
@@ -53,6 +56,6 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
             renderRequest.setScript(id);
         }
 
-        return channel -> client.execute(SearchTemplateAction.INSTANCE, renderRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, renderRequest, new RestToXContentListener<>(channel));
     }
 }

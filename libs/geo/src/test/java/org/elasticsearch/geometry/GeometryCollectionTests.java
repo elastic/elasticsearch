@@ -64,4 +64,9 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
         StandardValidator.instance(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
     }
+
+    @Override
+    protected GeometryCollection<Geometry> mutateInstance(GeometryCollection<Geometry> instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

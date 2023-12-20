@@ -290,7 +290,7 @@ Should the driver follow HTTP redirects of the requests to the server?
 +
 * Use local timezone
 +
-This setting controlls the timezone of:
+This setting controls the timezone of:
 +
 ** the context in which the query will execute (especially relevant for functions dealing with timestamp components);
 
@@ -302,7 +302,7 @@ timezone.
 * Auto-escape PVAs
 +
 The pattern-value arguments make use of `_` and `%` as special characters to
-build patern matching values. Some applications however use these chars as
+build pattern matching values. Some applications however use these chars as
 regular ones, which can lead to {es-sql} returning more data than the app
 intended. With the auto escaping, the driver will inspect the arguments and
 will escape these special characters if not already done by the application.

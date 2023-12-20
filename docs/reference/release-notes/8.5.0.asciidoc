@@ -1,0 +1,340 @@
+[[release-notes-8.5.0]]
+== {es} version 8.5.0
+
+Also see <<breaking-changes-8.5,Breaking changes in 8.5>>.
+
+[[known-issues-8.5.0]]
+[float]
+=== Known issues
+
+* It is possible to inadvertently create an alias with the same name as an
+index in version 8.5.0. This action leaves the cluster in an invalid state in
+which several features will not work correctly, and it may not even be possible
+to restart nodes while in this state. Upgrade to 8.5.1 as soon as possible to
+avoid the risk of this occurring ({es-pull}91456[#91456]). If your cluster is
+affected by this issue, upgrade to 8.5.3 to repair it ({es-pull}91887[#91887]).
+
+include::8.4.0.asciidoc[tag=ml-pre-7-datafeeds-known-issue]
+
+include::8.4.0.asciidoc[tag=file-based-settings-deadlock-known-issue]
+
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
+
+[[breaking-8.5.0]]
+[float]
+=== Breaking changes
+
+CRUD::
+* Reject unknown bulk actions {es-pull}89450[#89450]
+
+[[bug-8.5.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix `auto_date_histogram` > `ip_range` {es-pull}90317[#90317] (issue: {es-issue}90121[#90121])
+* Fail when rebuilding scorer in `breadth_first` mode and query context has changed {es-pull}89993[#89993] (issue: {es-issue}37650[#37650])
+* Fix merging with empty results {es-pull}86939[#86939] (issue: {es-issue}84622[#84622])
+* Fix partial reduce bug in `ip_prefix` {es-pull}89734[#89734] (issue: {es-issue}89686[#89686])
+* Remove unexpected meta parameter in aggregation response {es-pull}89467[#89467] (issue: {es-issue}89455[#89455])
+* Consistently allow sorting `top_metrics` aggregations whose size is greater than 1 {es-pull}89974[#89974] (issue: {es-issue}86663[#86663])
+* Check parent circuit breaker when allocating an empty bucket {es-pull}89568[#89568] (issue: {es-issue}80789[#80789])
+
+Authorization::
+* Remove magic string for the `"__empty"` role {es-pull}89766[#89766]
+
+CCR::
+* Order follower backing indices for data streams by original name {es-pull}90850[#90850] (issue: {es-issue}90820[#90820])
+
+Cluster Coordination::
+* Capture deprecation warnings in batched master tasks {es-pull}85525[#85525] (issue: {es-issue}85506[#85506])
+* Check circuit breaker before sending join request {es-pull}89318[#89318] (issue: {es-issue}85003[#85003])
+
+Distributed::
+* Fork `TransportClusterStateAction` to `MANAGEMENT` thread pool {es-pull}90996[#90996]
+
+Engine::
+* Fix `"path.conf'"` typo in `Security.java` {es-pull}89248[#89248] (issue: {es-issue}89327[#89327])
+
+Geo::
+* Buffer H3Polygon2D bounding boxes to avoid edge precision issues {es-pull}89196[#89196] (issues: {es-issue}89868[#89868], {es-issue}87391[#87391])
+* Fix date histogram range edge case {es-pull}88957[#88957]
+* Format runtime `geo_points` {es-pull}85449[#85449] (issue: {es-issue}85245[#85245])
+* Generate error if scripts load `_source` with synthetic `_source` enabled {es-pull}88334[#88334]
+
+Graph::
+* Fix race condition in timeout {es-pull}88946[#88946] (issue: {es-issue}55396[#55396])
+
+Health::
+* Modify disk indicator details to provide an overview of the disk space health {es-pull}90189[#90189]
+* Fix disk indicator impacts and diagnosis {es-pull}90262[#90262]
+* Fix the details calculation of the disk indicator {es-pull}90869[#90869]
+* Report impact and diagnosis data nodes without disk space and no blocked indices {es-pull}90772[#90772] (issue: {es-issue}90442[#90442])
+* Update minimum version for health node reporting to 8.5 {es-pull}90365[#90365] (issue: {es-issue}90359[#90359])
+
+Indices APIs::
+* Avoid capturing per-task `RolloverResult` {es-pull}90626[#90626] (issue: {es-issue}90620[#90620])
+* Fix shard splitting for `nested` {es-pull}89351[#89351] (issue: {es-issue}88109[#88109])
+
+Infra/Core::
+* Fix `allow_no_indices` request option in special cases {es-pull}89622[#89622]
+* Fix repeated error save loops in File Settings Service {es-pull}90271[#90271] (issue: {es-issue}90222[#90222])
+* Fix date rounding for date math parsing {es-pull}90458[#90458] (issue: {es-issue}90187[#90187])
+* Fix disabling APM tracing for `CancellableTask` in `TrainedModelAssignmentNodeService` {es-pull}90972[#90972] (issue: {es-issue}89850[#89850])
+* Support camel case dates on 7.x indices {es-pull}88914[#88914] (issue: {es-issue}84199[#84199])
+
+Infra/Scripting::
+* Fix true/false accumulation bug in boolean `source` fallback {es-pull}90895[#90895]
+
+Ingest Node::
+* Set the enrich maintenance cluster lifecycle listener only once {es-pull}90486[#90486]
+
+Machine Learning::
+* Require correct tier processors when multiple AZs are present {es-pull}90903[#90903]
+* Return 408 instead of 500 when open/start APIs time out {es-pull}89775[#89775] (issue: {es-issue}89585[#89585])
+
+Mapping::
+* Fix duplication bug for `source` fallback in numeric types {es-pull}89352[#89352]
+* Include runtime fields in total fields count {es-pull}89251[#89251] (issue: {es-issue}88265[#88265])
+* Fix `aggregate_metric_double` multi-values exception {es-pull}90290[#90290]
+* Validate field names when subobjects are disabled {es-pull}90950[#90950]
+
+Monitoring::
+* Add fields to fix {ls} cgroup graphs {es-pull}90493[#90493]
+
+Network::
+* Fix `RecyclerBytesStreamOutput` allocating unlimited heap for some capacities {es-pull}90632[#90632]
+
+Recovery::
+* Fix overcounting recovered bytes after network disconnect {es-pull}90477[#90477] (issue: {es-issue}90441[#90441])
+
+Search::
+* Add support for predefined char class regexp on wildcard fields {es-pull}90064[#90064]
+* Deduplicate fetching doc-values fields {es-pull}89094[#89094]
+* Don't shortcut the total hit count for text fields {es-pull}90341[#90341] (issue: {es-issue}89760[#89760])
+* Safeguard `RegExp` use against `StackOverflowError` {es-pull}84624[#84624] (issue: {es-issue}82923[#82923])
+* Use MB rather than GB to calculate max boolean clauses {es-pull}90309[#90309] (issue: {es-issue}86136[#86136])
+
+Snapshot/Restore::
+* Fix incorrect failed shards count in APIs for current snapshots {es-pull}89534[#89534]
+* Fix over-allocation of mounted indices on a cold/frozen node {es-pull}86331[#86331]
+* Fix quadratic complexity in `SnapshotStatus` serialization {es-pull}90795[#90795]
+* Fork building snapshot status response off of transport thread {es-pull}90651[#90651]
+* Make sure listener is resolved when file queue is cleared {es-pull}89929[#89929]
+* Re-register a corrupt repository to unblock it {es-pull}89719[#89719] (issue: {es-issue}89130[#89130])
+* Reject unknown request body fields in mount API {es-pull}88987[#88987] (issue: {es-issue}75982[#75982])
+
+TSDS::
+* Fix segment stats in TSDS {es-pull}89754[#89754] (issue: {es-issue}89609[#89609])
+* Fix extra fields in `GET` request for synthetic `_source` {es-pull}89778[#89778]
+* Fix `scaled_float` rounding for synthetic `_source` {es-pull}88916[#88916] (issue: {es-issue}88854[#88854])
+
+Transform::
+* Don't fail a transform on a ClusterBlockException, this may be due to ILM closing an index {es-pull}90396[#90396] (issue: {es-issue}89802[#89802])
+* Fix NPE in transform scheduling {es-pull}90347[#90347] (issues: {es-issue}90356[#90356], {es-issue}88203[#88203], {es-issue}90301[#90301], {es-issue}90255[#90255])
+* Improve error handling in state persistence {es-pull}88910[#88910] (issue: {es-issue}88905[#88905])
+* Return `408` instead of `500` when the start API times out {es-pull}89774[#89774]
+
+Vector Search::
+* Fix bug for `kNN` with filtered aliases {es-pull}89621[#89621]
+
+Watcher::
+* Allow `xpack.notification.email.account.domain_allowlist` to be set dynamically {es-pull}90426[#90426] (issue: {es-issue}89913[#89913])
+* Handling timeout exceptions on watcher startup {es-pull}90421[#90421] (issue: {es-issue}44981[#44981])
+
+[[deprecation-8.5.0]]
+[float]
+=== Deprecations
+
+Infra/Plugins::
+* Deprecate network plugins {es-pull}88924[#88924]
+* Deprecate overriding `DiscoveryPlugin` internals {es-pull}88925[#88925]
+
+[[enhancement-8.5.0]]
+[float]
+=== Enhancements
+
+Authentication::
+* Add more accurate error message for LDAP user modes {es-pull}89492[#89492]
+
+Authorization::
+* Add indices permissions to {ents} service account {es-pull}89869[#89869]
+* Add information of resolved roles in denial messages {es-pull}89680[#89680]
+
+Autoscaling::
+* Centralize the concept of processors configuration {es-pull}89662[#89662]
+
+Cluster Coordination::
+* Preemptively compute `RoutingNodes` and the indices lookup during publication {es-pull}89005[#89005]
+* Preemptively initialize routing nodes and indices lookup on all node types {es-pull}89032[#89032]
+
+Distributed::
+* Batch index delete cluster state updates {es-pull}90033[#90033] (issue: {es-issue}90022[#90022])
+* Increase the minimum size of the management pool to `2` {es-pull}90193[#90193]
+
+Health::
+* Add IDs to health API diagnoses and impacts {es-pull}90072[#90072]
+* Add a check to the master stability health API when there is no master and the current node is not master eligible {es-pull}89219[#89219]
+* Add logic to `master_is_stable` indicator to check for discovery problems {es-pull}88020[#88020]
+* Poll for cluster diagnostics information {es-pull}89014[#89014]
+* Update SLM health diagnosis message to include unhealthy policy details {es-pull}89138[#89138]
+
+Highlighting::
+* Improve efficiency of `BoundedBreakIteratorScanner` fragmentation algorithm {es-pull}89041[#89041] (issues: {es-issue}73569[#73569], {es-issue}73785[#73785])
+
+ILM+SLM::
+* Add validations for the downsampling ILM action {es-pull}90295[#90295]
+* Ensure that ILM does not roll over empty indices {es-pull}89557[#89557] (issue: {es-issue}86203[#86203])
+* Reuse informational message in lifecycle step {es-pull}89419[#89419]
+* Move log-related logic into log block in `IndexLifecycleRunner` {es-pull}89292[#89292]
+
+Infra/Core::
+* Add reserved `/_snapshot/repo` file based settings {es-pull}89601[#89601]
+* Add `upgrade_status` attributes to Fleet Agents {es-pull}89845[#89845]
+* Add support for `/_autoscaling/policy` for file based settings {es-pull}89708[#89708]
+* Add support for `/_security/role_mapping` for file based settings {es-pull}89667[#89667]
+* Add support for support for `/_slm/policy` in file based settings {es-pull}89567[#89567]
+* Retry file watch registration {es-pull}90537[#90537] (issue: {es-issue}89500[#89500])
+
+Infra/Node Lifecycle::
+* Distinguish no shutdowns case in `NodeShutdownAllocationDecider` {es-pull}89851[#89851] (issue: {es-issue}89823[#89823])
+
+Infra/Plugins::
+* Add deprecation message for deprecated plugin APIs {es-pull}88961[#88961]
+* Register stable plugins in `ActionModule` {es-pull}90067[#90067]
+* Load plugin named components {es-pull}89969[#89969]
+
+Infra/Scripting::
+* Initial code to support binary expression scripts {es-pull}89895[#89895]
+* Protect `_source` inside update scripts {es-pull}88733[#88733]
+* Reindex and `UpdateByQuery` metadata {es-pull}88665[#88665]
+* Add write Field API `NestedDocument` support {es-pull}90021[#90021]
+* Add write Field API path manipulation {es-pull}89889[#89889]
+* Add write Field API with basic path resolution {es-pull}89738[#89738]
+* Add write Fields API for reindex, update, and update by query {es-pull}90145[#90145]
+
+Infra/Settings::
+* Introduce max headroom for disk watermark stages {es-pull}88639[#88639] (issue: {es-issue}81406[#81406])
+
+License::
+* License check for user profile collaboration feature {es-pull}89990[#89990]
+
+Machine Learning::
+* Add measure of non-cache hit inference count {es-pull}90464[#90464]
+* Add new `text_similarity` nlp task {es-pull}88439[#88439]
+* Add new trained model deployment cache clear API {es-pull}89074[#89074]
+* Add processor autoscaling decider {es-pull}89645[#89645]
+* Distribute trained model allocations across availability zones {es-pull}89822[#89822]
+* Use a bitset for deduplication of frequent items {es-pull}88943[#88943]
+* Optimize frequent items transaction lookup {es-pull}89062[#89062]
+* Release native inference functionality as beta {es-pull}90418[#90418]
+* Return `408` when the start deployment API times out {es-pull}89612[#89612]
+* Skip renormalization after calling the node shutdown API {es-pull}89347[#89347]
+* Compute outlier feature influence via the Gateaux derivative to improve attribution for high dimension vectors {ml-pull}2256[#2256]
+* Improve classification and regression model train runtimes for data sets with many numeric features {ml-pull}2380[#2380], {ml-pull}2388[#2388], {ml-pull}2390[#2390], {ml-pull}2401[#2401]
+* Increase the limit on the maximum number of classes to `100` for training classification models {ml-pull}2395[#2395] (issue: {ml-issue}2246[#2246])
+
+Mapping::
+* Add `synthetic_source` support to `aggregate_metric_double` fields {es-pull}88909[#88909]
+* Add `source` fallback for keyword fields using operation {es-pull}88735[#88735]
+* Add `source` fallback support for `match_only_text` mapped type {es-pull}89473[#89473]
+* Add `source` fallback support for date and `date_nanos` mapped types {es-pull}89440[#89440]
+* Add `source` fallback support for unsigned long mapped type {es-pull}89349[#89349]
+* Add support for `source` fallback with scaled float field type {es-pull}89053[#89053]
+* Add support for `source` fallback with the boolean field type {es-pull}89052[#89052]
+* Add text field support in the Painless scripting fields API {es-pull}89396[#89396]
+* Clarify that fielddata is not supported for text fields error message {es-pull}89770[#89770] (issue: {es-issue}89485[#89485])
+* Add new mappings for Fleet Agent `last_checkin_message` and components fields {es-pull}89599[#89599]
+* Support `source` fallback for `byte`, `short`, and `long` fields {es-pull}88954[#88954]
+* Support `source` fallback for `double`, `float`, and `half_float` field types {es-pull}89010[#89010]
+
+Network::
+* Use chunked REST serialization for large REST responses {es-pull}88311[#88311]
+
+Recovery::
+* Disable recovering from snapshots in searchable snapshots {es-pull}86388[#86388]
+
+SQL::
+* Implement `DATE_FORMAT` function {es-pull}88388[#88388] (issue: {es-issue}55065[#55065])
+* Set `track_total_hits` to false when not needed {es-pull}89106[#89106] (issue: {es-issue}88764[#88764])
+
+Search::
+* Enable `BloomFilter` for `_id` of non-datastream indices {es-pull}88409[#88409]
+* In the field capabilities API, renew support for fields in the request body {es-pull}88972[#88972] (issue: {es-issue}86875[#86875])
+
+Security::
+* Add usage stats report for user profiles {es-pull}90123[#90123]
+* Implement grace period for user profile activation {es-pull}89566[#89566]
+* Return limited-by role descriptors in Get/QueryApiKey response {es-pull}89273[#89273]
+* Add option to return profile uid in `GetUser` response {es-pull}89570[#89570]
+* Return `400` error for `GetUserPrivileges` call with API keys {es-pull}89333[#89333]
+* Show assigned role descriptors in Get/QueryApiKey response {es-pull}89166[#89166]
+* Add detailed errors in `hasPrivileges` response {es-pull}89224[#89224]
+* Add support for multiple UIDs to the `GetProfile` API {es-pull}89023[#89023]
+
+Snapshot/Restore::
+* Add support for comparing `SnapshotsInProgress` {es-pull}89619[#89619] (issue: {es-issue}88732[#88732])
+* Prioritize shard snapshot tasks over file snapshot tasks and limit the number of the concurrently running snapshot tasks {es-pull}88209[#88209] (issue: {es-issue}83408[#83408])
+
+Stats::
+* Introduce node mappings stats {es-pull}89807[#89807]
+
+TSDS::
+* Support `match_only_text` for synthetic `_source` {es-pull}89516[#89516]
+* Support histogram field for synthetic `_source` {es-pull}89833[#89833]
+* Support version field type for synthetic `_source` {es-pull}89706[#89706]
+* Build `_id` without reparsing {es-pull}88789[#88789]
+* Return metric fields in the field caps API {es-pull}88695[#88695]
+
+Transform::
+* Add an unattended mode setting to transform {es-pull}89212[#89212]
+
+[[feature-8.5.0]]
+[float]
+=== New features
+
+Authorization::
+* Introduce the new `read_security` cluster privilege {es-pull}89790[#89790] (issue: {es-issue}89245[#89245])
+
+Health::
+* Enable the health node and the disk health indicator {es-pull}90085[#90085] (issue: {es-issue}84811[#84811])
+
+Infra/Core::
+* Provide tracing implementation using OpenTelemetry and APM Java agent {es-pull}88443[#88443] (issue: {es-issue}84369[#84369])
+
+Infra/Plugins::
+* Add the stable Plugin API module and analysis interfaces {es-pull}88775[#88775]
+
+Machine Learning::
+* Make `bucket_correlation` aggregation generally available {es-pull}88655[#88655]
+* Make `bucket_count_ks_test` aggregation generally available {es-pull}88657[#88657]
+
+Security::
+* Support bulk updates of API keys {es-pull}88856[#88856]
+
+TSDS::
+* Add a TSID global ordinal to `TimeSeriesIndexSearcher` {es-pull}90035[#90035]
+* Release time series data stream functionality {es-pull}90116[#90116] (issue: {es-issue}74660[#74660])
+* Add synthetic `_source` support for the `ignore_above` parameter on `keyword` fields {es-pull}89466[#89466]
+
+Vector Search::
+* Add synthetic `_source` support for `dense_vector` {es-pull}89840[#89840]
+
+[[regression-8.5.0]]
+[float]
+=== Regressions
+
+Infra/Scripting::
+* Fix fields API caching regression {es-pull}90017[#90017]
+
+[[upgrade-8.5.0]]
+[float]
+=== Upgrades
+
+Client::
+* Upgrade Apache Commons Logging to 1.2 {es-pull}85745[#85745] (issue: {es-issue}40305[#40305])
+
+Packaging::
+* Upgrade bundled JDK to Java 19 {es-pull}90571[#90571]

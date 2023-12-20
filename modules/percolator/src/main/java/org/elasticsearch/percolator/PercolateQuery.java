@@ -8,7 +8,6 @@
 
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -65,8 +64,8 @@ final class PercolateQuery extends Query implements Accountable {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = candidateMatchesQuery.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = candidateMatchesQuery.rewrite(searcher);
         if (rewritten != candidateMatchesQuery) {
             return new PercolateQuery(
                 name,
@@ -144,7 +143,7 @@ final class PercolateQuery extends Query implements Accountable {
                         }
 
                         @Override
-                        public float score() throws IOException {
+                        public float score() {
                             return score;
                         }
                     };

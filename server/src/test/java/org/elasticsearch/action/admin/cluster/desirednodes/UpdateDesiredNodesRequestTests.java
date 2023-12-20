@@ -29,7 +29,8 @@ public class UpdateDesiredNodesRequestTests extends ESTestCase {
         final UpdateDesiredNodesRequest updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomBoolean() ? "" : "     ",
             -1,
-            randomBoolean() ? Collections.emptyList() : List.of(hotDesiredNode())
+            randomBoolean() ? Collections.emptyList() : List.of(hotDesiredNode()),
+            randomBoolean()
         );
         ActionRequestValidationException exception = updateDesiredNodesRequest.validate();
         assertThat(exception, is(notNullValue()));
@@ -49,7 +50,7 @@ public class UpdateDesiredNodesRequestTests extends ESTestCase {
         } else {
             return new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange(1, randomBoolean() ? null : (float) 1),
+                new DesiredNode.ProcessorsRange(1, randomBoolean() ? null : (double) 1),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT

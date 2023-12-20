@@ -24,7 +24,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
@@ -36,6 +38,8 @@ import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -53,14 +57,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
- * clients against against an elasticsearch cluster.
+ * clients against an elasticsearch cluster.
  *
  * The suite timeout is extended to account for projects with a large number of tests.
  */
@@ -114,11 +121,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         this.testCandidate = testCandidate;
     }
 
-    private static boolean useDefaultNumberOfShards;
+    private static Settings globalTemplateIndexSettings;
 
     @BeforeClass
-    public static void initializeUseDefaultNumberOfShards() {
-        useDefaultNumberOfShards = usually();
+    public static void initializeGlobalTemplateIndexSettings() {
+        globalTemplateIndexSettings = usually()
+            ? Settings.EMPTY
+            : Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build();
     }
 
     @Before
@@ -142,9 +151,22 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 hosts,
                 os
             );
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
-            restTestExecutionContext = createRestTestExecutionContext(testCandidate, clientYamlTestClient);
-            adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts);
+            restTestExecutionContext = createRestTestExecutionContext(
+                testCandidate,
+                clientYamlTestClient,
+                esVersion,
+                ESRestTestCase::clusterHasFeature,
+                os
+            );
+            adminExecutionContext = new ClientYamlTestExecutionContext(
+                testCandidate,
+                clientYamlTestClient,
+                false,
+                esVersion,
+                ESRestTestCase::clusterHasFeature,
+                os
+            );
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (final String entry : blacklist) {
@@ -170,20 +192,27 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient
+        ClientYamlTestClient clientYamlTestClient,
+        final Version esVersion,
+        final Predicate<String> clusterFeaturesPredicate,
+        final String os
     ) {
-        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType());
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            esVersion,
+            clusterFeaturesPredicate,
+            os
+        );
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
-        final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os
+        final List<HttpHost> hosts
     ) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
+        return new ClientYamlTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -211,7 +240,32 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Create parameters for this parameterized test.
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
-        String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
+        return createParameters(executeableSectionRegistry, null);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     */
+    public static Iterable<Object[]> createParameters(String[] testPaths) throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     *
+     * @param executeableSectionRegistry registry of executable sections
+     * @param testPaths list of paths to explicitly search for tests. If <code>null</code> then include all tests in root path.
+     * @return list of test candidates.
+     * @throws Exception
+     */
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String[] testPaths)
+        throws Exception {
+        if (testPaths != null && System.getProperty(REST_TESTS_SUITE) != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
+
+        // default to all tests under the test root
+        String[] paths = testPaths == null ? resolvePathsProperty(REST_TESTS_SUITE, "") : testPaths;
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
@@ -274,7 +328,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     });
                 } else {
                     path = root.resolve(strPath + ".yml");
-                    assert Files.exists(path);
+                    assert Files.exists(path) : "Path " + path + " does not exist in YAML test root";
                     addSuite(root, path, files);
                 }
             }
@@ -292,7 +346,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         filesSet.add(file);
-        List<String> fileNames = filesSet.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList());
+        List<String> fileNames = filesSet.stream().map(p -> p.getFileName().toString()).toList();
         if (Collections.frequency(fileNames, file.getFileName().toString()) > 1) {
             Logger logger = LogManager.getLogger(ESClientYamlSuiteTestCase.class);
             logger.warn(
@@ -377,7 +431,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    String readOsFromNodesInfo(RestClient restClient) throws IOException {
+    static String readOsFromNodesInfo(RestClient restClient) throws IOException {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
@@ -445,11 +499,27 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
-        if (useDefaultNumberOfShards == false
-            && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+        assumeFalse(
+            "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
+        );
+
+        final Settings globalTemplateSettings = getGlobalTemplateSettings(testCandidate.getTestSection().getSkipSection().getFeatures());
+        if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
+
+            final XContentBuilder template = jsonBuilder();
+            template.startObject();
+            {
+                template.array("index_patterns", "*");
+                template.startObject("settings");
+                globalTemplateSettings.toXContent(template, ToXContent.EMPTY_PARAMS);
+                template.endObject();
+            }
+            template.endObject();
+
             final Request request = new Request("PUT", "/_template/global");
-            request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
-            // Because this has not yet transitioned to a composable template, it's possible that
+            request.setJsonEntity(Strings.toString(template));
+            // Because not all case have transitioned to a composable template, it's possible that
             // this can overlap an installed composable template since this is a global (*)
             // template. In order to avoid this failing the test, we override the warnings handler
             // to be permissive in this case. This can be removed once all tests use composable
@@ -459,10 +529,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
-        assumeFalse(
-            "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
-            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
-        );
 
         if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
@@ -487,6 +553,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
+    protected Settings getGlobalTemplateSettings(List<String> features) {
+        if (features.contains("default_shards")) {
+            return Settings.EMPTY;
+        } else {
+            return globalTemplateIndexSettings;
+        }
+    }
+
     protected boolean skipSetupSections() {
         return false;
     }
@@ -498,6 +572,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         try {
             executableSection.execute(restTestExecutionContext);
         } catch (AssertionError | Exception e) {
+            // Dump the original yaml file, if available, for reference.
+            Optional<Path> file = testCandidate.getRestTestSuite().getFile();
+            if (file.isPresent()) {
+                try {
+                    logger.info("Dump test yaml [{}] on failure:\n{}", file.get(), Files.readString(file.get()));
+                } catch (IOException ex) {
+                    logger.info("Did not dump test yaml [{}] on failure due to an exception [{}]", file.get(), ex);
+                }
+            }
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
             logger.info(
                 "Stash dump on test failure [{}]",
@@ -536,5 +619,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;
+    }
+
+    public ClientYamlTestCandidate getTestCandidate() {
+        return testCandidate;
     }
 }

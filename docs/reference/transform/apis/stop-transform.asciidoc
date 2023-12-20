@@ -40,7 +40,7 @@ comma-separated list or a wildcard expression. To stop all {transforms}, use
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, Boolean)
+ (Optional, Boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms2]
 
 `force`::

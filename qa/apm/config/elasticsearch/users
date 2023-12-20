@@ -1,0 +1,9 @@
+admin:$2a$10$xiY0ZzOKmDDN1p3if4t4muUBwh2.bFHADoMRAWQgSClm4ZJ4132Y.
+apm_server_user:$2a$10$iTy29qZaCSVn4FXlIjertuO8YfYVLCbvoUAJ3idaXfLRclg9GXdGG
+apm_user_ro:$2a$10$hQfy2o2u33SapUClsx8NCuRMpQyHP9b2l4t3QqrBA.5xXN2S.nT4u
+beats_user:$2a$10$LRpKi4/Q3Qo4oIbiu26rH.FNIL4aOH4aj2Kwi58FkMo1z9FgJONn2
+filebeat_user:$2a$10$sFxIEX8tKyOYgsbJLbUhTup76ssvSD3L4T0H6Raaxg4ewuNr.lUFC
+heartbeat_user:$2a$10$nKUGDr/V5ClfliglJhfy8.oEkjrDtklGQfhd9r9NoFqQeoNxr7uUK
+kibana_system_user:$2a$10$nN6sRtQl2KX9Gn8kV/.NpOLSk6Jwn8TehEDnZ7aaAgzyl/dy5PYzW
+metricbeat_user:$2a$10$5PyTd121U2ZXnFk9NyqxPuLxdptKbB8nK5egt6M5/4xrKUkk.GReG
+opbeans_user:$2a$10$iTy29qZaCSVn4FXlIjertuO8YfYVLCbvoUAJ3idaXfLRclg9GXdGG

@@ -49,17 +49,10 @@ setup:
       indices.clone:
         index: "source"
         target: "target"
-        wait_for_active_shards: 1
         master_timeout: 10s
         body:
           settings:
-            index.number_of_replicas: 0
             index.number_of_shards: 2
-
-  - do:
-      cluster.health:
-        wait_for_status: green
-
   - do:
       get:
         index: target

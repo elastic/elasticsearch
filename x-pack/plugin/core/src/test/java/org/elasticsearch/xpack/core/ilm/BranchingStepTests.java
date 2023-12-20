@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.function.BiPredicate;
@@ -26,7 +26,7 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                    .put(IndexMetadata.builder(indexName).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             )
             .build();
         StepKey stepKey = new StepKey(randomAlphaOfLength(5), randomAlphaOfLength(5), BranchingStep.NAME);
@@ -64,16 +64,12 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
         BiPredicate<Index, ClusterState> predicate = instance.getPredicate();
 
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextStepKey = new StepKey(
-                nextStepKey.getPhase(),
-                nextStepKey.getAction(),
-                nextStepKey.getName() + randomAlphaOfLength(5)
-            );
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextStepKey = new StepKey(nextStepKey.phase(), nextStepKey.action(), nextStepKey.name() + randomAlphaOfLength(5));
             case 2 -> nextSkipStepKey = new StepKey(
-                nextSkipStepKey.getPhase(),
-                nextSkipStepKey.getAction(),
-                nextSkipStepKey.getName() + randomAlphaOfLength(5)
+                nextSkipStepKey.phase(),
+                nextSkipStepKey.action(),
+                nextSkipStepKey.name() + randomAlphaOfLength(5)
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }

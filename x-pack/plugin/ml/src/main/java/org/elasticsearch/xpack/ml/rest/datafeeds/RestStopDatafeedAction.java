@@ -10,10 +10,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,6 +32,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestStopDatafeedAction extends BaseRestHandler {
 
     @Override
@@ -79,7 +81,7 @@ public class RestStopDatafeedAction extends BaseRestHandler {
                 builder.startObject();
                 builder.field("stopped", response.isStopped());
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

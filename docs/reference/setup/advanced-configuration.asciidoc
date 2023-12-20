@@ -158,18 +158,14 @@ using the service manager. See <<windows-service>>.
 [[readiness-tcp-port]]
 ===== Enable the Elasticsearch TCP readiness port
 
-preview::["This functionality is in technical preview and may be changed or removed in a future release.
-It is intended for internal, experimental use. Features in technical preview are not subject to the support
-SLA of official GA features."]
+preview::[]
 
 If configured, a node can open a TCP port when the node is in a ready state. A node is deemed
 ready when it has successfully joined a cluster. In a single node configuration, the node is
 said to be ready, when it's able to accept requests.
 
-To enable the readiness TCP port, use the `readiness.port` setting. The port is
-always bound to the loopback address, which defaults to the IPv4 loopback address `127.0.0.1`.
-To bind the readiness port to the IPv6 loopback address `::1`,
-add `-Djava.net.preferIPv6Addresses=true` to the <<set-jvm-options,JVM options>>.
+To enable the readiness TCP port, use the `readiness.port` setting. The readiness service will bind to
+all host addresses.
 
 If the node leaves the cluster, or the <<put-shutdown,Shutdown API>> is used to mark the node
 for shutdown, the readiness port is immediately closed.

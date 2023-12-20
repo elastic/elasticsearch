@@ -7,11 +7,8 @@
  */
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -19,10 +16,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,9 +29,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
@@ -120,13 +118,17 @@ public interface Repository extends LifecycleComponent {
     IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
-     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
-     * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
-     * if there was an error in reading the data.
-     * @param listener listener that may be resolved on different kinds of threads including transport and cluster state applier threads
-     *                 and therefore must fork to a new thread for executing any long running actions
+     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots and the indices across all snapshots
+     * found in the repository. Completes the listener with a {@link RepositoryException} if there was an error in reading the data.
+     *
+     * @param responseExecutor Executor to use to complete the listener if not using the calling thread. Using {@link
+     *                         org.elasticsearch.common.util.concurrent.EsExecutors#DIRECT_EXECUTOR_SERVICE} means to complete the listener
+     *                         on the thread which ultimately resolved the {@link RepositoryData}, which might be a low-latency transport or
+     *                         cluster applier thread so make sure not to do anything slow or expensive in that case.
+     * @param listener         Listener which is either completed on the calling thread (if the {@link RepositoryData} is immediately
+     *                         available, e.g. from an in-memory cache), otherwise it is completed using {@code responseExecutor}.
      */
-    void getRepositoryData(ActionListener<RepositoryData> listener);
+    void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener);
 
     /**
      * Finalizes snapshotting process
@@ -140,16 +142,17 @@ public interface Repository extends LifecycleComponent {
     /**
      * Deletes snapshots
      *
-     * @param snapshotIds           snapshot ids
-     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param listener              completion listener
+     * @param snapshotIds                  snapshot ids to delete
+     * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
+     * @param minimumNodeVersion           the minimum {@link IndexVersion} across the nodes in the cluster, with which the repository
+     *                                     format must remain compatible
+     * @param listener                     completion listener, see {@link SnapshotDeleteListener}.
      */
     void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        SnapshotDeleteListener listener
     );
 
     /**
@@ -205,7 +208,7 @@ public interface Repository extends LifecycleComponent {
      * Creates a snapshot of the shard referenced by the given {@link SnapshotShardContext}.
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object returned by
-     * {@link SnapshotShardContext#status()} and check its {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process
+     * {@link SnapshotShardContext#status()} and call {@link IndexShardSnapshotStatus#ensureNotAborted()} to see if the snapshot process
      * should be aborted.
      *
      * @param snapshotShardContext snapshot shard context that must be completed via {@link SnapshotShardContext#onResponse} or
@@ -241,7 +244,7 @@ public interface Repository extends LifecycleComponent {
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+    IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
 
     /**
      * Check if this instances {@link Settings} can be changed to the provided updated settings without recreating the repository.
@@ -264,24 +267,6 @@ public interface Repository extends LifecycleComponent {
     void updateState(ClusterState state);
 
     /**
-     * Execute a cluster state update with a consistent view of the current {@link RepositoryData}. The {@link ClusterState} passed to the
-     * task generated through {@code createUpdateTask} is guaranteed to point at the same state for this repository as the did the state
-     * at the time the {@code RepositoryData} was loaded.
-     * This allows for operations on the repository that need a consistent view of both the cluster state and the repository contents at
-     * one point in time like for example, checking if a snapshot is in the repository before adding the delete operation for it to the
-     * cluster state.
-     *
-     * @param createUpdateTask function to supply cluster state update task
-     * @param source           the source of the cluster state update task
-     * @param onFailure        error handler invoked on failure to get a consistent view of the current {@link RepositoryData}
-     */
-    void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    );
-
-    /**
      * Clones a shard snapshot.
      *
      * @param source          source snapshot
@@ -299,14 +284,6 @@ public interface Repository extends LifecycleComponent {
     );
 
     /**
-     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * during snapshot initialization.
-     */
-    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
-        return userMetadata;
-    }
-
-    /**
      * Block until all in-flight operations for this repository have completed. Must only be called after this instance has been closed
      * by a call to stop {@link #close()}.
      * Waiting for ongoing operations should be implemented here instead of in {@link #stop()} or {@link #close()} hooks of this interface
@@ -316,9 +293,6 @@ public interface Repository extends LifecycleComponent {
     void awaitIdle();
 
     static boolean assertSnapshotMetaThread() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT_META + ']') || threadName.startsWith("TEST-")
-            : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot meta thread.";
-        return true;
+        return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }
 }

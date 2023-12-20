@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -25,12 +26,19 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 public class ScrollDataExtractorFactory implements DataExtractorFactory {
+
+    // This field type is not supported for scrolling datafeeds.
+    private static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
+
     private final Client client;
     private final DatafeedConfig datafeedConfig;
+    private final QueryBuilder extraFilters;
     private final Job job;
     private final TimeBasedExtractedFields extractedFields;
     private final NamedXContentRegistry xContentRegistry;
@@ -39,6 +47,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private ScrollDataExtractorFactory(
         Client client,
         DatafeedConfig datafeedConfig,
+        QueryBuilder extraFilters,
         Job job,
         TimeBasedExtractedFields extractedFields,
         NamedXContentRegistry xContentRegistry,
@@ -46,6 +55,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
+        this.extraFilters = extraFilters;
         this.job = Objects.requireNonNull(job);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.xContentRegistry = xContentRegistry;
@@ -54,19 +64,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
-    }
-
-    @Override
-    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
-        return buildExtractor(
-            start,
-            end,
-            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
-        );
-    }
-
-    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
+        QueryBuilder queryBuilder = datafeedConfig.getParsedQuery(xContentRegistry);
+        if (extraFilters != null) {
+            queryBuilder = QueryBuilders.boolQuery().filter(queryBuilder).filter(extraFilters);
+        }
         ScrollDataExtractorContext dataExtractorContext = new ScrollDataExtractorContext(
             job.getId(),
             extractedFields,
@@ -86,6 +87,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     public static void create(
         Client client,
         DatafeedConfig datafeed,
+        QueryBuilder extraFilters,
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
@@ -104,8 +106,21 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 );
                 return;
             }
+            Optional<String> optionalAggregatedMetricDouble = findFirstAggregatedMetricDoubleField(fieldCapabilitiesResponse);
+            if (optionalAggregatedMetricDouble.isPresent()) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "field [{}] is of type [{}] and cannot be used in a datafeed without aggregations",
+                        optionalAggregatedMetricDouble.get(),
+                        AGGREGATE_METRIC_DOUBLE
+                    )
+                );
+                return;
+            }
             TimeBasedExtractedFields fields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
-            listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, fields, xContentRegistry, timingStatsReporter));
+            listener.onResponse(
+                new ScrollDataExtractorFactory(client, datafeed, extraFilters, job, fields, xContentRegistry, timingStatsReporter)
+            );
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException notFound) {
@@ -137,9 +152,21 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             .toArray(String[]::new);
         fieldCapabilitiesRequest.fields(requestFields);
         ClientHelper.<FieldCapabilitiesResponse>executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
-            client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
+            client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
             // This response gets discarded - the listener handles the real response
             return null;
         });
+    }
+
+    private static Optional<String> findFirstAggregatedMetricDoubleField(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+        Map<String, Map<String, FieldCapabilities>> indexTofieldCapsMap = fieldCapabilitiesResponse.get();
+        for (Map.Entry<String, Map<String, FieldCapabilities>> indexToFieldCaps : indexTofieldCapsMap.entrySet()) {
+            for (Map.Entry<String, FieldCapabilities> typeToFieldCaps : indexToFieldCaps.getValue().entrySet()) {
+                if (AGGREGATE_METRIC_DOUBLE.equals(typeToFieldCaps.getKey())) {
+                    return Optional.of(typeToFieldCaps.getValue().getName());
+                }
+            }
+        }
+        return Optional.empty();
     }
 }

@@ -11,17 +11,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,11 +47,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -82,7 +84,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -118,7 +119,7 @@ public class JobConfigProvider {
      * @param job The anomaly detector job configuration
      * @param listener Index response listener
      */
-    public void putJob(Job job, ActionListener<IndexResponse> listener) {
+    public void putJob(Job job, ActionListener<DocWriteResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = job.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
             IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(Job.documentId(job.getId()))
@@ -126,14 +127,20 @@ public class JobConfigProvider {
                 .opType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(listener::onResponse, e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    // the job already exists
-                    listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.wrap(listener::onResponse, e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        // the job already exists
+                        listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            );
 
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise job with id [" + job.getId() + "]", e));
@@ -149,11 +156,14 @@ public class JobConfigProvider {
      * error.
      *
      * @param jobId The job ID
+     * @param parentTaskId the parent task ID if available
      * @param jobListener Job listener
      */
-    public void getJob(String jobId, ActionListener<Job.Builder> jobListener) {
+    public void getJob(String jobId, @Nullable TaskId parentTaskId, ActionListener<Job.Builder> jobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
-
+        if (parentTaskId != null) {
+            getRequest.setParentTask(parentTaskId);
+        }
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -192,16 +202,22 @@ public class JobConfigProvider {
         DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener.delegateFailure((l, deleteResponse) -> {
-            if (errorIfMissing) {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    l.onFailure(ExceptionsHelper.missingJobException(jobId));
-                    return;
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportDeleteAction.TYPE,
+            request,
+            actionListener.delegateFailure((l, deleteResponse) -> {
+                if (errorIfMissing) {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        l.onFailure(ExceptionsHelper.missingJobException(jobId));
+                        return;
+                    }
+                    assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
                 }
-                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-            }
-            l.onResponse(deleteResponse);
-        }));
+                l.onResponse(deleteResponse);
+            })
+        );
     }
 
     /**
@@ -219,7 +235,7 @@ public class JobConfigProvider {
     public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedJobListener) {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, new DelegatingActionListener<>(updatedJobListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
@@ -281,7 +297,7 @@ public class JobConfigProvider {
     ) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
             if (getResponse.isExists() == false) {
                 listener.onFailure(ExceptionsHelper.missingJobException(jobId));
                 return;
@@ -328,7 +344,7 @@ public class JobConfigProvider {
             indexRequest.setIfSeqNo(seqNo);
             indexRequest.setIfPrimaryTerm(primaryTerm);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(indexResponse -> {
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.wrap(indexResponse -> {
                 assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
                 updatedJobListener.onResponse(updatedJob);
             }, updatedJobListener::onFailure));
@@ -352,39 +368,37 @@ public class JobConfigProvider {
      * @param jobId             The jobId to check
      * @param errorIfMissing    If true and the job is missing the listener fails with
      *                          a ResourceNotFoundException else false is returned.
+     * @param parentTaskId      The parent task ID if available
      * @param listener          Exists listener
      */
-    public void jobExists(String jobId, boolean errorIfMissing, ActionListener<Boolean> listener) {
+    public void jobExists(String jobId, boolean errorIfMissing, @Nullable TaskId parentTaskId, ActionListener<Boolean> listener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+        if (parentTaskId != null) {
+            getRequest.setParentTask(parentTaskId);
+        }
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
-                    if (errorIfMissing) {
-                        listener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                    } else {
-                        listener.onResponse(Boolean.FALSE);
-                    }
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
+            if (getResponse.isExists() == false) {
+                if (errorIfMissing) {
+                    listener.onFailure(ExceptionsHelper.missingJobException(jobId));
                 } else {
-                    listener.onResponse(Boolean.TRUE);
+                    listener.onResponse(Boolean.FALSE);
                 }
+            } else {
+                listener.onResponse(Boolean.TRUE);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e.getClass() == IndexNotFoundException.class) {
-                    if (errorIfMissing) {
-                        listener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                    } else {
-                        listener.onResponse(Boolean.FALSE);
-                    }
+        }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                if (errorIfMissing) {
+                    listener.onFailure(ExceptionsHelper.missingJobException(jobId));
                 } else {
-                    listener.onFailure(e);
+                    listener.onResponse(Boolean.FALSE);
                 }
+            } else {
+                listener.onFailure(e);
             }
-        });
+        }));
     }
 
     /**
@@ -468,6 +482,7 @@ public class JobConfigProvider {
      * @param tasksCustomMetadata The current persistent task metadata.
      *                            For resolving jobIds that have tasks, but for some reason, don't have configs
      * @param allowMissingConfigs If a job has a task, but is missing a config, allow the ID to be expanded via the existing task
+     * @param parentTaskId the parent task ID if available
      * @param listener The expanded job Ids listener
      */
     public void expandJobsIds(
@@ -476,6 +491,7 @@ public class JobConfigProvider {
         boolean excludeDeleting,
         @Nullable PersistentTasksCustomMetadata tasksCustomMetadata,
         boolean allowMissingConfigs,
+        @Nullable TaskId parentTaskId,
         ActionListener<SortedSet<String>> listener
     ) {
         String[] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
@@ -490,6 +506,9 @@ public class JobConfigProvider {
             .setSource(sourceBuilder)
             .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             .request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
         Collection<String> openMatchingJobs = matchingJobIdsWithTasks(tokens, tasksCustomMetadata);
@@ -506,7 +525,7 @@ public class JobConfigProvider {
                     jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
                     List<Object> groups = hit.field(Job.GROUPS.getPreferredName()).getValues();
                     if (groups != null) {
-                        groupsIds.addAll(groups.stream().map(Object::toString).collect(Collectors.toList()));
+                        groupsIds.addAll(groups.stream().map(Object::toString).toList());
                     }
                 }
                 if (allowMissingConfigs) {
@@ -528,19 +547,27 @@ public class JobConfigProvider {
     }
 
     /**
-     * The same logic as {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} but
+     * The same logic as
+     * {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)} but
      * the full anomaly detector job configuration is returned.
      *
-     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
+     * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param excludeDeleting If true exclude jobs marked as deleting
+     * @param parentTaskId parent task id
      * @param listener The expanded jobs listener
      */
-    public void expandJobs(String expression, boolean allowNoMatch, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
+    public void expandJobs(
+        String expression,
+        boolean allowNoMatch,
+        boolean excludeDeleting,
+        @Nullable TaskId parentTaskId,
+        ActionListener<List<Job.Builder>> listener
+    ) {
         String[] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildJobWildcardQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
@@ -550,6 +577,9 @@ public class JobConfigProvider {
             .setSource(sourceBuilder)
             .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             .request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
 
@@ -591,8 +621,8 @@ public class JobConfigProvider {
 
     /**
      * Expands the list of job group Ids to the set of jobs which are members of the groups.
-     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} it is not an error
-     * if a group Id does not exist.
+     * Unlike {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, TaskId, ActionListener)} it is not an
+     * error if a group Id does not exist.
      * Wildcard expansion of group Ids is not supported.
      *
      * @param groupIds Group Ids to expand
@@ -654,7 +684,7 @@ public class JobConfigProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(
-                response -> { listener.onResponse(response.getHits().getTotalHits().value > 0); },
+                response -> listener.onResponse(response.getHits().getTotalHits().value > 0),
                 listener::onFailure
             ),
             client::search
@@ -715,7 +745,7 @@ public class JobConfigProvider {
      * @param listener Validation listener
      */
     public void validateDatafeedJob(DatafeedConfig config, ActionListener<Boolean> listener) {
-        getJob(config.getJobId(), ActionListener.wrap(jobBuilder -> {
+        getJob(config.getJobId(), null, ActionListener.wrap(jobBuilder -> {
             try {
                 DatafeedJobValidator.validate(config, jobBuilder.build(), xContentRegistry);
                 listener.onResponse(Boolean.TRUE);
@@ -729,11 +759,11 @@ public class JobConfigProvider {
         return MlStrings.findMatching(jobIdPatterns, MlTasks.openJobIds(tasksMetadata));
     }
 
-    private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener) {
+    private static void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener) {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
         ) {
             jobListener.onResponse(Job.LENIENT_PARSER.apply(parser, null));
         } catch (Exception e) {
@@ -741,11 +771,11 @@ public class JobConfigProvider {
         }
     }
 
-    private Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
+    private static Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
         ) {
             return Job.LENIENT_PARSER.apply(parser, null);
         }

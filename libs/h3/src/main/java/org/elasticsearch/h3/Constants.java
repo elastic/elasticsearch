@@ -31,6 +31,10 @@ final class Constants {
      */
     public static double M_SQRT3_2 = 0.8660254037844386467637231707529361834714;
     /**
+     * 2.0 * PI
+     */
+    public static final double M_2PI = 6.28318530717958647692528676655900576839433;
+    /**
      * max H3 resolution; H3 version 1 has 16 resolutions, numbered 0 through 15
      */
     public static int MAX_H3_RES = 15;

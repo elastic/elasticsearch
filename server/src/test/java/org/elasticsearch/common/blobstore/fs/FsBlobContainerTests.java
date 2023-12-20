@@ -10,7 +10,12 @@ package org.elasticsearch.common.blobstore.fs;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -24,17 +29,25 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.CopyOption;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -75,7 +88,7 @@ public class FsBlobContainerTests extends ESTestCase {
         final long start = randomLongBetween(0L, Math.max(0L, blobData.length - 1));
         final long length = randomLongBetween(1L, blobData.length - start);
 
-        try (InputStream stream = container.readBlob(blobName, start, length)) {
+        try (InputStream stream = container.readBlob(randomPurpose(), blobName, start, length)) {
             assertThat(totalBytesRead.get(), equalTo(0L));
             assertThat(Streams.consumeFully(stream), equalTo(length));
             assertThat(totalBytesRead.get(), equalTo(length));
@@ -92,6 +105,151 @@ public class FsBlobContainerTests extends ESTestCase {
     public void testIsTempBlobName() {
         final String tempBlobName = FsBlobContainer.tempBlobName(randomAlphaOfLengthBetween(1, 20));
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
+    }
+
+    public void testDeleteIgnoringIfNotExistsDoesNotThrowFileNotFound() throws IOException {
+        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final byte[] blobData = randomByteArrayOfLength(512);
+
+        final Path path = PathUtils.get(createTempDir().toString());
+        Files.write(path.resolve(blobName), blobData);
+
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+
+        container.deleteBlobsIgnoringIfNotExists(randomPurpose(), List.of(blobName).listIterator());
+        // Should not throw exception
+        container.deleteBlobsIgnoringIfNotExists(randomPurpose(), List.of(blobName).listIterator());
+
+        assertFalse(container.blobExists(randomPurpose(), blobName));
+    }
+
+    private static BytesReference getBytesAsync(Consumer<ActionListener<OptionalBytesReference>> consumer) {
+        final var bytes = getAsync(consumer);
+        assertNotNull(bytes);
+        assertTrue(bytes.isPresent());
+        return bytes.bytesReference();
+    }
+
+    private static <T> T getAsync(Consumer<ActionListener<T>> consumer) {
+        return PlainActionFuture.get(consumer::accept, 0, TimeUnit.SECONDS);
+    }
+
+    public void testCompareAndExchange() throws Exception {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+
+        final String key = randomAlphaOfLength(10);
+        final AtomicReference<BytesReference> expectedValue = new AtomicReference<>(BytesArray.EMPTY);
+
+        for (int i = 0; i < 5; i++) {
+            switch (between(1, 4)) {
+                case 1 -> assertEquals(expectedValue.get(), getBytesAsync(l -> container.getRegister(randomPurpose(), key, l)));
+                case 2 -> assertFalse(
+                    getAsync(
+                        l -> container.compareAndSetRegister(
+                            randomPurpose(),
+                            key,
+                            randomValueOtherThan(expectedValue.get(), () -> new BytesArray(randomByteArrayOfLength(8))),
+                            new BytesArray(randomByteArrayOfLength(8)),
+                            l
+                        )
+                    )
+                );
+                case 3 -> assertEquals(
+                    expectedValue.get(),
+                    getBytesAsync(
+                        l -> container.compareAndExchangeRegister(
+                            randomPurpose(),
+                            key,
+                            randomValueOtherThan(expectedValue.get(), () -> new BytesArray(randomByteArrayOfLength(8))),
+                            new BytesArray(randomByteArrayOfLength(8)),
+                            l
+                        )
+                    )
+                );
+                case 4 -> {
+                    /* no-op */
+                }
+            }
+
+            final var newValue = new BytesArray(randomByteArrayOfLength(8));
+            if (randomBoolean()) {
+                assertTrue(getAsync(l -> container.compareAndSetRegister(randomPurpose(), key, expectedValue.get(), newValue, l)));
+            } else {
+                assertEquals(
+                    expectedValue.get(),
+                    getBytesAsync(l -> container.compareAndExchangeRegister(randomPurpose(), key, expectedValue.get(), newValue, l))
+                );
+            }
+            expectedValue.set(newValue);
+        }
+
+        container.writeBlob(randomPurpose(), key, new BytesArray(new byte[17]), false);
+        expectThrows(
+            IllegalStateException.class,
+            () -> getBytesAsync(l -> container.compareAndExchangeRegister(randomPurpose(), key, expectedValue.get(), BytesArray.EMPTY, l))
+        );
+    }
+
+    public void testAtomicWriteMetadataWithoutAtomicOverwrite() throws IOException {
+        this.fileSystem = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
+            @Override
+            public void move(Path source, Path target, CopyOption... options) throws IOException {
+                if (Set.of(options).contains(StandardCopyOption.ATOMIC_MOVE) && Files.exists(target)) {
+                    // simulate a file system that can't do atomic move + overwrite
+                    throw new IOException("no atomic overwrite moves");
+                } else {
+                    super.move(source, target, options);
+                }
+            }
+        }.getFileSystem(null);
+        PathUtilsForTesting.installMock(fileSystem); // restored by restoreFileSystem in ESTestCase
+        checkAtomicWrite();
+    }
+
+    public void testAtomicWriteDefaultFs() throws Exception {
+        restoreFileSystem();
+        checkAtomicWrite();
+    }
+
+    private static void checkAtomicWrite() throws IOException {
+        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final Path path = PathUtils.get(createTempDir().toString());
+
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+        container.writeBlobAtomic(
+            randomNonDataPurpose(),
+            blobName,
+            new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
+            true
+        );
+        final var blobData = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+        container.writeBlobAtomic(randomNonDataPurpose(), blobName, blobData, false);
+        assertEquals(blobData, Streams.readFully(container.readBlob(randomPurpose(), blobName)));
+        expectThrows(
+            FileAlreadyExistsException.class,
+            () -> container.writeBlobAtomic(
+                randomNonDataPurpose(),
+                blobName,
+                new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
+                true
+            )
+        );
+        for (String blob : container.listBlobs(randomPurpose()).keySet()) {
+            assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
+        }
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

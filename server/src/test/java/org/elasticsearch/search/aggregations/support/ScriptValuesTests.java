@@ -36,7 +36,7 @@ public class ScriptValuesTests extends ESTestCase {
         int index;
 
         FakeAggregationScript(Object[][] values) {
-            super(Collections.emptyMap(), new SearchLookup(null, null) {
+            super(Collections.emptyMap(), new SearchLookup(null, null, (ctx, doc) -> null) {
 
                 @Override
                 public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -17,12 +16,12 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
-import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -48,6 +47,7 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
@@ -65,6 +65,8 @@ import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.t
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenStore {
@@ -106,7 +108,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             () -> executeAsyncWithOrigin(
                 client,
                 SECURITY_ORIGIN,
-                GetAction.INSTANCE,
+                TransportGetAction.TYPE,
                 getRequest,
                 ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
@@ -155,7 +157,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     SECURITY_ORIGIN,
                     BulkAction.INSTANCE,
                     bulkRequest,
-                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(response -> {
+                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
                         assert DocWriteResponse.Result.CREATED == response.getResult()
                             : "an successful response of an OpType.CREATE request must have result of CREATED";
                         listener.onResponse(CreateServiceAccountTokenResponse.created(token.getTokenName(), token.asBearerString()));
@@ -168,11 +170,11 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (false == frozenSecurityIndex.indexExists()) {
             listener.onResponse(List.of());
-        } else if (false == frozenSecurityIndex.isAvailable()) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (false == frozenSecurityIndex.isAvailable(SEARCH_SHARDS)) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final Supplier<ThreadContext.StoredContext> contextSupplier = client.threadPool()
@@ -204,11 +206,11 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (false == frozenSecurityIndex.indexExists()) {
             listener.onResponse(false);
-        } else if (false == frozenSecurityIndex.isAvailable()) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (false == frozenSecurityIndex.isAvailable(PRIMARY_SHARDS)) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
             if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
@@ -223,7 +225,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    DeleteAction.INSTANCE,
+                    TransportDeleteAction.TYPE,
                     deleteRequest,
                     ActionListener.wrap(deleteResponse -> {
                         final ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest().cacheName(
@@ -234,19 +236,16 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                             SECURITY_ORIGIN,
                             ClearSecurityCacheAction.INSTANCE,
                             clearSecurityCacheRequest,
-                            ActionListener.wrap(
-                                clearSecurityCacheResponse -> {
-                                    listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                                },
-                                e -> {
-                                    final ParameterizedMessage message = new ParameterizedMessage(
-                                        "clearing the cache for service token [{}] failed. please clear the cache manually",
-                                        qualifiedTokenName
-                                    );
-                                    logger.error(message, e);
-                                    listener.onFailure(new ElasticsearchException(message.getFormattedMessage(), e));
-                                }
-                            )
+                            ActionListener.wrap(clearSecurityCacheResponse -> {
+                                listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                            }, e -> {
+                                final String message = org.elasticsearch.core.Strings.format(
+                                    "clearing the cache for service token [%s] failed. please clear the cache manually",
+                                    qualifiedTokenName
+                                );
+                                logger.error(message, e);
+                                listener.onFailure(new ElasticsearchException(message, e));
+                            })
                         );
                     }, listener::onFailure)
                 );
@@ -254,7 +253,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
     }
 
-    private String docIdForToken(String qualifiedTokenName) {
+    private static String docIdForToken(String qualifiedTokenName) {
         return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + qualifiedTokenName;
     }
 
@@ -270,15 +269,16 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             .field("creation_time", clock.instant().toEpochMilli())
             .field("enabled", true);
         {
+            final Subject effectiveSubject = authentication.getEffectiveSubject();
             builder.startObject("creator")
-                .field("principal", authentication.getUser().principal())
-                .field("full_name", authentication.getUser().fullName())
-                .field("email", authentication.getUser().email())
-                .field("metadata", authentication.getUser().metadata())
-                .field("realm", authentication.getSourceRealm().getName())
-                .field("realm_type", authentication.getSourceRealm().getType());
-            if (authentication.getSourceRealm().getDomain() != null) {
-                builder.field("realm_domain", authentication.getSourceRealm().getDomain());
+                .field("principal", effectiveSubject.getUser().principal())
+                .field("full_name", effectiveSubject.getUser().fullName())
+                .field("email", effectiveSubject.getUser().email())
+                .field("metadata", effectiveSubject.getUser().metadata())
+                .field("realm", effectiveSubject.getRealm().getName())
+                .field("realm_type", effectiveSubject.getRealm().getType());
+            if (effectiveSubject.getRealm().getDomain() != null) {
+                builder.field("realm_domain", effectiveSubject.getRealm().getDomain());
             }
             builder.endObject();
         }
@@ -297,7 +297,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         return builder;
     }
 
-    private TokenInfo extractTokenInfo(String docId, ServiceAccountId accountId) {
+    private static TokenInfo extractTokenInfo(String docId, ServiceAccountId accountId) {
         // Prefix is SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/"
         final int prefixLength = SERVICE_ACCOUNT_TOKEN_DOC_TYPE.length() + accountId.asPrincipal().length() + 2;
         return TokenInfo.indexToken(Strings.substring(docId, prefixLength, docId.length()));

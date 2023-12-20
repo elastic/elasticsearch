@@ -8,7 +8,8 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -211,13 +212,6 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     /**
-     * Returns whether duplicate suggestions should be filtered out.
-     */
-    public boolean skipDuplicates() {
-        return skipDuplicates;
-    }
-
-    /**
      * Should duplicates be filtered or not. Defaults to {@code false}.
      */
     public CompletionSuggestionBuilder skipDuplicates(boolean skipDuplicates) {
@@ -327,8 +321,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override

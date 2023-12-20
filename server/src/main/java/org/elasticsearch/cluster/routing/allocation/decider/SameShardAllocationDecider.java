@@ -16,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * An allocation decider that prevents multiple instances of the same shard to
@@ -46,9 +45,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     private volatile boolean sameHost;
 
-    public SameShardAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.sameHost = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
+    public SameShardAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
     }
 
     /**

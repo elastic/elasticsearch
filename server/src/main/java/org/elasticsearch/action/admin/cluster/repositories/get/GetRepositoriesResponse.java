@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -55,7 +56,8 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        repositories.toXContent(builder, new DelegatingMapParams(Map.of(RepositoriesMetadata.HIDE_GENERATIONS_PARAM, "true"), params));
+        ChunkedToXContent.wrapAsToXContent(repositories)
+            .toXContent(builder, new DelegatingMapParams(Map.of(RepositoriesMetadata.HIDE_GENERATIONS_PARAM, "true"), params));
         builder.endObject();
         return builder;
     }

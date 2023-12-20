@@ -27,10 +27,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
@@ -77,14 +74,10 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
             if (task != null
                 && task.getState() != null // Make sure the task is really started
                 && hasBlocked.compareAndSet(false, true)) {
-                try {
-                    logger.info("Task created");
-                    taskCreated.await(10, TimeUnit.SECONDS); // now we can test internalCluster().restartNode
 
-                    shutdownCompleted.await(10, TimeUnit.SECONDS); // waiting until the node has stopped
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError(e);
-                }
+                logger.info("Task created");
+                safeAwait(taskCreated); // now we can test internalCluster().restartNode
+                safeAwait(shutdownCompleted); // waiting until the node has stopped
             }
 
         };
@@ -96,19 +89,19 @@ public class SystemIndexMigrationIT extends AbstractFeatureMigrationIntegTest {
         client().execute(PostFeatureUpgradeAction.INSTANCE, req);
         logger.info("migrate feature api called");
 
-        taskCreated.await(10, TimeUnit.SECONDS); // waiting when the task is created
+        safeAwait(taskCreated); // waiting when the task is created
 
         internalCluster().restartNode(masterAndDataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                shutdownCompleted.await(10, TimeUnit.SECONDS);// now we can release the master thread
+                safeAwait(shutdownCompleted); // now we can release the master thread
                 return super.onNodeStopped(nodeName);
             }
         });
 
         assertBusy(() -> {
             // Wait for the node we restarted to completely rejoin the cluster
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
             assertThat("expected restarted node to rejoin cluster", clusterState.getNodes().size(), equalTo(2));
 
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(

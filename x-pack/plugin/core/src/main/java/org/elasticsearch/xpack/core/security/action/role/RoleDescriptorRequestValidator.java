@@ -12,8 +12,10 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -51,6 +53,17 @@ public class RoleDescriptorRequestValidator {
                 }
             }
         }
+        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = roleDescriptor.getRemoteIndicesPrivileges();
+        for (RoleDescriptor.RemoteIndicesPrivileges ridp : remoteIndicesPrivileges) {
+            if (Arrays.asList(ridp.remoteClusters()).contains("")) {
+                validationException = addValidationError("remote index cluster alias cannot be an empty string", validationException);
+            }
+            try {
+                IndexPrivilege.get(Set.of(ridp.indicesPrivileges().getPrivileges()));
+            } catch (IllegalArgumentException ile) {
+                validationException = addValidationError(ile.getMessage(), validationException);
+            }
+        }
         if (roleDescriptor.getApplicationPrivileges() != null) {
             for (RoleDescriptor.ApplicationResourcePrivileges privilege : roleDescriptor.getApplicationPrivileges()) {
                 try {
@@ -72,6 +85,15 @@ public class RoleDescriptorRequestValidator {
                 "role descriptor metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
                 validationException
             );
+        }
+        if (roleDescriptor.hasWorkflowsRestriction()) {
+            for (String workflowName : roleDescriptor.getRestriction().getWorkflows()) {
+                try {
+                    WorkflowResolver.resolveWorkflowByName(workflowName);
+                } catch (IllegalArgumentException e) {
+                    validationException = addValidationError(e.getMessage(), validationException);
+                }
+            }
         }
         return validationException;
     }

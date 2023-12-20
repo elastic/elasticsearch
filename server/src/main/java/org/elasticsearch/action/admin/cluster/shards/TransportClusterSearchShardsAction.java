@@ -57,7 +57,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             ClusterSearchShardsRequest::new,
             indexNameExpressionResolver,
             ClusterSearchShardsResponse::new,
-            ThreadPool.Names.SAME
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
         );
         this.indicesService = indicesService;
     }
@@ -90,7 +90,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
                 true,
                 indicesAndAliases
             );
-            indicesAndFilters.put(index, new AliasFilter(aliasFilter.getQueryBuilder(), aliases));
+            indicesAndFilters.put(index, AliasFilter.of(aliasFilter.getQueryBuilder(), aliases));
         }
 
         Set<String> nodeIds = new HashSet<>();

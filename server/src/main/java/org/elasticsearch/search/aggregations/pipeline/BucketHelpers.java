@@ -13,11 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -197,7 +197,7 @@ public class BucketHelpers {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
 
             if (propertyValue == null) {
-                throw new AggregationExecutionException(
+                throw new IllegalArgumentException(
                     AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation"
                 );
@@ -207,6 +207,12 @@ public class BucketHelpers {
                     value = ((Number) propertyValue).doubleValue();
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                } else if (propertyValue instanceof NumericMetricsAggregation.MultiValue) {
+                    try {
+                        value = ((NumericMetricsAggregation.MultiValue) propertyValue).value(aggPathAsList.get(aggPathAsList.size() - 1));
+                    } catch (NumberFormatException ex) {
+                        throw formatResolutionError(agg, aggPathAsList, propertyValue);
+                    }
                 } else {
                     throw formatResolutionError(agg, aggPathAsList, propertyValue);
                 }
@@ -226,11 +232,7 @@ public class BucketHelpers {
     /**
      * Inspects where we are in the agg tree and tries to format a helpful error
      */
-    private static AggregationExecutionException formatResolutionError(
-        MultiBucketsAggregation agg,
-        List<String> aggPathAsList,
-        Object propertyValue
-    ) {
+    private static RuntimeException formatResolutionError(MultiBucketsAggregation agg, List<String> aggPathAsList, Object propertyValue) {
         String currentAggName;
         Object currentAgg;
         if (aggPathAsList.isEmpty()) {
@@ -241,14 +243,14 @@ public class BucketHelpers {
             currentAgg = propertyValue;
         }
         if (currentAgg instanceof InternalNumericMetricsAggregation.MultiValue) {
-            return new AggregationExecutionException(
+            return new IllegalArgumentException(
                 AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                     + " must reference either a number value or a single value numeric metric aggregation, but ["
                     + currentAggName
                     + "] contains multiple values. Please specify which to use."
             );
         } else {
-            return new AggregationExecutionException(
+            return new IllegalArgumentException(
                 AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                     + " must reference either a number value or a single value numeric metric aggregation, got: ["
                     + propertyValue.getClass().getSimpleName()

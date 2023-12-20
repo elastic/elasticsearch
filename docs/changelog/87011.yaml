@@ -1,6 +1,0 @@
-pr: 87011
-summary: Fix status code when open point in time without `keep_alive`
-area: Search
-type: bug
-issues:
- - 87003

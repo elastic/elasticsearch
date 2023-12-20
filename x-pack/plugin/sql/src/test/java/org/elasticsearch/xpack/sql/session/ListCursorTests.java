@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.plugin.CursorTests;
@@ -31,13 +30,8 @@ public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCurs
     }
 
     @Override
-    protected ListCursor mutateInstance(ListCursor instance) throws IOException {
+    protected ListCursor mutateInstance(ListCursor instance) {
         return new ListCursor(instance.data(), randomValueOtherThan(instance.pageSize(), () -> between(1, 20)), instance.columnCount());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Cursors.getNamedWriteables());
     }
 
     @Override
@@ -51,7 +45,7 @@ public class ListCursorTests extends AbstractSqlWireSerializingTestCase<ListCurs
     }
 
     @Override
-    protected ListCursor copyInstance(ListCursor instance, Version version) throws IOException {
+    protected ListCursor copyInstance(ListCursor instance, TransportVersion version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {

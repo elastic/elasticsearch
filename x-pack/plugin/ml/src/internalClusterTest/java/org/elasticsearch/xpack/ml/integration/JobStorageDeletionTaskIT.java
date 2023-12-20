@@ -43,6 +43,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -75,7 +76,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, tp, null);
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
         jobResultsProvider = new JobResultsProvider(client(), settings, TestIndexNameExpressionResolver.newInstance());
@@ -193,9 +194,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
         // Make sure dedicated index is gone
         assertThat(
-            client().admin()
-                .indices()
-                .prepareGetIndex()
+            indicesAdmin().prepareGetIndex()
                 .setIndices(dedicatedIndex)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .get()
@@ -204,20 +203,16 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         );
 
         // Make sure all results referencing the dedicated job are gone
-        assertThat(
-            client().prepareSearch()
-                .setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+        assertHitCount(
+            prepareSearch().setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpenHidden())
                 .setTrackTotalHits(true)
                 .setSize(0)
                 .setSource(
                     SearchSourceBuilder.searchSource()
                         .query(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated)))
-                )
-                .get()
-                .getHits()
-                .getTotalHits().value,
-            equalTo(0L)
+                ),
+            0
         );
     }
 

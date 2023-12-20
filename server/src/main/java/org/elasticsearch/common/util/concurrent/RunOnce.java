@@ -7,26 +7,37 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Runnable that can only be run one time.
+ * Runnable that prevents running its delegate more than once.
  */
 public class RunOnce implements Runnable {
 
-    private final Runnable delegate;
-    private final AtomicBoolean hasRun;
+    private static final VarHandle VH_DELEGATE_FIELD;
+
+    static {
+        try {
+            VH_DELEGATE_FIELD = MethodHandles.lookup().in(RunOnce.class).findVarHandle(RunOnce.class, "delegate", Runnable.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @SuppressWarnings("FieldMayBeFinal") // updated via VH_DELEGATE_FIELD (and _only_ via VH_DELEGATE_FIELD)
+    private volatile Runnable delegate;
 
     public RunOnce(final Runnable delegate) {
         this.delegate = Objects.requireNonNull(delegate);
-        this.hasRun = new AtomicBoolean(false);
     }
 
     @Override
     public void run() {
-        if (hasRun.compareAndSet(false, true)) {
-            delegate.run();
+        var acquired = (Runnable) VH_DELEGATE_FIELD.compareAndExchange(this, delegate, null);
+        if (acquired != null) {
+            acquired.run();
         }
     }
 
@@ -34,6 +45,11 @@ public class RunOnce implements Runnable {
      * {@code true} if the {@link RunOnce} has been executed once.
      */
     public boolean hasRun() {
-        return hasRun.get();
+        return delegate == null;
+    }
+
+    @Override
+    public String toString() {
+        return "RunOnce[" + delegate + "]";
     }
 }

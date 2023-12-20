@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.IntervalsSourceProvider.Disjunction;
 
-public class DisjunctionIntervalsSourceProviderTests extends AbstractSerializingTestCase<Disjunction> {
+public class DisjunctionIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<Disjunction> {
 
     @Override
     protected Disjunction createTestInstance() {
@@ -27,7 +27,7 @@ public class DisjunctionIntervalsSourceProviderTests extends AbstractSerializing
     }
 
     @Override
-    protected Disjunction mutateInstance(Disjunction instance) throws IOException {
+    protected Disjunction mutateInstance(Disjunction instance) {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         if (randomBoolean()) {

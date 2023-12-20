@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -105,12 +104,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
+        ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
@@ -125,25 +122,24 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         // is a mix of file chunks and translog ops
         int threeFourths = (int) (numDocs * 0.75);
         for (int i = 0; i < threeFourths; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         flush(indexName);
         requests.clear();
 
         for (int i = threeFourths; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
-        ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
         final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
-        SearchResponse searchResponse = client().prepareSearch(indexName).get();
-        assertHitCount(searchResponse, numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
 
         logger.info("--> will temporarily interrupt recovery action between blue & red on [{}]", recoveryActionToBlock);
 
@@ -151,14 +147,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 
-        MockTransportService blueTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            blueNodeName
-        );
-        MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            redNodeName
-        );
+        final var blueTransportService = MockTransportService.getInstance(blueNodeName);
+        final var redTransportService = MockTransportService.getInstance(redNodeName);
 
         final AtomicBoolean recoveryStarted = new AtomicBoolean(false);
         final AtomicBoolean finalizeReceived = new AtomicBoolean(false);
@@ -178,32 +168,27 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                 redTransportService.disconnectFromNode(blueTransportService.getLocalDiscoNode());
             }
         };
-        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(
-            recoveryActionToBlock,
-            finalizeReceived,
-            recoveryStarted,
-            connectionBreaker
-        );
+        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted, connectionBreaker);
+        redTransportService.addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.FINALIZE, (handler, request, channel, task) -> {
+            finalizeReceived.set(true);
+            handler.messageReceived(request, channel, task);
+        });
         redTransportService.addRequestHandlingBehavior(recoveryActionToBlock, handlingBehavior);
 
         try {
             logger.info("--> starting recovery from blue to red");
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                )
-                .get();
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1),
+                indexName
+            );
 
             ensureGreen();
             if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
                 assertThat(handlingBehavior.blocksRemaining.get(), is(equalTo(0)));
             }
-            searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
-            assertHitCount(searchResponse, numDocs);
+            assertHitCount(client(redNodeName).prepareSearch(indexName).setPreference("_local"), numDocs);
         } finally {
             blueTransportService.clearAllRules();
             redTransportService.clearAllRules();
@@ -225,12 +210,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
+        ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
@@ -242,18 +225,17 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
-        ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
         final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
-        SearchResponse searchResponse = client().prepareSearch(indexName).get();
-        assertHitCount(searchResponse, numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
 
         final boolean dropRequests = randomBoolean();
         logger.info("--> will {} between blue & red on [{}]", dropRequests ? "drop requests" : "break connection", recoveryActionToBlock);
@@ -263,14 +245,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 
-        MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            blueNodeName
-        );
-        MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            redNodeName
-        );
+        final var blueMockTransportService = MockTransportService.getInstance(blueNodeName);
+        final var redMockTransportService = MockTransportService.getInstance(redNodeName);
         TransportService redTransportService = internalCluster().getInstance(TransportService.class, redNodeName);
         TransportService blueTransportService = internalCluster().getInstance(TransportService.class, blueNodeName);
         final CountDownLatch requestFailed = new CountDownLatch(1);
@@ -304,16 +280,12 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         }
 
         logger.info("--> starting recovery from blue to red");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            )
-            .get();
-
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1),
+            indexName
+        );
         requestFailed.await();
 
         logger.info("--> clearing rules to allow recovery to proceed");
@@ -321,8 +293,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         redMockTransportService.clearAllRules();
 
         ensureGreen();
-        searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
-        assertHitCount(searchResponse, numDocs);
+        assertHitCount(client(redNodeName).prepareSearch(indexName).setPreference("_local"), numDocs);
     }
 
     public void checkDisconnectsDuringRecovery(boolean useSnapshotBasedRecoveries) throws Exception {
@@ -343,9 +314,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "blue")
@@ -357,28 +326,19 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
-        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
 
         if (useSnapshotBasedRecoveries) {
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            masterNodeName
-        );
-        MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            blueNodeName
-        );
-        MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            redNodeName
-        );
+        final var masterTransportService = MockTransportService.getInstance(masterNodeName);
+        final var blueMockTransportService = MockTransportService.getInstance(blueNodeName);
+        final var redMockTransportService = MockTransportService.getInstance(redNodeName);
 
         redMockTransportService.addSendBehavior(blueMockTransportService, new StubbableTransport.SendRequestBehavior() {
             private final AtomicInteger count = new AtomicInteger();
@@ -451,11 +411,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         if (primaryRelocation) {
             logger.info("--> starting primary relocation recovery from blue to red");
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red"))
-                .get();
+            updateIndexSettings(
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red"),
+                indexName
+            );
 
             ensureGreen(); // also waits for relocation / recovery to complete
             // if a primary relocation fails after the source shard has been marked as relocated, both source and target are failed. If the
@@ -466,32 +425,27 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             client().admin().indices().prepareRefresh(indexName).get();
         } else {
             logger.info("--> starting replica recovery from blue to red");
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                )
-                .get();
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1),
+                indexName
+            );
 
             ensureGreen();
         }
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+            assertHitCount(prepareSearch(indexName), numDocs);
         }
     }
 
     // We only use this method in IndexRecoveryWithSnapshotsIT that's located in the x-pack plugin
     // that implements snapshot based recoveries.
-    private void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
+    private static void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
         // Ensure that the safe commit == latest commit
         assertBusy(() -> {
-            ShardStats stats = client().admin()
-                .indices()
-                .prepareStats(indexName)
+            ShardStats stats = indicesAdmin().prepareStats(indexName)
                 .clear()
                 .get()
                 .asMap()
@@ -517,9 +471,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         // create repo
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(REPO_NAME)
+            clusterAdmin().preparePutRepository(REPO_NAME)
                 .setType("fs")
                 .setSettings(
                     Settings.builder()
@@ -527,13 +479,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                         .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
                         .put("compress", false)
                 )
-                .get()
         );
 
         // create snapshot
-        CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(REPO_NAME, SNAP_NAME)
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, SNAP_NAME)
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .get();
@@ -544,7 +493,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
 
         assertThat(
-            client().admin().cluster().prepareGetSnapshots(REPO_NAME).setSnapshots(SNAP_NAME).get().getSnapshots().get(0).state(),
+            clusterAdmin().prepareGetSnapshots(REPO_NAME).setSnapshots(SNAP_NAME).get().getSnapshots().get(0).state(),
             equalTo(SnapshotState.SUCCESS)
         );
     }
@@ -580,19 +529,12 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         private final String actionName;
         private final AtomicBoolean recoveryStarted;
-        private final AtomicBoolean finalizeReceived;
         private final Runnable connectionBreaker;
         private final AtomicInteger blocksRemaining;
 
-        private TransientReceiveRejected(
-            String actionName,
-            AtomicBoolean recoveryStarted,
-            AtomicBoolean finalizeReceived,
-            Runnable connectionBreaker
-        ) {
+        private TransientReceiveRejected(String actionName, AtomicBoolean recoveryStarted, Runnable connectionBreaker) {
             this.actionName = actionName;
             this.recoveryStarted = recoveryStarted;
-            this.finalizeReceived = finalizeReceived;
             this.connectionBreaker = connectionBreaker;
             this.blocksRemaining = new AtomicInteger(randomIntBetween(1, 3));
         }
@@ -605,9 +547,6 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             Task task
         ) throws Exception {
             recoveryStarted.set(true);
-            if (actionName.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
-                finalizeReceived.set(true);
-            }
             if (blocksRemaining.getAndUpdate(i -> i == 0 ? 0 : i - 1) != 0) {
                 String rejected = "rejected";
                 String circuit = "circuit";

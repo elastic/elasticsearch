@@ -28,6 +28,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class RestCreateApiKeyActionTests extends ESTestCase {
@@ -84,7 +86,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
             Instant.now().plus(Duration.ofHours(5))
         );
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
@@ -94,23 +96,22 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                 CreateApiKeyRequest createApiKeyRequest = (CreateApiKeyRequest) request;
                 @SuppressWarnings("unchecked")
                 RestToXContentListener<CreateApiKeyResponse> actionListener = (RestToXContentListener<CreateApiKeyResponse>) listener;
+                assertThat(createApiKeyRequest.getType(), is(ApiKey.Type.REST));
                 if (createApiKeyRequest.getName().equals("my-api-key")) {
                     actionListener.onResponse(expected);
                 } else {
                     listener.onFailure(new ElasticsearchSecurityException("encountered an error while creating API key"));
                 }
             }
-        }) {
-            final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockLicenseState);
-            restCreateApiKeyAction.handleRequest(restRequest, restChannel, client);
+        };
+        final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockLicenseState);
+        restCreateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
-            assertThat(
-                CreateApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content())),
-                equalTo(expected)
-            );
-        }
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(
+            CreateApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content())),
+            equalTo(expected)
+        );
     }
-
 }

@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdFieldType;
@@ -16,7 +17,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -175,7 +177,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         if (factory == null) {
             return null;
         } else if (factory instanceof NestedAggregatorFactory
-            || factory instanceof FilterAggregatorFactory
+            || factory instanceof FilterAggregationBuilder.FilterAggregatorFactory
             || factory instanceof RandomSamplerAggregatorFactory) {
                 return validateParentAggregations(factory.getParent());
             } else {
@@ -211,6 +213,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         AggregatorFactory parent,
         AggregatorFactories.Builder subfactoriesBuilder
     ) throws IOException {
+        if (context.isInSortOrderExecutionRequired()) {
+            throw new IllegalArgumentException("[composite] aggregation is incompatible with time series execution mode");
+        }
         AggregatorFactory invalid = validateParentAggregations(parent);
         if (invalid != null) {
             throw new IllegalArgumentException(
@@ -295,7 +300,17 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        for (CompositeValuesSourceBuilder<?> source : sources) {
+            if (source.supportsParallelCollection(fieldCardinalityResolver) == false) {
+                return false;
+            }
+        }
+        return super.supportsParallelCollection(fieldCardinalityResolver);
     }
 }

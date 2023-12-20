@@ -9,17 +9,17 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -178,13 +178,13 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final int shards = 3;
             final String index = "test-index";
             createIndex(index, shards);
-            final Version minNodeVersion = minimumNodeVersion();
+            final IndexVersion minNodeVersion = minimumIndexVersion();
             // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
             // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
             // to check behavior on other operations below.
             final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
                 || SnapshotsService.includesUUIDs(minNodeVersion)
-                || minNodeVersion.before(Version.V_7_12_0);
+                || minNodeVersion.before(IndexVersions.V_7_12_0);
             if (verify == false) {
                 expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(repoName, false, true));
             }
@@ -243,11 +243,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     private List<Map<String, Object>> listSnapshots(String repoName) throws IOException {
         try (
             InputStream entity = client().performRequest(new Request("GET", "/_snapshot/" + repoName + "/_all")).getEntity().getContent();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                entity
-            )
+            XContentParser parser = createParser(JsonXContent.jsonXContent, entity)
         ) {
             return (List<Map<String, Object>>) parser.map().get("snapshots");
         }
@@ -285,7 +281,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private void createIndex(String name, int shards) throws IOException {
         final Request putIndexRequest = new Request("PUT", "/" + name);
-        putIndexRequest.setJsonEntity("""
+        putIndexRequest.setJsonEntity(Strings.format("""
             {
                 "settings" : {
                     "index" : {
@@ -293,7 +289,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                         "number_of_replicas" : 0
                     }
                 }
-            }""".formatted(shards));
+            }""", shards));
         final Response response = client().performRequest(putIndexRequest);
         assertThat(response.getStatusLine().getStatusCode(), is(HttpURLConnection.HTTP_OK));
     }

@@ -345,7 +345,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
-        PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(sourceParser, new ParseField("source"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
 
         PARSER.declareInt(

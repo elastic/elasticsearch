@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 import java.io.File;
@@ -34,10 +35,6 @@ public class PluginPropertiesExtension {
     private List<String> extendedPlugins = new ArrayList<>();
 
     private boolean hasNativeController;
-
-    private PluginType type = PluginType.ISOLATED;
-
-    private String javaOpts = "";
 
     /** Whether a license agreement must be accepted before this plugin can be installed. */
     private boolean isLicensed = false;
@@ -66,7 +63,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setName(String name) {
-        this.project.setProperty("archivesBaseName", name);
+        this.project.getExtensions().getByType(BasePluginExtension.class).getArchivesName().set(name);
         this.name = name;
     }
 
@@ -105,22 +102,6 @@ public class PluginPropertiesExtension {
 
     public void setHasNativeController(boolean hasNativeController) {
         this.hasNativeController = hasNativeController;
-    }
-
-    public PluginType getType() {
-        return type;
-    }
-
-    public void setType(PluginType type) {
-        this.type = type;
-    }
-
-    public String getJavaOpts() {
-        return javaOpts;
-    }
-
-    public void setJavaOpts(String javaOpts) {
-        this.javaOpts = javaOpts;
     }
 
     public boolean isLicensed() {

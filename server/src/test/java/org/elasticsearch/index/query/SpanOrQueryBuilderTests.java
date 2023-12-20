@@ -32,6 +32,14 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
     }
 
     @Override
+    protected SpanOrQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof SpanOrQueryBuilder) {
+            return new SpanOrQueryBuilder((SpanOrQueryBuilder) queryBuilder);
+        }
+        return new SpanOrQueryBuilder(new SpanTermQueryBuilder("field", "value"));
+    }
+
+    @Override
     protected void doAssertLuceneQuery(SpanOrQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) query;

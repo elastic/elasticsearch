@@ -88,6 +88,9 @@ teardown:
 
 ---
 "Test empty request while single authorized index":
+  - skip:
+      version: " - 8.10.99"
+      reason: cat indices was changed in 8.11.0
 
   - do:
       indices.create:
@@ -112,6 +115,7 @@ teardown:
                   0      \s+
                   0      \s+
                   (\d+|\d+[.]\d+)(kb|b) \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s+
                   (\d+|\d+[.]\d+)(kb|b) \s*
                 )
                 $/
@@ -120,8 +124,6 @@ teardown:
 "Test empty request while single authorized closed index":
 
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/47875"
       features: ["allowed_warnings"]
 
   - do:
@@ -162,7 +164,7 @@ teardown:
 
   - match:
       $body: |
-        /^(yellow  \s+
+        /^((yellow|green)  \s+
            close   \s+
            index_to_monitor \s+
            ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+

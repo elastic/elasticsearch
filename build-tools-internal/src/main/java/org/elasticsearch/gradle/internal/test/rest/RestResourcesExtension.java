@@ -27,11 +27,11 @@ public class RestResourcesExtension {
         restTests = new XpackRestResourcesSpec(objects);
     }
 
-    void restApi(Action<? super RestResourcesSpec> spec) {
+    public void restApi(Action<? super RestResourcesSpec> spec) {
         spec.execute(restApi);
     }
 
-    void restTests(Action<? super XpackRestResourcesSpec> spec) {
+    public void restTests(Action<? super XpackRestResourcesSpec> spec) {
         spec.execute(restTests);
     }
 

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
@@ -18,6 +17,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -82,7 +82,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
+        this.preparedRounding = valuesSourceConfig.roundingPreparer(context).apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
@@ -110,11 +110,11 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
         RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override

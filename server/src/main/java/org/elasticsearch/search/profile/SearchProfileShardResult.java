@@ -26,8 +26,8 @@ import java.util.Objects;
  * Profile results from a particular shard for all search phases.
  */
 public class SearchProfileShardResult implements Writeable, ToXContentFragment {
-    private final SearchProfileQueryPhaseResult queryPhase;
 
+    private final SearchProfileQueryPhaseResult queryPhase;
     private final ProfileResult fetchPhase;
 
     public SearchProfileShardResult(SearchProfileQueryPhaseResult queryPhase, @Nullable ProfileResult fetch) {
@@ -44,6 +44,10 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         queryPhase.writeTo(out);
         out.writeOptionalWriteable(fetchPhase);
+    }
+
+    public SearchProfileDfsPhaseResult getSearchProfileDfsPhaseResult() {
+        return queryPhase.getSearchProfileDfsPhaseResult();
     }
 
     public SearchProfileQueryPhaseResult getQueryPhase() {
@@ -64,6 +68,10 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (getSearchProfileDfsPhaseResult() != null) {
+            builder.field("dfs");
+            getSearchProfileDfsPhaseResult().toXContent(builder, params);
+        }
         builder.startArray("searches");
         for (QueryProfileShardResult result : queryPhase.getQueryProfileResults()) {
             result.toXContent(builder, params);
@@ -78,12 +86,11 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        SearchProfileShardResult other = (SearchProfileShardResult) obj;
-        return queryPhase.equals(other.queryPhase) && Objects.equals(fetchPhase, other.fetchPhase);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchProfileShardResult that = (SearchProfileShardResult) o;
+        return Objects.equals(queryPhase, that.queryPhase) && Objects.equals(fetchPhase, that.fetchPhase);
     }
 
     @Override

@@ -103,7 +103,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return false;
     }
 

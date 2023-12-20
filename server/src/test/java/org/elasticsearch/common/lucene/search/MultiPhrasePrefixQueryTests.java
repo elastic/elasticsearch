@@ -25,31 +25,33 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MultiPhrasePrefixQueryTests extends ESTestCase {
     public void testSimple() throws Exception {
-        IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
-        Document doc = new Document();
-        doc.add(new Field("field", "aaa bbb ccc ddd", TextField.TYPE_NOT_STORED));
-        writer.addDocument(doc);
-        IndexReader reader = DirectoryReader.open(writer);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        try (IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+            Document doc = new Document();
+            doc.add(new Field("field", "aaa bbb ccc ddd", TextField.TYPE_NOT_STORED));
+            writer.addDocument(doc);
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                IndexSearcher searcher = newSearcher(reader);
 
-        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("field");
-        query.add(new Term("field", "aa"));
-        assertThat(searcher.count(query), equalTo(1));
+                MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("field");
+                query.add(new Term("field", "aa"));
+                assertThat(searcher.count(query), equalTo(1));
 
-        query = new MultiPhrasePrefixQuery("field");
-        query.add(new Term("field", "aaa"));
-        query.add(new Term("field", "bb"));
-        assertThat(searcher.count(query), equalTo(1));
+                query = new MultiPhrasePrefixQuery("field");
+                query.add(new Term("field", "aaa"));
+                query.add(new Term("field", "bb"));
+                assertThat(searcher.count(query), equalTo(1));
 
-        query = new MultiPhrasePrefixQuery("field");
-        query.setSlop(1);
-        query.add(new Term("field", "aaa"));
-        query.add(new Term("field", "cc"));
-        assertThat(searcher.count(query), equalTo(1));
+                query = new MultiPhrasePrefixQuery("field");
+                query.setSlop(1);
+                query.add(new Term("field", "aaa"));
+                query.add(new Term("field", "cc"));
+                assertThat(searcher.count(query), equalTo(1));
 
-        query = new MultiPhrasePrefixQuery("field");
-        query.setSlop(1);
-        query.add(new Term("field", "xxx"));
-        assertThat(searcher.count(query), equalTo(0));
+                query = new MultiPhrasePrefixQuery("field");
+                query.setSlop(1);
+                query.add(new Term("field", "xxx"));
+                assertThat(searcher.count(query), equalTo(0));
+            }
+        }
     }
 }

@@ -9,14 +9,17 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -28,8 +31,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Rest action for computing a score explanation for specific documents.
  */
+@ServerlessScope(value = Scope.PUBLIC)
 public class RestExplainAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying a type in explain requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying a type in explain requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -68,7 +72,7 @@ public class RestExplainAction extends BaseRestHandler {
 
         if (request.param("fields") != null) {
             throw new IllegalArgumentException(
-                "The parameter [fields] is no longer supported, " + "please use [stored_fields] to retrieve stored fields"
+                "The parameter [fields] is no longer supported, please use [stored_fields] to retrieve stored fields"
             );
         }
         String sField = request.param("stored_fields");
@@ -81,6 +85,6 @@ public class RestExplainAction extends BaseRestHandler {
 
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        return channel -> client.explain(explainRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.explain(explainRequest, new RestToXContentListener<>(channel, ExplainResponse::status));
     }
 }

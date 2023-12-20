@@ -22,7 +22,6 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
-import java.util.Collections;
 import java.util.List;
 
 public class IRDecorations {
@@ -302,7 +301,7 @@ public class IRDecorations {
     public static class IRDTypeParameters extends IRDecoration<List<Class<?>>> {
 
         public IRDTypeParameters(List<Class<?>> value) {
-            super(Collections.unmodifiableList(value));
+            super(List.copyOf(value));
         }
     }
 
@@ -310,7 +309,7 @@ public class IRDecorations {
     public static class IRDParameterNames extends IRDecoration<List<String>> {
 
         public IRDParameterNames(List<String> value) {
-            super(Collections.unmodifiableList(value));
+            super(List.copyOf(value));
         }
     }
 
@@ -451,7 +450,7 @@ public class IRDecorations {
     public static class IRDCaptureNames extends IRDecoration<List<String>> {
 
         public IRDCaptureNames(List<String> value) {
-            super(Collections.unmodifiableList(value));
+            super(List.copyOf(value));
         }
     }
 

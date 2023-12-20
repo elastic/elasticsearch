@@ -15,7 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -43,7 +43,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
     private final LongUnaryOperator rounding;
 
-    private BitArray bits;
+    private final BitArray bits;
     private LongArray values;
     private long currentValue;
     private boolean missingCurrentValue;
@@ -59,7 +59,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
@@ -153,11 +153,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             afterValue = null;
         } else {
             // parse the value from a string in case it is a date or a formatted unsigned long.
-            afterValue = format.parseLong(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseLong(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 
@@ -177,10 +175,14 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     int num = dvs.docValueCount();
+                    long previous = Long.MAX_VALUE;
                     for (int i = 0; i < num; i++) {
                         currentValue = dvs.nextValue();
                         missingCurrentValue = false;
-                        next.collect(doc, bucket);
+                        if (i == 0 || previous != currentValue) {
+                            next.collect(doc, bucket);
+                            previous = currentValue;
+                        }
                     }
                 } else if (missingBucket) {
                     missingCurrentValue = true;
@@ -226,7 +228,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             return true;
         } else if (query instanceof PointRangeQuery pointQuery) {
             return fieldName.equals(pointQuery.getField());
-        } else if (query instanceof DocValuesFieldExistsQuery existsQuery) {
+        } else if (query instanceof FieldExistsQuery existsQuery) {
             return fieldName.equals(existsQuery.getField());
         } else {
             return false;

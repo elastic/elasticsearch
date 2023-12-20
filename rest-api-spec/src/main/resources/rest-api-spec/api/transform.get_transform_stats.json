@@ -36,6 +36,11 @@
         "required":false,
         "description":"specifies a max number of transform stats to get, defaults to 100"
       },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait for the stats"
+      },
       "allow_no_match":{
         "type":"boolean",
         "required":false,

@@ -18,7 +18,7 @@ import org.elasticsearch.ElasticsearchException;
 public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
     public void testPrefixQuery() {
-        MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
+        MappedFieldType ft = RoutingFieldMapper.FIELD_TYPE;
 
         Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo*")));
         assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_CONTEXT));
@@ -35,7 +35,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
+        MappedFieldType ft = RoutingFieldMapper.FIELD_TYPE;
 
         Query expected = new RegexpQuery(new Term("_routing", new BytesRef("foo?")));
         assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_CONTEXT));
@@ -48,7 +48,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
+        MappedFieldType ft = RoutingFieldMapper.FIELD_TYPE;
 
         Query expected = new WildcardQuery(new Term("_routing", new BytesRef("foo*")));
         assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_CONTEXT));

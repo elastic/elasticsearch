@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
@@ -189,6 +190,9 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
 
         public DatafeedParams(String datafeedId, long startTime) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
+            if (startTime < 0) {
+                throw new IllegalArgumentException("[" + START_TIME.getPreferredName() + "] must not be negative [" + startTime + "].");
+            }
             this.startTime = startTime;
         }
 
@@ -202,7 +206,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
-            datafeedIndices = in.readStringList();
+            datafeedIndices = in.readStringCollectionAsList();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
@@ -275,8 +279,8 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
 
         @Override

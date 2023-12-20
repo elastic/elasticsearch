@@ -19,9 +19,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.function.Function;
 
-import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -90,16 +92,16 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         ParsedDocument doc = mapper.parse(
             source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), XContentType.JSON))
         );
-        assertEquals(0, doc.rootDoc().getFields("field").length);
+        assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
     public void testLongIndexingCoercesIntoRange() throws Exception {
         // the following two strings are in-range for a long after coercion
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "9223372036854775807.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
         doc = mapper.parse(source(b -> b.field("field", "-9223372036854775808.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
     }
 
     @Override
@@ -119,6 +121,17 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
     }
 
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return n -> {
+            Number number = ((Number) n);
+            if (Integer.MIN_VALUE <= number.longValue() && number.longValue() <= Integer.MAX_VALUE) {
+                return number.intValue();
+            }
+            return number.longValue();
+        };
+    }
+
     protected IngestScriptSupport ingestScriptSupport() {
         return new IngestScriptSupport() {
             @Override
@@ -132,7 +145,13 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
             @Override
             protected LongFieldScript.Factory emptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {}
                 };
@@ -140,7 +159,13 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
             @Override
             protected LongFieldScript.Factory nonEmptyFieldScript() {
-                return (fieldName, params, searchLookup) -> ctx -> new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
                     @Override
                     public void execute() {
                         emit(1);

@@ -8,13 +8,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 
@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
@@ -40,7 +41,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         Metadata.Builder mb = Metadata.builder();
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putMapping(generateMapping("@timestamp"))
@@ -51,7 +52,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putMapping(generateMapping("@timestamp"))
@@ -90,7 +91,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         Metadata.Builder mb = Metadata.builder();
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putMapping(generateMapping("@timestamp"))
@@ -133,7 +134,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         Metadata.Builder mb = Metadata.builder();
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putMapping(generateMapping("@timestamp"))
@@ -176,7 +177,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         Metadata.Builder mb = Metadata.builder();
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putMapping(generateMapping("@timestamp"))
@@ -187,7 +188,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putMapping(generateMapping("@timestamp"))
@@ -230,7 +231,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         Metadata.Builder mb = Metadata.builder();
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putMapping(generateMapping("@timestamp"))
@@ -241,7 +242,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putMapping(generateMapping("@timestamp"))
@@ -285,7 +286,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
     public void testMissingDataStream() {
         Metadata.Builder mb = Metadata.builder();
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putMapping(generateMapping("@timestamp"))
@@ -315,7 +316,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         Metadata.Builder mb = Metadata.builder();
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putMapping(generateMapping("@timestamp"))
@@ -352,7 +353,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             original.isReplicated(),
             original.isSystem(),
             original.isAllowCustomRouting(),
-            original.getIndexMode()
+            original.getIndexMode(),
+            original.getLifecycle(),
+            original.isFailureStore(),
+            original.getFailureIndices()
         );
         var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
 
@@ -379,6 +383,28 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             )
         );
         assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
+    }
+
+    public void testUpdateLifecycle() {
+        String dataStream = randomAlphaOfLength(5);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        {
+            // Remove lifecycle
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), null);
+            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            assertNotNull(updatedDataStream);
+            assertThat(updatedDataStream.getLifecycle(), nullValue());
+            before = after;
+        }
+
+        {
+            // Set lifecycle
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), lifecycle);
+            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            assertNotNull(updatedDataStream);
+            assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
+        }
     }
 
     private MapperService getMapperService(IndexMetadata im) {

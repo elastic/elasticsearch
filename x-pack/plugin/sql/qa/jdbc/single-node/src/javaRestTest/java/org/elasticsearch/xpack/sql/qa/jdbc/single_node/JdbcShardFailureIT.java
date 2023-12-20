@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc.single_node;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 import org.junit.Before;
 
@@ -63,10 +64,10 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{}}
                 {"test_field":%s}
-                """.formatted(i));
+                """, i));
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);

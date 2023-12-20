@@ -16,11 +16,14 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -45,10 +48,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.hamcrest.Matchers.is;
 
 //The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
@@ -91,20 +96,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected ClientYamlTestClient initClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
-        final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os
+        final List<HttpHost> hosts
     ) {
-        return new ClientYamlDocsTestClient(
-            restSpec,
-            restClient,
-            hosts,
-            esVersion,
-            masterVersion,
-            os,
-            this::getClientBuilderWithSniffedHosts
-        );
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts);
     }
 
     @Before
@@ -221,6 +215,74 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return testName != null && (testName.contains("/info/") || testName.contains("\\info\\"));
     }
 
+    private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+
+    /**
+     * All tests run as a an administrative user but use <code>es-shield-runas-user</code> to become a less privileged user.
+     */
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", USER_TOKEN).build();
+    }
+
+    /**
+     * Deletes users after every test just in case any test adds any.
+     */
+    @After
+    public void deleteUsers() throws Exception {
+        ClientYamlTestResponse response = getAdminExecutionContext().callApi("security.get_user", emptyMap(), emptyList(), emptyMap());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> users = (Map<String, Object>) response.getBody();
+        for (String user : users.keySet()) {
+            Map<?, ?> metadataMap = (Map<?, ?>) ((Map<?, ?>) users.get(user)).get("metadata");
+            Boolean reserved = metadataMap == null ? null : (Boolean) metadataMap.get("_reserved");
+            if (reserved == null || reserved == false) {
+                logger.warn("Deleting leftover user {}", user);
+                getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
+            }
+        }
+    }
+
+    /**
+     * Re-enables watcher after every test just in case any test disables it.
+     */
+    @After
+    public void reenableWatcher() throws Exception {
+        if (isWatcherTest()) {
+            assertBusy(() -> {
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
+                String state = (String) response.evaluate("stats.0.watcher_state");
+
+                switch (state) {
+                    case "stopped":
+                        ClientYamlTestResponse startResponse = getAdminExecutionContext().callApi(
+                            "watcher.start",
+                            emptyMap(),
+                            emptyList(),
+                            emptyMap()
+                        );
+                        boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
+                        assertThat(isAcknowledged, is(true));
+                        throw new AssertionError("waiting until stopped state reached started state");
+                    case "stopping":
+                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                    case "starting":
+                        throw new AssertionError("waiting until starting state reached started state");
+                    case "started":
+                        // all good here, we are done
+                        break;
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
+                }
+            });
+        }
+    }
+
+    protected boolean isWatcherTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
+    }
+
     /**
      * Compares the results of running two analyzers against many random
      * strings. The goal is to figure out if two anlayzers are "the same" by
@@ -315,10 +377,10 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             Object previousSecond = null;
             while (firstTokens.hasNext()) {
                 if (false == secondTokens.hasNext()) {
-                    fail("""
+                    fail(Strings.format("""
                         %s has fewer tokens than %s. %s has [%s] but %s is out of tokens. \
                         %s's last token was [%s] and %s's last token was' [%s]
-                        """.formatted(second, first, first, firstTokens.next(), second, first, previousFirst, second, previousSecond));
+                        """, second, first, first, firstTokens.next(), second, first, previousFirst, second, previousSecond));
                 }
                 Map<?, ?> firstToken = (Map<?, ?>) firstTokens.next();
                 Map<?, ?> secondToken = (Map<?, ?>) secondTokens.next();
@@ -326,11 +388,11 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 String secondText = (String) secondToken.get("token");
                 // Check the text and produce an error message with the utf8 sequence if they don't match.
                 if (false == secondText.equals(firstText)) {
-                    fail("""
+                    fail(Strings.format("""
                         text differs: %s was [%s] but %s was [%s]. In utf8 those are
                         %s and
                         %s
-                        """.formatted(first, firstText, second, secondText, new BytesRef(firstText), new BytesRef(secondText)));
+                        """, first, firstText, second, secondText, new BytesRef(firstText), new BytesRef(secondText)));
                 }
                 // Now check the whole map just in case the text matches but something else differs
                 assertEquals(firstToken, secondToken);
@@ -338,10 +400,10 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 previousSecond = secondToken;
             }
             if (secondTokens.hasNext()) {
-                fail("""
+                fail(Strings.format("""
                     %s has more tokens than %s. %s has [%s] but %s is out of tokens. \
                     %s's last token was [%s] and %s's last token was [%s]
-                    """.formatted(second, first, second, secondTokens.next(), first, first, previousFirst, second, previousSecond));
+                    """, second, first, second, secondTokens.next(), first, first, previousFirst, second, previousSecond));
             }
         }
     }

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -18,8 +18,10 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,6 +31,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestIndexAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
@@ -49,6 +52,7 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static final class CreateHandler extends RestIndexAction {
 
         @Override
@@ -80,6 +84,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static final class AutoIdHandler extends RestIndexAction {
 
         private final Supplier<DiscoveryNodes> nodesInCluster;
@@ -104,10 +109,8 @@ public class RestIndexAction extends BaseRestHandler {
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             assert request.params().get("id") == null : "non-null id: " + request.params().get("id");
-            if (request.params().get("op_type") == null && nodesInCluster.get().getMinNodeVersion().onOrAfter(Version.V_7_5_0)) {
-                // default to op_type create
-                request.params().put("op_type", "create");
-            }
+            // default to op_type create
+            request.params().putIfAbsent("op_type", "create");
             return super.prepareRequest(request, client);
         }
     }
@@ -141,7 +144,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         return channel -> client.index(
             indexRequest,
-            new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing()))
+            new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
         );
     }
 

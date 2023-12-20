@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.Map;
 
 // Typed object holding properties for a given query
@@ -64,7 +63,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         @Nullable SqlQueryTask task,
         boolean allowPartialSearchResults
     ) {
-        super(zi, username, clusterName, x -> Collections.emptySet());
+        super(zi, username, clusterName);
 
         this.catalog = catalog;
         this.pageSize = pageSize;

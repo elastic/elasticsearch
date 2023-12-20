@@ -26,11 +26,11 @@ The {ml-features} include the following count functions:
 The `count` function detects anomalies when the number of events in a bucket is
 anomalous.
 
-The `high_count` function detects anomalies when the count of events in a
-bucket are unusually high.
+The `high_count` function detects anomalies when the count of events in a bucket 
+are unusually high.
 
-The `low_count` function detects anomalies when the count of events in a
-bucket are unusually low.
+The `low_count` function detects anomalies when the count of events in a bucket 
+are unusually low.
 
 These functions support the following properties:
 
@@ -111,8 +111,8 @@ PUT _ml/anomaly_detectors/example3
 --------------------------------------------------
 // TEST[skip:needs-licence]
 
-In this example, the function detects when the count of events for a
-status code is lower than usual.
+In this example, the function detects when the count of events for a status code 
+is lower than usual.
 
 When you use this function in a detector in your {anomaly-job}, it models the
 event rate for each status code and detects when a status code has an unusually
@@ -168,19 +168,19 @@ For more information about those properties, see the
 
 For example, if you have the following number of events per bucket:
 
-========================================
+====
 
 1,22,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,43,31,0,0,0,0,0,0,0,0,0,0,0,0,2,1
 
-========================================
+====
 
 The `non_zero_count` function models only the following data:
 
-========================================
+====
 
 1,22,2,43,31,2,1
 
-========================================
+====
 
 .Example 5: Analyzing signatures with the high_non_zero_count function
 [source,console]

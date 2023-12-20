@@ -9,7 +9,8 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,7 +34,6 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -55,7 +55,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         IndicesRequest.Replaceable,
         ToXContentObject {
 
-    public static final Version SETTINGS_IN_REQUEST_VERSION = Version.V_8_0_0;
+    public static final TransportVersion SETTINGS_IN_REQUEST_VERSION = TransportVersions.V_8_0_0;
 
     public static int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 
@@ -97,7 +97,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         repository = in.readString();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
+        if (in.getTransportVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             readSettingsFromStream(in);
         }
         featureStates = in.readStringArray();
@@ -114,8 +114,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeString(repository);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
-            writeSettingsToStream(Settings.EMPTY, out);
+        if (out.getTransportVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
+            Settings.EMPTY.writeTo(out);
         }
         out.writeStringArray(featureStates);
         out.writeBoolean(includeGlobalState);
@@ -429,17 +429,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         builder.startObject();
         builder.field("repository", repository);
         builder.field("snapshot", snapshot);
-        builder.startArray("indices");
-        for (String index : indices) {
-            builder.value(index);
-        }
-        builder.endArray();
+        builder.array("indices", indices);
         if (featureStates != null) {
-            builder.startArray("feature_states");
-            for (String plugin : featureStates) {
-                builder.value(plugin);
-            }
-            builder.endArray();
+            builder.array("feature_states", featureStates);
         }
         builder.field("partial", partial);
         builder.field("include_global_state", includeGlobalState);

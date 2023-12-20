@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -34,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregationBuilder;
@@ -49,12 +48,10 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
-    @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
+public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -86,6 +83,105 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
 
     public void testGeoShapeGeoTile() throws IOException {
         doTestGeotileGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
+    }
+
+    public void testGeoShapeGeoHex() throws IOException {
+        doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
+    }
+
+    public void testKnownIssueWithCellLeftOfDatelineTouchingPolygonOnRightOfDateline() throws IOException {
+        XContentBuilder xcb = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("geometry")
+            .field("type", "geo_shape")
+            .endObject()
+            .endObject()
+            .endObject();
+        indicesAdmin().prepareCreate("test").setMapping(xcb).get();
+
+        BulkRequestBuilder builder = client().prepareBulk();
+        builder.add(
+            new IndexRequest("test").source("{\"geometry\" : \"BBOX (179.99999, 180.0, -11.29550, -11.29552)\"}", XContentType.JSON)
+        );
+        builder.add(
+            new IndexRequest("test").source("{\"geometry\" : \"BBOX (-180.0, -179.99999, -11.29550, -11.29552)\"}", XContentType.JSON)
+        );
+
+        assertFalse(builder.get().hasFailures());
+        indicesAdmin().prepareRefresh("test").get();
+
+        GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(-11.29550, 179.999992), new GeoPoint(-11.29552, -179.999992));
+
+        GeoGridAggregationBuilder builderPoint = new GeoHexGridAggregationBuilder("geometry").field("geometry")
+            .precision(15)
+            .setGeoBoundingBox(boundingBox)
+            .size(256 * 256);
+        assertResponse(client().prepareSearch("test").addAggregation(builderPoint).setSize(0), response -> {
+            InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
+            for (InternalGeoGridBucket bucket : gridPoint.getBuckets()) {
+                assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
+                QueryBuilder queryBuilder = new GeoGridQueryBuilder("geometry").setGridId(
+                    GeoGridQueryBuilder.Grid.GEOHEX,
+                    bucket.getKeyAsString()
+                );
+                assertResponse(
+                    client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder),
+                    innerResponse -> assertThat(
+                        "Bucket " + bucket.getKeyAsString(),
+                        innerResponse.getHits().getTotalHits().value,
+                        Matchers.equalTo(bucket.getDocCount())
+                    )
+                );
+            }
+        });
+    }
+
+    public void testKnownIssueWithCellIntersectingPolygonAndBoundingBox() throws IOException {
+        XContentBuilder xcb = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("geometry")
+            .field("type", "geo_shape")
+            .endObject()
+            .endObject()
+            .endObject();
+        indicesAdmin().prepareCreate("test").setMapping(xcb).get();
+
+        BulkRequestBuilder builder = client().prepareBulk();
+        builder.add(
+            new IndexRequest("test").source("{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}", XContentType.JSON)
+        );
+        builder.add(
+            new IndexRequest("test").source("{\"geometry\" : \"POINT (169.12088680200193 86.17678739494652)\"}", XContentType.JSON)
+        );
+        String mp = "POLYGON ((150.0 70.0, 150.0 85.91811374669217, 168.77544806565834 85.91811374669217, 150.0 70.0))";
+        builder.add(new IndexRequest("test").source("{\"geometry\" : \"" + mp + "\"}", XContentType.JSON));
+
+        assertFalse(builder.get().hasFailures());
+        indicesAdmin().prepareRefresh("test").get();
+
+        // BBOX (172.21916569181505, -173.17785081207947, 86.17678739494652, 83.01600086049713)
+        GeoBoundingBox boundingBox = new GeoBoundingBox(
+            new GeoPoint(86.17678739494652, 172.21916569181505),
+            new GeoPoint(83.01600086049713, 179)
+        );
+        int precision = 4;
+        GeoGridAggregationBuilder builderPoint = new GeoHexGridAggregationBuilder("geometry").field("geometry")
+            .precision(precision)
+            .setGeoBoundingBox(boundingBox)
+            .size(256 * 256);
+        assertResponse(client().prepareSearch("test").addAggregation(builderPoint).setSize(0), response -> {
+            InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
+            for (InternalGeoGridBucket bucket : gridPoint.getBuckets()) {
+                assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
+                QueryBuilder queryBuilder = new GeoGridQueryBuilder("geometry").setGridId(
+                    GeoGridQueryBuilder.Grid.GEOHEX,
+                    bucket.getKeyAsString()
+                );
+                assertHitCount(client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder), bucket.getDocCount());
+            }
+        });
     }
 
     private void doTestGeohashGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
@@ -125,7 +221,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             }
             return points;
         },
-            h3 -> new Rectangle(GeoUtils.MIN_LON, GeoUtils.MAX_LON, GeoUtils.MAX_LAT, GeoUtils.MAX_LAT),
+            h3 -> H3CartesianUtil.toBoundingBox(H3.stringToH3(h3)),
             GeoHexGridAggregationBuilder::new,
             (s1, s2) -> new GeoGridQueryBuilder(s1).setGridId(GeoGridQueryBuilder.Grid.GEOHEX, s2),
             randomGeometriesSupplier
@@ -151,7 +247,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
+        indicesAdmin().prepareCreate("test").setMapping(xcb).get();
 
         Point queryPoint = GeometryTestUtils.randomPoint();
         String[] tiles = new String[maxPrecision + 1];
@@ -174,13 +270,15 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
 
         }
         assertFalse(builder.get().hasFailures());
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         for (int i = minPrecision; i <= maxPrecision; i++) {
             GeoGridAggregationBuilder builderPoint = aggBuilder.apply("geometry").field("geometry").precision(i);
-            SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
-            InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
-            assertQuery(gridPoint.getBuckets(), queryBuilder);
+            int finalI = i;
+            assertResponse(client().prepareSearch("test").addAggregation(builderPoint).setSize(0), response -> {
+                InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
+                assertQuery(gridPoint.getBuckets(), queryBuilder, finalI);
+            });
         }
 
         builder = client().prepareBulk();
@@ -191,7 +289,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
         }
         assertFalse(builder.get().hasFailures());
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         int zoom = randomIntBetween(minPrecision, maxPrecision);
         Rectangle rectangle = toBoundingBox.apply(tiles[zoom]);
@@ -206,18 +304,26 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
                 .precision(i)
                 .setGeoBoundingBox(boundingBox)
                 .size(256 * 256);
-            SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
-            InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
-            assertQuery(gridPoint.getBuckets(), queryBuilder);
+            int finalI = i;
+            assertResponse(client().prepareSearch("test").addAggregation(builderPoint).setSize(0), response -> {
+                InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
+                assertQuery(gridPoint.getBuckets(), queryBuilder, finalI);
+            });
         }
     }
 
-    private void assertQuery(List<InternalGeoGridBucket> buckets, BiFunction<String, String, QueryBuilder> queryFunction) {
+    private void assertQuery(List<InternalGeoGridBucket> buckets, BiFunction<String, String, QueryBuilder> queryFunction, int precision) {
         for (InternalGeoGridBucket bucket : buckets) {
             assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
             QueryBuilder queryBuilder = queryFunction.apply("geometry", bucket.getKeyAsString());
-            SearchResponse response = client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
-            assertThat(response.getHits().getTotalHits().value, Matchers.equalTo(bucket.getDocCount()));
+            assertResponse(
+                client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder),
+                response -> assertThat(
+                    "Expected hits at precision " + precision + " for H3 cell " + bucket.getKeyAsString(),
+                    response.getHits().getTotalHits().value,
+                    Matchers.equalTo(bucket.getDocCount())
+                )
+            );
         }
     }
 

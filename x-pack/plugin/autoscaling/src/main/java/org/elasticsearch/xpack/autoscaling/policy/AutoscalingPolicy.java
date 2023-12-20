@@ -87,7 +87,7 @@ public class AutoscalingPolicy implements SimpleDiffable<AutoscalingPolicy>, ToX
 
     public AutoscalingPolicy(final StreamInput in) throws IOException {
         this.name = in.readString();
-        this.roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
+        this.roles = in.readCollectionAsSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
         int deciderCount = in.readInt();
         SortedMap<String, Settings> decidersMap = new TreeMap<>();
         for (int i = 0; i < deciderCount; ++i) {
@@ -99,11 +99,11 @@ public class AutoscalingPolicy implements SimpleDiffable<AutoscalingPolicy>, ToX
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(roles, StreamOutput::writeString);
+        out.writeStringCollection(roles);
         out.writeInt(deciders.size());
         for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
             out.writeString(entry.getKey());
-            Settings.writeSettingsToStream(entry.getValue(), out);
+            entry.getValue().writeTo(out);
         }
     }
 

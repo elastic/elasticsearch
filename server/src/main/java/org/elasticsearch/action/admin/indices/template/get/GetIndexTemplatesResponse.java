@@ -29,7 +29,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
     public GetIndexTemplatesResponse(StreamInput in) throws IOException {
         super(in);
-        indexTemplates = in.readList(IndexTemplateMetadata::readFrom);
+        indexTemplates = in.readCollectionAsList(IndexTemplateMetadata::readFrom);
     }
 
     public GetIndexTemplatesResponse(List<IndexTemplateMetadata> indexTemplates) {

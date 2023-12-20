@@ -7,20 +7,23 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
+import static org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest.API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -29,19 +32,26 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetApiKeyRequestTests extends ESTestCase {
 
     public void testRequestValidation() {
-        GetApiKeyRequest request = GetApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5), randomBoolean());
+        GetApiKeyRequest request = GetApiKeyRequest.builder()
+            .apiKeyId(randomAlphaOfLength(5))
+            .ownedByAuthenticatedUser(randomBoolean())
+            .build();
         ActionRequestValidationException ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.usingApiKeyName(randomAlphaOfLength(5), randomBoolean());
+        request = GetApiKeyRequest.builder().apiKeyName(randomAlphaOfLength(5)).ownedByAuthenticatedUser(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.usingRealmName(randomAlphaOfLength(5));
+        request = GetApiKeyRequest.builder().realmName(randomAlphaOfLength(5)).activeOnly(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.usingUserName(randomAlphaOfLength(5));
+        request = GetApiKeyRequest.builder().userName(randomAlphaOfLength(5)).activeOnly(randomBoolean()).build();
         ve = request.validate();
         assertNull(ve);
-        request = GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), randomAlphaOfLength(7));
+        request = GetApiKeyRequest.builder()
+            .realmName(randomAlphaOfLength(5))
+            .userName(randomAlphaOfLength(7))
+            .activeOnly(randomBoolean())
+            .build();
         ve = request.validate();
         assertNull(ve);
     }
@@ -75,6 +85,8 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(apiKeyId);
                 out.writeOptionalString(apiKeyName);
                 out.writeOptionalBoolean(ownedByAuthenticatedUser);
+                out.writeBoolean(randomBoolean());
+                out.writeBoolean(randomBoolean());
             }
         }
 
@@ -119,16 +131,17 @@ public class GetApiKeyRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final String apiKeyId = randomAlphaOfLength(5);
-        final boolean ownedByAuthenticatedUser = true;
-        GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, ownedByAuthenticatedUser);
         {
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().ownedByAuthenticatedUser(true).apiKeyId(apiKeyId).build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_3_0));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_3_0)
+            );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
@@ -136,13 +149,70 @@ public class GetApiKeyRequestTests extends ESTestCase {
             assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(false));
         }
         {
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
+                .apiKeyId(apiKeyId)
+                .ownedByAuthenticatedUser(true)
+                .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
+                .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_4_0, TransportVersions.V_8_4_0));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_4_0, TransportVersions.V_8_4_0)
+            );
+            GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
+            assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(true));
+            // old version so the default for `withLimitedBy` is false
+            assertThat(requestFromInputStream.withLimitedBy(), is(false));
+            // old version so the default for `activeOnly` is false
+            assertThat(requestFromInputStream.activeOnly(), is(false));
+        }
+        {
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
+                .apiKeyId(apiKeyId)
+                .ownedByAuthenticatedUser(randomBoolean())
+                .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
+                .build();
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            TransportVersion beforeActiveOnly = TransportVersionUtils.getPreviousVersion(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION);
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_8_5_0, beforeActiveOnly));
+            getApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_8_5_0, beforeActiveOnly));
+            GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
+            assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(getApiKeyRequest.ownedByAuthenticatedUser()));
+            assertThat(requestFromInputStream.withLimitedBy(), is(getApiKeyRequest.withLimitedBy()));
+            // old version so the default for `activeOnly` is false
+            assertThat(requestFromInputStream.activeOnly(), is(false));
+        }
+        {
+            final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder()
+                .apiKeyId(apiKeyId)
+                .withLimitedBy(randomBoolean())
+                .activeOnly(randomBoolean())
+                .build();
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setTransportVersion(
+                randomVersionBetween(random(), API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION, TransportVersion.current())
+            );
+            getApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION, TransportVersion.current())
+            );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(getApiKeyRequest));
@@ -151,13 +221,14 @@ public class GetApiKeyRequestTests extends ESTestCase {
 
     public void testEmptyStringsAreCoercedToNull() {
         Supplier<String> randomBlankString = () -> " ".repeat(randomIntBetween(0, 5));
-        final GetApiKeyRequest request = new GetApiKeyRequest(
-            randomBlankString.get(), // realm name
-            randomBlankString.get(), // user name
-            randomBlankString.get(), // key id
-            randomBlankString.get(), // key name
-            randomBoolean() // owned by user
-        );
+        final GetApiKeyRequest request = GetApiKeyRequest.builder()
+            .realmName(randomBlankString.get())
+            .userName(randomBlankString.get())
+            .apiKeyId(randomBlankString.get())
+            .apiKeyName(randomBlankString.get())
+            .ownedByAuthenticatedUser(randomBoolean())
+            .withLimitedBy(randomBoolean())
+            .build();
         assertThat(request.getRealmName(), nullValue());
         assertThat(request.getUserName(), nullValue());
         assertThat(request.getApiKeyId(), nullValue());

@@ -28,7 +28,7 @@ import java.util.function.Consumer;
  * is still running and AsyncTaskIndexService if task results already stored there.
  */
 public class DeleteAsyncResultsService {
-    private final Logger logger = LogManager.getLogger(DeleteAsyncResultsService.class);
+    private static final Logger logger = LogManager.getLogger(DeleteAsyncResultsService.class);
     private final TaskManager taskManager;
     private final AsyncTaskIndexService<? extends AsyncResponse<?>> store;
 
@@ -55,7 +55,7 @@ public class DeleteAsyncResultsService {
         final Authentication current = store.getSecurityContext().getAuthentication();
         if (current != null) {
             HasPrivilegesRequest req = new HasPrivilegesRequest();
-            req.username(current.getUser().principal());
+            req.username(current.getEffectiveSubject().getUser().principal());
             req.clusterPrivileges(ClusterPrivilegeResolver.CANCEL_TASK.name());
             req.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
             req.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
@@ -93,7 +93,7 @@ public class DeleteAsyncResultsService {
                 } else {
                     store.ensureAuthenticatedUserCanDeleteFromIndex(
                         searchId,
-                        ActionListener.wrap(res -> deleteResponseFromIndex(searchId, false, listener), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, res) -> deleteResponseFromIndex(searchId, false, l))
                     );
                 }
             }

@@ -161,3 +161,43 @@
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
+
+---
+"Test explain templated search":
+  - skip:
+      version: " - 8.7.99"
+      reason: Bug fix for explain in search template added in 8.8.0
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { "text": "value1" }
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:   { "text": "value2" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search_template:
+        explain: true
+        body: { "source" : { "query": { "term": { "text": { "value": "{{template}}" } } } }, "params": { "template": "value1" } }
+
+  - is_true: hits.hits.0._explanation
+  # Test consistency with _search API, where query parameter takes priority over body
+  - do:
+      search_template:
+        explain: true
+        body: { "explain": false, "source" : { "query": { "term": { "text": { "value": "{{template}}" } } } }, "params": { "template": "value1" } }
+
+  - is_true: hits.hits.0._explanation
+
+  - do:
+      search_template:
+        explain: false
+        body: {"explain": true, "source" : { "query": { "term": { "text": { "value": "{{template}}" } } } }, "params": { "template": "value1" } }
+
+  - is_false: hits.hits.0._explanation

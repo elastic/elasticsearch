@@ -8,23 +8,36 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -32,27 +45,22 @@ import java.util.Optional;
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
-public class ClusterInfo implements ToXContentFragment, Writeable {
+public class ClusterInfo implements ChunkedToXContent, Writeable {
 
-    public static final Version DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
-
-    private final ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage;
-    private final ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage;
-    final ImmutableOpenMap<String, Long> shardSizes;
-    final ImmutableOpenMap<ShardId, Long> shardDataSetSizes;
     public static final ClusterInfo EMPTY = new ClusterInfo();
-    final ImmutableOpenMap<ShardRouting, String> routingToDataPath;
-    final ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace;
+
+    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
+    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
+
+    private final Map<String, DiskUsage> leastAvailableSpaceUsage;
+    private final Map<String, DiskUsage> mostAvailableSpaceUsage;
+    final Map<String, Long> shardSizes;
+    final Map<ShardId, Long> shardDataSetSizes;
+    final Map<NodeAndShard, String> dataPath;
+    final Map<NodeAndPath, ReservedSpace> reservedSpace;
 
     protected ClusterInfo() {
-        this(
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
-        );
+        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     /**
@@ -62,139 +70,148 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * @param mostAvailableSpaceUsage  a node id to disk usage mapping for the path that has the most available space on the node.
      * @param shardSizes a shardkey to size in bytes mapping per shard.
      * @param shardDataSetSizes a shard id to data set size in bytes mapping per shard
-     * @param routingToDataPath the shard routing to datapath mapping
+     * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
      * @see #shardIdentifierFromRouting
      */
     public ClusterInfo(
-        ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
-        ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
-        ImmutableOpenMap<String, Long> shardSizes,
-        ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
-        ImmutableOpenMap<ShardRouting, String> routingToDataPath,
-        ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace
+        Map<String, DiskUsage> leastAvailableSpaceUsage,
+        Map<String, DiskUsage> mostAvailableSpaceUsage,
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizes,
+        Map<NodeAndShard, String> dataPath,
+        Map<NodeAndPath, ReservedSpace> reservedSpace
     ) {
-        this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
-        this.shardSizes = shardSizes;
-        this.shardDataSetSizes = shardDataSetSizes;
-        this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
-        this.routingToDataPath = routingToDataPath;
-        this.reservedSpace = reservedSpace;
+        this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
+        this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
+        this.shardSizes = Map.copyOf(shardSizes);
+        this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
+        this.dataPath = Map.copyOf(dataPath);
+        this.reservedSpace = Map.copyOf(reservedSpace);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
-        Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::new);
-        Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::new);
-        Map<String, Long> sizeMap = in.readMap(StreamInput::readString, StreamInput::readLong);
-        Map<ShardId, Long> dataSetSizeMap;
-        if (in.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            dataSetSizeMap = in.readMap(ShardId::new, StreamInput::readLong);
-        } else {
-            dataSetSizeMap = Map.of();
-        }
-        Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
-        Map<NodeAndPath, ReservedSpace> reservedSpaceMap;
-        if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            reservedSpaceMap = in.readMap(NodeAndPath::new, ReservedSpace::new);
-        } else {
-            reservedSpaceMap = Map.of();
-        }
-
-        ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();
-        this.leastAvailableSpaceUsage = leastBuilder.putAllFromMap(leastMap).build();
-        ImmutableOpenMap.Builder<String, DiskUsage> mostBuilder = ImmutableOpenMap.builder();
-        this.mostAvailableSpaceUsage = mostBuilder.putAllFromMap(mostMap).build();
-        ImmutableOpenMap.Builder<String, Long> sizeBuilder = ImmutableOpenMap.builder();
-        this.shardSizes = sizeBuilder.putAllFromMap(sizeMap).build();
-        ImmutableOpenMap.Builder<ShardId, Long> dataSetSizeBuilder = ImmutableOpenMap.builder();
-        this.shardDataSetSizes = dataSetSizeBuilder.putAllFromMap(dataSetSizeMap).build();
-        ImmutableOpenMap.Builder<ShardRouting, String> routingBuilder = ImmutableOpenMap.builder();
-        this.routingToDataPath = routingBuilder.putAllFromMap(routingMap).build();
-        ImmutableOpenMap.Builder<NodeAndPath, ReservedSpace> reservedSpaceBuilder = ImmutableOpenMap.builder();
-        this.reservedSpace = reservedSpaceBuilder.putAllFromMap(reservedSpaceMap).build();
+        this.leastAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
+        this.mostAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
+        this.shardSizes = in.readImmutableMap(StreamInput::readLong);
+        this.shardDataSetSizes = in.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)
+            ? in.readImmutableMap(ShardId::new, StreamInput::readLong)
+            : Map.of();
+        this.dataPath = in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)
+            ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
+            : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
+        this.reservedSpace = in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)
+            ? in.readImmutableMap(NodeAndPath::new, ReservedSpace::new)
+            : Map.of();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> o.writeLong(v == null ? -1 : v));
-        if (out.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
+        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeWriteable);
+        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeWriteable);
+        out.writeMap(this.shardSizes, (o, v) -> o.writeLong(v == null ? -1 : v));
+        if (out.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
+            out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
         }
-        out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
+            out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
+        } else {
+            out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
+        }
+        if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             out.writeMap(this.reservedSpace);
         }
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("nodes");
-        {
-            for (Map.Entry<String, DiskUsage> c : this.leastAvailableSpaceUsage.entrySet()) {
-                builder.startObject(c.getKey());
-                { // node
-                    builder.field("node_name", c.getValue().getNodeName());
-                    builder.startObject("least_available");
-                    {
-                        c.getValue().toShortXContent(builder);
-                    }
-                    builder.endObject(); // end "least_available"
-                    builder.startObject("most_available");
-                    {
-                        DiskUsage most = this.mostAvailableSpaceUsage.get(c.getKey());
-                        if (most != null) {
-                            most.toShortXContent(builder);
-                        }
-                    }
-                    builder.endObject(); // end "most_available"
+    /**
+     * This creates a fake ShardRouting from limited info available in NodeAndShard.
+     * This will not be the same as real shard, however this is fine as ClusterInfo is only written
+     * in TransportClusterAllocationExplainAction when handling an allocation explain request with includeDiskInfo during upgrade
+     * that is later presented to the user and is not used by any code.
+     */
+    private static ShardRouting createFakeShardRoutingFromNodeAndShard(NodeAndShard nodeAndShard) {
+        return newUnassigned(
+            nodeAndShard.shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(REINITIALIZED, "fake"),
+            ShardRouting.Role.DEFAULT // ok, this is only used prior to DATA_PATH_NEW_KEY_VERSION which has no other roles
+        ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
+    }
+
+    @Override
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(startObject("nodes"), Iterators.map(leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
+            builder.startObject(c.getKey());
+            { // node
+                builder.field("node_name", c.getValue().getNodeName());
+                builder.startObject("least_available");
+                {
+                    c.getValue().toShortXContent(builder);
                 }
-                builder.endObject(); // end $nodename
+                builder.endObject(); // end "least_available"
+                builder.startObject("most_available");
+                {
+                    DiskUsage most = this.mostAvailableSpaceUsage.get(c.getKey());
+                    if (most != null) {
+                        most.toShortXContent(builder);
+                    }
+                }
+                builder.endObject(); // end "most_available"
             }
-        }
-        builder.endObject(); // end "nodes"
-        builder.startObject("shard_sizes");
-        {
-            for (Map.Entry<String, Long> c : this.shardSizes.entrySet()) {
-                builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), new ByteSizeValue(c.getValue()));
-            }
-        }
-        builder.endObject(); // end "shard_sizes"
-        builder.startObject("shard_data_set_sizes");
-        {
-            for (Map.Entry<ShardId, Long> c : this.shardDataSetSizes.entrySet()) {
-                builder.humanReadableField(c.getKey() + "_bytes", c.getKey().toString(), new ByteSizeValue(c.getValue()));
-            }
-        }
-        builder.endObject(); // end "shard_data_set_sizes"
-        builder.startObject("shard_paths");
-        {
-            for (Map.Entry<ShardRouting, String> c : this.routingToDataPath.entrySet()) {
-                builder.field(c.getKey().toString(), c.getValue());
-            }
-        }
-        builder.endObject(); // end "shard_paths"
-        builder.startArray("reserved_sizes");
-        {
-            for (Map.Entry<NodeAndPath, ReservedSpace> c : this.reservedSpace.entrySet()) {
+            builder.endObject(); // end $nodename
+            return builder;
+        }),
+            singleChunk(
+                (builder, p) -> builder.endObject(), // end "nodes"
+                (builder, p) -> builder.startObject("shard_sizes")
+            ),
+
+            Iterators.map(
+                shardSizes.entrySet().iterator(),
+                c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
+            ),
+            singleChunk(
+                (builder, p) -> builder.endObject(), // end "shard_sizes"
+                (builder, p) -> builder.startObject("shard_data_set_sizes")
+            ),
+            Iterators.map(
+                shardDataSetSizes.entrySet().iterator(),
+                c -> (builder, p) -> builder.humanReadableField(
+                    c.getKey() + "_bytes",
+                    c.getKey().toString(),
+                    ByteSizeValue.ofBytes(c.getValue())
+                )
+            ),
+            singleChunk(
+                (builder, p) -> builder.endObject(), // end "shard_data_set_sizes"
+                (builder, p) -> builder.startObject("shard_paths")
+            ),
+            Iterators.map(dataPath.entrySet().iterator(), c -> (builder, p) -> builder.field(c.getKey().toString(), c.getValue())),
+            singleChunk(
+                (builder, p) -> builder.endObject(), // end "shard_paths"
+                (builder, p) -> builder.startArray("reserved_sizes")
+            ),
+            Iterators.map(reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
                 builder.startObject();
                 {
                     builder.field("node_id", c.getKey().nodeId);
                     builder.field("path", c.getKey().path);
                     c.getValue().toXContent(builder, params);
                 }
-                builder.endObject(); // NodeAndPath
-            }
-        }
-        builder.endArray(); // end "reserved_sizes"
-        return builder;
+                return builder.endObject(); // NodeAndPath
+            }),
+
+            endArray() // end "reserved_sizes"
+
+        );
     }
 
     /**
      * Returns a node id to disk usage mapping for the path that has the least available space on the node.
      * Note that this does not take account of reserved space: there may be another path with less available _and unreserved_ space.
      */
-    public ImmutableOpenMap<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
+    public Map<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
         return this.leastAvailableSpaceUsage;
     }
 
@@ -202,22 +219,22 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * Returns a node id to disk usage mapping for the path that has the most available space on the node.
      * Note that this does not take account of reserved space: there may be another path with more available _and unreserved_ space.
      */
-    public ImmutableOpenMap<String, DiskUsage> getNodeMostAvailableDiskUsages() {
+    public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
         return this.mostAvailableSpaceUsage;
     }
 
     /**
-     * Returns the shard size for the given shard routing or <code>null</code> it that metric is not available.
+     * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
      */
-    public Long getShardSize(ShardRouting shardRouting) {
-        return shardSizes.get(shardIdentifierFromRouting(shardRouting));
+    public Long getShardSize(ShardId shardId, boolean primary) {
+        return shardSizes.get(shardIdentifierFromRouting(shardId, primary));
     }
 
     /**
-     * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
+     * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
      */
-    public String getDataPath(ShardRouting shardRouting) {
-        return routingToDataPath.get(shardRouting);
+    public Long getShardSize(ShardRouting shardRouting) {
+        return getShardSize(shardRouting.shardId(), shardRouting.primary());
     }
 
     /**
@@ -226,6 +243,25 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public long getShardSize(ShardRouting shardRouting, long defaultValue) {
         Long shardSize = getShardSize(shardRouting);
         return shardSize == null ? defaultValue : shardSize;
+    }
+
+    /**
+     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+     */
+    public long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
+        Long shardSize = getShardSize(shardId, primary);
+        return shardSize == null ? defaultValue : shardSize;
+    }
+
+    /**
+     * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
+     */
+    public String getDataPath(ShardRouting shardRouting) {
+        return dataPath.get(NodeAndShard.from(shardRouting));
+    }
+
+    public String getDataPath(NodeAndShard nodeAndShard) {
+        return dataPath.get(nodeAndShard);
     }
 
     public Optional<Long> getShardDataSetSize(ShardId shardId) {
@@ -245,37 +281,75 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * includes a 'p' or 'r' depending on whether the shard is a primary.
      */
     public static String shardIdentifierFromRouting(ShardRouting shardRouting) {
-        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+        return shardIdentifierFromRouting(shardRouting.shardId(), shardRouting.primary());
+    }
+
+    public static String shardIdentifierFromRouting(ShardId shardId, boolean primary) {
+        return shardId.toString() + "[" + (primary ? "p" : "r") + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterInfo that = (ClusterInfo) o;
+        return leastAvailableSpaceUsage.equals(that.leastAvailableSpaceUsage)
+            && mostAvailableSpaceUsage.equals(that.mostAvailableSpaceUsage)
+            && shardSizes.equals(that.shardSizes)
+            && shardDataSetSizes.equals(that.shardDataSetSizes)
+            && dataPath.equals(that.dataPath)
+            && reservedSpace.equals(that.reservedSpace);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, shardDataSetSizes, dataPath, reservedSpace);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, false);
+    }
+
+    // exposed for tests, computed here rather than exposing all the collections separately
+    int getChunkCount() {
+        return leastAvailableSpaceUsage.size() + shardSizes.size() + shardDataSetSizes.size() + dataPath.size() + reservedSpace.size() + 6;
+    }
+
+    public record NodeAndShard(String nodeId, ShardId shardId) implements Writeable {
+
+        public NodeAndShard {
+            Objects.requireNonNull(nodeId);
+            Objects.requireNonNull(shardId);
+        }
+
+        public NodeAndShard(StreamInput in) throws IOException {
+            this(in.readString(), new ShardId(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(nodeId);
+            shardId.writeTo(out);
+        }
+
+        public static NodeAndShard from(ShardRouting shardRouting) {
+            return new NodeAndShard(shardRouting.currentNodeId(), shardRouting.shardId());
+        }
     }
 
     /**
      * Represents a data path on a node
      */
-    public static class NodeAndPath implements Writeable {
-        public final String nodeId;
-        public final String path;
+    public record NodeAndPath(String nodeId, String path) implements Writeable {
 
-        public NodeAndPath(String nodeId, String path) {
-            this.nodeId = Objects.requireNonNull(nodeId);
-            this.path = Objects.requireNonNull(path);
+        public NodeAndPath {
+            Objects.requireNonNull(nodeId);
+            Objects.requireNonNull(path);
         }
 
         public NodeAndPath(StreamInput in) throws IOException {
-            this.nodeId = in.readString();
-            this.path = in.readString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeAndPath that = (NodeAndPath) o;
-            return nodeId.equals(that.nodeId) && path.equals(that.path);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(nodeId, path);
+            this(in.readString(), in.readString());
         }
 
         @Override
@@ -288,25 +362,12 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents the total amount of "reserved" space on a particular data path, together with the set of shards considered.
      */
-    public static class ReservedSpace implements Writeable {
+    public record ReservedSpace(long total, Set<ShardId> shardIds) implements Writeable {
 
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
-        private final long total;
-        private final HashSet<ShardId> shardIds;
-
-        private ReservedSpace(long total, HashSet<ShardId> shardIds) {
-            this.total = total;
-            this.shardIds = shardIds;
-        }
-
         ReservedSpace(StreamInput in) throws IOException {
-            total = in.readVLong();
-            final int shardIdCount = in.readVInt();
-            shardIds = new HashSet<>(shardIdCount);
-            for (int i = 0; i < shardIdCount; i++) {
-                shardIds.add(new ShardId(in));
-            }
+            this(in.readVLong(), in.readCollectionAsSet(ShardId::new));
         }
 
         @Override
@@ -323,20 +384,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             return shardIds.contains(shardId);
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ReservedSpace that = (ReservedSpace) o;
-            return total == that.total && shardIds.equals(that.shardIds);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(total, shardIds);
-        }
-
-        void toXContent(XContentBuilder builder, Params params) throws IOException {
+        void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.field("total", total);
             builder.startArray("shards");
             {
@@ -367,5 +415,4 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             }
         }
     }
-
 }

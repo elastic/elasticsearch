@@ -9,7 +9,6 @@
 package org.elasticsearch.benchmark.search;
 
 import org.apache.logging.log4j.util.Strings;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -17,19 +16,18 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -42,6 +40,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -141,8 +140,7 @@ public class QueryParserHelperBenchmark {
             0,
             mapperService.getIndexSettings(),
             null,
-            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
@@ -165,7 +163,7 @@ public class QueryParserHelperBenchmark {
         Settings settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
-            .put("index.version.created", Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(meta, settings);
@@ -173,24 +171,24 @@ public class QueryParserHelperBenchmark {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         MapperService mapperService = new MapperService(
+            () -> TransportVersion.current(),
             indexSettings,
-            new IndexAnalyzers(
-                Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-                Map.of(),
-                Map.of()
-            ),
+            (type, name) -> Lucene.STANDARD_ANALYZER,
             XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))
                 .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             new ProvidedIdFieldMapper(() -> true),
             new ScriptCompiler() {
                 @Override
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {
                     throw new UnsupportedOperationException();
                 }
-            }
+            },
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
 
         try {

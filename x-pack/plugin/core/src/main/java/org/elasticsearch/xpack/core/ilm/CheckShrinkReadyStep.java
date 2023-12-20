@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -59,7 +58,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
 
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
 
@@ -72,14 +71,8 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _id");
         }
 
-        boolean nodeBeingRemoved = NodesShutdownMetadata.getShutdowns(clusterState)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(shutdownMetadataMap -> shutdownMetadataMap.get(idShardsShouldBeOn))
-            .map(
-                singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE
-                    || singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE
-            )
-            .orElse(false);
+        var shutdown = clusterState.metadata().nodeShutdowns().get(idShardsShouldBeOn);
+        boolean nodeBeingRemoved = shutdown != null && shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART;
 
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
         int foundShards = 0;
@@ -104,7 +97,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
                 index,
                 expectedShardCount,
                 idShardsShouldBeOn,
-                getKey().getAction()
+                getKey().action()
             );
             return new Result(true, null);
         } else {
@@ -122,7 +115,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
                 expectedShardCount,
                 foundShards,
                 idShardsShouldBeOn,
-                getKey().getAction()
+                getKey().action()
             );
             return new Result(
                 false,

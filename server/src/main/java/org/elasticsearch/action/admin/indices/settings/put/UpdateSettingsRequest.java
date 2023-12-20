@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,7 +31,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Request for an update index settings action
@@ -48,6 +47,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private Settings settings = Settings.EMPTY;
     private boolean preserveExisting = false;
     private String origin = "";
+    private boolean reopen = false;
 
     public UpdateSettingsRequest(StreamInput in) throws IOException {
         super(in);
@@ -55,8 +55,9 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            origin = in.readString();
+        origin = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.UPDATE_NON_DYNAMIC_SETTINGS_ADDED)) {
+            reopen = in.readBoolean();
         }
     }
 
@@ -177,15 +178,29 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         return this;
     }
 
+    /**
+     * Returns <code>true</code> if non-dynamic setting updates should go through, by automatically unassigning shards in the same cluster
+     * state change as the setting update. The shards will be automatically reassigned after the cluster state update is made. The
+     * default is <code>false</code>.
+     */
+    public boolean reopen() {
+        return reopen;
+    }
+
+    public void reopen(boolean reopen) {
+        this.reopen = reopen;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeBoolean(preserveExisting);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeString(origin);
+        out.writeString(origin);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.UPDATE_NON_DYNAMIC_SETTINGS_ADDED)) {
+            out.writeBoolean(reopen);
         }
     }
 
@@ -244,12 +259,13 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             && Objects.equals(settings, that.settings)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(preserveExisting, that.preserveExisting)
+            && Objects.equals(reopen, that.reopen)
             && Arrays.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
+        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, reopen, Arrays.hashCode(indices));
     }
 
 }

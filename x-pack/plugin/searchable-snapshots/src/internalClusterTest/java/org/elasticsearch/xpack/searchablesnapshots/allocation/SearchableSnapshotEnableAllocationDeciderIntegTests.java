@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +39,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
             internalCluster().restartNode(indexNode);
         }
 
-        ClusterHealthResponse response = client().admin().cluster().health(Requests.clusterHealthRequest(restoredIndexName)).actionGet();
+        ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest(restoredIndexName)).actionGet();
         assertThat(response.getUnassignedShards(), Matchers.equalTo(numPrimaries));
 
         setAllocateOnRollingRestart(true);
@@ -68,7 +68,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
         createRepository(repositoryName, "mock");
 
         final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
         return mountSnapshot(repositoryName, snapshotId.getName(), indexName, Settings.EMPTY);
     }
 
@@ -85,12 +85,6 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
 
     private void setSetting(Setting<?> setting, String value) {
         logger.info("--> setting [{}={}]", setting.getKey(), value);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(setting.getKey(), value).build())
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put(setting.getKey(), value));
     }
 }

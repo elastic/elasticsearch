@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
@@ -91,7 +91,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
-        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
         client.setVerifier((a, r, l) -> {
@@ -117,11 +117,11 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         );
         assertThat(disabledRegistry.getLegacyTemplateConfigs(), is(empty()));
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
-        assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
+        assertThat(disabledRegistry.getLifecyclePolicies(), hasSize(0));
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
@@ -146,7 +146,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         boolean historyDurationPresent = randomBoolean();
@@ -208,11 +208,11 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExists() {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -239,12 +239,12 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -291,7 +291,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatVersionedOldTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(

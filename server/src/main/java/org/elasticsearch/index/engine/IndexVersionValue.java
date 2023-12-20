@@ -45,7 +45,7 @@ final class IndexVersionValue extends VersionValue {
 
     @Override
     public String toString() {
-        return "IndexVersionValue{" + "version=" + version + ", seqNo=" + seqNo + ", term=" + term + ", location=" + translogLocation + '}';
+        return "IndexVersionValue{version=" + version + ", seqNo=" + seqNo + ", term=" + term + ", location=" + translogLocation + '}';
     }
 
     @Override

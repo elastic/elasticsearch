@@ -11,7 +11,10 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matcher;
+
+import java.util.Locale;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.elasticsearch.xpack.core.security.test.SecurityAssertions.assertContainsWWWAuthenticateHeader;
@@ -62,19 +65,31 @@ public class SecurityTestsUtils {
     public static void assertThrowsAuthorizationExceptionRunAsDenied(
         LuceneTestCase.ThrowingRunnable throwingRunnable,
         String action,
-        String user,
+        User authenticatingUser,
         String runAs
     ) {
         assertThrowsAuthorizationException(
-            "Expected authorization failure for user=[" + user + "], run-as=[" + runAs + "], action=[" + action + "]",
+            "Expected authorization failure for user=["
+                + authenticatingUser.principal()
+                + "], run-as=["
+                + runAs
+                + "], action=["
+                + action
+                + "]",
             throwingRunnable,
             containsString(
                 "action ["
                     + action
                     + "] is unauthorized for user ["
-                    + user
-                    + "] because user ["
-                    + user
+                    + authenticatingUser.principal()
+                    + "]"
+                    + String.format(
+                        Locale.ROOT,
+                        " with effective roles [%s]",
+                        Strings.arrayToCommaDelimitedString(authenticatingUser.roles())
+                    )
+                    + ", because user ["
+                    + authenticatingUser.principal()
                     + "] is unauthorized to run as ["
                     + runAs
                     + "]"

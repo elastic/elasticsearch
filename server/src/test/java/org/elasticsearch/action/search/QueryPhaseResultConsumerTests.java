@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -73,7 +74,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             10,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomBoolean()
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
     }
 
@@ -91,7 +92,13 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             searchShards.add(new SearchShard(null, new ShardId("index", "uuid", i)));
         }
-        searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false);
+        long timestamp = randomLongBetween(1000, Long.MAX_VALUE - 1000);
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            timestamp,
+            timestamp,
+            () -> timestamp + 1000
+        );
+        searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, timeProvider);
 
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.setBatchedReduceSize(2);
@@ -109,26 +116,30 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 return curr;
             })
         );
+        try {
 
-        CountDownLatch partialReduceLatch = new CountDownLatch(10);
+            CountDownLatch partialReduceLatch = new CountDownLatch(10);
 
-        for (int i = 0; i < 10; i++) {
-            SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
-            QuerySearchResult querySearchResult = new QuerySearchResult();
-            TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
-            querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
-            querySearchResult.setSearchShardTarget(searchShardTarget);
-            querySearchResult.setShardIndex(i);
-            queryPhaseResultConsumer.consumeResult(querySearchResult, partialReduceLatch::countDown);
+            for (int i = 0; i < 10; i++) {
+                SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                QuerySearchResult querySearchResult = new QuerySearchResult();
+                TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+                querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
+                querySearchResult.setSearchShardTarget(searchShardTarget);
+                querySearchResult.setShardIndex(i);
+                queryPhaseResultConsumer.consumeResult(querySearchResult, partialReduceLatch::countDown);
+            }
+
+            assertEquals(10, searchProgressListener.onQueryResult.get());
+            assertTrue(partialReduceLatch.await(10, TimeUnit.SECONDS));
+            assertNull(onPartialMergeFailure.get());
+            assertEquals(8, searchProgressListener.onPartialReduce.get());
+
+            queryPhaseResultConsumer.reduce();
+            assertEquals(1, searchProgressListener.onFinalReduce.get());
+        } finally {
+            queryPhaseResultConsumer.decRef();
         }
-
-        assertEquals(10, searchProgressListener.onQueryResult.get());
-        assertTrue(partialReduceLatch.await(10, TimeUnit.SECONDS));
-        assertNull(onPartialMergeFailure.get());
-        assertEquals(8, searchProgressListener.onPartialReduce.get());
-
-        queryPhaseResultConsumer.reduce();
-        assertEquals(1, searchProgressListener.onFinalReduce.get());
     }
 
     private static class ThrowingSearchProgressListener extends SearchProgressListener {
@@ -141,13 +152,14 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             List<SearchShard> shards,
             List<SearchShard> skippedShards,
             SearchResponse.Clusters clusters,
-            boolean fetchPhase
+            boolean fetchPhase,
+            TransportSearchAction.SearchTimeProvider timeProvider
         ) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        protected void onQueryResult(int shardIndex) {
+        protected void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
             onQueryResult.incrementAndGet();
             throw new UnsupportedOperationException();
         }

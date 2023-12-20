@@ -32,4 +32,4 @@ mounted indices>> exclusively.
     are nodes with the `data_warm` role. If there are no nodes in the warm tier,
     but there are nodes with the `data_hot` role, the index is allocated to
     the hot tier.
-    Used in conjuction with <<data-tier-allocation,data tiers>>.
+    Used in conjunction with <<data-tier-allocation,data tiers>>.

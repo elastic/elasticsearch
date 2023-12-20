@@ -1,0 +1,31 @@
+[discrete]
+[[esql-mv_expand]]
+=== `MV_EXPAND`
+
+**Syntax**
+
+[source,esql]
+----
+MV_EXPAND column
+----
+
+*Parameters*
+
+`column`::
+The multivalued column to expand.
+
+*Description*
+
+The `MV_EXPAND` processing command expands multivalued columns into one row per
+value, duplicating other columns.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/mv_expand.csv-spec[tag=simple]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/mv_expand.csv-spec[tag=simple-result]
+|===

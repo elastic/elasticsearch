@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -95,7 +96,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(bucketsPathsMap, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(bucketsPathsMap, StreamOutput::writeString);
         script.writeTo(out);
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
@@ -141,13 +142,6 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         return this;
     }
 
-    /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
     protected DocValueFormat formatter() {
         if (format != null) {
             return new DocValueFormat.Decimal(format);
@@ -165,13 +159,6 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         }
         this.gapPolicy = gapPolicy;
         return this;
-    }
-
-    /**
-     * Gets the gap policy to use for this aggregation.
-     */
-    public GapPolicy gapPolicy() {
-        return gapPolicy;
     }
 
     @Override
@@ -223,7 +210,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

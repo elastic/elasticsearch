@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class ScriptParameterInfoSerializingTests extends AbstractSerializingTestCase<ParameterInfo> {
+public class ScriptParameterInfoSerializingTests extends AbstractXContentSerializingTestCase<ParameterInfo> {
     private static int minLength = 1;
     private static int maxLength = 8;
     private static String baseType = "type-";
@@ -42,7 +42,7 @@ public class ScriptParameterInfoSerializingTests extends AbstractSerializingTest
     }
 
     @Override
-    protected ParameterInfo mutateInstance(ParameterInfo instance) throws IOException {
+    protected ParameterInfo mutateInstance(ParameterInfo instance) {
         return mutate(instance);
     }
 
@@ -54,8 +54,8 @@ public class ScriptParameterInfoSerializingTests extends AbstractSerializingTest
     }
 
     static List<ParameterInfo> mutateOne(List<ParameterInfo> instances) {
-        if (instances.size() == 0) {
-            return Collections.unmodifiableList(List.of(randomInstance()));
+        if (instances.isEmpty()) {
+            return List.of(randomInstance());
         }
         ArrayList<ParameterInfo> mutated = new ArrayList<>(instances);
         int mutateIndex = randomIntBetween(0, instances.size() - 1);

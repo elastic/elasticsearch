@@ -16,7 +16,9 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -49,7 +51,11 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, _lookup) -> fieldData);
+        lookup = new SearchLookup(
+            field -> field.equals("field") ? fieldType : null,
+            (ignored, _lookup, fdt) -> fieldData,
+            (ctx, doc) -> Source.empty(XContentType.JSON)
+        );
     }
 
     private TermsSetQueryScript.LeafFactory compile(String expression) {

@@ -13,6 +13,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -21,6 +23,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
@@ -40,7 +43,9 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
-        putRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));
+        try (var parser = request.contentParser()) {
+            putRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+        }
 
         return channel -> client.execute(PutComposableIndexTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }

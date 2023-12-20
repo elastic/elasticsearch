@@ -41,3 +41,7 @@ tasks.named("thirdPartyAudit").configure {
           'org/osgi/framework/wiring/BundleWiring'
   )
 }
+
+dependencies {
+  jarHell sourceSets.main.output
+}

@@ -11,8 +11,9 @@ package org.elasticsearch.gradle.internal.doc
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.JsonToken
 
+import org.gradle.api.Action;
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.ConfigurableFileTree
@@ -44,7 +45,7 @@ class SnippetsTask extends DefaultTask {
      * instance of Snippet.
      */
     @Internal
-    Closure perSnippet
+    Action<Snippet> perSnippet
 
     /**
      * The docs to scan. Defaults to every file in the directory exception the
@@ -134,7 +135,7 @@ class SnippetsTask extends DefaultTask {
                         + "After substitutions and munging, the json looks like:\n" + quoted, e);
                     }
                 }
-                perSnippet(snippet)
+                perSnippet.execute(snippet)
                 snippet = null
             }
             file.eachLine('UTF-8') { String line, int lineNumber ->
@@ -304,7 +305,7 @@ class SnippetsTask extends DefaultTask {
     }
 
     static Source matchSource(String line) {
-        def matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
+        def matcher = line =~ /\["?source"?(?:\.[^,]+)?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
         if(matcher.matches()){
             return new Source(matches: true, language: matcher.group(1),  name: matcher.group(5))
         }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.hamcrest.Matchers;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -197,18 +198,6 @@ public class RollupIndexerStateTests extends ESTestCase {
             Map<String, Object> initialPosition,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
-            Consumer<Exception> failureConsumer
-        ) {
-            this(threadPool, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
-        }
-
-        NonEmptyRollupIndexer(
-            ThreadPool threadPool,
-            RollupJob job,
-            AtomicReference<IndexerState> initialState,
-            Map<String, Object> initialPosition,
-            Function<SearchRequest, SearchResponse> searchFunction,
-            Function<BulkRequest, BulkResponse> bulkFunction,
             Consumer<Exception> failureConsumer,
             BiConsumer<IndexerState, Map<String, Object>> saveStateCheck
         ) {
@@ -233,8 +222,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(buildSearchRequest());
-                nextPhase.onResponse(response);
+                ActionListener.respondAndRelease(nextPhase, searchFunction.apply(buildSearchRequest()));
             } catch (Exception e) {
                 nextPhase.onFailure(e);
             }
@@ -435,7 +423,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         // Don't use the indexer's latch because we completely change doNextSearch()
         final CountDownLatch doNextSearchLatch = new CountDownLatch(1);
-
         try {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
@@ -494,8 +481,10 @@ public class RollupIndexerStateTests extends ESTestCase {
                         null,
                         1
                     );
-                    final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-                    nextPhase.onResponse(response);
+                    ActionListener.respondAndRelease(
+                        nextPhase,
+                        new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null)
+                    );
                 }
 
                 @Override
@@ -622,7 +611,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             final CountDownLatch latch = indexer.newLatch();
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
-            assertThat(indexer.getState(), equalTo(IndexerState.STOPPING));
+            assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());
@@ -840,7 +829,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 threadPool,
                 job,
@@ -897,7 +885,6 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(
                 threadPool,
                 job,

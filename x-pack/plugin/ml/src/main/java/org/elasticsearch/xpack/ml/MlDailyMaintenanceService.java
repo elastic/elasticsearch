@@ -10,15 +10,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
@@ -52,7 +53,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class MlDailyMaintenanceService implements Releasable {
 
-    private static final Logger LOGGER = LogManager.getLogger(MlDailyMaintenanceService.class);
+    private static final Logger logger = LogManager.getLogger(MlDailyMaintenanceService.class);
 
     private static final int MAX_TIME_OFFSET_MINUTES = 120;
 
@@ -67,6 +68,10 @@ public class MlDailyMaintenanceService implements Releasable {
      */
     private final Supplier<TimeValue> schedulerProvider;
 
+    private final boolean isAnomalyDetectionEnabled;
+    private final boolean isDataFrameAnalyticsEnabled;
+    private final boolean isNlpEnabled;
+
     private volatile Scheduler.Cancellable cancellable;
     private volatile float deleteExpiredDataRequestsPerSecond;
 
@@ -76,7 +81,10 @@ public class MlDailyMaintenanceService implements Releasable {
         Client client,
         ClusterService clusterService,
         MlAssignmentNotifier mlAssignmentNotifier,
-        Supplier<TimeValue> scheduleProvider
+        Supplier<TimeValue> scheduleProvider,
+        boolean isAnomalyDetectionEnabled,
+        boolean isDataFrameAnalyticsEnabled,
+        boolean isNlpEnabled
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
@@ -84,6 +92,9 @@ public class MlDailyMaintenanceService implements Releasable {
         this.mlAssignmentNotifier = Objects.requireNonNull(mlAssignmentNotifier);
         this.schedulerProvider = Objects.requireNonNull(scheduleProvider);
         this.deleteExpiredDataRequestsPerSecond = MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND.get(settings);
+        this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
+        this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
+        this.isNlpEnabled = isNlpEnabled;
     }
 
     public MlDailyMaintenanceService(
@@ -92,9 +103,22 @@ public class MlDailyMaintenanceService implements Releasable {
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
-        MlAssignmentNotifier mlAssignmentNotifier
+        MlAssignmentNotifier mlAssignmentNotifier,
+        boolean isAnomalyDetectionEnabled,
+        boolean isDataFrameAnalyticsEnabled,
+        boolean isNlpEnabled
     ) {
-        this(settings, threadPool, client, clusterService, mlAssignmentNotifier, () -> delayToNextTime(clusterName));
+        this(
+            settings,
+            threadPool,
+            client,
+            clusterService,
+            mlAssignmentNotifier,
+            () -> delayToNextTime(clusterName),
+            isAnomalyDetectionEnabled,
+            isDataFrameAnalyticsEnabled,
+            isNlpEnabled
+        );
     }
 
     void setDeleteExpiredDataRequestsPerSecond(float value) {
@@ -121,12 +145,12 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     public synchronized void start() {
-        LOGGER.debug("Starting ML daily maintenance service");
+        logger.debug("Starting ML daily maintenance service");
         scheduleNext();
     }
 
     public synchronized void stop() {
-        LOGGER.debug("Stopping ML daily maintenance service");
+        logger.debug("Stopping ML daily maintenance service");
         if (cancellable != null && cancellable.isCancelled() == false) {
             cancellable.cancel();
         }
@@ -143,10 +167,10 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private synchronized void scheduleNext() {
         try {
-            cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), ThreadPool.Names.GENERIC);
+            cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), threadPool.generic());
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
-                LOGGER.debug("failed to schedule next maintenance task; shutting down", e);
+                logger.debug("failed to schedule next maintenance task; shutting down", e);
             } else {
                 throw e;
             }
@@ -156,51 +180,69 @@ public class MlDailyMaintenanceService implements Releasable {
     private void triggerTasks() {
         try {
             if (MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode()) {
-                LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
+                logger.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
                 return;
             }
             if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
-                LOGGER.warn("skipping scheduled [ML] maintenance tasks because machine learning feature reset is in progress");
+                logger.warn("skipping scheduled [ML] maintenance tasks because machine learning feature reset is in progress");
                 return;
             }
-            LOGGER.info("triggering scheduled [ML] maintenance tasks");
+            logger.info("triggering scheduled [ML] maintenance tasks");
 
-            // Step 3: Log any error that could have happened
-            ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
-                unused -> {},
-                e -> LOGGER.error("An error occurred during [ML] maintenance tasks execution", e)
-            );
-
-            // Step 2: Delete expired data
-            ActionListener<AcknowledgedResponse> deleteJobsListener = ActionListener.wrap(
-                unused -> triggerDeleteExpiredDataTask(finalListener),
-                e -> {
-                    LOGGER.info("[ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask failed", e);
-                    // Note: Steps 1 and 2 are independent of each other and step 2 is executed even if step 1 failed.
-                    triggerDeleteExpiredDataTask(finalListener);
-                }
-            );
-
-            // Step 1: Delete jobs that are in deleting state
-            triggerDeleteJobsInStateDeletingWithoutDeletionTask(deleteJobsListener);
-
+            if (isAnomalyDetectionEnabled) {
+                triggerAnomalyDetectionMaintenance();
+            }
+            if (isDataFrameAnalyticsEnabled) {
+                triggerDataFrameAnalyticsMaintenance();
+            }
+            if (isNlpEnabled) {
+                triggerNlpMaintenance();
+            }
             auditUnassignedMlTasks();
         } finally {
             scheduleNext();
         }
     }
 
+    private void triggerAnomalyDetectionMaintenance() {
+        // Step 3: Log any error that could have happened
+        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
+            unused -> {},
+            e -> logger.error("An error occurred during [ML] maintenance tasks execution", e)
+        );
+
+        // Step 2: Delete expired data
+        ActionListener<AcknowledgedResponse> deleteJobsListener = ActionListener.wrap(
+            unused -> triggerDeleteExpiredDataTask(finalListener),
+            e -> {
+                logger.info("[ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask failed", e);
+                // Note: Steps 1 and 2 are independent of each other and step 2 is executed even if step 1 failed.
+                triggerDeleteExpiredDataTask(finalListener);
+            }
+        );
+
+        // Step 1: Delete jobs that are in deleting state
+        triggerDeleteJobsInStateDeletingWithoutDeletionTask(deleteJobsListener);
+    }
+
+    private void triggerDataFrameAnalyticsMaintenance() {
+        // Currently a NOOP
+    }
+
+    private void triggerNlpMaintenance() {
+        // Currently a NOOP
+    }
+
     private void triggerDeleteExpiredDataTask(ActionListener<AcknowledgedResponse> finalListener) {
-        ActionListener<DeleteExpiredDataAction.Response> deleteExpiredDataActionListener = ActionListener.wrap(
-            deleteExpiredDataResponse -> {
+        ActionListener<DeleteExpiredDataAction.Response> deleteExpiredDataActionListener = finalListener.delegateFailureAndWrap(
+            (l, deleteExpiredDataResponse) -> {
                 if (deleteExpiredDataResponse.isDeleted()) {
-                    LOGGER.info("Successfully completed [ML] maintenance task: triggerDeleteExpiredDataTask");
+                    logger.info("Successfully completed [ML] maintenance task: triggerDeleteExpiredDataTask");
                 } else {
-                    LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
+                    logger.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
                 }
-                finalListener.onResponse(AcknowledgedResponse.TRUE);
-            },
-            finalListener::onFailure
+                l.onResponse(AcknowledgedResponse.TRUE);
+            }
         );
 
         executeAsyncWithOrigin(
@@ -216,22 +258,20 @@ public class MlDailyMaintenanceService implements Releasable {
     public void triggerDeleteJobsInStateDeletingWithoutDeletionTask(ActionListener<AcknowledgedResponse> finalListener) {
         SetOnce<Set<String>> jobsInStateDeletingHolder = new SetOnce<>();
 
-        ActionListener<List<Tuple<DeleteJobAction.Request, AcknowledgedResponse>>> deleteJobsActionListener = ActionListener.wrap(
-            deleteJobsResponses -> {
+        ActionListener<List<Tuple<DeleteJobAction.Request, AcknowledgedResponse>>> deleteJobsActionListener = finalListener
+            .delegateFailureAndWrap((delegate, deleteJobsResponses) -> {
                 List<String> jobIds = deleteJobsResponses.stream()
                     .filter(t -> t.v2().isAcknowledged() == false)
                     .map(Tuple::v1)
                     .map(DeleteJobAction.Request::getJobId)
                     .collect(toList());
                 if (jobIds.isEmpty()) {
-                    LOGGER.info("Successfully completed [ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask");
+                    logger.info("Successfully completed [ML] maintenance task: triggerDeleteJobsInStateDeletingWithoutDeletionTask");
                 } else {
-                    LOGGER.info("The following ML jobs could not be deleted: [" + String.join(",", jobIds) + "]");
+                    logger.info("The following ML jobs could not be deleted: [" + String.join(",", jobIds) + "]");
                 }
-                finalListener.onResponse(AcknowledgedResponse.TRUE);
-            },
-            finalListener::onFailure
-        );
+                delegate.onResponse(AcknowledgedResponse.TRUE);
+            });
 
         ActionListener<ListTasksResponse> listTasksActionListener = ActionListener.wrap(listTasksResponse -> {
             Set<String> jobsInStateDeleting = jobsInStateDeletingHolder.get();
@@ -247,7 +287,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 return;
             }
             TypedChainTaskExecutor<Tuple<DeleteJobAction.Request, AcknowledgedResponse>> chainTaskExecutor = new TypedChainTaskExecutor<>(
-                threadPool.executor(ThreadPool.Names.SAME),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 unused -> true,
                 unused -> true
             );
@@ -259,7 +299,7 @@ public class MlDailyMaintenanceService implements Releasable {
                         ML_ORIGIN,
                         DeleteJobAction.INSTANCE,
                         request,
-                        ActionListener.wrap(response -> listener.onResponse(Tuple.tuple(request, response)), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, response) -> l.onResponse(Tuple.tuple(request, response)))
                     )
                 );
             }
@@ -281,7 +321,7 @@ public class MlDailyMaintenanceService implements Releasable {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                ListTasksAction.INSTANCE,
+                TransportListTasksAction.TYPE,
                 new ListTasksRequest().setActions(DeleteJobAction.NAME),
                 listTasksActionListener
             );

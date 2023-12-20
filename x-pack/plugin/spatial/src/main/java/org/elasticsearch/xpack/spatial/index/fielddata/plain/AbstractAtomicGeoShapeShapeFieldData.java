@@ -7,81 +7,47 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues.GeoShapeValue;
-import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
-
-import java.util.Collection;
-import java.util.Collections;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 
-public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoShapeFieldData {
-
-    private final ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory;
+public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
 
     public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
-        this.toScriptFieldFactory = toScriptFieldFactory;
+        super(toScriptFieldFactory);
     }
 
-    @Override
-    public final SortedBinaryDocValues getBytesValues() {
-        throw new UnsupportedOperationException("scripts and term aggs are not supported by geo_shape doc values");
+    public static LeafShapeFieldData<GeoShapeValues> empty(final int maxDoc, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+        return new LeafShapeFieldData.Empty<>(toScriptFieldFactory, GeoShapeValues.EMPTY);
     }
 
-    @Override
-    public final DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-        return toScriptFieldFactory.getScriptFieldFactory(getGeoShapeValues(), name);
-    }
+    public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue>
+        implements
+            ScriptDocValues.Geometry {
 
-    public static LeafGeoShapeFieldData empty(final int maxDoc, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
-        return new AbstractAtomicGeoShapeShapeFieldData(toScriptFieldFactory) {
-
-            @Override
-            public long ramBytesUsed() {
-                return 0;
-            }
-
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public void close() {}
-
-            @Override
-            public GeoShapeValues getGeoShapeValues() {
-                return GeoShapeValues.EMPTY;
-            }
-        };
-    }
-
-    public static final class GeoShapeScriptValues extends ScriptDocValues.Geometry<GeoShapeValue> {
-
-        private final GeometrySupplier<GeoShapeValue> gsSupplier;
-
-        public GeoShapeScriptValues(GeometrySupplier<GeoShapeValue> supplier) {
+        public GeoShapeScriptValues(GeometrySupplier<GeoPoint, GeoShapeValues.GeoShapeValue> supplier) {
             super(supplier);
-            this.gsSupplier = supplier;
         }
 
         @Override
-        public int getDimensionalType() {
-            return gsSupplier.getInternal(0) == null ? -1 : gsSupplier.getInternal(0).dimensionalShapeType().ordinal();
+        public GeoShapeValues.GeoShapeValue get(int index) {
+            return super.get(index);
         }
 
         @Override
-        public GeoPoint getCentroid() {
-            return gsSupplier.getInternal(0) == null ? null : gsSupplier.getInternalCentroid();
+        public GeoShapeValues.GeoShapeValue getValue() {
+            return super.getValue();
+        }
+
+        @Override
+        public GeoBoundingBox getBoundingBox() {
+            return (GeoBoundingBox) super.getBoundingBox();
         }
 
         @Override
@@ -92,30 +58,6 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         @Override
         public double getMercatorHeight() {
             return latToSphericalMercator(getBoundingBox().top()) - latToSphericalMercator(getBoundingBox().bottom());
-        }
-
-        @Override
-        public GeoBoundingBox getBoundingBox() {
-            return gsSupplier.getInternal(0) == null ? null : gsSupplier.getInternalBoundingBox();
-        }
-
-        @Override
-        public GeoPoint getLabelPosition() {
-            return gsSupplier.getInternal(0) == null ? null : gsSupplier.getInternalLabelPosition();
-        }
-
-        @Override
-        public GeoShapeValues.GeoShapeValue get(int index) {
-            return gsSupplier.getInternal(0);
-        }
-
-        public GeoShapeValues.GeoShapeValue getValue() {
-            return gsSupplier.getInternal(0);
-        }
-
-        @Override
-        public int size() {
-            return supplier.size();
         }
     }
 }

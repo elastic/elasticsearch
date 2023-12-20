@@ -1,0 +1,20 @@
+[discrete]
+[[esql-ltrim]]
+=== `LTRIM`
+[.text-center]
+image::esql/functions/signature/ltrim.svg[Embedded,opts=inline]
+
+Removes leading whitespaces from strings.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=ltrim]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=ltrim-result]
+|===
+
+Supported types:
+
+include::types/rtrim.asciidoc[]

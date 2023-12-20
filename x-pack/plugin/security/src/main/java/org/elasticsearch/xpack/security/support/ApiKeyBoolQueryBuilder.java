@@ -37,6 +37,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         "doc_type",
         "name",
         "api_key_invalidated",
+        "invalidation_time",
         "creation_time",
         "expiration_time"
     );
@@ -69,11 +70,13 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
         if (authentication != null) {
             if (authentication.isApiKey()) {
-                final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
+                final String apiKeyId = (String) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.API_KEY_ID_KEY);
                 assert apiKeyId != null : "api key id must be present in the metadata";
                 finalQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyId));
             } else {
-                finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()));
+                finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()));
                 final String[] realms = ApiKeyService.getOwnersRealmNames(authentication);
                 final QueryBuilder realmsQuery = ApiKeyService.filterForRealmNames(realms);
                 assert realmsQuery != null;

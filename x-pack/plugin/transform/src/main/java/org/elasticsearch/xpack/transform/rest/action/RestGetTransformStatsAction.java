@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -20,6 +26,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetTransformStatsAction extends BaseRestHandler {
 
     @Override
@@ -31,9 +38,10 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient nodeClient) {
         String id = restRequest.param(TransformField.ID.getPreferredName());
-        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(id);
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(id, timeout);
         request.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
@@ -43,6 +51,7 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
                 )
             );
         }
+        Client client = new RestCancellableNodeClient(nodeClient, restRequest.getHttpChannel());
         return channel -> client.execute(GetTransformStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

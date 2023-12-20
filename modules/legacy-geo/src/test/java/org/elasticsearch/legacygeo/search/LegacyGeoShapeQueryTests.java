@@ -8,7 +8,6 @@
 
 package org.elasticsearch.legacygeo.search;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +15,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -25,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -32,6 +31,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -57,7 +57,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             .endObject()
             .endObject()
             .endObject();
-        client().admin().indices().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get();
+        indicesAdmin().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get();
     }
 
     @Override
@@ -70,7 +70,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject(defaultGeoFieldName)
+                .startObject(defaultFieldName)
                 .field("type", "geo_shape")
                 .field("tree", randomBoolean() ? "quadtree" : "geohash")
                 .field("tree_levels", "6")
@@ -81,29 +81,25 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         // MULTIPOINT
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex("geo_points_only")
-            .setId("1")
-            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultGeoFieldName), null).endObject())
+        prepareIndex("geo_points_only").setId("1")
+            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // POINT
         Point point = GeometryTestUtils.randomPoint(false);
-        client().prepareIndex("geo_points_only")
-            .setId("2")
-            .setSource(GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultGeoFieldName), null).endObject())
+        prepareIndex("geo_points_only").setId("2")
+            .setSource(GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only").setQuery(matchAllQuery()).get();
-
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch("geo_points_only").setQuery(matchAllQuery()), 2L);
     }
 
     public void testPointsOnly() throws Exception {
@@ -111,7 +107,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject(defaultGeoFieldName)
+                .startObject(defaultFieldName)
                 .field("type", "geo_shape")
                 .field("tree", randomBoolean() ? "quadtree" : "geohash")
                 .field("tree_levels", "6")
@@ -122,27 +118,23 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).get();
         ensureGreen();
 
         Geometry geometry = GeometryTestUtils.randomGeometry(false);
         try {
-            client().prepareIndex("geo_points_only")
-                .setId("1")
-                .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultGeoFieldName), null).endObject())
+            prepareIndex("geo_points_only").setId("1")
+                .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        } catch (MapperParsingException e) {
+        } catch (Exception e) {
             // Random geometry generator created something other than a POINT type, verify the correct exception is thrown
             assertThat(e.getMessage(), containsString("is configured for points only"));
             return;
         }
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only")
-            .setQuery(geoIntersectionQuery(defaultGeoFieldName, geometry))
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch("geo_points_only").setQuery(geoIntersectionQuery(defaultFieldName, geometry)), 1L);
     }
 
     public void testFieldAlias() throws IOException {
@@ -150,41 +142,37 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject(defaultGeoFieldName)
+                .startObject(defaultFieldName)
                 .field("type", "geo_shape")
                 .field("tree", randomBoolean() ? "quadtree" : "geohash")
                 .endObject()
                 .startObject("alias")
                 .field("type", "alias")
-                .field("path", defaultGeoFieldName)
+                .field("path", defaultFieldName)
                 .endObject()
                 .endObject()
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
-            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultGeoFieldName), null).endObject())
+        prepareIndex(defaultIndexName).setId("1")
+            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)).get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)), 1L);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
+    /**
+     * It turns out that LegacyGeoShape has an issue indexing points with longitude=180,
+     * but since this is legacy, rather than fix that, we just skip it from tests.
+     * See https://github.com/elastic/elasticsearch/issues/86118
+     */
     @Override
-    public void testIndexPointsFromLine() throws Exception {
-        super.testIndexPointsFromLine();
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
-    @Override
-    public void testIndexPointsFromPolygon() throws Exception {
-        super.testIndexPointsFromPolygon();
+    protected boolean ignoreLons(double[] lons) {
+        return Arrays.stream(lons).anyMatch(v -> v == 180);
     }
 }

@@ -9,7 +9,9 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.ByteUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,7 +23,6 @@ public final class BytesArray extends AbstractBytesReference {
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
     private final byte[] bytes;
     private final int offset;
-    private final int length;
 
     public BytesArray(String bytes) {
         this(new BytesRef(bytes));
@@ -32,12 +33,12 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     public BytesArray(BytesRef bytesRef, boolean deepCopy) {
+        super(bytesRef.length);
         if (deepCopy) {
             bytesRef = BytesRef.deepCopyOf(bytesRef);
         }
         bytes = bytesRef.bytes;
         offset = bytesRef.offset;
-        length = bytesRef.length;
     }
 
     public BytesArray(byte[] bytes) {
@@ -45,9 +46,9 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     public BytesArray(byte[] bytes, int offset, int length) {
+        super(length);
         this.bytes = bytes;
         this.offset = offset;
-        this.length = length;
     }
 
     @Override
@@ -63,11 +64,6 @@ public final class BytesArray extends AbstractBytesReference {
             }
         }
         return -1;
-    }
-
-    @Override
-    public int length() {
-        return length;
     }
 
     @Override
@@ -117,6 +113,23 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     @Override
+    public BytesRefIterator iterator() {
+        if (length == 0) {
+            return BytesRefIterator.EMPTY;
+        }
+        return new BytesRefIterator() {
+            BytesRef ref = toBytesRef();
+
+            @Override
+            public BytesRef next() {
+                BytesRef r = ref;
+                ref = null; // only return it once...
+                return r;
+            }
+        };
+    }
+
+    @Override
     public long ramBytesUsed() {
         return bytes.length;
     }
@@ -129,5 +142,20 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public void writeTo(OutputStream os) throws IOException {
         os.write(bytes, offset, length);
+    }
+
+    @Override
+    public int getIntLE(int index) {
+        return ByteUtils.readIntLE(bytes, offset + index);
+    }
+
+    @Override
+    public long getLongLE(int index) {
+        return ByteUtils.readLongLE(bytes, offset + index);
+    }
+
+    @Override
+    public double getDoubleLE(int index) {
+        return ByteUtils.readDoubleLE(bytes, offset + index);
     }
 }

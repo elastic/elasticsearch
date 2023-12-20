@@ -19,11 +19,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.ietf.jgss.GSSException;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -59,6 +63,35 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     private static final String TEST_USER_WITH_PWD_KEY = "test.userpwd";
     private static final String TEST_USER_WITH_PWD_PASSWD_KEY = "test.userpwd.password";
     private static final String TEST_KERBEROS_REALM_NAME = "kerberos";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the
+        // cluster but do not know the exact address that is first in the http ports file
+        .setting("http.host", "127.0.0.1")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.realms.file.file1.order", "0")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.security.audit.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
+        // Kerberos realm
+        .setting("xpack.security.authc.realms.kerberos.kerberos.order", "1")
+        .setting("xpack.security.authc.realms.kerberos.kerberos.keytab.path", "es.keytab")
+        .setting("xpack.security.authc.realms.kerberos.kerberos.krb.debug", "true")
+        .setting("xpack.security.authc.realms.kerberos.kerberos.remove_realm_name", "false")
+        .systemProperty("java.security.krb5.conf", System.getProperty("test.krb5.conf"))
+        .systemProperty("sun.security.krb5.debug", "true")
+        .user("test_admin", "x-pack-test-password")
+        .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
+        .configFile("es.keytab", Resource.fromClasspath("HTTP_localhost.keytab"))
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restAdminSettings() {
@@ -133,9 +166,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         final String kerberosTicket = callbackHandler.getBase64EncodedTokenForSpnegoHeader(host);
 
         final Request request = new Request("POST", "/_security/oauth2/token");
-        String json = """
+        String json = Strings.format("""
             { "grant_type" : "_kerberos", "kerberos_ticket" : "%s"}
-            """.formatted(kerberosTicket);
+            """, kerberosTicket);
         request.setJsonEntity(json);
 
         try (RestClient client = buildClientForUser("test_kibana_user")) {
@@ -157,8 +190,22 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     @SuppressForbidden(reason = "SPNEGO relies on hostnames and we need to ensure host isn't a IP address")
     protected HttpHost buildHttpHost(String host, int port) {
         try {
-            InetAddress inetAddress = InetAddress.getByName(host);
-            return super.buildHttpHost(inetAddress.getCanonicalHostName(), port);
+            final InetAddress address = InetAddress.getByName(host);
+            final String hostname = address.getCanonicalHostName();
+            // InetAddress#getCanonicalHostName depends on the system configuration (e.g. /etc/hosts) to return the FQDN.
+            // In case InetAddress cannot resolve the FQDN it will return the textual representation of the IP address.
+            if (hostname.equals(address.getHostAddress())) {
+                if (address.isLoopbackAddress()) {
+                    // Fall-back and return "localhost" for loopback address if it's not resolved.
+                    // This is safe because InetAddress implements a reverse fall-back to loopback address
+                    // in case the resolution of "localhost" hostname fails.
+                    return super.buildHttpHost("localhost", port);
+                } else {
+                    throw new IllegalStateException("failed to resolve [" + host + "] to FQDN");
+                }
+            } else {
+                return super.buildHttpHost(hostname, port);
+            }
         } catch (UnknownHostException e) {
             assumeNoException("failed to resolve host [" + host + "]", e);
         }
@@ -175,7 +222,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
             final LoginContext lc = callbackHandler.login();
             Response response = SpnegoHttpClientConfigCallbackHandler.doAsPrivilegedWrapper(
                 lc.getSubject(),
-                (PrivilegedExceptionAction<Response>) () -> { return restClient.performRequest(request); },
+                (PrivilegedExceptionAction<Response>) () -> {
+                    return restClient.performRequest(request);
+                },
                 accessControlContext
             );
 

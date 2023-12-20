@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -83,13 +84,6 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
         return this;
     }
 
-    /**
-     * Get whether the XContent should be keyed
-     */
-    public boolean getKeyed() {
-        return keyed;
-    }
-
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metadata) {
         return new PercentilesBucketPipelineAggregator(name, percents, keyed, bucketsPaths, gapPolicy(), formatter(), metadata);
@@ -118,8 +112,8 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {

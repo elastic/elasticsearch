@@ -31,4 +31,9 @@ public class GeoIpDownloaderStatsActionResponseSerializingTests extends Abstract
         );
         return new GeoIpDownloaderStatsAction.Response(ClusterName.DEFAULT, nodeResponses, Collections.emptyList());
     }
+
+    @Override
+    protected GeoIpDownloaderStatsAction.Response mutateInstance(GeoIpDownloaderStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

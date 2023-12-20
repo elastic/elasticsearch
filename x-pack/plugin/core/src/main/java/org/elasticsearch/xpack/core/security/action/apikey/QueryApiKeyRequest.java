@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +34,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
     private final List<FieldSortBuilder> fieldSortBuilders;
     @Nullable
     private final SearchAfterBuilder searchAfterBuilder;
+    private final boolean withLimitedBy;
     private boolean filterForCurrentUser;
 
     public QueryApiKeyRequest() {
@@ -40,7 +42,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
     }
 
     public QueryApiKeyRequest(QueryBuilder queryBuilder) {
-        this(queryBuilder, null, null, null, null);
+        this(queryBuilder, null, null, null, null, false);
     }
 
     public QueryApiKeyRequest(
@@ -48,13 +50,15 @@ public final class QueryApiKeyRequest extends ActionRequest {
         @Nullable Integer from,
         @Nullable Integer size,
         @Nullable List<FieldSortBuilder> fieldSortBuilders,
-        @Nullable SearchAfterBuilder searchAfterBuilder
+        @Nullable SearchAfterBuilder searchAfterBuilder,
+        boolean withLimitedBy
     ) {
         this.queryBuilder = queryBuilder;
         this.from = from;
         this.size = size;
         this.fieldSortBuilders = fieldSortBuilders;
         this.searchAfterBuilder = searchAfterBuilder;
+        this.withLimitedBy = withLimitedBy;
     }
 
     public QueryApiKeyRequest(StreamInput in) throws IOException {
@@ -63,11 +67,16 @@ public final class QueryApiKeyRequest extends ActionRequest {
         this.from = in.readOptionalVInt();
         this.size = in.readOptionalVInt();
         if (in.readBoolean()) {
-            this.fieldSortBuilders = in.readList(FieldSortBuilder::new);
+            this.fieldSortBuilders = in.readCollectionAsList(FieldSortBuilder::new);
         } else {
             this.fieldSortBuilders = null;
         }
         this.searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+            this.withLimitedBy = in.readBoolean();
+        } else {
+            this.withLimitedBy = false;
+        }
     }
 
     public QueryBuilder getQueryBuilder() {
@@ -98,6 +107,10 @@ public final class QueryApiKeyRequest extends ActionRequest {
         filterForCurrentUser = true;
     }
 
+    public boolean withLimitedBy() {
+        return withLimitedBy;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -120,8 +133,11 @@ public final class QueryApiKeyRequest extends ActionRequest {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeList(fieldSortBuilders);
+            out.writeCollection(fieldSortBuilders);
         }
         out.writeOptionalWriteable(searchAfterBuilder);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+            out.writeBoolean(withLimitedBy);
+        }
     }
 }

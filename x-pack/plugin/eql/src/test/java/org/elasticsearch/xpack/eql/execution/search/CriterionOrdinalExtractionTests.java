@@ -13,8 +13,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
-import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
+import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
@@ -26,18 +25,18 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchLongSortValues;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchSortValues;
 import static org.elasticsearch.xpack.eql.execution.search.OrdinalTests.randomTimestamp;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.FULL;
 
 public class CriterionOrdinalExtractionTests extends ESTestCase {
     private String tsField = "timestamp";
     private String tbField = "tiebreaker";
 
-    private HitExtractor tsExtractor = new FieldHitExtractor(tsField, DataTypes.LONG, null, null, false);
-    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, DataTypes.LONG, null, null, false);
+    private HitExtractor tsExtractor = new FieldHitExtractor(tsField, DataTypes.LONG, null, null, FULL);
+    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, DataTypes.LONG, null, null, FULL);
     private HitExtractor implicitTbExtractor = ImplicitTiebreakerHitExtractor.INSTANCE;
 
     public void testTimeOnly() throws Exception {
@@ -67,22 +66,23 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     }
 
     public void testTimeNotComparable() throws Exception {
-        HitExtractor badExtractor = new FieldHitExtractor(tsField, DataTypes.BINARY, null, null, false);
+        HitExtractor badExtractor = new FieldHitExtractor(tsField, DataTypes.BINARY, null, null, FULL);
         SearchHit hit = searchHit(randomAlphaOfLength(10), null);
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(0, null, emptyList(), badExtractor, null, null, false);
+        SequenceCriterion criterion = new SequenceCriterion(0, null, emptyList(), badExtractor, null, null, false, false);
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
         assertTrue(exception.getMessage().startsWith("Expected timestamp"));
     }
 
     public void testImplicitTiebreakerMissing() throws Exception {
         SearchHit hit = searchHit(randomTimestamp(), null, new Object[0]);
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+        SequenceCriterion criterion = new SequenceCriterion(
             0,
             null,
             emptyList(),
             tsExtractor,
             null,
             implicitTbExtractor,
+            randomBoolean(),
             randomBoolean()
         );
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
@@ -91,13 +91,14 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
 
     public void testImplicitTiebreakerNotANumber() throws Exception {
         SearchHit hit = searchHit(randomTimestamp(), null, new Object[] { "test string" });
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+        SequenceCriterion criterion = new SequenceCriterion(
             0,
             null,
             emptyList(),
             tsExtractor,
             null,
             implicitTbExtractor,
+            randomBoolean(),
             randomBoolean()
         );
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
@@ -126,13 +127,14 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
             public void writeTo(StreamOutput out) throws IOException {}
         };
         SearchHit hit = searchHit(randomTimestamp(), o);
-        Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(
+        SequenceCriterion criterion = new SequenceCriterion(
             0,
             null,
             emptyList(),
             tsExtractor,
             badExtractor,
             implicitTbExtractor,
+            false,
             false
         );
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
@@ -151,20 +153,22 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put(tsField, new DocumentField(tsField, singletonList(timeValue)));
         fields.put(tbField, new DocumentField(tsField, singletonList(tiebreakerValue)));
-        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(10), fields, emptyMap());
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(10));
+        searchHit.addDocumentFields(fields, Map.of());
         searchHit.sortValues(searchSortValues.get());
 
         return searchHit;
     }
 
     private Ordinal ordinal(SearchHit hit, boolean withTiebreaker) {
-        return new Criterion<BoxedQueryRequest>(
+        return new SequenceCriterion(
             0,
             null,
             emptyList(),
             tsExtractor,
             withTiebreaker ? tbExtractor : null,
             implicitTbExtractor,
+            false,
             false
         ).ordinal(hit);
     }

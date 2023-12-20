@@ -10,10 +10,10 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -26,13 +26,12 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.Set;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -132,8 +131,8 @@ public class IndexSortSettingsTests extends ESTestCase {
             }
 
             @Override
-            public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-                searchLookup.get();
+            public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+                fieldDataContext.lookupSupplier().get();
                 return null;
             }
 
@@ -162,7 +161,7 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testSortingAgainstAliasesPre713() {
         IndexSettings indexSettings = indexSettings(
-            Settings.builder().put("index.version.created", Version.V_7_12_0).put("index.sort.field", "field").build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_7_12_0).put("index.sort.field", "field").build()
         );
         MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
         Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));
@@ -216,6 +215,12 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndicesFieldDataCache cache = new IndicesFieldDataCache(indexSettings.getSettings(), null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService);
-        return config.buildIndexSort(lookup::get, (ft, s) -> indexFieldDataService.getForField(ft, "index", s));
+        return config.buildIndexSort(
+            lookup::get,
+            (ft, s) -> indexFieldDataService.getForField(
+                ft,
+                new FieldDataContext("test", s, Set::of, MappedFieldType.FielddataOperation.SEARCH)
+            )
+        );
     }
 }

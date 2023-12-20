@@ -22,9 +22,14 @@ public class PutTrainedModelActionResponseTests extends AbstractWireSerializingT
         String modelId = randomAlphaOfLength(10);
         return new Response(
             TrainedModelConfigTests.createTestInstance(modelId, randomBoolean())
-                .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setParsedDefinition(TrainedModelDefinitionTests.createSmallRandomBuilder())
                 .build()
         );
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

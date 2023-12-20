@@ -11,13 +11,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -65,12 +66,12 @@ public class Retry {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         BulkRequest bulkRequest
     ) {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         withBackoff(consumer, bulkRequest, future);
         return future;
     }
 
-    static class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
+    static class RetryHandler extends DelegatingActionListener<BulkResponse, BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
         private static final Logger logger = LogManager.getLogger(RetryHandler.class);
 
@@ -135,7 +136,7 @@ public class Retry {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, ThreadPool.Names.SAME);
+            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {
@@ -195,7 +196,7 @@ public class Retry {
         private BulkResponse getAccumulatedResponse() {
             BulkItemResponse[] itemResponses;
             synchronized (responses) {
-                itemResponses = responses.toArray(new BulkItemResponse[1]);
+                itemResponses = responses.toArray(new BulkItemResponse[0]);
             }
             long stopTimestamp = System.nanoTime();
             long totalLatencyMs = TimeValue.timeValueNanos(stopTimestamp - startTimestampNanos).millis();

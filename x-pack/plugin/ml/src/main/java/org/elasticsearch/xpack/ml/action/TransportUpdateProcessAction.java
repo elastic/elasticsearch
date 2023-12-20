@@ -10,7 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -33,14 +34,19 @@ public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateP
             actionFilters,
             UpdateProcessAction.Request::new,
             UpdateProcessAction.Response::new,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             processManager
         );
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 
     @Override
-    protected void taskOperation(UpdateProcessAction.Request request, JobTask task, ActionListener<UpdateProcessAction.Response> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        UpdateProcessAction.Request request,
+        JobTask task,
+        ActionListener<UpdateProcessAction.Response> listener
+    ) {
         UpdateParams updateParams = UpdateParams.builder(request.getJobId())
             .modelPlotConfig(request.getModelPlotConfig())
             .perPartitionCategorizationConfig(request.getPerPartitionCategorizationConfig())

@@ -42,4 +42,9 @@ public class GetAutoscalingCapacityActionResponseWireSerializingTests extends Ab
         return new GetAutoscalingCapacityAction.Response(Collections.unmodifiableSortedMap(results));
     }
 
+    @Override
+    protected GetAutoscalingCapacityAction.Response mutateInstance(GetAutoscalingCapacityAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
 }

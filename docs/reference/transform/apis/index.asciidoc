@@ -11,6 +11,8 @@ include::get-transform-stats.asciidoc[leveloffset=+2]
 include::preview-transform.asciidoc[leveloffset=+2]
 //RESET
 include::reset-transform.asciidoc[leveloffset=+2]
+//SCHEDULE NOW
+include::schedule-now-transform.asciidoc[leveloffset=+2]
 //START
 include::start-transform.asciidoc[leveloffset=+2]
 //STOP

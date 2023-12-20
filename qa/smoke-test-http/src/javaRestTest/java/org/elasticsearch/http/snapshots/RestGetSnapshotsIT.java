@@ -23,9 +23,8 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -202,15 +201,14 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         }
         AbstractSnapshotIntegTestCase.awaitNumberOfSnapshotsInProgress(logger, inProgressCount);
         AbstractSnapshotIntegTestCase.awaitClusterState(logger, state -> {
-            boolean firstIndexSuccessfullySnapshot = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .asStream()
+            final var snapshotsInProgress = SnapshotsInProgress.get(state);
+            boolean firstIndexSuccessfullySnapshot = snapshotsInProgress.asStream()
                 .flatMap(s -> s.shards().entrySet().stream())
                 .allMatch(
                     e -> e.getKey().getIndexName().equals("test-index-1") == false
                         || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
                 );
-            boolean secondIndexIsBlocked = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .asStream()
+            boolean secondIndexIsBlocked = snapshotsInProgress.asStream()
                 .flatMap(s -> s.shards().entrySet().stream())
                 .filter(e -> e.getKey().getIndexName().equals("test-index-2"))
                 .map(e -> e.getValue().state())
@@ -362,7 +360,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private void createIndexWithContent(String indexName) {
         logger.info("--> creating index [{}]", indexName);
-        createIndex(indexName, AbstractSnapshotIntegTestCase.SINGLE_SHARD_NO_REPLICA);
+        createIndex(indexName, 1, 0);
         ensureGreen(indexName);
         indexDoc(indexName, "some_id", "foo", "bar");
     }
@@ -444,11 +442,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     private static GetSnapshotsResponse readSnapshotInfos(Response response) throws IOException {
         try (
             InputStream input = response.getEntity().getContent();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                input
-            )
+            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, input)
         ) {
             return GetSnapshotsResponse.fromXContent(parser);
         }

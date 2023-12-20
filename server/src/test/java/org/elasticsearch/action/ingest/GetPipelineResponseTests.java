@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPipelineResponse> {
+public class GetPipelineResponseTests extends AbstractXContentSerializingTestCase<GetPipelineResponse> {
 
     private XContentBuilder getRandomXContentBuilder() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
@@ -62,11 +62,15 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
         Map<String, PipelineConfiguration> pipelinesMap = createPipelineConfigMap();
         GetPipelineResponse response = new GetPipelineResponse(new ArrayList<>(pipelinesMap.values()));
         XContentBuilder builder = response.toXContent(getRandomXContentBuilder(), ToXContent.EMPTY_PARAMS);
-        XContentParser parser = builder.generator()
-            .contentType()
-            .xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-        GetPipelineResponse parsedResponse = GetPipelineResponse.fromXContent(parser);
+        GetPipelineResponse parsedResponse;
+        try (
+            XContentParser parser = builder.generator()
+                .contentType()
+                .xContent()
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+        ) {
+            parsedResponse = GetPipelineResponse.fromXContent(parser);
+        }
         List<PipelineConfiguration> actualPipelines = response.pipelines();
         List<PipelineConfiguration> parsedPipelines = parsedResponse.pipelines();
         assertEquals(actualPipelines.size(), parsedPipelines.size());
@@ -93,11 +97,6 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
     @Override
     protected Writeable.Reader<GetPipelineResponse> instanceReader() {
         return GetPipelineResponse::new;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override

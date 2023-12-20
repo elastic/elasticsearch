@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -38,6 +40,8 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class LogicalPlanTests extends ESTestCase {
 
@@ -188,6 +192,64 @@ public class LogicalPlanTests extends ESTestCase {
 
         List<? extends LogicalPlan> queries = seq.queries();
         assertEquals(3, queries.size());
+    }
+
+    public void testSamplePlan() {
+        LogicalPlan plan = parser.createStatement(
+            "sample by pid [process where process_name == \"*\" ] by host_name [file where file_path == \"*\"] by host"
+        );
+
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
+        assertEquals(Sample.class, plan.getClass());
+        Sample sample = (Sample) plan;
+        List<? extends LogicalPlan> queries = sample.queries();
+        assertEquals(2, queries.size());
+        LogicalPlan subPlan = queries.get(0);
+        assertEquals(KeyedFilter.class, subPlan.getClass());
+        KeyedFilter kf = (KeyedFilter) subPlan;
+
+        List<? extends NamedExpression> keys = kf.keys();
+        NamedExpression key = keys.get(0);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("pid", key.name());
+        key = keys.get(1);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("host_name", key.name());
+
+        subPlan = queries.get(1);
+        assertEquals(KeyedFilter.class, subPlan.getClass());
+        kf = (KeyedFilter) subPlan;
+
+        keys = kf.keys();
+        key = keys.get(0);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("pid", key.name());
+        key = keys.get(1);
+        assertEquals(UnresolvedAttribute.class, key.getClass());
+        assertEquals("host", key.name());
+    }
+
+    public void testFoldedHeadTailValidValue() {
+        String limit = randomFrom(" head ", " tail ");
+        // explicitly set this as long to force a LONG literal as the limit
+        String longValue = String.valueOf((long) Integer.MAX_VALUE + 1L);
+        LogicalPlan plan = parser.createStatement("any where true |" + limit + longValue + "-1");
+
+        assertTrue(plan instanceof LimitWithOffset);
+        LimitWithOffset limitWithOffset = (LimitWithOffset) plan;
+        Literal limitValue;
+        if (limit == " head ") {
+            assertTrue(limitWithOffset.limit() instanceof Literal);
+            limitValue = (Literal) limitWithOffset.limit();
+        } else {
+            assertTrue(limitWithOffset.limit() instanceof Neg);
+            assertTrue(((Neg) (limitWithOffset.limit())).field() instanceof Literal);
+            limitValue = (Literal) ((Neg) (limitWithOffset.limit())).field();
+        }
+        assertThat(limitValue.value(), equalTo(Integer.MAX_VALUE));
+        // check also that the data type of the literal is correctly set to INTEGER
+        assertThat(limitValue.dataType(), is(DataTypes.INTEGER));
     }
 
     private LogicalPlan wrapFilter(Expression exp) {

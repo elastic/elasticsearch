@@ -1,0 +1,132 @@
+setup:
+  - skip:
+      version: " - 8.5.0"
+      reason: Reset tracking rate agg added in 8.6
+
+  - do:
+      indices.create:
+        index: tsdb-01
+        body:
+          settings:
+            mode: time_series
+            routing_path: [key]
+            time_series:
+              start_time: "2021-01-01T00:00:00Z"
+              end_time: "2021-01-01T01:00:00Z"
+          mappings:
+            properties:
+              val:
+                type: long
+                time_series_metric: counter
+              key:
+                type: keyword
+                time_series_dimension: true
+              "@timestamp":
+                type: date
+  - do:
+      indices.create:
+        index: tsdb-02
+        body:
+          settings:
+            mode: time_series
+            routing_path: [key]
+            time_series:
+              start_time: "2021-01-01T00:01:00Z"
+              end_time: "2021-01-01T02:00:00Z"
+          mappings:
+            properties:
+              val:
+                type: long
+                time_series_metric: counter
+              key:
+                type: keyword
+                time_series_dimension: true
+              "@timestamp":
+                type: date
+  - do:
+      indices.create:
+        index: tsdb-03
+        body:
+          settings:
+            mode: time_series
+            routing_path: [key]
+            time_series:
+              start_time: "2021-01-01T00:02:00Z"
+              end_time: "2021-01-01T03:00:00Z"
+          mappings:
+            properties:
+              val:
+                type: long
+                time_series_metric: counter
+              key:
+                type: keyword
+                time_series_dimension: true
+              "@timestamp":
+                type: date
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      bulk:
+        index: tsdb-01
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "key": "bar", "val": 40, "@timestamp": "2021-01-01T00:00:00Z" }'
+          - '{ "index": {}}'
+          - '{ "key": "bar", "val": 50, "@timestamp": "2021-01-01T00:20:00Z" }'
+          - '{ "index": {}}'
+          - '{ "key": "bar", "val": 60, "@timestamp": "2021-01-01T00:40:00Z" }'
+  - do:
+      bulk:
+        index: tsdb-02
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "key": "bar", "val": 70, "@timestamp": "2021-01-01T01:00:00Z" }'
+          - '{ "index": {}}'
+          - '{ "key": "bar", "val": 0, "@timestamp": "2021-01-01T01:20:00Z" }'
+          - '{ "index": {}}'
+          - '{ "key": "bar", "val": 10, "@timestamp": "2021-01-01T01:40:00Z" }'
+
+  - do:
+      bulk:
+        index: tsdb-03
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "key": "bar", "val": 0, "@timestamp": "2021-01-01T02:00:00Z" }'
+          - '{ "index": {}}'
+          - '{ "key": "bar", "val": 10, "@timestamp": "2021-01-01T02:20:00Z" }'
+          - '{ "index": {}}'
+          - '{ "key": "bar", "val": 20, "@timestamp": "2021-01-01T02:40:00Z" }'
+---
+"test resets do not lead to negative rate":
+  - do:
+      search:
+        index: tsdb-*
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2020-01-01T00:10:00Z"
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+              aggs:
+                rate:
+                  rate:
+                    field: val
+
+
+
+  - match: { hits.total.value: 9 }
+  - length: { aggregations.ts.buckets: 1 }
+
+  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
+  - match: { aggregations.ts.buckets.0.doc_count: 9 }
+  - gte: { aggregations.ts.buckets.0.rate.value: 0.0 }
+

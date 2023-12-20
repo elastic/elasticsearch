@@ -2,24 +2,19 @@ setup:
   - do:
       indices.create:
         index: test_index1
-        body:
-          settings:
-            number_of_replicas: 0
+
   - do:
       indices.create:
         index: test_index2
-        body:
-          settings:
-            number_of_replicas: 0
+
   - do:
       indices.create:
         index: test_index3
-        body:
-          settings:
-            number_of_replicas: 0
+
   - do:
       cluster.health:
-        wait_for_status: green
+        index: [test_index1, test_index2, test_index3]
+        wait_for_no_initializing_shards: true
 
 ---
 "All indices":
@@ -46,7 +41,8 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_status: green
+        index: [test_index1, test_index2, test_index3]
+        wait_for_no_initializing_shards: true
 
   - do:
       search:
@@ -78,7 +74,8 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_status: green
+        index: [test_index1, test_index2, test_index3]
+        wait_for_no_initializing_shards: true
 
   - do:
       search:
@@ -110,7 +107,8 @@ setup:
 
   - do:
       cluster.health:
-        wait_for_status: green
+        index: [test_index1, test_index2, test_index3]
+        wait_for_no_initializing_shards: true
 
   - do:
       search:

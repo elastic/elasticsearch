@@ -38,7 +38,7 @@ public class GetShardSnapshotRequest extends MasterNodeRequest<GetShardSnapshotR
 
     public GetShardSnapshotRequest(StreamInput in) throws IOException {
         super(in);
-        this.repositories = in.readStringList();
+        this.repositories = in.readStringCollectionAsList();
         this.shardId = new ShardId(in);
     }
 

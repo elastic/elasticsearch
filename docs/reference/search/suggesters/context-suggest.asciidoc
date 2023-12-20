@@ -380,3 +380,9 @@ multiple context clauses. The following parameters are supported for a
     precision value can be a distance value (`5m`, `10km` etc.)
     or a raw geohash precision (`1`..`12`). Defaults to
     generating neighbours for index time precision level.
+
+NOTE: The precision field does not result in a distance match.
+Specifying a distance value like `10km` only results in a geohash precision value that represents tiles of that size.
+The precision will be used to encode the search geo point into a geohash tile for completion matching.
+A consequence of this is that points outside that tile, even if very close to the search point, will not be matched.
+Reducing the precision, or increasing the distance, can reduce the risk of this happening, but not entirely remove it.

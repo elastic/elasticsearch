@@ -74,7 +74,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             super(in);
             this.dataStreamCount = in.readVInt();
             this.backingIndices = in.readVInt();
-            this.totalStoreSize = new ByteSizeValue(in);
+            this.totalStoreSize = ByteSizeValue.readFrom(in);
             this.dataStreams = in.readArray(DataStreamStats::new, DataStreamStats[]::new);
         }
 
@@ -164,7 +164,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         public DataStreamStats(StreamInput in) throws IOException {
             this.dataStream = in.readString();
             this.backingIndices = in.readVInt();
-            this.storeSize = new ByteSizeValue(in);
+            this.storeSize = ByteSizeValue.readFrom(in);
             this.maximumTimestamp = in.readVLong();
         }
 

@@ -1,0 +1,50 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.internal-distribution-download'
+
+testFixtures.useFixture()
+
+dependencies {
+  testImplementation project(':client:rest-high-level')
+}
+
+dockerCompose {
+  environment.put 'STACK_VERSION', BuildParams.snapshotBuild ? VersionProperties.elasticsearch : VersionProperties.elasticsearch + "-SNAPSHOT"
+}
+
+elasticsearch_distributions {
+  docker {
+    type = DOCKER
+    architecture = Architecture.current()
+    version = VersionProperties.getElasticsearch()
+    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
+  }
+}
+
+tasks.named("preProcessFixture").configure {
+  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
+}
+
+tasks.register("integTest", Test) {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  maxParallelForks = '1'
+  include '**/*IT.class'
+}
+
+tasks.named("check").configure {
+  dependsOn "integTest"
+}

@@ -4,8 +4,6 @@ setup:
       indices.create:
         index: index1
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               foo:

@@ -15,11 +15,20 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SourceLoaderTests extends MapperServiceTestCase {
+    public void testNonSynthetic() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("o").field("type", "object").endObject();
+            b.startObject("kwd").field("type", "keyword").endObject();
+        }));
+        assertFalse(mapper.mappers().newSourceLoader().reordersFieldValues());
+    }
+
     public void testEmptyObject() throws IOException {
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
         }));
+        assertTrue(mapper.mappers().newSourceLoader().reordersFieldValues());
         assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
             {"kwd":"foo"}"""));
     }
@@ -32,8 +41,8 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "field [txt] of type [text] doesn't support synthetic source unless"
-                    + " it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                "field [txt] of type [text] doesn't support synthetic source unless it is stored or has a sub-field "
+                    + "of type [keyword] with doc values or stored and without a normalizer"
             )
         );
     }
@@ -65,7 +74,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
 
     public void testNoSubobjectsRootObject() throws IOException {
         XContentBuilder mappings = topMapping(b -> {
-            b.startObject("_source").field("synthetic", true).endObject();
+            b.startObject("_source").field("mode", "synthetic").endObject();
             b.field("subobjects", false);
             b.startObject("properties");
             b.startObject("foo.bar.baz").field("type", "keyword").endObject();
@@ -105,5 +114,21 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             b.endArray();
         }), equalTo("""
             {"o":{"bar":["b","c","e","f"],"foo":["a","d"]}}"""));
+    }
+
+    public void testHideTheCopyTo() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("foo");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                {
+                    b.startObject("hidden").field("type", "keyword").field("copy_to", "bar").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), equalTo("[copy_to] may not be used to copy from a multi-field: [foo.hidden]"));
     }
 }

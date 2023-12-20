@@ -14,11 +14,9 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -51,11 +49,12 @@ public class RestNoopBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        BulkRequest bulkRequest = Requests.bulkRequest();
+        BulkRequest bulkRequest = new BulkRequest();
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");
         Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
+        Boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", null);
 
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -70,6 +69,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             null,
             defaultPipeline,
             defaultRequireAlias,
+            defaultListExecutedPipelines,
             true,
             request.getXContentType(),
             request.getRestApiVersion()
@@ -107,7 +107,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             }
             builder.endArray();
             builder.endObject();
-            return new BytesRestResponse(OK, builder);
+            return new RestResponse(OK, builder);
         }
     }
 

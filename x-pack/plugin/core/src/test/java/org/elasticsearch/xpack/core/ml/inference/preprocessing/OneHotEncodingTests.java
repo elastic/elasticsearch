@@ -35,6 +35,11 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         return createRandom();
     }
 
+    @Override
+    protected OneHotEncoding mutateInstance(OneHotEncoding instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static OneHotEncoding createRandom() {
         return createRandom(randomBoolean() ? randomBoolean() : null);
     }

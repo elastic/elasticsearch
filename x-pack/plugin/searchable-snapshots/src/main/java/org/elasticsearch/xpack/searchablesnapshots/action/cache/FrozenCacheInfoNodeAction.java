@@ -16,12 +16,13 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SHARED_CACHE_SIZE_SETTING;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 
 public class FrozenCacheInfoNodeAction extends ActionType<FrozenCacheInfoResponse> {
 
@@ -52,7 +53,7 @@ public class FrozenCacheInfoNodeAction extends ActionType<FrozenCacheInfoRespons
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             response = new FrozenCacheInfoResponse(SHARED_CACHE_SIZE_SETTING.get(settings).isNonZeroSize());
         }
 

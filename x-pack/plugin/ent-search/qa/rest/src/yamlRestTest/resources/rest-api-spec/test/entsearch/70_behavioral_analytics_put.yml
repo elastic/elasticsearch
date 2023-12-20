@@ -1,0 +1,29 @@
+teardown:
+  - do:
+      search_application.delete_behavioral_analytics:
+        name: test-analytics-collection
+
+---
+"Create Analytics Collection":
+  - do:
+      search_application.put_behavioral_analytics:
+        name: test-analytics-collection
+
+  - match: { acknowledged: true }
+  - match: { name: "test-analytics-collection" }
+
+---
+"Create Analytics Collection - analytics collection already exists":
+  - do:
+      search_application.put_behavioral_analytics:
+        name: test-analytics-collection
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      search_application.put_behavioral_analytics:
+        name: test-analytics-collection
+
+  - match: { error.type: "resource_already_exists_exception" }
+

@@ -342,7 +342,7 @@ public final class WhitelistLoader {
                                     targetJavaClassName,
                                     methodName,
                                     returnCanonicalTypeName,
-                                    Arrays.asList(canonicalTypeNameParameters),
+                                    List.of(canonicalTypeNameParameters),
                                     annotations
                                 )
                             );
@@ -388,9 +388,7 @@ public final class WhitelistLoader {
                                 ? Collections.emptyList()
                                 : parseWhitelistAnnotations(parsers, line.substring(annotationIndex));
 
-                            whitelistConstructors.add(
-                                new WhitelistConstructor(origin, Arrays.asList(canonicalTypeNameParameters), annotations)
-                            );
+                            whitelistConstructors.add(new WhitelistConstructor(origin, List.of(canonicalTypeNameParameters), annotations));
 
                             // Handle the case for a method or augmented method definition.
                             // Expects the following format: ID ID? ID '(' ( ID ( ',' ID )* )? ')' annotations? '\n'

@@ -14,7 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +32,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainResponse> {
+public class ExplainResponseTests extends AbstractXContentSerializingTestCase<ExplainResponse> {
 
     @Override
     protected ExplainResponse doParseInstance(XContentParser parser) throws IOException {
@@ -64,6 +64,11 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
             null
         );
         return new ExplainResponse(index, id, exist, explanation, getResult);
+    }
+
+    @Override
+    protected ExplainResponse mutateInstance(ExplainResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

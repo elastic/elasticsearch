@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
@@ -26,7 +28,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest;
 
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     public void testNodesCachesStats() throws Exception {
@@ -45,7 +47,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         // since this test verifies the cache stats on specific nodes
         ensureStableCluster(nodeNames.length);
 
-        final String index = getTestName().toLowerCase(Locale.ROOT);
+        final String index = randomIdentifier();
         createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
 
         final int nbDocs = randomIntBetween(1_000, 10_000);
@@ -60,7 +62,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         final String snapshot = "snapshot";
         createFullSnapshot(repository, snapshot);
 
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
 
         final String mountedIndex = "mounted-index";
         mountSnapshot(repository, snapshot, index, mountedIndex, Settings.EMPTY, Storage.SHARED_CACHE);
@@ -80,9 +82,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final String nodeName = nodeCachesStats.getNode().getName();
 
             final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
-            final long totalFsSize = client().admin()
-                .cluster()
-                .prepareNodesStats(nodeId)
+            final long totalFsSize = clusterAdmin().prepareNodesStats(nodeId)
                 .clear()
                 .setFs(true)
                 .get()
@@ -93,10 +93,10 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 .getTotal()
                 .getBytes();
 
-            final long cacheSize = FrozenCacheService.calculateCacheSize(clusterService.getSettings(), totalFsSize);
+            final long cacheSize = SharedBlobCacheService.calculateCacheSize(clusterService.getSettings(), totalFsSize);
             assertThat(nodeCachesStats.getSize(), equalTo(cacheSize));
 
-            final long regionSize = FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
+            final long regionSize = SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
             assertThat(nodeCachesStats.getRegionSize(), equalTo(regionSize));
 
             assertThat(nodeCachesStats.getNumRegions(), equalTo(Math.toIntExact(cacheSize / regionSize)));
@@ -108,14 +108,11 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         }
 
         for (int i = 0; i < 20; i++) {
-            client().prepareSearch(mountedIndex)
-                .setQuery(
-                    randomBoolean()
-                        ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
-                        : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
-                )
-                .setSize(randomIntBetween(0, 1000))
-                .get();
+            prepareSearch(mountedIndex).setQuery(
+                randomBoolean()
+                    ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
+                    : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
+            ).setSize(randomIntBetween(0, 1000)).get().decRef();
         }
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
@@ -127,9 +124,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
         assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
 
-        final String[] dataNodesWithFrozenShards = client().admin()
-            .cluster()
-            .prepareState()
+        final String[] dataNodesWithFrozenShards = clusterAdmin().prepareState()
             .get()
             .getState()
             .routingTable()

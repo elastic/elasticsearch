@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,7 +62,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, Coordinator coordinator) {
-            super(NAME, transportService, actionFilters, SearchRequest::new);
+            super(NAME, transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.coordinator = coordinator;
         }
 
@@ -71,10 +73,12 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             // Management tp is expected when executing enrich processor from ingest simulate api
             // Search tp is allowed for now - After enriching, the remaining parts of the pipeline are processed on the
             // search thread, which could end up here again if there is more than one enrich processor in a pipeline.
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.SYSTEM_WRITE)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.MANAGEMENT);
+            assert ThreadPool.assertCurrentThreadPool(
+                ThreadPool.Names.WRITE,
+                ThreadPool.Names.SYSTEM_WRITE,
+                ThreadPool.Names.SEARCH,
+                ThreadPool.Names.MANAGEMENT
+            );
             coordinator.schedule(request, listener);
         }
     }
@@ -158,7 +162,17 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 final List<Slot> slots = new ArrayList<>(Math.min(queue.size(), maxLookupsPerRequest));
                 if (queue.drainTo(slots, maxLookupsPerRequest) == 0) {
                     remoteRequestPermits.release();
-                    return;
+                    /*
+                     * It is possible that something was added to the queue after the drain and before the permit was released, meaning
+                     * that the other thread could not acquire the permit, leaving an item orphaned in the queue. So we check the queue
+                     * again after releasing the permit, and if there is something there we run another loop to pick that thing up. If
+                     * another thread has picked it up in the meantime, we'll just exit out of the loop on the next try.
+                     */
+                    if (queue.isEmpty()) {
+                        return;
+                    } else {
+                        continue;
+                    }
                 }
                 assert slots.isEmpty() == false;
                 remoteRequestsTotal.increment();
@@ -225,13 +239,24 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                     final List<Tuple<Integer, SearchRequest>> enrichIndexRequestsAndSlots = entry.getValue();
                     ActionListener<MultiSearchResponse> listener = ActionListener.wrap(response -> {
                         shardResponses.put(enrichIndexName, new Tuple<>(response, null));
+                        response.incRef(); // will be released during reduce
                         if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                            consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
+                            var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
+                            try {
+                                consumer.accept(res, null);
+                            } finally {
+                                res.decRef();
+                            }
                         }
                     }, e -> {
                         shardResponses.put(enrichIndexName, new Tuple<>(null, e));
                         if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                            consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
+                            var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
+                            try {
+                                consumer.accept(res, null);
+                            } finally {
+                                res.decRef();
+                            }
                         }
                     });
 
@@ -248,14 +273,23 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses
         ) {
             MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequest];
-            for (Map.Entry<String, Tuple<MultiSearchResponse, Exception>> rspEntry : shardResponses.entrySet()) {
+            for (Iterator<Map.Entry<String, Tuple<MultiSearchResponse, Exception>>> iterator = shardResponses.entrySet()
+                .iterator(); iterator.hasNext();) {
+                Map.Entry<String, Tuple<MultiSearchResponse, Exception>> rspEntry = iterator.next();
                 List<Tuple<Integer, SearchRequest>> reqSlots = itemsPerIndex.get(rspEntry.getKey());
                 if (rspEntry.getValue().v1() != null) {
                     MultiSearchResponse shardResponse = rspEntry.getValue().v1();
                     for (int i = 0; i < shardResponse.getResponses().length; i++) {
                         int slot = reqSlots.get(i).v1();
-                        items[slot] = shardResponse.getResponses()[i];
+                        var res = shardResponse.getResponses()[i];
+                        items[slot] = res;
+                        var r = res.getResponse();
+                        if (r != null) {
+                            r.incRef();
+                        }
                     }
+                    iterator.remove();
+                    shardResponse.decRef();
                 } else if (rspEntry.getValue().v2() != null) {
                     Exception e = rspEntry.getValue().v2();
                     for (Tuple<Integer, SearchRequest> originSlot : reqSlots) {

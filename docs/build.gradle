@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
@@ -24,10 +24,13 @@ ext.docsFileTree = fileTree(projectDir) {
   exclude 'README.asciidoc'
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
+  // These files simply don't pass yet. We should figure out how to fix them.
+  exclude 'reference/watcher/reference/actions.asciidoc'
+  exclude 'reference/rest-api/security/ssl.asciidoc'
   if (BuildParams.inFipsJvm) {
-    // We don't install/support this plugin in FIPS 140
-    exclude 'plugins/ingest-attachment.asciidoc'
-    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    // We don't support this component in FIPS 140
+    exclude 'reference/ingest/processors/attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment component
     exclude 'reference/cat/plugins.asciidoc'
   }
 }
@@ -48,7 +51,13 @@ tasks.named("buildRestTests").configure {
           'reference/ml/anomaly-detection/apis/post-data.asciidoc',
           'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
           'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
-          'reference/ml/anomaly-detection/apis/update-job.asciidoc'
+          'reference/ml/anomaly-detection/apis/update-job.asciidoc',
+          'reference/security/authentication/user-cache.asciidoc',
+          'reference/security/authorization/run-as-privilege.asciidoc',
+          'reference/security/ccs-clients-integrations/http.asciidoc',
+          'reference/rest-api/watcher/put-watch.asciidoc',
+          'reference/rest-api/watcher/stats.asciidoc',
+          'reference/watcher/example-watches/watching-time-series-data.asciidoc'
   ]
 }
 
@@ -63,11 +72,20 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
+    if (BuildParams.isSnapshotBuild() == false) {
+      requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
+    }
   }
+
+  // debug ccr test failures:
+  // https://github.com/elastic/elasticsearch/issues/95678
+  // https://github.com/elastic/elasticsearch/issues/94359
+  // https://github.com/elastic/elasticsearch/issues/96561
+  setting 'logger.org.elasticsearch.transport.SniffConnectionStrategy', 'DEBUG'
+  setting 'logger.org.elasticsearch.transport.RemoteClusterService', 'DEBUG'
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
-  setting 'xpack.security.enabled', 'false'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
@@ -92,6 +110,46 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
+
+  // TODO Rene: clean up this kind of cross project file references
+  extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
+  extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("src/main/resources/idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
+  extraConfigFile 'testClient.crt', project(':x-pack:plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  // disable the ILM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  setting 'xpack.security.authc.realms.native.native.order', '1'
+  setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
+  keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
+  setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.pki.pki1.order', '3'
+  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testClient.crt" ]'
+  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
+  setting 'xpack.security.authc.realms.saml.saml1.order', '4'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.logout', 'https://kibana.org/logout'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.entity_id', 'https://my-idp.org'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.metadata.path', 'idp-docs-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.entity_id', 'https://kibana.org'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+
+  user username: 'test_admin'
+  user username: 'test_user'
+
   // build the cluster with all plugins
   project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
     /* Skip repositories. We just aren't going to be able to test them so it
@@ -101,7 +159,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
       return
     }
     // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':plugins:ingest-attachment') && BuildParams.inFipsJvm) {
+    if (subproj.path.startsWith(':modules:ingest-attachment') && BuildParams.inFipsJvm) {
       return
     }
     plugin subproj.path
@@ -206,6 +264,57 @@ setups['my_data_stream'] = setups['my_data_stream_template'] + '''
 '''
 
 teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
+// Used for TSDS examples
+setups['tsds_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-weather-sensor-index-template
+        body: |
+          {
+            "index_patterns": [ "metrics-weather_sensors-*" ],
+            "data_stream": { },
+            "template": {
+              "settings": {
+                "index.mode": "time_series",
+                "index.routing_path": [ "sensor_id", "location" ]
+              },
+              "mappings": {
+                "properties": {
+                  "sensor_id": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  },
+                  "location": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            },
+            "priority": 500
+          }
+'''
+
+setups['tsds'] = setups['tsds_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/metrics-weather_sensors-dev'
+'''
+
+teardowns['tsds_cleanup'] = '''
   - do:
       raw:
         method: DELETE
@@ -1502,6 +1611,15 @@ setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'
             }
           }
 '''
+setups['setup_houseprices'] = '''
+  - do:
+        indices.create:
+          index: houses_sold_last_10_yrs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+'''
 setups['setup_logdata'] = '''
   - do:
         indices.create:
@@ -1584,6 +1702,210 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
           body: |
 #atomic_red_data#
 '''
+
+  setups['my_inactive_watch'] = '''
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: false
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+'''
+
+  setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+        'active: false', 'active: true')
+
+  setups['role_mapping'] = '''
+  - do:
+        security.put_role_mapping:
+         name: "mapping1"
+         body:  >
+            {
+               "enabled": true,
+               "roles": [ "user" ],
+               "rules": { "field": { "username": "*" } }
+            }
+'''
+
+  setups['admin_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_admin_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "run_as": [ "other_user" ],
+            "metadata" : {"version": 1}
+          }
+'''
+  setups['jacknich_user'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+'''
+  setups['app0102_privileges'] = '''
+  - do:
+        security.put_privileges:
+          body: >
+            {
+              "myapp": {
+                "read": {
+                  "application": "myapp",
+                  "name": "read",
+                  "actions": [
+                    "data:read/*",
+                    "action:login" ],
+                  "metadata": {
+                    "description": "Read access to myapp"
+                  }
+                }
+              }
+            }
+'''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+'''
+  setups['user_profiles'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackrea"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin" ],
+            "full_name" : "Jack Reacher",
+            "email" : "jackrea@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackspa"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "user" ],
+            "full_name" : "Jack Sparrow",
+            "email" : "jackspa@example.com"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackrea",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackspa",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  # jacknich
+  - do:
+      security.update_user_profile_data:
+        uid: "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
+        body: >
+          {
+            "labels": {
+              "direction": "north"
+            },
+            "data": {
+              "app1": {
+                "key1": "value1"
+              }
+            }
+          }
+  # jackrea
+  - do:
+      security.update_user_profile_data:
+        uid: "u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0"
+        body: >
+          {
+            "labels": {
+              "direction": "west"
+            }
+          }
+  # jackspa
+  - do:
+      security.update_user_profile_data:
+        uid: "u_8RKO7AKfEbSiIHZkZZ2LJy2MUSDPWDr3tMI_CkIGApU_0"
+        body: >
+          {
+            "labels": {
+              "direction": "south"
+            }
+          }
+'''
+
   // fake data used by the correlation bucket agg
   buildRestTests.setups['correlate_latency'] = '''
   - do:

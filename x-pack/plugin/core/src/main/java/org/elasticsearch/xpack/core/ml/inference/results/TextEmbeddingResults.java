@@ -43,6 +43,14 @@ public class TextEmbeddingResults extends NlpInferenceResults {
         return inference;
     }
 
+    public float[] getInferenceAsFloat() {
+        float[] floatArray = new float[inference.length];
+        for (int i = 0; i < inference.length; i++) {
+            floatArray[i] = (float) inference[i];
+        }
+        return floatArray;
+    }
+
     @Override
     void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, inference);
@@ -62,6 +70,13 @@ public class TextEmbeddingResults extends NlpInferenceResults {
     @Override
     void addMapFields(Map<String, Object> map) {
         map.put(resultsField, inference);
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        var map = super.asMap(outputField);
+        map.put(outputField, inference);
+        return map;
     }
 
     @Override

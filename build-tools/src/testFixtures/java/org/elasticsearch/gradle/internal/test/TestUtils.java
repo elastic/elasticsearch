@@ -24,6 +24,7 @@ public class TestUtils {
                 .map(it -> it.replaceAll("\\d+\\.\\d\\ds", "0.00s"))
                 .map(it -> it.replaceAll(cannonicalNormalizedPathPrefix, "."))
                 .map(it -> it.replaceAll(normalizedPathPrefix, "."))
+                .map(it -> it.replaceAll("file:/./", "file:./"))
                 .map(it -> it.replaceAll("Gradle Test Executor \\d", "Gradle Test Executor 1"))
                 .collect(Collectors.joining("\n"));
         } catch (IOException e) {

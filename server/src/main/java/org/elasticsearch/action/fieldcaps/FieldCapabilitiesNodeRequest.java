@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -19,6 +19,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,9 +42,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
-        shardIds = in.readList(ShardId::new);
+        shardIds = in.readCollectionAsList(ShardId::new);
         fields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             filters = in.readStringArray();
             allowedTypes = in.readStringArray();
         } else {
@@ -119,9 +122,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(shardIds);
+        out.writeCollection(shardIds);
         out.writeStringArray(fields);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(allowedTypes);
         }
@@ -134,6 +137,34 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("shards[");
+        Strings.collectionToDelimitedStringWithLimit(shardIds, ",", "", "", 1024, stringBuilder);
+        return completeDescription(stringBuilder, fields, filters, allowedTypes);
+    }
+
+    static String completeDescription(StringBuilder stringBuilder, String[] fields, String[] filters, String[] allowedTypes) {
+        stringBuilder.append("], fields[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("], filters[");
+        Strings.collectionToDelimitedString(Arrays.asList(filters), ",", "", "", stringBuilder);
+        stringBuilder.append("], types[");
+        Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ",", "", "", stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return FieldCapabilitiesNodeRequest.this.getDescription();
+            }
+        };
     }
 
     @Override

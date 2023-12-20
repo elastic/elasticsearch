@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<
     UpdateByQueryRequest,
@@ -38,7 +39,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             try {
                 applyScript((Map<String, Object> ctx) -> ctx.put(ctxVar, randomFrom(options)));
             } catch (IllegalArgumentException e) {
-                assertThat(e.getMessage(), containsString("Modifying [" + ctxVar + "] not allowed"));
+                assertThat(e.getMessage(), containsString(ctxVar + " cannot be updated"));
             }
         }
     }
@@ -51,6 +52,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
         TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
             threadPool,
             new ActionFilters(Collections.emptySet()),

@@ -49,6 +49,7 @@ PUT my-index-000001/_doc/2
 The `ignore_malformed` setting is currently supported by the following <<mapping-types,mapping types>>:
 
 <<number>>::         `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
+<<boolean>>::        `boolean`
 <<date>>::           `date`
 <<date_nanos>>::     `date_nanos`
 <<geo-point>>::     `geo_point` for lat/lon points

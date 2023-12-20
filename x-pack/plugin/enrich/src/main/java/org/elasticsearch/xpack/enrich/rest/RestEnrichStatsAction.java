@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.enrich.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
@@ -17,6 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestEnrichStatsAction extends BaseRestHandler {
 
     @Override

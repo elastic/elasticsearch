@@ -8,14 +8,15 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 public class CloseIndexRequestTests extends ESTestCase {
 
@@ -41,11 +42,11 @@ public class CloseIndexRequestTests extends ESTestCase {
         {
             final CloseIndexRequest request = randomRequest();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+                out.setTransportVersion(TransportVersionUtils.randomCompatibleVersion(random()));
                 request.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(out.getVersion());
+                    in.setTransportVersion(out.getTransportVersion());
                     assertEquals(request.getParentTask(), TaskId.readFromStream(in));
                     assertEquals(request.masterNodeTimeout(), in.readTimeValue());
                     assertEquals(request.timeout(), in.readTimeValue());
@@ -55,10 +56,11 @@ public class CloseIndexRequestTests extends ESTestCase {
                     // to the addition of hidden indices as expand to hidden indices is always true when
                     // read from a prior version
                     // TODO update version on backport!
-                    if (out.getVersion().onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
+                    if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)
+                        || request.indicesOptions().expandWildcardsHidden()) {
                         assertEquals(request.indicesOptions(), indicesOptions);
                     }
-                    if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+                    if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                         assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
                     } else {
                         assertEquals(0, in.available());
@@ -68,21 +70,21 @@ public class CloseIndexRequestTests extends ESTestCase {
         }
         {
             final CloseIndexRequest sample = randomRequest();
-            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
+                out.setTransportVersion(version);
                 sample.getParentTask().writeTo(out);
                 out.writeTimeValue(sample.masterNodeTimeout());
                 out.writeTimeValue(sample.timeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
-                if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                     sample.waitForActiveShards().writeTo(out);
                 }
 
                 final CloseIndexRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(version);
+                    in.setTransportVersion(version);
                     deserializedRequest = new CloseIndexRequest(in);
                 }
                 assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());
@@ -93,10 +95,10 @@ public class CloseIndexRequestTests extends ESTestCase {
                 // to the addition of hidden indices as expand to hidden indices is always true when
                 // read from a prior version
                 // TODO change version on backport
-                if (out.getVersion().onOrAfter(Version.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
                     assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
                 }
-                if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                     assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
                 } else {
                     assertEquals(ActiveShardCount.NONE, deserializedRequest.waitForActiveShards());

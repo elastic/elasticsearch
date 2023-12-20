@@ -137,8 +137,10 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 break;
             }
         }
+
         usageStats.put("fls", fls);
         usageStats.put("dls", dls);
+        usageStats.put("remote_indices", localPermissions.values().stream().filter(RoleDescriptor::hasRemoteIndicesPrivileges).count());
 
         return usageStats;
     }
@@ -278,8 +280,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         String roleName = null;
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        try {
-            XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment);
+        try (XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment)) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
@@ -304,7 +305,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     if (token == XContentParser.Token.START_OBJECT) {
                         // we pass true as last parameter because we do not want to reject files if field permissions
                         // are given in 2.x syntax
-                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true);
+                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true, false);
                         return checkDescriptor(descriptor, path, logger, settings, xContentRegistry);
                     } else {
                         logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());

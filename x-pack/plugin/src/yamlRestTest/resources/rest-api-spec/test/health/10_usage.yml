@@ -1,0 +1,37 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: red_index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.routing.allocation.enable: none
+
+  - do:
+      health_report: {}
+
+  - do:
+      health_report:
+        feature: disk
+---
+"Usage stats on the health API":
+  - skip:
+      version: "- 8.6.99"
+      reason: "the health api stats were only added to the usage api in 8.7"
+
+  - do:
+      xpack.usage: {}
+
+  - match: { health_api.available: true }
+  - match: { health_api.enabled: true }
+  - match: { health_api.invocations.total: 2 }
+  - match: { health_api.invocations.verbose_true: 2 }
+  - match: { health_api.statuses.red: 1 }
+  - match: { health_api.statuses.green: 1 }
+  - match: { health_api.statuses.values: ["green", "red"] }
+  - match: { health_api.indicators.red.values: ["shards_availability"] }
+  - match: { health_api.indicators.red.shards_availability: 1 }
+  - match: { health_api.diagnoses.red.elasticsearch:health:shards_availability:diagnosis:enable_index_allocations: 1}
+  - match: { health_api.diagnoses.red.values: ["elasticsearch:health:shards_availability:diagnosis:enable_index_allocations"]}

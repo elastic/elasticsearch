@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport.netty4;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +56,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
         nettyTransport = new Netty4Transport(
             settings,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             networkService,
             recycler,

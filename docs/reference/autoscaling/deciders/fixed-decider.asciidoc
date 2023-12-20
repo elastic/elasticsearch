@@ -19,6 +19,10 @@ Required amount of node-level storage. Defaults to `-1` (disabled).
 (Optional, <<byte-units,byte value>>)
 Required amount of node-level memory. Defaults to `-1` (disabled).
 
+`processors`::
+(Optional, float)
+Required number of processors. Defaults to disabled.
+
 `nodes`::
 (Optional, integer)
 Number of nodes to use when calculating capacity. Defaults to `1`.
@@ -38,6 +42,7 @@ PUT /_autoscaling/policy/my_autoscaling_policy
     "fixed": {
       "storage": "1tb",
       "memory": "32gb",
+      "processors": 2.3,
       "nodes": 8
     }
   }

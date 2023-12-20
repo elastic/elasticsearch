@@ -1,13 +1,18 @@
 [[restart-cluster]]
 == Full-cluster restart and rolling restart
 
-There may be {ref}/configuring-tls.html#tls-transport[situations where you want
-to perform a full-cluster restart] or a rolling restart. In the case of
+There may be <<security-basic-setup,situations where you want
+to perform a full-cluster restart>> or a rolling restart. In the case of
 <<restart-cluster-full,full-cluster restart>>, you shut down and restart all the
 nodes in the cluster while in the case of
 <<restart-cluster-rolling,rolling restart>>, you shut down only one node at a
 time, so the service remains uninterrupted.
 
+[WARNING]
+====
+Nodes exceeding the low watermark threshold will be slow to restart. Reduce the disk
+usage below the <<cluster-routing-watermark-low,low watermark>> before to restarting nodes.
+====
 
 [discrete]
 [[restart-cluster-full]]

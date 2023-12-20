@@ -9,7 +9,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             azure_storage_container=elasticsearch-ci-thirdparty
             azure_storage_base_path=%BRANCH%
       - shell: |

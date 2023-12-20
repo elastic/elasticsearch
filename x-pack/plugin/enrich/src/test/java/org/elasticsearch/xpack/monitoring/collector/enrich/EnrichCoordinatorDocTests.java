@@ -83,28 +83,29 @@ public class EnrichCoordinatorDocTests extends BaseMonitoringDocTestCase<EnrichC
             xContent.utf8ToString(),
             equalTo(
                 XContentHelper.stripWhitespace(
-                    """
-                        {
-                          "cluster_uuid": "_cluster",
-                          "timestamp": "%s",
-                          "interval_ms": %s,
-                          "type": "enrich_coordinator_stats",
-                          "source_node": {
-                            "uuid": "_uuid",
-                            "host": "_host",
-                            "transport_address": "_addr",
-                            "ip": "_ip",
-                            "name": "_name",
-                            "timestamp": "%s"
-                          },
-                          "enrich_coordinator_stats": {
-                            "node_id": "%s",
-                            "queue_size": %s,
-                            "remote_requests_current": %s,
-                            "remote_requests_total": %s,
-                            "executed_searches_total": %s
-                          }
-                        }""".formatted(
+                    Strings.format(
+                        """
+                            {
+                              "cluster_uuid": "_cluster",
+                              "timestamp": "%s",
+                              "interval_ms": %s,
+                              "type": "enrich_coordinator_stats",
+                              "source_node": {
+                                "uuid": "_uuid",
+                                "host": "_host",
+                                "transport_address": "_addr",
+                                "ip": "_ip",
+                                "name": "_name",
+                                "timestamp": "%s"
+                              },
+                              "enrich_coordinator_stats": {
+                                "node_id": "%s",
+                                "queue_size": %s,
+                                "remote_requests_current": %s,
+                                "remote_requests_total": %s,
+                                "executed_searches_total": %s
+                              }
+                            }""",
                         DATE_TIME_FORMATTER.formatMillis(timestamp),
                         intervalMillis,
                         DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),

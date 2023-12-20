@@ -63,7 +63,8 @@ public interface RuntimeField extends ToXContentFragment {
         protected abstract RuntimeField createChildRuntimeField(
             MappingParserContext parserContext,
             String parentName,
-            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+            OnScriptError onScriptError
         );
 
         public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
@@ -162,7 +163,7 @@ public interface RuntimeField extends ToXContentFragment {
                     runtimeFields.put(fieldName, null);
                 } else {
                     throw new MapperParsingException(
-                        "Runtime field [" + fieldName + "] was set to null but its removal is not supported " + "in this context"
+                        "Runtime field [" + fieldName + "] was set to null but its removal is not supported in this context"
                     );
                 }
             } else if (entry.getValue() instanceof Map) {
@@ -213,14 +214,9 @@ public interface RuntimeField extends ToXContentFragment {
                 throw new IllegalStateException("Found sub-fields with name not belonging to the parent field they are part of " + names);
             }
             return runtimeField.asMappedFieldTypes();
-        })
-            .collect(
-                Collectors.toUnmodifiableMap(
-                    MappedFieldType::name,
-                    mappedFieldType -> mappedFieldType,
-                    (t, t2) -> { throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]"); }
-                )
-            );
+        }).collect(Collectors.toUnmodifiableMap(MappedFieldType::name, mappedFieldType -> mappedFieldType, (t, t2) -> {
+            throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]");
+        }));
     }
 
     static <T> Function<FieldMapper, T> initializerNotSupported() {

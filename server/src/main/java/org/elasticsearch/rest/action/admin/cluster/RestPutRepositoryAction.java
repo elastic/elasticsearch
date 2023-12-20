@@ -15,19 +15,21 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.client.internal.Requests.putRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  * Registers repositories
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutRepositoryAction extends BaseRestHandler {
 
     @Override
@@ -42,7 +44,8 @@ public class RestPutRepositoryAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(request.param("repository"));
+        String name = request.param("repository");
+        PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(name);
         try (XContentParser parser = request.contentParser()) {
             putRepositoryRequest.source(parser.mapOrdered());
         }

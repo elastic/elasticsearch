@@ -10,7 +10,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
@@ -170,6 +172,9 @@ public final class DataTypeConverter {
         if (to == IP) {
             return conversionToIp(from);
         }
+        if (to == VERSION) {
+            return conversionToVersion(from);
+        }
         return null;
     }
 
@@ -183,6 +188,13 @@ public final class DataTypeConverter {
     private static Converter conversionToIp(DataType from) {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_IP;
+        }
+        return null;
+    }
+
+    private static Converter conversionToVersion(DataType from) {
+        if (isString(from)) {
+            return DefaultConverter.STRING_TO_VERSION;
         }
         return null;
     }
@@ -351,28 +363,36 @@ public final class DataTypeConverter {
 
     public static byte safeToByte(long x) {
         if (x > Byte.MAX_VALUE || x < Byte.MIN_VALUE) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [byte] range");
+            throw new InvalidArgumentException("[{}] out of [byte] range", x);
         }
         return (byte) x;
     }
 
     public static short safeToShort(long x) {
         if (x > Short.MAX_VALUE || x < Short.MIN_VALUE) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [short] range");
+            throw new InvalidArgumentException("[{}] out of [short] range", x);
         }
         return (short) x;
     }
 
     public static int safeToInt(long x) {
         if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [integer] range");
+            throw new InvalidArgumentException("[{}] out of [integer] range", x);
         }
         return (int) x;
     }
 
+    public static int safeToInt(double x) {
+        if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
+            throw new InvalidArgumentException("[{}] out of [integer] range", x);
+        }
+        // cast is safe, double can represent all of int's range
+        return (int) Math.round(x);
+    }
+
     public static long safeDoubleToLong(double x) {
         if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [long] range");
+            throw new InvalidArgumentException("[{}] out of [long] range", x);
         }
         return Math.round(x);
     }
@@ -388,20 +408,20 @@ public final class DataTypeConverter {
             }
             return x.longValue();
         } catch (ArithmeticException ae) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [long] range", ae);
+            throw new InvalidArgumentException(ae, "[{}] out of [long] range", x);
         }
     }
 
     public static BigInteger safeToUnsignedLong(Double x) {
         if (inUnsignedLongRange(x) == false) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range");
+            throw new InvalidArgumentException("[{}] out of [unsigned_long] range", x);
         }
         return BigDecimal.valueOf(x).toBigInteger();
     }
 
     public static BigInteger safeToUnsignedLong(Long x) {
         if (x < 0) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range");
+            throw new InvalidArgumentException("[{}] out of [unsigned_long] range", x);
         }
         return BigInteger.valueOf(x);
     }
@@ -409,7 +429,7 @@ public final class DataTypeConverter {
     public static BigInteger safeToUnsignedLong(String x) {
         BigInteger bi = new BigDecimal(x).toBigInteger();
         if (isUnsignedLong(bi) == false) {
-            throw new QlIllegalArgumentException("[" + x + "] out of [unsigned_long] range");
+            throw new InvalidArgumentException("[{}] out of [unsigned_long] range", x);
         }
         return bi;
     }
@@ -439,7 +459,7 @@ public final class DataTypeConverter {
     public static boolean convertToBoolean(String val) {
         String lowVal = val.toLowerCase(Locale.ROOT);
         if (Booleans.isBoolean(lowVal) == false) {
-            throw new QlIllegalArgumentException("cannot cast [" + val + "] to [boolean]");
+            throw new InvalidArgumentException("cannot cast [{}] to [boolean]", val);
         }
         return Booleans.parseBoolean(lowVal);
     }
@@ -447,7 +467,7 @@ public final class DataTypeConverter {
     /**
      * Converts arbitrary object to the desired data type.
      * <p>
-     * Throws QlIllegalArgumentException if such conversion is not possible
+     * Throws InvalidArgumentException if such conversion is not possible
      */
     public static Object convert(Object value, DataType dataType) {
         DataType detectedType = DataTypes.fromJava(value);
@@ -457,7 +477,7 @@ public final class DataTypeConverter {
         Converter converter = converterFor(detectedType, dataType);
 
         if (converter == null) {
-            throw new QlIllegalArgumentException(
+            throw new InvalidArgumentException(
                 "cannot convert from [{}], type [{}] to [{}]",
                 value,
                 detectedType.typeName(),
@@ -534,10 +554,11 @@ public final class DataTypeConverter {
 
         STRING_TO_IP(o -> {
             if (InetAddresses.isInetAddress(o.toString()) == false) {
-                throw new QlIllegalArgumentException("[" + o + "] is not a valid IPv4 or IPv6 address");
+                throw new InvalidArgumentException("[{}] is not a valid IPv4 or IPv6 address", o);
             }
             return o;
-        });
+        }),
+        STRING_TO_VERSION(o -> new Version(o.toString()));
 
         public static final String NAME = "dtc-def";
 
@@ -560,9 +581,9 @@ public final class DataTypeConverter {
                 try {
                     return converter.apply(value.toString());
                 } catch (NumberFormatException e) {
-                    throw new QlIllegalArgumentException(e, "cannot cast [{}] to [{}]", value, to);
+                    throw new InvalidArgumentException(e, "cannot cast [{}] to [{}]", value, to);
                 } catch (DateTimeParseException | IllegalArgumentException e) {
-                    throw new QlIllegalArgumentException(e, "cannot cast [{}] to [{}]: {}", value, to, e.getMessage());
+                    throw new InvalidArgumentException(e, "cannot cast [{}] to [{}]: {}", value, to, e.getMessage());
                 }
             };
         }

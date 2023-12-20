@@ -12,12 +12,17 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -79,35 +84,38 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
     @Override
     public void testToXContent() throws IOException {
-        final DiscoveryNode discoveryNodeZero = new DiscoveryNode(
-            "_node_0",
-            "_node_id_0",
-            "_ephemeral_id_0",
-            "_host_name_0",
-            "_host_address_0",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            singletonMap("attr", "value_0"),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode discoveryNodeZero = DiscoveryNodeUtils.builder("_node_id_0")
+            .name("_node_0")
+            .ephemeralId("_ephemeral_id_0")
+            .address("_host_name_0", "_host_address_0", new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .attributes(singletonMap("attr", "value_0"))
+            .roles(singleton(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
-        final DiscoveryNode discoveryNodeOne = new DiscoveryNode(
-            "_node_1",
-            "_node_id_1",
-            "_ephemeral_id_1",
-            "_host_name_1",
-            "_host_address_1",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-            singletonMap("attr", "value_1"),
-            singleton(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT.minimumIndexCompatibilityVersion()
-        );
+        final DiscoveryNode discoveryNodeOne = DiscoveryNodeUtils.builder("_node_id_1")
+            .name("_node_1")
+            .ephemeralId("_ephemeral_id_1")
+            .address("_host_name_1", "_host_address_1", new TransportAddress(TransportAddress.META_ADDRESS, 9301))
+            .attributes(singletonMap("attr", "value_1"))
+            .roles(singleton(DiscoveryNodeRole.DATA_ROLE))
+            .version(
+                new VersionInformation(
+                    Version.CURRENT.minimumCompatibilityVersion(),
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersion.current()
+                )
+            )
+            .build();
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);
-        final RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_a");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, source, unassignedInfo)
-            .initialize("_node_id", "_allocation_id", 123L);
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            unassignedInfo,
+            ShardRouting.Role.DEFAULT
+        ).initialize("_node_id", "_allocation_id", 123L);
 
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
@@ -131,7 +139,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.stripWhitespace("""
+        final String expected = XContentHelper.stripWhitespace(Strings.format("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",
@@ -152,7 +160,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     "id": 0,
                     "type": "PEER",
                     "stage": "INIT",
-                    "primary": true,
+                    "primary": false,
                     "start_time_in_millis": %s,
                     "stop_time_in_millis": %s,
                     "total_time_in_millis": %s,
@@ -202,7 +210,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                   }
                 ]
               }
-            }""".formatted(timer.startTime(), timer.stopTime(), timer.time()));
+            }""", timer.startTime(), timer.stopTime(), timer.time()));
         assertEquals(expected, xContent.utf8ToString());
     }
 }

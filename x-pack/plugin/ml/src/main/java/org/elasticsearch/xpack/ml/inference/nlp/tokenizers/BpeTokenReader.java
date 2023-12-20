@@ -44,7 +44,7 @@ public class BpeTokenReader {
         this.inputChars = input;
     }
 
-    public Optional<CharSequenceRef> next() {
+    public Optional<TokenizerUtils.CharSequenceRef> next() {
         int curIntChar;
         offsetStart = offsetEnd;
         while ((curIntChar = getNextChar()) >= 0) {
@@ -204,9 +204,9 @@ public class BpeTokenReader {
         return Optional.empty();
     }
 
-    private CharSequenceRef tokenComplete() {
+    private TokenizerUtils.CharSequenceRef tokenComplete() {
         inAnyNumber = inAnyLetter = inSymbol = inSpacePrefix = inWhiteSpace = false;
-        return new CharSequenceRef(inputChars, offsetStart, offsetEnd - offsetStart);
+        return new TokenizerUtils.CharSequenceRef(inputChars, offsetStart, offsetEnd - offsetStart);
     }
 
     private boolean inAnythingOtherThanSpace() {
@@ -234,32 +234,5 @@ public class BpeTokenReader {
 
     private static boolean isApostrophe(char c) {
         return c == '\'';
-    }
-
-    public record CharSequenceRef(CharSequence wrapped, int offset, int len) implements CharSequence {
-
-        public int getOffset() {
-            return offset;
-        }
-
-        @Override
-        public int length() {
-            return len;
-        }
-
-        @Override
-        public char charAt(int index) {
-            return wrapped.charAt(index + offset);
-        }
-
-        @Override
-        public CharSequence subSequence(int start, int end) {
-            return wrapped.subSequence(start + offset, end + offset);
-        }
-
-        @Override
-        public String toString() {
-            return wrapped.subSequence(offset, offset + len).toString();
-        }
     }
 }

@@ -1,0 +1,34 @@
+{
+  "ml.update_trained_model_deployment":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-trained-model-deployment.html",
+      "description":"Updates certain properties of trained model deployment."
+    },
+    "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/deployment/_update",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The unique identifier of the trained model."
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The updated trained model deployment settings",
+      "required":true
+    }
+  }
+}

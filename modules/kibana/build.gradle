@@ -12,7 +12,6 @@ esplugin {
   classname 'org.elasticsearch.kibana.KibanaPlugin'
 }
 
-testClusters.configureEach {
-  module ':modules:reindex'
+dependencies {
+  clusterModules project(':modules:reindex')
 }
-

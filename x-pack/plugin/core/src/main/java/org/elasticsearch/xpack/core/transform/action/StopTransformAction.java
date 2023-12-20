@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -34,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class StopTransformAction extends ActionType<StopTransformAction.Response> {
 
@@ -46,7 +46,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         super(NAME, StopTransformAction.Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
         private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
@@ -121,7 +121,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             boolean hasExpandedIds = expandedIds != null;
             out.writeBoolean(hasExpandedIds);
             if (hasExpandedIds) {
-                out.writeStringArray(expandedIds.toArray(new String[0]));
+                out.writeStringCollection(expandedIds);
             }
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(waitForCheckpoint);
@@ -131,11 +131,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         public ActionRequestValidationException validate() {
             if (force && waitForCheckpoint) {
                 return addValidationError(
-                    new ParameterizedMessage(
-                        "cannot set both [{}] and [{}] to true",
-                        TransformField.FORCE,
-                        TransformField.WAIT_FOR_CHECKPOINT
-                    ).getFormattedMessage(),
+                    format("cannot set both [%s] and [%s] to true", TransformField.FORCE, TransformField.WAIT_FOR_CHECKPOINT),
                     null
                 );
             }

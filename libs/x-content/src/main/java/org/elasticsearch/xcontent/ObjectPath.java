@@ -27,13 +27,22 @@ public final class ObjectPath {
      */
     @SuppressWarnings("unchecked")
     public static <T> T eval(String path, Object object) {
-        return (T) evalContext(path, object);
-    }
-
-    private static Object evalContext(String path, Object ctx) {
         final String[] parts;
         if (path == null || path.isEmpty()) parts = EMPTY_ARRAY;
         else parts = path.split("\\.");
+        return (T) evalContext(parts, object);
+    }
+
+    /**
+     * Return the value within a given object at the specified path, or
+     * {@code null} if the path does not exist
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> T eval(String[] path, Object object) {
+        return (T) evalContext(path, object);
+    }
+
+    private static Object evalContext(String[] parts, Object ctx) {
         for (String part : parts) {
             if (ctx == null) {
                 return null;

@@ -21,11 +21,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -43,11 +43,9 @@ import java.util.function.BiConsumer;
 public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final int precision;
+    private final CardinalityAggregatorFactory.ExecutionMode executionMode;
     private final ValuesSource valuesSource;
-
-    // Expensive to initialize, so we only initialize it when we have an actual value source
-    @Nullable
-    private HyperLogLogPlusPlus counts;
+    private final HyperLogLogPlusPlus counts;
 
     private Collector collector;
 
@@ -61,28 +59,25 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,
+        CardinalityAggregatorFactory.ExecutionMode executionMode,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
         this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.counts = new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.executionMode = executionMode;
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     private Collector pickCollector(LeafReaderContext ctx) throws IOException {
-        if (valuesSource == null) {
-            emptyCollectorsUsed++;
-            return new EmptyCollector();
-        }
-
         if (valuesSource instanceof ValuesSource.Numeric source) {
             MurmurHash3Values hashValues = source.isFloatingPoint()
                 ? MurmurHash3Values.hash(source.doubleValues(ctx))
@@ -99,14 +94,15 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 return new EmptyCollector();
             }
 
-            final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-            final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-            // only use ordinals if they don't increase memory usage by more than 25%
-            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+            if (executionMode.useSegmentOrdinals(maxOrd, precision)) {
                 ordinalsCollectorsUsed++;
                 return new OrdinalsCollector(counts, ordinalValues, bigArrays());
             }
-            ordinalsCollectorsOverheadTooHigh++;
+
+            if (executionMode.isHeuristicBased()) {
+                // if we could have used segment ordinals, and it was our heuristic that made the choice not to, increment the counter
+                ordinalsCollectorsOverheadTooHigh++;
+            }
         }
 
         stringHashingCollectorsUsed++;
@@ -114,10 +110,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         postCollectLastCollector();
 
-        collector = pickCollector(ctx);
+        collector = pickCollector(aggCtx.getLeafReaderContext());
         return collector;
     }
 
@@ -139,12 +135,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public double metric(long owningBucketOrd) {
-        return counts == null ? 0 : counts.cardinality(owningBucketOrd);
+        return counts.cardinality(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
+        if (owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
         // We need to build a copy because the returned Aggregation needs remain usable after
@@ -155,7 +151,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, metadata());
+        return InternalCardinality.empty(name, metadata());
     }
 
     @Override
@@ -229,7 +225,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
-    private static class OrdinalsCollector extends Collector {
+    static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 

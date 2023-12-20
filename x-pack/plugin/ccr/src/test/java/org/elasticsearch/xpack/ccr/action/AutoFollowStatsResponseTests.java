@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
@@ -34,5 +35,20 @@ public class AutoFollowStatsResponseTests extends AbstractWireSerializingTestCas
         );
         FollowStatsAction.StatsResponses statsResponse = createStatsResponse();
         return new CcrStatsAction.Response(autoFollowStats, statsResponse);
+    }
+
+    @Override
+    protected CcrStatsAction.Response mutateInstance(CcrStatsAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createTestInstance(),
+            instance -> Math.toIntExact(
+                2 * instance.getFollowStats().getStatsResponses().stream().map(s -> s.status().followerIndex()).distinct().count()
+                    + instance.getFollowStats().getStatsResponses().size() + 4
+            )
+        );
     }
 }

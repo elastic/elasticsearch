@@ -40,11 +40,14 @@ public class ReplicationGroup {
         this.trackedAllocationIds = trackedAllocationIds;
         this.version = version;
 
-        this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
+        this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getPromotableAllocationIds());
         this.replicationTargets = new ArrayList<>();
         this.skippedShards = new ArrayList<>();
         for (int copy = 0; copy < routingTable.size(); copy++) {
             ShardRouting shard = routingTable.shard(copy);
+            if (shard.isPromotableToPrimary() == false) {
+                continue;
+            }
             if (shard.unassigned()) {
                 assert shard.primary() == false : "primary shard should not be unassigned in a replication group: " + shard;
                 skippedShards.add(shard);

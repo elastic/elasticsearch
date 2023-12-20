@@ -93,26 +93,6 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns the indices created in this event
-     */
-    public List<String> indicesCreated() {
-        if (metadataChanged() == false) {
-            return Collections.emptyList();
-        }
-        List<String> created = null;
-        for (Map.Entry<String, IndexMetadata> cursor : state.metadata().indices().entrySet()) {
-            String index = cursor.getKey();
-            if (previousState.metadata().hasIndex(index) == false) {
-                if (created == null) {
-                    created = new ArrayList<>();
-                }
-                created.add(index);
-            }
-        }
-        return created == null ? Collections.<String>emptyList() : created;
-    }
-
-    /**
      * Returns the indices deleted in this event
      */
     public List<Index> indicesDeleted() {
@@ -247,13 +227,15 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        for (IndexMetadata index : previousMetadata.indices().values()) {
-            IndexMetadata current = currentMetadata.index(index.getIndex());
-            if (current == null) {
-                if (deleted == null) {
-                    deleted = new HashSet<>();
+        if (currentMetadata.indices() != previousMetadata.indices()) {
+            for (IndexMetadata index : previousMetadata.indices().values()) {
+                IndexMetadata current = currentMetadata.index(index.getIndex());
+                if (current == null) {
+                    if (deleted == null) {
+                        deleted = new HashSet<>();
+                    }
+                    deleted.add(index.getIndex());
                 }
-                deleted.add(index.getIndex());
             }
         }
 

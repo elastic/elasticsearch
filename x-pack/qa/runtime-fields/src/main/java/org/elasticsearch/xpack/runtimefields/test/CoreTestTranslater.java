@@ -168,6 +168,7 @@ public abstract class CoreTestTranslater {
             modified = new ClientYamlTestSuite(
                 candidate.getApi(),
                 candidate.getName(),
+                candidate.getRestTestSuite().getFile(),
                 new SetupSection(candidate.getSetupSection().getSkipSection(), setup),
                 candidate.getTeardownSection(),
                 List.of()
@@ -260,7 +261,7 @@ public abstract class CoreTestTranslater {
          * runtime fields that load from source.
          * @return true if this mapping supports runtime fields, false otherwise
          */
-        protected final boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
+        protected static boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
             for (Map.Entry<String, Object> property : properties.entrySet()) {
                 if (false == property.getValue() instanceof Map) {
                     continue;
@@ -349,6 +350,7 @@ public abstract class CoreTestTranslater {
                     defaultRouting,
                     null,
                     defaultPipeline,
+                    null,
                     null,
                     true,
                     XContentType.JSON,

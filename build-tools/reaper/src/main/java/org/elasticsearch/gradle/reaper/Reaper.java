@@ -16,7 +16,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -62,7 +61,7 @@ public class Reaper implements Closeable {
 
     private void reap() {
         try (Stream<Path> stream = Files.list(inputDir)) {
-            final List<Path> inputFiles = stream.filter(p -> p.getFileName().toString().endsWith(".cmd")).collect(Collectors.toList());
+            final List<Path> inputFiles = stream.filter(p -> p.getFileName().toString().endsWith(".cmd")).toList();
 
             for (Path inputFile : inputFiles) {
                 System.out.println("Process file: " + inputFile);
@@ -83,17 +82,17 @@ public class Reaper implements Closeable {
                     delete(inputFile);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            failed = true;
             logFailure("Failed to reap inputs", e);
         }
     }
 
-    private void logFailure(String message, Exception e) {
+    private void logFailure(String message, Throwable e) {
         System.err.println(message);
         if (e != null) {
             e.printStackTrace(System.err);
         }
-        failed = true;
     }
 
     private void delete(Path toDelete) {

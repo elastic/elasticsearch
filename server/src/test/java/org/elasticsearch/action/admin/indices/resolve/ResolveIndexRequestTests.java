@@ -36,4 +36,9 @@ public class ResolveIndexRequestTests extends AbstractWireSerializingTestCase<Re
         );
         return new Request(names, indicesOptions);
     }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

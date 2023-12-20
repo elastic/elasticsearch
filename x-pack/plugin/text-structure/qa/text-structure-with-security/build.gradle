@@ -1,8 +1,8 @@
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin')))
 }
 
 // bring in text structure rest test suite

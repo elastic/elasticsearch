@@ -80,8 +80,13 @@ setup:
   - length: { aggregations.categories.buckets: 2 }
   - match: { aggregations.categories.buckets.0.doc_count: 4 }
   - match: { aggregations.categories.buckets.0.key: "Node" }
+  - match: { aggregations.categories.buckets.0.regex: ".*?Node.*?" }
+  - match: { aggregations.categories.buckets.0.max_matching_length: 16 }
   - match: { aggregations.categories.buckets.1.doc_count: 3 }
   - match: { aggregations.categories.buckets.1.key: "User Foo logging" }
+  - match: { aggregations.categories.buckets.1.regex: ".*?User.+?Foo.+?logging.*?" }
+  - match: { aggregations.categories.buckets.1.max_matching_length: 22 }
+
 ---
 "Test categorization aggregation against unsupported field":
   - do:

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -22,6 +22,8 @@ import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.junit.Assert.assertNotEquals;
 
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
@@ -34,6 +36,17 @@ public class TestShardRouting {
     }
 
     public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return newShardRouting(shardId, currentNodeId, primary, state, -1);
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        long expectedShardSize
+    ) {
+        assertNotEquals(ShardRoutingState.RELOCATING, state);
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -42,8 +55,10 @@ public class TestShardRouting {
             state,
             buildRecoveryTarget(primary, state),
             buildUnassignedInfo(state),
+            buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1
+            expectedShardSize,
+            ShardRouting.Role.DEFAULT
         );
     }
 
@@ -62,8 +77,10 @@ public class TestShardRouting {
             state,
             recoverySource,
             buildUnassignedInfo(state),
+            buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1
+            -1,
+            ShardRouting.Role.DEFAULT
         );
     }
 
@@ -80,7 +97,27 @@ public class TestShardRouting {
             currentNodeId,
             relocatingNodeId,
             primary,
-            state
+            state,
+            ShardRouting.Role.DEFAULT
+        );
+    }
+
+    public static ShardRouting newShardRouting(
+        String index,
+        int shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        ShardRouting.Role role
+    ) {
+        return newShardRouting(
+            new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId),
+            currentNodeId,
+            relocatingNodeId,
+            primary,
+            state,
+            role
         );
     }
 
@@ -91,6 +128,17 @@ public class TestShardRouting {
         boolean primary,
         ShardRoutingState state
     ) {
+        return newShardRouting(shardId, currentNodeId, relocatingNodeId, primary, state, ShardRouting.Role.DEFAULT);
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        ShardRouting.Role role
+    ) {
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -99,8 +147,10 @@ public class TestShardRouting {
             state,
             buildRecoveryTarget(primary, state),
             buildUnassignedInfo(state),
+            buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1
+            -1,
+            role
         );
     }
 
@@ -139,8 +189,10 @@ public class TestShardRouting {
             state,
             buildRecoveryTarget(primary, state),
             buildUnassignedInfo(state),
+            buildRelocationFailureInfo(state),
             allocationId,
-            -1
+            -1,
+            ShardRouting.Role.DEFAULT
         );
     }
 
@@ -153,13 +205,27 @@ public class TestShardRouting {
         ShardRoutingState state,
         UnassignedInfo unassignedInfo
     ) {
+        return newShardRouting(index, shardId, currentNodeId, relocatingNodeId, primary, state, unassignedInfo, ShardRouting.Role.DEFAULT);
+    }
+
+    public static ShardRouting newShardRouting(
+        String index,
+        int shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        UnassignedInfo unassignedInfo,
+        ShardRouting.Role role
+    ) {
         return newShardRouting(
             new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId),
             currentNodeId,
             relocatingNodeId,
             primary,
             state,
-            unassignedInfo
+            unassignedInfo,
+            role
         );
     }
 
@@ -171,6 +237,18 @@ public class TestShardRouting {
         ShardRoutingState state,
         UnassignedInfo unassignedInfo
     ) {
+        return newShardRouting(shardId, currentNodeId, relocatingNodeId, primary, state, unassignedInfo, ShardRouting.Role.DEFAULT);
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        UnassignedInfo unassignedInfo,
+        ShardRouting.Role role
+    ) {
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -179,8 +257,10 @@ public class TestShardRouting {
             state,
             buildRecoveryTarget(primary, state),
             unassignedInfo,
+            buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1
+            -1,
+            role
         );
     }
 
@@ -188,45 +268,34 @@ public class TestShardRouting {
         return shardRouting.relocate(relocatingNodeId, expectedShardSize);
     }
 
-    private static RecoverySource buildRecoveryTarget(boolean primary, ShardRoutingState state) {
-        switch (state) {
-            case UNASSIGNED:
-            case INITIALIZING:
-                if (primary) {
-                    return randomFrom(
-                        RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                        RecoverySource.ExistingStoreRecoverySource.INSTANCE
-                    );
-                } else {
-                    return RecoverySource.PeerRecoverySource.INSTANCE;
-                }
-            case STARTED:
-            case RELOCATING:
-                return null;
-            default:
-                throw new IllegalStateException("illegal state");
-        }
+    public static RecoverySource buildRecoveryTarget(boolean primary, ShardRoutingState state) {
+        return switch (state) {
+            case UNASSIGNED, INITIALIZING -> primary
+                ? randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+                : RecoverySource.PeerRecoverySource.INSTANCE;
+            case STARTED, RELOCATING -> null;
+        };
     }
 
-    private static AllocationId buildAllocationId(ShardRoutingState state) {
-        switch (state) {
-            case UNASSIGNED:
-                return null;
-            case INITIALIZING:
-            case STARTED:
-                return AllocationId.newInitializing();
-            case RELOCATING:
-                AllocationId allocationId = AllocationId.newInitializing();
-                return AllocationId.newRelocation(allocationId);
-            default:
-                throw new IllegalStateException("illegal state");
-        }
+    public static AllocationId buildAllocationId(ShardRoutingState state) {
+        return switch (state) {
+            case UNASSIGNED -> null;
+            case INITIALIZING, STARTED -> AllocationId.newInitializing();
+            case RELOCATING -> AllocationId.newRelocation(AllocationId.newInitializing());
+        };
     }
 
-    private static UnassignedInfo buildUnassignedInfo(ShardRoutingState state) {
+    public static UnassignedInfo buildUnassignedInfo(ShardRoutingState state) {
         return switch (state) {
             case UNASSIGNED, INITIALIZING -> randomUnassignedInfo("auto generated for test");
             case STARTED, RELOCATING -> null;
+        };
+    }
+
+    public static RelocationFailureInfo buildRelocationFailureInfo(ShardRoutingState state) {
+        return switch (state) {
+            case UNASSIGNED, INITIALIZING, STARTED -> RelocationFailureInfo.NO_FAILURES;
+            case RELOCATING -> randomBoolean() ? RelocationFailureInfo.NO_FAILURES : new RelocationFailureInfo(randomIntBetween(1, 10));
         };
     }
 
@@ -264,7 +333,7 @@ public class TestShardRouting {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("some_index", UUIDs.randomBase64UUID(random()))
             )
         );

@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,8 +35,8 @@ public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerCon
         return builder.build();
     }
 
-    public static NerConfigUpdate mutateForVersion(NerConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+    public static NerConfigUpdate mutateForVersion(NerConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_1_0)) {
             return new NerConfigUpdate(instance.getResultsField(), null);
         }
         return instance;
@@ -108,17 +106,12 @@ public class NerConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<NerCon
     }
 
     @Override
-    protected NerConfigUpdate mutateInstanceForVersion(NerConfigUpdate instance, Version version) {
+    protected NerConfigUpdate mutateInstance(NerConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected NerConfigUpdate mutateInstanceForVersion(NerConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

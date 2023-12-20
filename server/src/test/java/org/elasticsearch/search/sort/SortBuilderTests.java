@@ -54,7 +54,7 @@ public class SortBuilderTests extends ESTestCase {
      */
     public void testSingleFieldSort() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        String json = "{ \"sort\" : { \"field1\" : \"%s\" }}".formatted(order);
+        String json = Strings.format("{ \"sort\" : { \"field1\" : \"%s\" }}", order);
         List<SortBuilder<?>> result = parseSort(json);
         assertEquals(1, result.size());
         SortBuilder<?> sortBuilder = result.get(0);

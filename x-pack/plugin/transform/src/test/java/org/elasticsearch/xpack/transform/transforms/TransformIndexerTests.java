@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -18,7 +17,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -34,7 +35,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -51,9 +52,11 @@ import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -197,8 +200,8 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
-            responseListener.onResponse(new RefreshResponse(1, 1, 0, Collections.emptyList()));
+        void refreshDestinationIndex(ActionListener<Void> responseListener) {
+            responseListener.onResponse(null);
         }
 
         @Override
@@ -210,7 +213,7 @@ public class TransformIndexerTests extends ESTestCase {
                     throw new IllegalStateException(e);
                 }
             }
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
+            threadPool.generic().execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
         }
 
         @Override
@@ -218,8 +221,7 @@ public class TransformIndexerTests extends ESTestCase {
             if (doProcessLatch != null) {
                 doProcessLatch.countDown();
             }
-            threadPool.executor(ThreadPool.Names.GENERIC)
-                .execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
+            threadPool.generic().execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
         }
 
         @Override
@@ -268,19 +270,23 @@ public class TransformIndexerTests extends ESTestCase {
         void persistState(TransformState state, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
+
+        @Override
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
+            listener.onResponse(null);
+        }
     }
 
     @Before
     public void setUpMocks() {
         auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
-        client = new NoOpClient(getTestName());
         threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
@@ -446,7 +452,7 @@ public class TransformIndexerTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            mock(SchedulerEngine.class)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -472,7 +478,7 @@ public class TransformIndexerTests extends ESTestCase {
     ) {
         // we need to simulate that this is called from the task, which offloads it to the generic threadpool
         CountDownLatch latch = new CountDownLatch(1);
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             indexer.setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
             latch.countDown();
         });
@@ -487,10 +493,10 @@ public class TransformIndexerTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(r -> {
             assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        }), latch);
 
         function.accept(listener);
         assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));

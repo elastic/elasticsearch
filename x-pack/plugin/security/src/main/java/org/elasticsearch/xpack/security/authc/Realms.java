@@ -9,19 +9,22 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -33,6 +36,8 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -52,7 +57,7 @@ import java.util.stream.StreamSupport;
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
-public class Realms implements Iterable<Realm> {
+public class Realms extends AbstractLifecycleComponent implements Iterable<Realm> {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
@@ -68,10 +73,13 @@ public class Realms implements Iterable<Realm> {
     private final List<Realm> allConfiguredRealms;
 
     private final Map<String, DomainConfig> domainNameToConfig;
+    // The realmRefs include all realms explicitly or implicitly configured regardless whether they are disabled or not
+    private final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs;
 
     // the realms in current use. This list will change dynamically as the license changes
     private volatile List<Realm> activeRealms;
 
+    @SuppressWarnings("this-escape")
     public Realms(
         Settings settings,
         Environment env,
@@ -96,8 +104,11 @@ public class Realms implements Iterable<Realm> {
             .distinct()
             .collect(Collectors.toMap(DomainConfig::name, Function.identity()));
         final List<RealmConfig> realmConfigs = buildRealmConfigs();
+
+        // initRealms will add default file and native realm config if they are not explicitly configured
         final List<Realm> initialRealms = initRealms(realmConfigs);
-        configureRealmRef(initialRealms, realmConfigs, realmToDomainConfig);
+        realmRefs = calculateRealmRefs(realmConfigs, realmToDomainConfig);
+        initialRealms.forEach(realm -> realm.initRealmRef(realmRefs));
 
         this.allConfiguredRealms = initialRealms;
         this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));
@@ -107,27 +118,42 @@ public class Realms implements Iterable<Realm> {
         licenseState.addListener(this::recomputeActiveRealms);
     }
 
-    static void configureRealmRef(
-        Collection<Realm> realms,
+    private Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> calculateRealmRefs(
         Collection<RealmConfig> realmConfigs,
         Map<String, DomainConfig> domainForRealm
     ) {
-        for (Realm realm : realms) {
-            final DomainConfig domainConfig = domainForRealm.get(realm.name());
+        final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+        final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs = new HashMap<>();
+        assert realmConfigs.stream().noneMatch(rc -> rc.name().equals(reservedRealm.name()) && rc.type().equals(reservedRealm.type()))
+            : "reserved realm cannot be configured";
+        realmRefs.put(
+            new RealmConfig.RealmIdentifier(reservedRealm.type(), reservedRealm.name()),
+            new Authentication.RealmRef(reservedRealm.name(), reservedRealm.type(), nodeName, null)
+        );
+
+        for (RealmConfig realmConfig : realmConfigs) {
+            final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(realmConfig.type(), realmConfig.name());
+            final DomainConfig domainConfig = domainForRealm.get(realmConfig.name());
+            final RealmDomain realmDomain;
             if (domainConfig != null) {
                 final String domainName = domainConfig.name();
                 Set<RealmConfig.RealmIdentifier> domainIdentifiers = new HashSet<>();
-                for (RealmConfig realmConfig : realmConfigs) {
-                    final DomainConfig otherDomainConfig = domainForRealm.get(realmConfig.name());
+                for (RealmConfig otherRealmConfig : realmConfigs) {
+                    final DomainConfig otherDomainConfig = domainForRealm.get(otherRealmConfig.name());
                     if (otherDomainConfig != null && domainName.equals(otherDomainConfig.name())) {
-                        domainIdentifiers.add(realmConfig.identifier());
+                        domainIdentifiers.add(otherRealmConfig.identifier());
                     }
                 }
-                realm.initRealmRef(new RealmDomain(domainName, domainIdentifiers));
+                realmDomain = new RealmDomain(domainName, domainIdentifiers);
             } else {
-                realm.initRealmRef(null);
+                realmDomain = null;
             }
+            realmRefs.put(
+                realmIdentifier,
+                new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), nodeName, realmDomain)
+            );
         }
+        return Map.copyOf(realmRefs);
     }
 
     protected void recomputeActiveRealms() {
@@ -141,9 +167,9 @@ public class Realms implements Iterable<Realm> {
 
         // Stop license-tracking for any previously-active realms that are no longer allowed
         if (activeRealms != null) {
-            activeRealms.stream()
-                .filter(r -> licensedRealms.contains(r) == false)
-                .forEach(realm -> { handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot); });
+            activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
+                handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot);
+            });
         }
 
         activeRealms = licensedRealms;
@@ -268,18 +294,11 @@ public class Realms implements Iterable<Realm> {
 
         checkUniqueOrders(orderToRealmName);
         Collections.sort(realms);
+        ensureUniqueExplicitlyConfiguredRealmNames(nameToRealmIdentifier);
 
         maybeAddBasicRealms(realms, realmConfigs);
         // always add built in first!
-        realms.add(0, reservedRealm);
-        String duplicateRealms = nameToRealmIdentifier.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue().size() > 1)
-            .map(entry -> entry.getKey() + ": " + entry.getValue())
-            .collect(Collectors.joining("; "));
-        if (Strings.hasText(duplicateRealms)) {
-            throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
-        }
+        addReservedRealm(realms);
         logDeprecationForReservedPrefixedRealmNames(reservedPrefixedRealmIdentifiers);
         return Collections.unmodifiableList(realms);
     }
@@ -290,18 +309,14 @@ public class Realms implements Iterable<Realm> {
         Map<String, Object> realmMap = new HashMap<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
         final List<Realm> realmList = getActiveRealms().stream().filter(r -> ReservedRealm.TYPE.equals(r.type()) == false).toList();
-        final CountDown countDown = new CountDown(realmList.size());
-        final Runnable doCountDown = () -> {
-            if ((realmList.isEmpty() || countDown.countDown()) && failed.get() == false) {
+        try (var refs = new RefCountingRunnable(() -> {
+            if (failed.get() == false) {
                 // iterate over the factories so we can add enabled & available info
                 for (String type : factories.keySet()) {
                     assert ReservedRealm.TYPE.equals(type) == false;
                     realmMap.compute(type, (key, value) -> {
                         if (value == null) {
-                            return MapBuilder.<String, Object>newMapBuilder()
-                                .put("enabled", false)
-                                .put("available", isRealmTypeAvailable(licenseStateSnapshot, type))
-                                .map();
+                            return Map.of("enabled", false, "available", isRealmTypeAvailable(licenseStateSnapshot, type));
                         }
 
                         assert value instanceof Map;
@@ -314,12 +329,9 @@ public class Realms implements Iterable<Realm> {
                 }
                 listener.onResponse(realmMap);
             }
-        };
-
-        if (realmList.isEmpty()) {
-            doCountDown.run();
-        } else {
+        })) {
             for (Realm realm : realmList) {
+                final var ref = refs.acquire();
                 realm.usageStats(ActionListener.wrap(stats -> {
                     if (failed.get() == false) {
                         synchronized (realmMap) {
@@ -333,7 +345,7 @@ public class Realms implements Iterable<Realm> {
                                 return value;
                             });
                         }
-                        doCountDown.run();
+                        ref.close();
                     }
                 }, e -> {
                     if (failed.compareAndSet(false, true)) {
@@ -354,26 +366,46 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
+    public Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> getRealmRefs() {
+        return realmRefs;
+    }
+
+    @Override
+    protected void doStart() {}
+
+    @Override
+    protected void doStop() {}
+
+    @Override
+    protected void doClose() throws IOException {
+        IOUtils.close(allConfiguredRealms.stream().filter(r -> r instanceof Closeable).map(r -> (Closeable) r).toList());
+    }
+
     private void maybeAddBasicRealms(List<Realm> realms, List<RealmConfig> realmConfigs) throws Exception {
         final Set<String> disabledBasicRealmTypes = findDisabledBasicRealmTypes(realmConfigs);
         final Set<String> realmTypes = realms.stream().map(Realm::type).collect(Collectors.toUnmodifiableSet());
-        // Add native realm first so that file realm will be in the beginning
+        // Add native realm first so that file realm will be added before it
         if (false == disabledBasicRealmTypes.contains(NativeRealmSettings.TYPE) && false == realmTypes.contains(NativeRealmSettings.TYPE)) {
+            boolean enabled = settings.getAsBoolean(NativeRealmSettings.NATIVE_USERS_ENABLED, true);
+            ensureRealmNameIsAvailable(realms, NativeRealmSettings.DEFAULT_NAME);
             var nativeRealmId = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
             var realmConfig = new RealmConfig(
                 nativeRealmId,
-                ensureOrderSetting(settings, nativeRealmId, Integer.MIN_VALUE),
+                buildSettingsforDefaultRealm(settings, nativeRealmId, Integer.MIN_VALUE, enabled),
                 env,
                 threadContext
             );
             realmConfigs.add(realmConfig);
-            realms.add(0, factories.get(NativeRealmSettings.TYPE).create(realmConfig));
+            if (enabled) {
+                realms.add(0, factories.get(NativeRealmSettings.TYPE).create(realmConfig));
+            }
         }
         if (false == disabledBasicRealmTypes.contains(FileRealmSettings.TYPE) && false == realmTypes.contains(FileRealmSettings.TYPE)) {
+            ensureRealmNameIsAvailable(realms, FileRealmSettings.DEFAULT_NAME);
             var fileRealmId = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
             var realmConfig = new RealmConfig(
                 fileRealmId,
-                ensureOrderSetting(settings, fileRealmId, Integer.MIN_VALUE),
+                buildSettingsforDefaultRealm(settings, fileRealmId, Integer.MIN_VALUE, true),
                 env,
                 threadContext
             );
@@ -382,9 +414,41 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
-    private static Settings ensureOrderSetting(Settings settings, RealmConfig.RealmIdentifier realmIdentifier, int order) {
-        String orderSettingKey = RealmSettings.realmSettingPrefix(realmIdentifier) + "order";
-        return Settings.builder().put(settings).put(orderSettingKey, order).build();
+    private void addReservedRealm(List<Realm> realms) {
+        ensureRealmNameIsAvailable(realms, ReservedRealm.NAME);
+        realms.add(0, reservedRealm);
+    }
+
+    /**
+     * Check that the given realmName is not yet used by the given list of realms.
+     */
+    private static void ensureRealmNameIsAvailable(List<Realm> realms, String realmName) {
+        assert realms.size() == realms.stream().map(Realm::name).collect(Collectors.toUnmodifiableSet()).size()
+            : "existing realm names must be unique";
+        final Realm misNamedRealm = realms.stream().filter(realm -> realmName.equals(realm.name())).findFirst().orElse(null);
+        if (misNamedRealm != null) {
+            throw new IllegalArgumentException(
+                "Found realm configured with name clashing with the ["
+                    + realmName
+                    + "] realm: ["
+                    + (RealmSettings.realmSettingPrefix(misNamedRealm.type()) + misNamedRealm.name())
+                    + "]"
+            );
+        }
+    }
+
+    private static Settings buildSettingsforDefaultRealm(
+        Settings settings,
+        RealmConfig.RealmIdentifier realmIdentifier,
+        int order,
+        boolean enabled
+    ) {
+        final String prefix = RealmSettings.realmSettingPrefix(realmIdentifier);
+        final Settings.Builder builder = Settings.builder().put(settings).put(prefix + "order", order);
+        if (enabled == false) {
+            builder.put(prefix + "enabled", false);
+        }
+        return builder.build();
     }
 
     private static void checkUniqueOrders(Map<Integer, Set<String>> orderToRealmName) {
@@ -395,6 +459,17 @@ public class Realms implements Iterable<Realm> {
             .collect(Collectors.joining("; "));
         if (Strings.hasText(duplicateOrders)) {
             throw new IllegalArgumentException("Found multiple realms configured with the same order: " + duplicateOrders);
+        }
+    }
+
+    private static void ensureUniqueExplicitlyConfiguredRealmNames(Map<String, Set<String>> nameToRealmIdentifier) {
+        String duplicateRealms = nameToRealmIdentifier.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().size() > 1)
+            .map(entry -> entry.getKey() + ": " + entry.getValue())
+            .collect(Collectors.joining("; "));
+        if (Strings.hasText(duplicateRealms)) {
+            throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
         }
     }
 

@@ -14,34 +14,36 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction.Request;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
+
+    private final AllocationService allocationService;
+    private final MasterServiceTaskQueue<PutShutdownNodeTask> taskQueue;
 
     private final PutShutdownNodeExecutor executor = new PutShutdownNodeExecutor();
 
@@ -63,6 +65,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             .setNodeSeen(nodeSeen)
             .setAllocationDelay(request.getAllocationDelay())
             .setTargetNodeName(request.getTargetNodeName())
+            .setGracePeriod(request.getGracePeriod())
             .build();
 
         // log the update
@@ -77,34 +80,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         return true;
     }
 
-    private static void ackAndMaybeReroute(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService) {
-        boolean shouldReroute = switch (request.getType()) {
-            case REMOVE, REPLACE -> true;
-            default -> false;
-        };
-
-        if (shouldReroute) {
-            rerouteService.reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {}
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn(() -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown", e);
-                }
-            });
-        } else {
-            logger.trace(
-                () -> "not starting reroute after registering node ["
-                    + request.getNodeId()
-                    + "] for shutdown of type ["
-                    + request.getType()
-                    + "]"
-            );
-        }
-        listener.onResponse(AcknowledgedResponse.TRUE);
-    }
-
     // package private for tests
     record PutShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener) implements ClusterStateTaskListener {
         @Override
@@ -117,30 +92,48 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     // package private for tests
     class PutShutdownNodeExecutor implements ClusterStateTaskExecutor<PutShutdownNodeTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<PutShutdownNodeTask>> taskContexts) throws Exception {
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(currentState).getAllNodeMetadataMap());
-            Predicate<String> nodeExistsPredicate = currentState.getNodes()::nodeExists;
+        public ClusterState execute(BatchExecutionContext<PutShutdownNodeTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            var shutdownMetadata = new HashMap<>(initialState.metadata().nodeShutdowns().getAll());
+            Predicate<String> nodeExistsPredicate = batchExecutionContext.initialState().getNodes()::nodeExists;
             boolean changed = false;
-            for (final var taskContext : taskContexts) {
+            boolean needsReroute = false;
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
-                try {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                     continue;
                 }
-                var reroute = clusterService.getRerouteService();
-                taskContext.success(taskContext.getTask().listener().delegateFailure((l, s) -> ackAndMaybeReroute(request, l, reroute)));
+                switch (request.getType()) {
+                    case REMOVE, SIGTERM, REPLACE -> needsReroute = true;
+                }
+                taskContext.success(() -> {
+                    logger.trace(
+                        () -> "finished registering node [" + request.getNodeId() + "] for shutdown of type [" + request.getType() + "]"
+                    );
+                    taskContext.getTask().listener.onResponse(AcknowledgedResponse.TRUE);
+                });
             }
             if (changed == false) {
-                return currentState;
+                return initialState;
             }
-            return ClusterState.builder(currentState)
-                .metadata(
-                    Metadata.builder(currentState.metadata())
-                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
-                )
-                .build();
+
+            final var updatedState = initialState.copyAndUpdateMetadata(
+                b -> b.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
+            );
+
+            if (needsReroute == false) {
+                return updatedState;
+            }
+
+            // Reroute inline with the update, rather than using the RerouteService, in order to atomically update things like auto-expand
+            // replicas to account for the shutdown metadata. If the reroute were separate then the get-shutdown API might observe the
+            // intermediate state and report that nodes are ready to shut down prematurely. Even if the client were to wait for the
+            // put-shutdown API to complete there's a risk that it gets disconnected and retries, but the retry could well be a no-op which
+            // short-circuits past the cluster state update and therefore also doesn't wait for the background reroute.
+            return allocationService.reroute(updatedState, "reroute after put-shutdown", rerouteCompletionIsNotRequired());
         }
     }
 
@@ -148,6 +141,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     public TransportPutShutdownNodeAction(
         TransportService transportService,
         ClusterService clusterService,
+        AllocationService allocationService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -161,19 +155,23 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             actionFilters,
             Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.allocationService = allocationService;
+        taskQueue = clusterService.createTaskQueue("put-shutdown", Priority.URGENT, new PutShutdownNodeExecutor());
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (isNoop(getShutdownsOrEmpty(state).getAllNodeMetadataMap(), request)) {
+        if (isNoop(state.getMetadata().nodeShutdowns().getAll(), request)) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
-        var updateTask = new PutShutdownNodeTask(request, listener);
-        var taskConfig = ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout());
-        clusterService.submitStateUpdateTask("put-node-shutdown-" + request.getNodeId(), updateTask, taskConfig, executor);
+        taskQueue.submitTask(
+            "put-node-shutdown-" + request.getNodeId(),
+            new PutShutdownNodeTask(request, listener),
+            request.masterNodeTimeout()
+        );
     }
 
     private static boolean isNoop(Map<String, SingleNodeShutdownMetadata> shutdownMetadata, Request request) {

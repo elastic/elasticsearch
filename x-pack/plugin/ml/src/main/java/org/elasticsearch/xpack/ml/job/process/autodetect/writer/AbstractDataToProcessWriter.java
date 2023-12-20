@@ -56,6 +56,8 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     private long latestEpochMs;
     private long latestEpochMsThisUpload;
 
+    private Set<String> termFields;
+
     protected AbstractDataToProcessWriter(
         boolean includeControlField,
         boolean includeTokensField,
@@ -74,6 +76,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         this.logger = Objects.requireNonNull(logger);
         this.latencySeconds = analysisConfig.getLatency() == null ? 0 : analysisConfig.getLatency().seconds();
         this.bucketSpanMs = analysisConfig.getBucketSpan().getMillis();
+        this.termFields = analysisConfig.termFields();
 
         Date date = dataCountsReporter.getLatestRecordTime();
         latestEpochMsThisUpload = 0;
@@ -88,6 +91,13 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         } else {
             dateTransformer = new DoubleDateTransformer(dataDescription.isEpochMs());
         }
+    }
+
+    public String maybeTruncateCatgeorizationField(String categorizationField) {
+        if (termFields.contains(analysisConfig.getCategorizationFieldName()) == false) {
+            return categorizationField.substring(0, Math.min(categorizationField.length(), AnalysisConfig.MAX_CATEGORIZATION_FIELD_LENGTH));
+        }
+        return categorizationField;
     }
 
     /**
@@ -256,7 +266,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     /**
      * Find the indexes of the input fields from the header
      */
-    protected final Map<String, Integer> inputFieldIndexes(String[] header, Collection<String> inputFields) {
+    protected static Map<String, Integer> inputFieldIndexes(String[] header, Collection<String> inputFields) {
         List<String> headerList = Arrays.asList(header);  // TODO header could be empty
 
         Map<String, Integer> fieldIndexes = new HashMap<>();

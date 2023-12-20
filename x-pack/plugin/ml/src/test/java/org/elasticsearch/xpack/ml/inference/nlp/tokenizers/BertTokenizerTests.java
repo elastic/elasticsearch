@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
@@ -19,8 +21,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class BertTokenizerTests extends ESTestCase {
 
@@ -66,6 +70,146 @@ public class BertTokenizerTests extends ESTestCase {
         }
     }
 
+    public void testTokenizeWithTokensThatAreRemovedByStripAccents() {
+
+        List<String> vocab = List.of(
+            "Arabic",
+            ":",
+            "##ق",
+            "و",
+            "3",
+            "##م",
+            "##ا",
+            "##ه",
+            "##د",
+            "##ز",
+            "##ا",
+            "##ل",
+            "ا",
+            ".",
+            "4",
+            "There",
+            "are",
+            "2",
+            "main",
+            "types",
+            "of",
+            "non",
+            "mel",
+            "##ano",
+            "##ma",
+            "skin",
+            "cancer",
+            "basel",
+            "cell",
+            "car",
+            "##cino",
+            "(",
+            ")",
+            "BCC",
+            "SCC",
+            "and",
+            "squamous",
+            BertTokenizer.CLASS_TOKEN,
+            BertTokenizer.SEPARATOR_TOKEN,
+            BertTokenizer.MASK_TOKEN,
+            BertTokenizer.UNKNOWN_TOKEN,
+            BertTokenizer.PAD_TOKEN
+        );
+
+        String inputWithAccentsToStrip1 = "  Arabic: وَقْ 3 ُ الِازْدِهَام.4  ";
+        String inputWithAccentsToStrip2 =
+            "There are 2 main types of non melanoma skin cancer ̶̶ basal cell carcinoma (BCC) and squamous cell carcinoma (SCC).";
+        String inputWithAccentToStripAtEndOfString = "There are 2 main types of non melanoma skin cancer ̶̶";
+        String onlyAccents = " ̶̶";
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, true, null, Tokenization.Truncate.NONE, -1))
+                .build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize(inputWithAccentsToStrip1, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 0, 1, 3, 2, 4, 12, 11, 10, 9, 8, 7, 10, 5, 13, 14, 38 }));
+
+            tokenization = tokenizer.tokenize(inputWithAccentsToStrip2, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(
+                tokenization.tokenIds(),
+                equalTo(
+                    new int[] {
+                        37,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        20,
+                        21,
+                        22,
+                        23,
+                        24,
+                        25,
+                        26,
+                        40,
+                        28,
+                        29,
+                        30,
+                        24,
+                        31,
+                        33,
+                        32,
+                        35,
+                        36,
+                        28,
+                        29,
+                        30,
+                        24,
+                        31,
+                        34,
+                        32,
+                        13,
+                        38 }
+                )
+            );
+
+            tokenization = tokenizer.tokenize(inputWithAccentToStripAtEndOfString, Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 38 }));
+            // the last token is the separator, the one before that should
+            // correspond to the last word in the input _not_ the accent
+            assertEquals("cancer", vocab.get(26));
+
+            tokenization = tokenizer.tokenize(onlyAccents, Tokenization.Truncate.NONE, -1, 0).get(0);
+            // empty tokenization only contains ClASS and SEP tokens
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 37, 38 }));
+        }
+    }
+
+    public void testTokenizeFailureCaseAccentFilter() {
+        List<String> testingVocab = List.of(
+            "[CLS]",
+            "br",
+            "##ᄎ",
+            "##ᅡ",
+            "##ᆼ",
+            "##n",
+            "'",
+            "s",
+            "[SEP]",
+            BertTokenizer.MASK_TOKEN,
+            BertTokenizer.UNKNOWN_TOKEN,
+            BertTokenizer.PAD_TOKEN
+        );
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                testingVocab,
+                new BertTokenization(true, true, 512, Tokenization.Truncate.FIRST, -1)
+            ).build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Br창n's", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }));
+
+            tokenization = tokenizer.tokenize("Br창n", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenization.tokenIds(), equalTo(new int[] { 0, 1, 2, 3, 4, 5, 8 }));
+        }
+    }
+
     public void testTokenizeLargeInputNoTruncation() {
         try (
             BertTokenizer tokenizer = BertTokenizer.builder(
@@ -85,7 +229,7 @@ public class BertTokenizerTests extends ESTestCase {
             assertThat(ex.getMessage(), equalTo("Input too large. The tokenized input length [8] exceeds the maximum sequence length [5]"));
 
             // Shouldn't throw
-            tokenizer.tokenize("Elasticsearch fun with Pancake", Tokenization.Truncate.NONE, -1, 0).get(0);
+            tokenizer.tokenize("Elasticsearch fun with Pancake", Tokenization.Truncate.NONE, -1, 0);
 
             // Should throw as special chars add two tokens
             expectThrows(
@@ -100,7 +244,7 @@ public class BertTokenizerTests extends ESTestCase {
             BertTokenizer tokenizer = BertTokenizer.builder(
                 TEST_CASED_VOCAB,
                 new BertTokenization(null, true, 5, Tokenization.Truncate.NONE, 0)
-            ).build();
+            ).build()
         ) {
             List<TokenizationResult.Tokens> tokens = tokenizer.tokenize(
                 "Pancake day fun with Elasticsearch and Godzilla",
@@ -469,6 +613,50 @@ public class BertTokenizerTests extends ESTestCase {
         }
     }
 
+    public void testMultiSeqTokenizationWithSpanFirstInputTooLong() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, Tokenization.createDefault())
+                .setDoLowerCase(false)
+                .setWithSpecialTokens(true)
+                .setMaxSequenceLength(3)
+                .build()
+        ) {
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> tokenizer.tokenize("Elasticsearch is fun", "Godzilla my little red car", Tokenization.Truncate.NONE, 2, 0)
+            );
+            assertThat(
+                iae.getMessage(),
+                containsString(
+                    "Unable to do sequence pair tokenization: the first sequence [7 tokens] "
+                        + "is longer than the max sequence length [3 tokens]"
+                )
+            );
+        }
+    }
+
+    public void testMultiSeqTokenizationWithSpanPlusFirstInputTooLong() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, Tokenization.createDefault())
+                .setDoLowerCase(false)
+                .setWithSpecialTokens(true)
+                .setMaxSequenceLength(8)
+                .build()
+        ) {
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> tokenizer.tokenize("Elasticsearch is fun", "Godzilla my little red car", Tokenization.Truncate.NONE, 5, 0)
+            );
+            assertThat(
+                iae.getMessage(),
+                containsString(
+                    "Unable to do sequence pair tokenization: the combined first sequence, span length and delimiting tokens "
+                        + "[4 + 5 + 3 = 12 tokens] is longer than the max sequence length [8 tokens]. Reduce the size of the [span] window."
+                )
+            );
+        }
+    }
+
     public void testTokenizeLargeInputMultiSequenceTruncation() {
         try (
             BertTokenizer tokenizer = BertTokenizer.builder(
@@ -557,5 +745,69 @@ public class BertTokenizerTests extends ESTestCase {
         ) {
             expectThrows(Exception.class, () -> tokenizer.tokenize("foo", "foo", Tokenization.Truncate.NONE, 0));
         }
+    }
+
+    public void testUnknownWordWithKnownSubWords() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                TEST_CASED_VOCAB,
+                new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
+            ).build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearchfoo fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("[UNK]", "fun"));
+            assertEquals(BertTokenizer.UNKNOWN_TOKEN, TEST_CASED_VOCAB.get(tokenization.tokenIds()[0]));
+            assertEquals("fun", TEST_CASED_VOCAB.get(tokenization.tokenIds()[1]));
+            assertArrayEquals(new int[] { 0, 1 }, tokenization.tokenMap());
+        }
+    }
+
+    public void testCreateAnalyzer() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                TEST_CASED_VOCAB,
+                new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
+            ).build()
+        ) {
+            WordPieceAnalyzer analyzer = tokenizer.createWordPieceAnalyzer(
+                TEST_CASED_VOCAB,
+                Collections.emptyList(),
+                false,
+                false,
+                false,
+                BertTokenizer.UNKNOWN_TOKEN
+            );
+            assertThat(analyzer, instanceOf(WordPieceAnalyzer.class));
+            Tokenizer preTokenizer = analyzer.createTokenizer();
+            assertThat(preTokenizer, instanceOf(WhitespaceTokenizer.class));
+        }
+    }
+
+    public void testDetectInfiniteLoop() {
+        // These settings are known to produce an infinite loop.
+        // question and context are longer than max sequence length
+        // so the input must be spanned. With a span setting of 4
+        // there is only 1 more token that can go into the context part:
+        // question = 5 tokens
+        // CLS & SEP = 3
+        // Span = 4
+        // total = 12 tokens.
+        // max sequence length = 13
+        //
+        // Because the word 'Elasticsearch' maps to more than 1 token
+        // it is not possible to fit it into the window so the term
+        // is taken out, the algorithm backs up and next time round
+        // the loop it is in the same situation.
+        String question = "is Elasticsearch fun?";
+        String context = "Pancake day is fun with Elasticsearch and little red car";
+        int span = 4;
+        int maxSequenceLength = 13;
+
+        BertTokenization tokenization = new BertTokenization(false, true, maxSequenceLength, Tokenization.Truncate.NONE, span);
+        BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, tokenization).build();
+
+        var e = expectThrows(IllegalStateException.class, () -> tokenizer.tokenize(question, context, Tokenization.Truncate.NONE, span, 0));
+        assertThat(e.getMessage(), containsString("Tokenization cannot be satisfied with the current span setting"));
+
     }
 }

@@ -1,0 +1,59 @@
+[role="xpack"]
+[[delete-inference-api]]
+=== Delete {infer} API
+
+experimental[]
+
+Deletes an {infer} model deployment.
+
+
+[discrete]
+[[delete-inference-api-request]]
+==== {api-request-title}
+
+`DELETE /_inference/<task_type>/<model_id>`
+
+[discrete]
+[[delete-inference-api-prereqs]]
+==== {api-prereq-title}
+
+* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+
+
+[discrete]
+[[delete-inference-api-path-params]]
+==== {api-path-parms-title}
+
+<model_id>::
+(Required, string)
+The unique identifier of the {infer} model to delete.
+
+<task_type>::
+(Required, string)
+The type of {infer} task that the model performs.
+
+
+[discrete]
+[[delete-inference-api-example]]
+==== {api-examples-title}
+
+The following API call deletes the `my-elser-model` {infer} model that can 
+perform `sparse_embedding` tasks.
+
+
+[source,console]
+------------------------------------------------------------
+DELETE /_inference/sparse_embedding/my-elser-model
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following response:
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "acknowledged": true
+}
+------------------------------------------------------------
+// NOTCONSOLE

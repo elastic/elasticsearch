@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -30,6 +31,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -59,7 +61,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexNam
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 
-public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
+public final class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
 
@@ -83,7 +85,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         Client client,
         BigArrays bigArrays
     ) {
-        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
+        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -208,7 +210,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                         r -> listener.onResponse(qualifyHits(r, clusterAlias)),
                         e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
-                    EqlSearchAction.INSTANCE.getResponseReader()
+                    EqlSearchAction.INSTANCE.getResponseReader(),
+                    TransportResponseHandler.TRANSPORT_WORKER
                 )
             );
         } else {
@@ -230,10 +233,10 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                 timeout,
                 request.indicesOptions(),
                 request.fetchSize(),
+                request.maxSamplesPerKey(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
-                task,
-                remoteClusterRegistry::versionIncompatibleClusters
+                task
             );
             executeRequestWithRetryAttempt(
                 clusterService,
@@ -248,7 +251,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                     node,
                     EqlSearchAction.NAME,
                     request,
-                    new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, ThreadPool.Names.SAME)
+                    new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                 ),
                 log
             );
@@ -306,9 +309,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     private static Exception qualifyException(Exception e, String[] indices, String clusterAlias) {
         Exception finalException = e;
-        // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
         if (e instanceof RemoteTransportException && e.getCause() instanceof IndexNotFoundException infe) {
-            // end::noformat
             if (infe.getIndex() != null) {
                 String qualifiedIndex;
                 String exceptionIndexName = infe.getIndex().getName();

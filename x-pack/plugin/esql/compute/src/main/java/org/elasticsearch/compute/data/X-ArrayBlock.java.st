@@ -24,7 +24,7 @@ import java.util.BitSet;
  * Block implementation that stores an array of $type$.
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
+final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 
@@ -35,11 +35,7 @@ $else$
     private final $type$[] values;
 $endif$
 
-    public $Type$ArrayBlock($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public $Type$ArrayBlock(
+    $Type$ArrayBlock(
         $if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values,
         int positionCount,
         int[] firstValueIndexes,

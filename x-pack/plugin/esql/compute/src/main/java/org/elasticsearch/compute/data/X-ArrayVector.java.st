@@ -23,7 +23,7 @@ $endif$
  * Vector implementation that stores an array of $type$ values.
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
+final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
 
@@ -36,11 +36,7 @@ $endif$
 
     private final $Type$Block block;
 
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
+    $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
         this.block = new $Type$VectorBlock(this);

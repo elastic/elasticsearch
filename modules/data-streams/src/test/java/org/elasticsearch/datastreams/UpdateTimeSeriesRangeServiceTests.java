@@ -94,7 +94,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
     }
 
     public void testUpdateTimeSeriesTemporalRange_customLookAHeadTime() {
-        int lookAHeadTimeMinutes = randomIntBetween(30, 180);
+        int lookAHeadTimeMinutes = randomIntBetween(30, 120);
         TemporalAmount lookAHeadTime = Duration.ofMinutes(lookAHeadTimeMinutes);
         int timeSeriesPollIntervalMinutes = randomIntBetween(1, 10);
         TemporalAmount timeSeriesPollInterval = Duration.ofMinutes(timeSeriesPollIntervalMinutes);

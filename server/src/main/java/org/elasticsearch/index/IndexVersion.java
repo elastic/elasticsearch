@@ -58,11 +58,11 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent() {
-            var versionExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class), () -> null);
-            if (versionExtension == null) {
+            var versionExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class));
+            if (versionExtension.isEmpty()) {
                 return IndexVersions.LATEST_DEFINED;
             }
-            var version = versionExtension.getCurrentIndexVersion(IndexVersions.LATEST_DEFINED);
+            var version = versionExtension.get().getCurrentIndexVersion(IndexVersions.LATEST_DEFINED);
 
             assert version.onOrAfter(IndexVersions.LATEST_DEFINED);
             assert version.luceneVersion.equals(Version.LATEST)

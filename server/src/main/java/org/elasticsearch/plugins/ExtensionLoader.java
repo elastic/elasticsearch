@@ -9,8 +9,8 @@
 package org.elasticsearch.plugins;
 
 import java.util.Locale;
+import java.util.Optional;
 import java.util.ServiceLoader;
-import java.util.function.Supplier;
 
 /**
  * A utility for loading SPI extensions.
@@ -20,8 +20,7 @@ public class ExtensionLoader {
     /**
      * Loads a single SPI extension.
      *
-     * There should be no more than one extension found. If no service providers
-     * are found, the supplied fallback is used.
+     * There should be no more than one extension found.
      *
      * Note: A ServiceLoader is needed rather than the service class because ServiceLoaders
      * must be loaded by a module with the {@code uses} declaration. Since this
@@ -29,11 +28,10 @@ public class ExtensionLoader {
      * service classes it may load. Thus, the caller must load the ServiceLoader.
      *
      * @param loader a service loader instance to find the singleton extension in
-     * @param fallback a supplier for an instance if no extensions are found
      * @return an instance of the extension
      * @param <T> the SPI extension type
      */
-    public static <T> T loadSingleton(ServiceLoader<T> loader, Supplier<T> fallback) {
+    public static <T> Optional<T> loadSingleton(ServiceLoader<T> loader) {
         var extensions = loader.stream().toList();
         if (extensions.size() > 1) {
             // It would be really nice to give the actual extension class here directly, but that would require passing it
@@ -42,8 +40,8 @@ public class ExtensionLoader {
             // print the service class from its toString, which is better tha nothing
             throw new IllegalStateException(String.format(Locale.ROOT, "More than one extension found for %s", loader));
         } else if (extensions.isEmpty()) {
-            return fallback.get();
+            return Optional.empty();
         }
-        return extensions.get(0).get();
+        return Optional.of(extensions.get(0).get());
     }
 }

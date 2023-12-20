@@ -66,7 +66,9 @@ public class RolloverRequestTests extends ESTestCase {
             .field("min_primary_shard_docs", 10)
             .endObject()
             .endObject();
-        request.fromXContent(false, createParser(builder));
+        try (var parser = createParser(builder)) {
+            request.fromXContent(false, parser);
+        }
         Map<String, Condition<?>> conditions = request.getConditions().getConditions();
         assertThat(conditions.size(), equalTo(10));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition) conditions.get(MaxAgeCondition.NAME);
@@ -118,7 +120,9 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject()
             .endObject()
             .endObject();
-        request.fromXContent(false, createParser(builder));
+        try (var parser = createParser(builder)) {
+            request.fromXContent(false, parser);
+        }
         Map<String, Condition<?>> conditions = request.getConditions().getConditions();
         assertThat(conditions.size(), equalTo(3));
         assertThat(request.getCreateIndexRequest().mappings(), containsString("not_analyzed"));
@@ -139,8 +143,9 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject()
             .endObject();
 
-        request.fromXContent(false, createParser(builder));
-
+        try (var parser = createParser(builder)) {
+            request.fromXContent(false, parser);
+        }
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
         String mapping = createIndexRequest.mappings();
         assertNotNull(mapping);
@@ -200,7 +205,11 @@ public class RolloverRequestTests extends ESTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
+        expectThrows(XContentParseException.class, () -> {
+            try (var parser = createParser(xContentType.xContent(), mutated)) {
+                request.fromXContent(false, parser);
+            }
+        });
     }
 
     public void testValidation() {

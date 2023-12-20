@@ -38,7 +38,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -215,10 +214,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static EnumSet<ProductFeature> availableFeatures;
-    private static Set<String> nodesVersions;
+    private static Map<String, String> nodesVersions;
     private static TestFeatureService testFeatureService;
 
-    protected static Set<String> getCachedNodesVersions() {
+    protected static Map<String, String> getCachedNodesVersions() {
         assert nodesVersions != null;
         return nodesVersions;
     }
@@ -258,12 +257,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
-            Set<String> versions = new HashSet<>();
+            Map<String, String> versions = new HashMap<>();
             boolean serverless = false;
 
-            for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
+            for (var entry : getNodesInfo(adminClient).entrySet()) {
+                var nodeInfo = entry.getValue();
                 var nodeVersion = nodeInfo.get("version").toString();
-                versions.add(nodeVersion);
+                versions.put(entry.getKey(), nodeVersion);
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
@@ -302,12 +302,13 @@ public abstract class ESRestTestCase extends ESTestCase {
                     );
                 }
             }
-            nodesVersions = Collections.unmodifiableSet(versions);
+            nodesVersions = Collections.unmodifiableMap(versions);
 
-            var semanticNodeVersions = nodesVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
+            var semanticNodeVersions = nodesVersions.entrySet()
+                .stream()
+                .map(e -> Map.entry(e.getKey(), parseLegacyVersion(e.getValue())))
+                .filter(e -> e.getValue().isPresent())
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().get()));
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
             testFeatureService = createTestFeatureService(adminClient, semanticNodeVersions);
@@ -321,7 +322,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected static TestFeatureService createTestFeatureService(RestClient adminClient, Set<Version> semanticNodeVersions)
+    protected static TestFeatureService createTestFeatureService(RestClient adminClient, Map<String, Version> semanticNodeVersions)
         throws IOException {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
@@ -333,7 +334,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             hasHistoricalFeaturesInformation,
             providers,
             semanticNodeVersions,
-            ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures(adminClient).values())
+            getClusterStateFeatures(adminClient)
         );
     }
 
@@ -438,7 +439,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
-        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(getCachedNodesVersions());
+        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(Set.copyOf(nodesVersions.values()));
         expectationsSetter.accept(warningsHandler);
         builder.setWarningsHandler(warningsHandler);
         return builder.build();

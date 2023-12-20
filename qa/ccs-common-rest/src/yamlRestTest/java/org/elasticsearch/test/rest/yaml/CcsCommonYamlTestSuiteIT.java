@@ -25,7 +25,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
@@ -159,19 +158,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             searchClient = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
             adminSearchClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
-            Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminSearchClient);
-            final Version esVersion = versionVersionTuple.v1();
-            final String os = readOsFromNodesInfo(adminSearchClient);
-
-            searchYamlTestClient = new TestCandidateAwareClient(
-                getRestSpec(),
-                searchClient,
-                hosts,
-                esVersion,
-                ESRestTestCase::clusterHasFeature,
-                os,
-                this::getClientBuilderWithSniffedHosts
-            );
+            searchYamlTestClient = new TestCandidateAwareClient(getRestSpec(), searchClient, hosts, this::getClientBuilderWithSniffedHosts);
 
             // check that we have an established CCS connection
             Request request = new Request("GET", "_remote/info");
@@ -298,10 +285,22 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient
+        ClientYamlTestClient clientYamlTestClient,
+        final Version esVersion,
+        final Predicate<String> clusterFeaturesPredicate,
+        final String os
     ) {
         // depending on the API called, we either return the client running against the "write" or the "search" cluster here
-        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
+
+        // TODO: reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            esVersion,
+            ESRestTestCase::clusterHasFeature,
+            os
+        ) {
             protected ClientYamlTestClient clientYamlTestClient(String apiName) {
                 if (CCS_APIS.contains(apiName)) {
                     return searchYamlTestClient;
@@ -328,12 +327,9 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             ClientYamlSuiteRestSpec restSpec,
             RestClient restClient,
             List<HttpHost> hosts,
-            Version esVersion,
-            Predicate<String> clusterFeaturesPredicate,
-            String os,
             CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
         ) {
-            super(restSpec, restClient, hosts, esVersion, clusterFeaturesPredicate, os, clientBuilderWithSniffedNodes);
+            super(restSpec, restClient, hosts, clientBuilderWithSniffedNodes);
         }
 
         public void setTestCandidate(ClientYamlTestCandidate testCandidate) {

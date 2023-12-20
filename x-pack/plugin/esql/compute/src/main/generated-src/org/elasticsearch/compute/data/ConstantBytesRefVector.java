@@ -14,7 +14,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant BytesRef value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
+final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
         .shallowSizeOfInstance(BytesRef.class);
@@ -22,11 +22,7 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
 
     private final BytesRefBlock block;
 
-    public ConstantBytesRefVector(BytesRef value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
+    ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
         this.block = new BytesRefVectorBlock(this);
@@ -44,7 +40,7 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
 
     @Override
     public BytesRefVector filter(int... positions) {
-        return new ConstantBytesRefVector(value, positions.length);
+        return blockFactory().newConstantBytesRefVector(value, positions.length);
     }
 
     @Override

@@ -7,18 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.BitSet;
 import java.util.List;
 
-public class BooleanBlockEqualityTests extends ComputeTestCase {
+public class BooleanBlockEqualityTests extends ESTestCase {
+
+    static final BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
 
     public void testEmptyVector() {
         // all these "empty" vectors should be equivalent
         List<BooleanVector> vectors = List.of(
-            new BooleanArrayVector(new boolean[] {}, 0),
-            new BooleanArrayVector(new boolean[] { randomBoolean() }, 0),
+            blockFactory.newBooleanArrayVector(new boolean[] {}, 0),
+            blockFactory.newBooleanArrayVector(new boolean[] { randomBoolean() }, 0),
             BooleanBlock.newConstantBlockWith(randomBoolean(), 0).asVector(),
             BooleanBlock.newConstantBlockWith(randomBoolean(), 0).filter().asVector(),
             BooleanBlock.newBlockBuilder(0).build().asVector(),
@@ -28,7 +30,6 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
     }
 
     public void testEmptyBlock() {
-        BlockFactory blockFactory = blockFactory();
         // all these "empty" vectors should be equivalent
         List<BooleanBlock> blocks = List.of(
             new BooleanArrayBlock(
@@ -58,13 +59,13 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
     public void testVectorEquality() {
         // all these vectors should be equivalent
         List<BooleanVector> vectors = List.of(
-            new BooleanArrayVector(new boolean[] { true, false, true }, 3),
-            new BooleanArrayVector(new boolean[] { true, false, true }, 3).asBlock().asVector(),
-            new BooleanArrayVector(new boolean[] { true, false, true, false }, 3),
-            new BooleanArrayVector(new boolean[] { true, false, true }, 3).filter(0, 1, 2),
-            new BooleanArrayVector(new boolean[] { true, false, true, false }, 4).filter(0, 1, 2),
-            new BooleanArrayVector(new boolean[] { false, true, false, true }, 4).filter(1, 2, 3),
-            new BooleanArrayVector(new boolean[] { true, true, false, true }, 4).filter(0, 2, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3).asBlock().asVector(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, false }, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3).filter(0, 1, 2),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, false }, 4).filter(0, 1, 2),
+            blockFactory.newBooleanArrayVector(new boolean[] { false, true, false, true }, 4).filter(1, 2, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true, false, true }, 4).filter(0, 2, 3),
             BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build().asVector(),
             BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build().asVector().filter(0, 1, 2),
             BooleanBlock.newBlockBuilder(3)
@@ -88,13 +89,13 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
 
         // all these constant-like vectors should be equivalent
         List<BooleanVector> moreVectors = List.of(
-            new BooleanArrayVector(new boolean[] { true, true, true }, 3),
-            new BooleanArrayVector(new boolean[] { true, true, true }, 3).asBlock().asVector(),
-            new BooleanArrayVector(new boolean[] { true, true, true, true }, 3),
-            new BooleanArrayVector(new boolean[] { true, true, true }, 3).filter(0, 1, 2),
-            new BooleanArrayVector(new boolean[] { true, true, true, false }, 4).filter(0, 1, 2),
-            new BooleanArrayVector(new boolean[] { false, true, true, true }, 4).filter(1, 2, 3),
-            new BooleanArrayVector(new boolean[] { true, false, true, true }, 4).filter(0, 2, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true, true }, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true, true }, 3).asBlock().asVector(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true, true, true }, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true, true }, 3).filter(0, 1, 2),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true, true, false }, 4).filter(0, 1, 2),
+            blockFactory.newBooleanArrayVector(new boolean[] { false, true, true, true }, 4).filter(1, 2, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, true }, 4).filter(0, 2, 3),
             BooleanBlock.newConstantBlockWith(true, 3).asVector(),
             BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(true).appendBoolean(true).build().asVector(),
             BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(true).appendBoolean(true).build().asVector().filter(0, 1, 2),
@@ -119,10 +120,9 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
     }
 
     public void testBlockEquality() {
-        BlockFactory blockFactory = blockFactory();
         // all these blocks should be equivalent
         List<BooleanBlock> blocks = List.of(
-            new BooleanArrayVector(new boolean[] { true, false, true }, 3).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3).asBlock(),
             new BooleanArrayBlock(
                 new boolean[] { true, false, true },
                 3,
@@ -139,10 +139,10 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
             ),
-            new BooleanArrayVector(new boolean[] { true, false, true }, 3).filter(0, 1, 2).asBlock(),
-            new BooleanArrayVector(new boolean[] { true, false, true, false }, 3).filter(0, 1, 2).asBlock(),
-            new BooleanArrayVector(new boolean[] { true, false, true, false }, 4).filter(0, 1, 2).asBlock(),
-            new BooleanArrayVector(new boolean[] { true, false, false, true }, 4).filter(0, 1, 3).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3).filter(0, 1, 2).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, false }, 3).filter(0, 1, 2).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, false }, 4).filter(0, 1, 2).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, false, true }, 4).filter(0, 1, 3).asBlock(),
             BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build(),
             BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build().filter(0, 1, 2),
             BooleanBlock.newBlockBuilder(3)
@@ -164,7 +164,7 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
 
         // all these constant-like blocks should be equivalent
         List<BooleanBlock> moreBlocks = List.of(
-            new BooleanArrayVector(new boolean[] { true, true }, 2).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true }, 2).asBlock(),
             new BooleanArrayBlock(
                 new boolean[] { true, true },
                 2,
@@ -181,10 +181,10 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
             ),
-            new BooleanArrayVector(new boolean[] { true, true }, 2).filter(0, 1).asBlock(),
-            new BooleanArrayVector(new boolean[] { true, true, false }, 2).filter(0, 1).asBlock(),
-            new BooleanArrayVector(new boolean[] { true, true, false }, 3).filter(0, 1).asBlock(),
-            new BooleanArrayVector(new boolean[] { true, false, true }, 3).filter(0, 2).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true }, 2).filter(0, 1).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true, false }, 2).filter(0, 1).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, true, false }, 3).filter(0, 1).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3).filter(0, 2).asBlock(),
             BooleanBlock.newConstantBlockWith(true, 2),
             BooleanBlock.newBlockBuilder(2).appendBoolean(true).appendBoolean(true).build(),
             BooleanBlock.newBlockBuilder(2).appendBoolean(true).appendBoolean(true).build().filter(0, 1),
@@ -197,11 +197,11 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
     public void testVectorInequality() {
         // all these vectors should NOT be equivalent
         List<BooleanVector> notEqualVectors = List.of(
-            new BooleanArrayVector(new boolean[] { true }, 1),
-            new BooleanArrayVector(new boolean[] { false }, 1),
-            new BooleanArrayVector(new boolean[] { true, false }, 2),
-            new BooleanArrayVector(new boolean[] { true, false, true }, 3),
-            new BooleanArrayVector(new boolean[] { false, true, false }, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { true }, 1),
+            blockFactory.newBooleanArrayVector(new boolean[] { false }, 1),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false }, 2),
+            blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3),
+            blockFactory.newBooleanArrayVector(new boolean[] { false, true, false }, 3),
             BooleanBlock.newConstantBlockWith(true, 2).asVector(),
             BooleanBlock.newBlockBuilder(2).appendBoolean(false).appendBoolean(true).build().asVector(),
             BooleanBlock.newBlockBuilder(3).appendBoolean(false).appendBoolean(false).appendBoolean(true).build().asVector(),
@@ -219,11 +219,11 @@ public class BooleanBlockEqualityTests extends ComputeTestCase {
     public void testBlockInequality() {
         // all these blocks should NOT be equivalent
         List<BooleanBlock> notEqualBlocks = List.of(
-            new BooleanArrayVector(new boolean[] { false }, 1).asBlock(),
-            new BooleanArrayVector(new boolean[] { true }, 1).asBlock(),
-            new BooleanArrayVector(new boolean[] { false, true }, 2).asBlock(),
-            new BooleanArrayVector(new boolean[] { false, true, false }, 3).asBlock(),
-            new BooleanArrayVector(new boolean[] { false, false, true }, 3).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { false }, 1).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { true }, 1).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { false, true }, 2).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { false, true, false }, 3).asBlock(),
+            blockFactory.newBooleanArrayVector(new boolean[] { false, false, true }, 3).asBlock(),
             BooleanBlock.newConstantBlockWith(true, 2),
             BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(false).build(),
             BooleanBlock.newBlockBuilder(1).appendBoolean(true).appendBoolean(false).appendBoolean(true).appendBoolean(false).build(),

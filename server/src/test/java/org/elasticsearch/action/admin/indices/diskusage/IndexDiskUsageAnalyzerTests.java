@@ -67,6 +67,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
@@ -642,7 +643,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 .setCodec(new Lucene99Codec(mode.mode()) {
                     @Override
                     public PostingsFormat getPostingsFormatForField(String field) {
-                        return new Lucene99PostingsFormat();
+                        return new ES812PostingsFormat();
                     }
 
                     @Override

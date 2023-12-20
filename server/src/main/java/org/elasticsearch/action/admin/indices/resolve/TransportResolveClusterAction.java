@@ -31,13 +31,11 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -55,8 +53,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
 
     public static final String NAME = "indices:admin/resolve/cluster";
     public static final ActionType<ResolveClusterActionResponse> TYPE = new ActionType<>(NAME, ResolveClusterActionResponse::new);
-    public static final String ACTION_NODE_NAME = NAME + "[n]"; // TODO: do we need this?
-
     private final ThreadPool threadPool;
     private final Executor searchCoordinationExecutor;
     private final ClusterService clusterService;
@@ -168,32 +164,26 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                                 return;
                             }
                             if (notConnectedError(failure)) {
-                                logger.warn("UUU DEBUG 2");
                                 clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
-                            } else if (clusterResolveEndpointNotFound(failure)) {
-                                // MP TODO: remove this pathway - I don't think it will ever execute now?
-                                logger.warn("UUU DEBUG 3");
-                                // if the endpoint returns an error that it does not _resolve/cluster, we know we are connected
-                                // TODO: call remoteClusterClient.admin().indices().resolveIndex() to fill in 'matching_indices'?
-                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable));
                             } else {
-                                logger.warn("UUU DEBUG 4");
                                 Throwable cause = ExceptionsHelper.unwrapCause(failure);
+                                // when querying an older cluster that does not have the _resolve/cluster endpoint,
+                                // we will get this error at the Transport layer, since there are version guards
+                                // on the Writeables for this Action.
                                 if (cause instanceof UnsupportedOperationException
                                     && cause.getMessage().contains("ResolveClusterAction requires at least Transport Version")) {
-                                    logger.warn("UUU DEBUG 5: now calling _resolve/indices instead");
-                                    /// MP TODO: document what we're doing here
+                                    // Since this cluster does not have _resolve/cluster, we will call the _resolve/index
+                                    // endpoint to fill in the matching_indices field of the response for that cluster
                                     ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
                                         originalIndices.indices(),
                                         originalIndices.indicesOptions()
                                     );
-                                    remoteClusterClient.admin().indices().resolveIndex(resolveIndexRequest, new ActionListener<>() {
+                                    ActionListener<ResolveIndexAction.Response> resolveIndexActionListener = new ActionListener<>() {
                                         @Override
                                         public void onResponse(ResolveIndexAction.Response response) {
                                             boolean matchingIndices = response.getIndices().size() > 0
                                                 || response.getAliases().size() > 0
                                                 || response.getDataStreams().size() > 0;
-                                            logger.warn("UUU DEBUG 44: matchingIndices: " + matchingIndices);
                                             clusterInfoMap.put(
                                                 clusterAlias,
                                                 new ResolveClusterInfo(true, skipUnavailable, matchingIndices, null)
@@ -203,7 +193,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                                         @Override
                                         public void onFailure(Exception e) {
                                             Throwable cause = ExceptionsHelper.unwrapCause(e);
-                                            logger.warn("UUU DEBUG 55: failure: " + e);
                                             clusterInfoMap.put(
                                                 clusterAlias,
                                                 new ResolveClusterInfo(false, skipUnavailable, cause.toString())
@@ -216,7 +205,13 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                                                 e
                                             );
                                         }
-                                    });
+                                    };
+                                    remoteClusterClient.admin()
+                                        .indices()
+                                        .resolveIndex(
+                                            resolveIndexRequest,
+                                            ActionListener.releaseAfter(resolveIndexActionListener, refs.acquire())
+                                        );
                                 } else {
                                     // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
                                     // determine based on the error, so we default to false in the face of any error and report it
@@ -251,16 +246,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
             );
             listener.onResponse(new ResolveClusterActionResponse(clusterInfoMap));
         }
-    }
-
-    private boolean clusterResolveEndpointNotFound(Exception failure) {
-        // if the _cluster/resolve endpoint is not present on the remote cluster, the error returned will be:
-        // org.elasticsearch.transport.RemoteTransportException: [<host>][<ip>:<port>][indices:admin/resolve/cluster]
-        // Cause: org.elasticsearch.transport.ActionNotFoundTransportException: No handler for action [indices:admin/resolve/cluster]
-        if (failure instanceof RemoteTransportException) {
-            return ExceptionsHelper.unwrap(failure, ActionNotFoundTransportException.class) != null;
-        }
-        return false;
     }
 
     /**

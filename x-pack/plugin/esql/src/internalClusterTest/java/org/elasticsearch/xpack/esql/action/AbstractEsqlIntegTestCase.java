@@ -80,6 +80,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                     BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING,
                     ByteSizeValue.ofBytes(randomIntBetween(0, 16 * 1024)),
                     Setting.Property.NodeScope
+                ),
+                Setting.byteSizeSetting(
+                    BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
+                    ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes())),
+                    Setting.Property.NodeScope
                 )
             );
         }

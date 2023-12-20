@@ -2243,13 +2243,11 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(realm.getType(), updatedApiKeyDoc.creator.get("realm_type"));
             if (realm.getDomain() != null) {
                 @SuppressWarnings("unchecked")
-                final var actualRealmDomain = RealmDomain.fromXContent(
-                    XContentHelper.mapToXContentParser(
-                        XContentParserConfiguration.EMPTY,
-                        (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain")
-                    )
-                );
-                assertEquals(realm.getDomain(), actualRealmDomain);
+                var m = (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain");
+                try (var p = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, m)) {
+                    final var actualRealmDomain = RealmDomain.fromXContent(p);
+                    assertEquals(realm.getDomain(), actualRealmDomain);
+                }
             } else {
                 assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
             }

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -34,7 +36,11 @@ public class ToCartesianPoint extends AbstractConvertFunction {
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );
 
-    public ToCartesianPoint(Source source, Expression field) {
+    @FunctionInfo(returnType = "cartesian_point")
+    public ToCartesianPoint(
+        Source source,
+        @Param(name = "v", type = { "cartesian_point", "long", "unsigned_long", "keyword", "text" }) Expression field
+    ) {
         super(source, field);
     }
 

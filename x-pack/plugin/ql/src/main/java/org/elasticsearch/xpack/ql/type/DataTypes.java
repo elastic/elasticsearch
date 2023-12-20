@@ -181,7 +181,6 @@ public final class DataTypes {
         return isDateTime(type) || isNull(type);
     }
 
-
     public static boolean areCompatible(DataType left, DataType right) {
         if (left == right) {
             return true;

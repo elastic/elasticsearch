@@ -1573,7 +1573,7 @@ public class Security extends Plugin
         }
 
         final List<String> requiredProviders = XPackSettings.FIPS_REQUIRED_PROVIDERS.get(settings);
-        logger.info("JVM Security Providers " + foundProviders);
+        logger.info("JVM Security Providers: " + foundProviders);
         if (requiredProviders != null && requiredProviders.isEmpty() == false) {
             List<String> unsatisfiedProviders = requiredProviders.stream()
                 .map(s -> s.toLowerCase(Locale.ROOT))
@@ -1581,7 +1581,7 @@ public class Security extends Plugin
                 .toList();
 
             if (unsatisfiedProviders.isEmpty() == false) {
-                String errorMessage = "Could not find required FIPS security provider " + unsatisfiedProviders;
+                String errorMessage = "Could not find required FIPS security provider: " + unsatisfiedProviders;
                 logger.error(errorMessage);
                 validationErrors.add(errorMessage);
             }

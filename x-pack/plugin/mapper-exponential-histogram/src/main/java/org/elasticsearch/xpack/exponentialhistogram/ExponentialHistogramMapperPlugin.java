@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.exponentialhistogram.agg.ExponentialHistogramAggregationBuilder;
+import org.elasticsearch.xpack.exponentialhistogram.agg.InternalExponentialHistogram;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,7 +52,8 @@ public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPl
                 ExponentialHistogramAggregationBuilder.NAME,
                 ExponentialHistogramAggregationBuilder::new,
                 ExponentialHistogramAggregationBuilder.PARSER
-            ).setAggregatorRegistrar(ExponentialHistogramAggregationBuilder::registerAggregators)
+            ).addResultReader(InternalExponentialHistogram::new)
+             .setAggregatorRegistrar(ExponentialHistogramAggregationBuilder::registerAggregators)
         );
         return List.copyOf(specs);
     }

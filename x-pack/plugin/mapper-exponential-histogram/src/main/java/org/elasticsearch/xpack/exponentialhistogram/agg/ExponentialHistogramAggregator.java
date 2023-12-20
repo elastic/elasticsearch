@@ -11,9 +11,7 @@ import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.*;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregator;
-import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramValuesSource;
@@ -22,10 +20,8 @@ import org.elasticsearch.xpack.exponentialhistogram.otel.Base2ExponentialHistogr
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.function.BiConsumer;
 
-public final class ExponentialHistogramAggregator extends BucketsAggregator {
+public final class ExponentialHistogramAggregator extends MetricsAggregator {
 
     private final ExponentialHistogramValuesSource.Histogram valuesSource;
     private final DocValueFormat formatter;
@@ -38,12 +34,12 @@ public final class ExponentialHistogramAggregator extends BucketsAggregator {
         AggregatorFactories factories,
         int maxBuckets,
         int maxScale,
-        @Nullable ValuesSourceConfig valuesSourceConfig,
+        ValuesSourceConfig valuesSourceConfig,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
+        super(name, context, parent, metadata);
         this.valuesSource = (ExponentialHistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         this.maxBuckets = maxBuckets;
@@ -56,8 +52,19 @@ public final class ExponentialHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
-        return new InternalAggregation[0];
+    public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
+        System.out.println("buildAggregation: " + owningBucketOrd);
+        return buildEmptyAggregation();
+        /*
+        InternalExponentialHistogram(
+            String name,
+            List< InternalExponentialHistogram.Bucket > buckets,
+            InternalExponentialHistogram.EmptyBucketInfo emptyBucketInfo,
+        int maxBuckets,
+        int maxScale,
+        DocValueFormat formatter,
+        Map<String, Object> metaData
+        */
     }
 
     @Override
@@ -85,6 +92,8 @@ public final class ExponentialHistogramAggregator extends BucketsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
+                System.out.println("Leaf: owningBucketOrder: " + owningBucketOrd);
+
                 final int scale = maxScale;
                 final double scaleBase = Math.pow(2, Math.pow(2, -scale));
                 final Base2ExponentialHistogramIndexer indexer = Base2ExponentialHistogramIndexer.get(scale);
@@ -105,6 +114,7 @@ public final class ExponentialHistogramAggregator extends BucketsAggregator {
                         final double key = Math.pow(scaleBase, index+1) * Math.signum(value);
                         System.out.printf("value=%.2f count=%d index=%d key=%.2f\n", value, count, index, key);
 
+                        /*
                         assert key >= previousKey;
                         long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                         System.out.println("  bucketOrd: " + bucketOrd);
@@ -120,6 +130,7 @@ public final class ExponentialHistogramAggregator extends BucketsAggregator {
                         // (count - _doc_count) so that we have added it count times.
                         incrementBucketDocCount(bucketOrd, count - docCountProvider.getDocCount(doc));
                         previousKey = key;
+                         */
                     }
                 }
             }

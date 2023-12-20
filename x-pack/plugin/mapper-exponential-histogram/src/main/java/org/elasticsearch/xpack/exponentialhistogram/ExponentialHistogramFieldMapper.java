@@ -69,7 +69,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     public static final ParseField OFFSET_FIELD = new ParseField("offset");
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
 
-    protected static class ExponentialHistogramFieldType extends MappedFieldType {
+    private static class ExponentialHistogramFieldType extends MappedFieldType {
         ExponentialHistogramFieldType(String name, Map<String, String> meta) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
         }

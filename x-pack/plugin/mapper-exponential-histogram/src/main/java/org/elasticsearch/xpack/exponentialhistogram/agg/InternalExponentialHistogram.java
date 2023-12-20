@@ -280,13 +280,13 @@ public class InternalExponentialHistogram extends InternalMultiBucketAggregation
         return ExponentialHistogramAggregationBuilder.NAME;
     }
 
+    public int getCurrentScale() {
+        return currentScale;
+    }
+
     @Override
     public List<Bucket> getBuckets() {
         return Collections.unmodifiableList(buckets);
-    }
-
-    public int getTargetBuckets() {
-        return targetNumBuckets;
     }
 
     public EmptyBucketInfo getEmptyBucketInfo() {
@@ -383,7 +383,7 @@ public class InternalExponentialHistogram extends InternalMultiBucketAggregation
             }
         }
 
-        mergeBucketsIfNeeded(reducedBuckets, targetNumBuckets, reduceContext);
+        mergeBucketsIfNeeded(reducedBuckets, maxBuckets, reduceContext);
         return reducedBuckets;
     }
 
@@ -546,7 +546,7 @@ public class InternalExponentialHistogram extends InternalMultiBucketAggregation
             mergeBucketsWithSameMin(reducedBuckets, reduceContext);
             adjustBoundsForOverlappingBuckets(reducedBuckets);
         }
-        return new InternalExponentialHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets, format, metadata);
+        return new InternalExponentialHistogram(getName(), reducedBuckets, emptyBucketInfo, maxBuckets, currentScale, format, metadata);
     }
 
     @Override
@@ -555,7 +555,8 @@ public class InternalExponentialHistogram extends InternalMultiBucketAggregation
             getName(),
             buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             emptyBucketInfo,
-            targetNumBuckets,
+            maxBuckets,
+            currentScale,
             format,
             getMetadata()
         );
@@ -579,7 +580,7 @@ public class InternalExponentialHistogram extends InternalMultiBucketAggregation
             buckets2.add((Bucket) b);
         }
         buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalExponentialHistogram(name, buckets2, emptyBucketInfo, targetNumBuckets, format, getMetadata());
+        return new InternalExponentialHistogram(name, buckets2, emptyBucketInfo, maxBuckets, currentScale, format, getMetadata());
     }
 
     @Override

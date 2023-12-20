@@ -21,8 +21,6 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
 
     private final boolean[] values;
 
-    private final BooleanBlock block;
-
     public BooleanArrayVector(boolean[] values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -30,12 +28,11 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
     public BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
     public BooleanBlock asBlock() {
-        return block;
+        return new BooleanVectorBlock(this);
     }
 
     @Override

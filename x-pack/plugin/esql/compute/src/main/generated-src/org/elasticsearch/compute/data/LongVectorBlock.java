@@ -75,6 +75,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public boolean isReleased() {
+        // TODO: vector should never be released before the block
         return super.isReleased() || vector.isReleased();
     }
 

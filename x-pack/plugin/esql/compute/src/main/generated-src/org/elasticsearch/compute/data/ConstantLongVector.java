@@ -19,8 +19,6 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     private final long value;
 
-    private final LongBlock block;
-
     public ConstantLongVector(long value, int positionCount) {
         this(value, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -28,7 +26,6 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
     public ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new LongVectorBlock(this);
     }
 
     @Override
@@ -38,7 +35,7 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     @Override
     public LongBlock asBlock() {
-        return block;
+        return new LongVectorBlock(this);
     }
 
     @Override

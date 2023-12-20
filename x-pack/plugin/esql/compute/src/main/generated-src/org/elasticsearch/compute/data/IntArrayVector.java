@@ -21,8 +21,6 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
 
     private final int[] values;
 
-    private final IntBlock block;
-
     public IntArrayVector(int[] values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -30,12 +28,11 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     public IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return block;
+        return new IntVectorBlock(this);
     }
 
     @Override

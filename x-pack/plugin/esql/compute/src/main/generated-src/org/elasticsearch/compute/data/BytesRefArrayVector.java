@@ -22,8 +22,6 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     private final BytesRefArray values;
 
-    private final BytesRefBlock block;
-
     public BytesRefArrayVector(BytesRefArray values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -31,12 +29,11 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     public BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
     public BytesRefBlock asBlock() {
-        return block;
+        return new BytesRefVectorBlock(this);
     }
 
     @Override

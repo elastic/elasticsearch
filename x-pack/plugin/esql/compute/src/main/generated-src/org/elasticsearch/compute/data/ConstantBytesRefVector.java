@@ -20,8 +20,6 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
         .shallowSizeOfInstance(BytesRef.class);
     private final BytesRef value;
 
-    private final BytesRefBlock block;
-
     public ConstantBytesRefVector(BytesRef value, int positionCount) {
         this(value, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -29,7 +27,6 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
     public ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
@@ -39,7 +36,7 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
 
     @Override
     public BytesRefBlock asBlock() {
-        return block;
+        return new BytesRefVectorBlock(this);
     }
 
     @Override

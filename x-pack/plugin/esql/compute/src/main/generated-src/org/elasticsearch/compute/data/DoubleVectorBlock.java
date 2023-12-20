@@ -75,6 +75,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public boolean isReleased() {
+        // TODO: vector should never be released before the block
         return super.isReleased() || vector.isReleased();
     }
 

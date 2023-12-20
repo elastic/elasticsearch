@@ -21,8 +21,6 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
 
     private final long[] values;
 
-    private final LongBlock block;
-
     public LongArrayVector(long[] values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -30,12 +28,11 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
     public LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new LongVectorBlock(this);
     }
 
     @Override
     public LongBlock asBlock() {
-        return block;
+        return new LongVectorBlock(this);
     }
 
     @Override

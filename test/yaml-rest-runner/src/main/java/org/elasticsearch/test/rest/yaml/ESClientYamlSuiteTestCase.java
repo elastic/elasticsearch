@@ -464,7 +464,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // skip test if os is excluded
         assumeFalse(
             testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(oldestNodeVersion)
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os())
         );
 
         // let's check that there is something to run, otherwise there might be a problem with the test section

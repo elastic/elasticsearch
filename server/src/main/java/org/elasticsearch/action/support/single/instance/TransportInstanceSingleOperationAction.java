@@ -262,27 +262,32 @@ public abstract class TransportInstanceSingleOperationAction<
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             request.incRef();
-            threadPool.executor(executor(request.shardId)).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.warn("failed to send response for " + shardActionName, inner);
-                    } finally {
-                        request.decRef();
+            try {
+                threadPool.executor(executor(request.shardId)).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            logger.warn("failed to send response for " + shardActionName, inner);
+                        } finally {
+                            request.decRef();
+                        }
                     }
-                }
 
-                @Override
-                protected void doRun() {
-                    shardOperation(
-                        request,
-                        ActionListener.runAfter(ActionListener.wrap(channel::sendResponse, this::onFailure), request::decRef)
-                    );
-                }
-            });
+                    @Override
+                    protected void doRun() {
+                        shardOperation(request, ActionListener.wrap(response -> {
+                            request.decRef();
+                            channel.sendResponse(response);
+                        }, this::onFailure));
+                    }
+                });
+            } catch (Exception e) {
+                request.decRef();
+                throw e;
+            }
         }
     }
 }

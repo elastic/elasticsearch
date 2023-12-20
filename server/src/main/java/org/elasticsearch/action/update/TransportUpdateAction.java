@@ -228,8 +228,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> {
-                            // bulkRequest.incRef(); TODO: Do we need this?
-                            request.incRef();
                             handleUpdateFailureWithRetry(listener, request, exception, retryCount);
                         })), bulkRequest::decRef),
                         maybeDecRefIndexRequest
@@ -270,7 +268,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> {
-                            request.incRef();
                             handleUpdateFailureWithRetry(listener, request, exception, retryCount);
                         })), bulkRequest),
                         maybeDecRefIndexRequest
@@ -306,7 +303,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         );
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest)
+                    }, exception -> {
+                        handleUpdateFailureWithRetry(listener, request, exception, retryCount);
+                    })), bulkRequest)
                 );
             }
             case NOOP -> {

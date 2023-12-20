@@ -782,29 +782,36 @@ public class UpdateIT extends ESIntegTestCase {
                     for (int j = 0; j < numberOfIds; j++) {
                         for (int k = 0; k < numberOfUpdatesPerId; ++k) {
                             updateRequestsOutstanding.acquire();
+                            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", Integer.toString(j));
+
                             try {
-                                UpdateRequest ur = client().prepareUpdate("test", Integer.toString(j))
-                                    .setScript(fieldIncScript)
+                                UpdateRequest ur = updateRequestBuilder.setScript(fieldIncScript)
                                     .setRetryOnConflict(retryOnConflict)
                                     .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                     .request();
                                 if (randomBoolean()) {
                                     client().update(ur, ActionListener.runAfter(new UpdateListener(j), ur::decRef));
                                 } else {
-                                    try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-                                        bulkRequestBuilder.add(ur).execute(new UpdateListener(j).map(br -> {
+                                    BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+                                    try {
+                                        bulkRequestBuilder.add(ur);
+                                        ur.decRef();
+                                        bulkRequestBuilder.add(ur).execute(ActionListener.runAfter(new UpdateListener(j).map(br -> {
                                             final BulkItemResponse ir = br.getItems()[0];
                                             if (ir.isFailed()) {
+                                                // ur.incRef();
                                                 throw ir.getFailure().getCause();
                                             } else {
                                                 return ir.getResponse();
                                             }
-                                        }));
-                                    } finally {
-                                        ur.decRef();
+                                        }), bulkRequestBuilder::close));
+                                    } catch (Exception e) {
+                                        bulkRequestBuilder.close();
+                                        throw e;
                                     }
                                 }
                             } catch (NoNodeAvailableException nne) {
+                                updateRequestBuilder.request().decRef();
                                 updateRequestsOutstanding.release();
                                 synchronized (failedMap) {
                                     incrementMapValue(j, failedMap);

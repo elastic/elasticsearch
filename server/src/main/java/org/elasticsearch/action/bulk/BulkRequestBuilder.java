@@ -161,6 +161,6 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
 
     @Override
     public void close() {
-        request.close();
+        request.decRef();
     }
 }

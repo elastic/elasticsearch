@@ -19,7 +19,6 @@
  */
 package org.elasticsearch.index.codec.postings;
 
-import org.apache.lucene.backward_codecs.lucene90.Lucene90PostingsFormat.IntBlockTermState;
 import org.apache.lucene.codecs.BlockTermState;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.PostingsReaderBase;
@@ -37,6 +36,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.postings.ES812PostingsFormat.IntBlockTermState;
 
 import java.io.IOException;
 import java.util.Arrays;

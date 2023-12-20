@@ -104,7 +104,6 @@ public final class RenameProcessor extends AbstractProcessor {
             this.scriptService = scriptService;
         }
 
-        @SuppressWarnings("checkstyle:LineLength")
         @Override
         public RenameProcessor create(
             Map<String, Processor.Factory> registry,

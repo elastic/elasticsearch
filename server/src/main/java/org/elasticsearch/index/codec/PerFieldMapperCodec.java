@@ -45,7 +45,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
 
-    private final ES812PostingsFormat ES89PostingsFormat;
+    private final ES812PostingsFormat ES812PostingsFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
@@ -57,7 +57,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
-        this.ES89PostingsFormat = new ES812PostingsFormat();
+        this.ES812PostingsFormat = new ES812PostingsFormat();
     }
 
     @Override
@@ -74,7 +74,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
             return format;
         }
         // here
-        return ES89PostingsFormat;
+        return ES812PostingsFormat;
     }
 
     boolean useBloomFilter(String field) {

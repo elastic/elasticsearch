@@ -464,15 +464,19 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                     // so it is ok if this happens in a blocking manner on a thread from generic thread pool.
                     // This makes the code easier to understand and maintain.
                     SearchResponse searchResponse = client.search(searchRequest).actionGet();
-                    SearchHit[] hits = searchResponse.getHits().getHits();
+                    try {
+                        SearchHit[] hits = searchResponse.getHits().getHits();
 
-                    if (searchResponse.getHits().getHits().length == 0) {
-                        failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
-                        return;
+                        if (searchResponse.getHits().getHits().length == 0) {
+                            failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
+                            return;
+                        }
+                        byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");
+                        md.update(data);
+                        chunkConsumer.accept(data);
+                    } finally {
+                        searchResponse.decRef();
                     }
-                    byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");
-                    md.update(data);
-                    chunkConsumer.accept(data);
                 }
                 String actualMd5 = MessageDigests.toHexString(md.digest());
                 if (Objects.equals(expectedMd5, actualMd5)) {

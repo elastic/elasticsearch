@@ -16,7 +16,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant $type$ value.
  * This class is generated. Do not edit it.
  */
-public final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
+final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
 
 $if(BytesRef)$
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
@@ -29,11 +29,7 @@ $endif$
 
     private final $Type$Block block;
 
-    public Constant$Type$Vector($type$ value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
+    Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
         this.block = new $Type$VectorBlock(this);
@@ -55,7 +51,7 @@ $endif$
 
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Constant$Type$Vector(value, positions.length);
+        return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
 
     @Override

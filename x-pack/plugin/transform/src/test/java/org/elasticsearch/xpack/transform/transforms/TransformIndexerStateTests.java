@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -251,7 +252,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void validate(ActionListener<Void> listener) {
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
             listener.onResponse(null);
         }
     }
@@ -338,7 +339,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void validate(ActionListener<Void> listener) {
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
             listener.onResponse(null);
         }
 
@@ -805,7 +806,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -839,7 +840,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
         );
 
         MockedTransformIndexerForStatePersistenceTesting indexer = new MockedTransformIndexerForStatePersistenceTesting(

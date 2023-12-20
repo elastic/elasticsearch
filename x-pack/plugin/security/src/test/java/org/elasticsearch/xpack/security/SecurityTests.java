@@ -592,7 +592,7 @@ public class SecurityTests extends ESTestCase {
             // no exceptions since gradle has wired in the bouncy castle FIPS provider
         } else {
             final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
-            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider [bcfips]"));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [bcfips]"));
         }
 
         final Settings settings2 = Settings.builder()
@@ -601,10 +601,10 @@ public class SecurityTests extends ESTestCase {
             .build();
         if (inFipsJvm()) {
             final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings2));
-            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider [junk0, junk1, junk2]"));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [junk0, junk1, junk2]"));
         } else {
             final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings2));
-            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider [junk0, bcfips, junk1, junk2]"));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [junk0, bcfips, junk1, junk2]"));
         }
     }
 

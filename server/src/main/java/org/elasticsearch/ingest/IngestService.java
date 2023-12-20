@@ -776,12 +776,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         final String pluginPipelineId = indexRequest.getPluginsPipeline();
         indexRequest.setPluginsPipeline(NOOP_PIPELINE_NAME);
-        List<Pipeline> pluginsPipelines = null;
-        if (pluginPipelineId != null) {
-            pluginsPipelines = getPluginsPipelines(pluginPipelineId);
-        }
 
-        return new PipelineIterator(pipelineId, finalPipelineId, pluginsPipelines);
+        return new PipelineIterator(pipelineId, finalPipelineId, pluginPipelineId);
     }
 
     /**
@@ -801,14 +797,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         private final String defaultPipeline;
         private final String finalPipeline;
-        private final List<Pipeline> pluginsPipelines;
+        private final String pluginsPipelines;
 
         private final Iterator<PipelineSlot> pipelineSlotIterator;
 
-        private PipelineIterator(String defaultPipeline, String finalPipeline, List<Pipeline> pluginsPipelines) {
+        private PipelineIterator(String defaultPipeline, String finalPipeline, String pluginsPipelines) {
             this.defaultPipeline = NOOP_PIPELINE_NAME.equals(defaultPipeline) ? null : defaultPipeline;
             this.finalPipeline = NOOP_PIPELINE_NAME.equals(finalPipeline) ? null : finalPipeline;
-            this.pluginsPipelines = pluginsPipelines;
+            this.pluginsPipelines = NOOP_PIPELINE_NAME.equals(pluginsPipelines) ? null : pluginsPipelines;
             this.pipelineSlotIterator = iterator();
         }
 
@@ -825,7 +821,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 slotList.add(new PipelineSlot(finalPipeline, getPipeline(finalPipeline), true));
             }
             if (pluginsPipelines != null) {
-                slotList.addAll(pluginsPipelines.stream().map(pipeline -> new PipelineSlot("plugins", pipeline, false)).toList());
+                slotList.addAll(
+                    getPluginsPipelines(pluginsPipelines).stream().map(pipeline -> new PipelineSlot("plugins", pipeline, false)).toList()
+                );
             }
             return slotList.iterator();
         }

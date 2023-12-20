@@ -379,7 +379,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void stopTrace(Traceable traceable) {
-        final var span = Span.fromContextOrNull(spans.remove(traceable));
+        final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
         if (span != null) {
             logger.trace("Finishing trace [{}]", traceable);
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {

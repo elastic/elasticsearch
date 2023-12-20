@@ -86,7 +86,7 @@ public class APMTracerTests extends ESTestCase {
         apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
-        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
 
     /**
@@ -103,7 +103,7 @@ public class APMTracerTests extends ESTestCase {
         apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
-        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
         assertThat(((SpyAPMTracer) apmTracer).getSpanStartTime("name1"), is(spanStartTime));
     }
 
@@ -157,9 +157,9 @@ public class APMTracerTests extends ESTestCase {
         apmTracer.startTrace(new ThreadContext(settings), TRACEABLE2, "name-bbb", null);
         apmTracer.startTrace(new ThreadContext(settings), TRACEABLE3, "name-ccc", null);
 
-        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1));
-        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE2));
-        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE3)));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE2.getSpanId()));
+        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE3.getSpanId())));
     }
 
     /**
@@ -202,9 +202,9 @@ public class APMTracerTests extends ESTestCase {
         apmTracer.startTrace(new ThreadContext(settings), TRACEABLE2, "name-bbb", null);
         apmTracer.startTrace(new ThreadContext(settings), TRACEABLE3, "name-ccc", null);
 
-        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE1)));
-        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE2)));
-        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE3));
+        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE1.getSpanId())));
+        assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE2.getSpanId())));
+        assertThat(apmTracer.getSpans(), hasKey(TRACEABLE3.getSpanId()));
     }
 
     /**

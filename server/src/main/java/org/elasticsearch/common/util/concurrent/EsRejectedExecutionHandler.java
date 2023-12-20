@@ -18,7 +18,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 public abstract class EsRejectedExecutionHandler implements RejectedExecutionHandler {
 
     private final CounterMetric rejected = new CounterMetric();
-    private LongCounter telemetry_rejected = null;
+    private LongCounter rejectionCounter = null;
 
     /**
      * The number of rejected executions.
@@ -29,18 +29,14 @@ public abstract class EsRejectedExecutionHandler implements RejectedExecutionHan
 
     protected void incrementRejections() {
         rejected.inc();
-        if (telemetry_rejected != null) {
-            telemetry_rejected.increment();
+        if (rejectionCounter != null) {
+            rejectionCounter.increment();
         }
     }
 
     public void registerCounter(MeterRegistry meterRegistry, String prefix, String name) {
-        telemetry_rejected = meterRegistry.registerLongCounter(
-            prefix + "rejected.total",
-            "number of rejected threads for " + name,
-            "count"
-        );
-        telemetry_rejected.incrementBy(rejected());
+        rejectionCounter = meterRegistry.registerLongCounter(prefix + "rejected.total", "number of rejected threads for " + name, "count");
+        rejectionCounter.incrementBy(rejected());
     }
 
     protected static EsRejectedExecutionException newRejectedException(

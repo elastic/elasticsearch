@@ -381,7 +381,7 @@ public class ValuesSourceReaderBenchmark {
         pages = new ArrayList<>();
         switch (layout) {
             case "in_order" -> {
-                IntVector.Builder docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                 for (LeafReaderContext ctx : reader.leaves()) {
                     int begin = 0;
                     while (begin < ctx.reader().maxDoc()) {
@@ -399,7 +399,7 @@ public class ValuesSourceReaderBenchmark {
                                 ).asBlock()
                             )
                         );
-                        docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                        docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                         begin = end;
                     }
                 }
@@ -410,8 +410,8 @@ public class ValuesSourceReaderBenchmark {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     docItrs.add(new ItrAndOrd(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx.ord));
                 }
-                IntVector.Builder docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
-                IntVector.Builder leafs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                 int size = 0;
                 while (docItrs.isEmpty() == false) {
                     Iterator<ItrAndOrd> itrItr = docItrs.iterator();
@@ -430,8 +430,8 @@ public class ValuesSourceReaderBenchmark {
                                     new DocVector(blockFactory.newConstantIntVector(0, size), leafs.build(), docs.build(), null).asBlock()
                                 )
                             );
-                            docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
-                            leafs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                            docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+                            leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                             size = 0;
                         }
                     }

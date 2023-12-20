@@ -172,7 +172,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     int positionCount = docVector.getPositionCount();
                     IntVector shards = docVector.shards();
                     if (randomBoolean()) {
-                        try (IntVector.Builder builder = IntVector.newVectorBuilder(positionCount)) {
+                        try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(positionCount)) {
                             for (int i = 0; i < positionCount; i++) {
                                 builder.appendInt(shards.getInt(i));
                             }
@@ -182,7 +182,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     }
                     IntVector segments = docVector.segments();
                     if (randomBoolean()) {
-                        try (IntVector.Builder builder = IntVector.newVectorBuilder(positionCount)) {
+                        try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(positionCount)) {
                             for (int i = 0; i < positionCount; i++) {
                                 builder.appendInt(segments.getInt(i));
                             }

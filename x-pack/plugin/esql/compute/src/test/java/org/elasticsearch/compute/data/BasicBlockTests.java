@@ -798,7 +798,7 @@ public class BasicBlockTests extends ESTestCase {
 
         try (
             var longBlock = blockFactory.newLongBlockBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
-            var longVector = LongVector.newVectorBuilder(estimatedSize).appendLong(10L).appendLong(20L).build()
+            var longVector = blockFactory.newLongVectorBuilder(estimatedSize).appendLong(10L).appendLong(20L).build()
         ) {
             for (Object obj : List.of(longVector, longBlock, longBlock.asVector())) {
                 String s = obj.toString();
@@ -809,7 +809,7 @@ public class BasicBlockTests extends ESTestCase {
 
         try (
             var doubleBlock = blockFactory.newDoubleBlockBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build();
-            var doubleVector = DoubleVector.newVectorBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build()
+            var doubleVector = blockFactory.newDoubleVectorBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build()
         ) {
             for (Object obj : List.of(doubleVector, doubleBlock, doubleBlock.asVector())) {
                 String s = obj.toString();

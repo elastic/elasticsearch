@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Iterator;
@@ -207,10 +206,11 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     public void testNoopStatus() {
+        BlockFactory blockFactory = blockFactory();
         MvExpandOperator op = new MvExpandOperator(0, randomIntBetween(1, 1000));
         List<Page> result = drive(
             op,
-            List.of(new Page(IntVector.newVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())).iterator(),
+            List.of(new Page(blockFactory.newIntVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())).iterator(),
             driverContext()
         );
         assertThat(result, hasSize(1));

@@ -98,6 +98,9 @@ public class GeoHashGridIT extends ESIntegTestCase {
             }
         }
         indexRandom(true, cities);
+        for (IndexRequestBuilder builder : cities) {
+            builder.request().decRef();
+        }
 
         assertAcked(
             prepareCreate("multi_valued_idx").setSettings(settings).setMapping("location", "type=geo_point", "city", "type=keyword")
@@ -125,6 +128,9 @@ public class GeoHashGridIT extends ESIntegTestCase {
             }
         }
         indexRandom(true, cities);
+        for (IndexRequestBuilder builder : cities) {
+            builder.request().decRef();
+        }
 
         ensureSearchable();
     }

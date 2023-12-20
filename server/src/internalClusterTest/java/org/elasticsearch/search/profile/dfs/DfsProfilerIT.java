@@ -61,6 +61,9 @@ public class DfsProfilerIT extends ESIntegTestCase {
                 );
         }
         indexRandom(true, docs);
+        for (IndexRequestBuilder builder : docs) {
+            builder.request().decRef();
+        }
         refresh();
         int iters = between(5, 10);
         for (int i = 0; i < iters; i++) {

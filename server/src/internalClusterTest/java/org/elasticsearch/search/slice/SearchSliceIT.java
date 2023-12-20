@@ -83,6 +83,9 @@ public class SearchSliceIT extends ESIntegTestCase {
             requests.add(prepareIndex("test").setSource(builder));
         }
         indexRandom(true, requests);
+        for (IndexRequestBuilder builder : requests) {
+            builder.request().decRef();
+        }
     }
 
     public void testSearchSort() throws Exception {

@@ -66,7 +66,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
-            prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
+            indexDoc("test-index", "" + i, "field1", "text" + (i % 2), "field2", i);
         }
         refresh();
 
@@ -94,7 +94,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
-            prepareIndex("test-index").setId("" + i).setSource("field1", "text" + i, "field2", i).get();
+            indexDoc("test-index", "" + i, "field1", "text" + i, "field2", i);
         }
         refresh();
 
@@ -115,9 +115,9 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             prepareCreate("test-index2").setSettings(Settings.builder().put("index.number_of_shards", 1))
                 .setMapping("field1", "type=date", "field2", "type=double")
         );
-        prepareIndex("test-index2").setId("1").setSource("field1", "2019-09-01", "field2", 1).get();
-        prepareIndex("test-index2").setId("2").setSource("field1", "2019-10-01", "field2", 2).get();
-        prepareIndex("test-index2").setId("3").setSource("field1", "2019-11-01", "field2", 3).get();
+        indexDoc("test-index2", "1", "field1", "2019-09-01", "field2", 1);
+        indexDoc("test-index2", "2", "field1", "2019-10-01", "field2", 2);
+        indexDoc("test-index2", "3", "field1", "2019-11-01", "field2", 3);
         refresh();
 
         RangeQueryBuilder rangeQB = new RangeQueryBuilder("field1").from("2019-01-01"); // the query should be rewritten to from:null
@@ -133,7 +133,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
             assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {
-                prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
+                indexDoc("test-index", "" + i, "field1", "text" + (i % 2), "field2", i);
             }
             refresh();
 

@@ -11,6 +11,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -31,6 +32,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -55,14 +57,17 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
     public void testWhenMetadataAreLoaded() throws Exception {
         createIndex("docs");
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("docs").setId("1").setSource("rank", 1),
             prepareIndex("docs").setId("2").setSource("rank", 2),
             prepareIndex("docs").setId("3").setSource("rank", 3),
             prepareIndex("others").setSource("rank", 4),
             prepareIndex("others").setSource("rank", 5)
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         createRepository("repository", CountingMockRepositoryPlugin.TYPE);
 

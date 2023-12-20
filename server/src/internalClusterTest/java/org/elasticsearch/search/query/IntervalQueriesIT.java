@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.query.IntervalQueryBuilder;
@@ -25,6 +26,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -49,12 +51,15 @@ public class IntervalQueriesIT extends ESIntegTestCase {
             }}
             """));
 
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("nested").setId("1").setSource("text", "the quick brown fox jumps"),
             prepareIndex("nested").setId("2").setSource("text", "quick brown"),
             prepareIndex("nested").setId("3").setSource("text", "quick")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         assertNoFailures(
             prepareSearch("nested").setQuery(

@@ -1676,15 +1676,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         for (int i = 0; i < indexers.length; i++) {
             indexers[i] = new Thread(() -> {
                 while (stopped.get() == false) {
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName);
                     try {
-                        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource(
-                            Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()),
-                            XContentType.JSON
-                        );
+                        indexRequestBuilder.setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON);
                         DocWriteResponse response = indexRequestBuilder.get();
-                        indexRequestBuilder.request().decRef();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
-                    } catch (ElasticsearchException ignored) {}
+                    } catch (ElasticsearchException ignored) {} finally {
+                        indexRequestBuilder.request().decRef();
+                    }
                 }
             });
         }

@@ -165,6 +165,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         Collections.shuffle(builders, random);
         for (IndexRequestBuilder builder : builders) {
             builder.get();
+            builder.request().decRef();
             if (random.nextBoolean()) {
                 if (random.nextInt(5) != 0) {
                     refresh();
@@ -239,24 +240,24 @@ public class SimpleSortIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId("" + i)
-                .setSource(
-                    jsonBuilder().startObject()
-                        .field("ord", i)
-                        .array("svalue", new String[] { "" + i, "" + (i + 1), "" + (i + 2) })
-                        .array("lvalue", new long[] { i, i + 1, i + 2 })
-                        .array("dvalue", new double[] { i, i + 1, i + 2 })
-                        .startObject("gvalue")
-                        .field("lat", (double) i + 1)
-                        .field("lon", (double) i)
-                        .endObject()
-                        .endObject()
-                )
-                .get();
+            index(
+                "test",
+                "" + i,
+                jsonBuilder().startObject()
+                    .field("ord", i)
+                    .array("svalue", new String[] { "" + i, "" + (i + 1), "" + (i + 2) })
+                    .array("lvalue", new long[] { i, i + 1, i + 2 })
+                    .array("dvalue", new double[] { i, i + 1, i + 2 })
+                    .startObject("gvalue")
+                    .field("lat", (double) i + 1)
+                    .field("lon", (double) i)
+                    .endObject()
+                    .endObject()
+            );
         }
 
         for (int i = 10; i < 20; i++) { // add some docs that don't have values in those fields
-            prepareIndex("test").setId("" + i).setSource(jsonBuilder().startObject().field("ord", i).endObject()).get();
+            index("test", "" + i, jsonBuilder().startObject().field("ord", i).endObject());
         }
         indicesAdmin().prepareRefresh("test").get();
 
@@ -347,11 +348,11 @@ public class SimpleSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
-        prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "1").field("svalue", "aaa").endObject()).get();
+        index("test", jsonBuilder().startObject().field("id", "1").field("svalue", "aaa").endObject());
 
-        prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "2").nullField("svalue").endObject()).get();
+        index("test", jsonBuilder().startObject().field("id", "2").nullField("svalue").endObject());
 
-        prepareIndex("test").setSource(jsonBuilder().startObject().field("id", "3").field("svalue", "bbb").endObject()).get();
+        index("test", jsonBuilder().startObject().field("id", "3").field("svalue", "bbb").endObject());
 
         flush();
         refresh();
@@ -430,7 +431,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         );
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("value", "" + i).endObject()).get();
+            index("test", Integer.toString(i), jsonBuilder().startObject().field("value", "" + i).endObject());
         }
         refresh();
 

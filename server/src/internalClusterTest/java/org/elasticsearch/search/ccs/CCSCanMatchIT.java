@@ -11,6 +11,7 @@ package org.elasticsearch.search.ccs;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -117,7 +118,9 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         int numDocs = between(100, 500);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource("position", i, "@timestamp", timestamp + i).get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index).setSource("position", i, "@timestamp", timestamp + i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         if (exposeTimestamp) {
             client.admin().indices().prepareClose(index).get();

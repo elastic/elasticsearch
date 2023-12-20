@@ -164,6 +164,9 @@ public class HistogramIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 
@@ -1088,11 +1091,14 @@ public class HistogramIT extends ESIntegTestCase {
 
     public void testDecimalIntervalAndOffset() throws Exception {
         assertAcked(prepareCreate("decimal_values").setMapping("d", "type=float").get());
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("decimal_values").setId("1").setSource("d", -0.6),
             prepareIndex("decimal_values").setId("2").setSource("d", 0.1)
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("decimal_values").addAggregation(histogram("histo").field("d").interval(0.7).offset(0.05)),
@@ -1117,11 +1123,14 @@ public class HistogramIT extends ESIntegTestCase {
             prepareCreate("cache_test_idx").setMapping("d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
         );
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("cache_test_idx").setId("1").setSource("d", -0.6),
             prepareIndex("cache_test_idx").setId("2").setSource("d", 0.1)
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         // Make sure we are starting with a clear cache
         assertThat(
@@ -1248,12 +1257,15 @@ public class HistogramIT extends ESIntegTestCase {
 
     public void testHardBounds() throws Exception {
         assertAcked(prepareCreate("test").setMapping("d", "type=double").get());
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("test").setId("1").setSource("d", -0.6),
             prepareIndex("test").setId("2").setSource("d", 0.5),
             prepareIndex("test").setId("3").setSource("d", 0.1)
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("test").addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(0.0, null))),

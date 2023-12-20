@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.simple;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -75,7 +76,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
         createIndex("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("field", "value"),
             prepareIndex("test").setId("2").setSource("field", "value"),
@@ -118,7 +119,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             )
             .get();
 
-        prepareIndex("test").setId("1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "from", "192.168.0.5", "to", "192.168.0.10");
         assertHitCount(
             prepareSearch().setQuery(boolQuery().must(rangeQuery("from").lte("192.168.0.7")).must(rangeQuery("to").gte("192.168.0.7"))),
             1L
@@ -144,11 +145,11 @@ public class SimpleSearchIT extends ESIntegTestCase {
             .get();
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("ip", "192.168.0.1").get();
-        prepareIndex("test").setId("2").setSource("ip", "192.168.0.2").get();
-        prepareIndex("test").setId("3").setSource("ip", "192.168.0.3").get();
-        prepareIndex("test").setId("4").setSource("ip", "192.168.1.4").get();
-        prepareIndex("test").setId("5").setSource("ip", "2001:db8::ff00:42:8329").get();
+        indexDoc("test", "1", "ip", "192.168.0.1");
+        indexDoc("test", "2", "ip", "192.168.0.2");
+        indexDoc("test", "3", "ip", "192.168.0.3");
+        indexDoc("test", "4", "ip", "192.168.1.4");
+        indexDoc("test", "5", "ip", "2001:db8::ff00:42:8329");
         refresh();
 
         assertHitCount(prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.1"))), 1L);
@@ -172,7 +173,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleId() {
         createIndex("test");
 
-        prepareIndex("test").setId("XXX1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "XXX1", "field", "value");
         // id is not indexed, but lets see that we automatically convert to
         assertHitCount(prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")), 1L);
         assertHitCount(prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX1")), 1L);
@@ -180,9 +181,9 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testSimpleDateRange() throws Exception {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource("field", "2010-01-05T02:00").get();
-        prepareIndex("test").setId("2").setSource("field", "2010-01-06T02:00").get();
-        prepareIndex("test").setId("3").setSource("field", "1967-01-01T00:00").get();
+        indexDoc("test", "1", "field", "2010-01-05T02:00");
+        indexDoc("test", "2", "field", "2010-01-06T02:00");
+        indexDoc("test", "3", "field", "1967-01-01T00:00");
         ensureGreen();
         refresh();
         assertHitCountAndNoFailures(
@@ -224,10 +225,10 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         indicesAdmin().preparePutMapping("test").setSource("field", "type=keyword").get();
 
-        prepareIndex("test").setId("0").setSource("field", "").get();
-        prepareIndex("test").setId("1").setSource("field", "A").get();
-        prepareIndex("test").setId("2").setSource("field", "B").get();
-        prepareIndex("test").setId("3").setSource("field", "C").get();
+        indexDoc("test", "0", "field", "");
+        indexDoc("test", "1", "field", "A");
+        indexDoc("test", "2", "field", "B");
+        indexDoc("test", "3", "field", "C");
         ensureGreen();
         refresh();
 
@@ -252,7 +253,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             docbuilders.add(prepareIndex("test").setId(id).setSource("field", i));
         }
 
-        indexRandom(true, docbuilders);
+        indexRandomAndDecRefRequests(true, docbuilders);
         ensureGreen();
         refresh();
 
@@ -286,7 +287,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             docbuilders.add(prepareIndex("test").setId(id).setSource("rank", i));
         }
 
-        indexRandom(true, docbuilders);
+        indexRandomAndDecRefRequests(true, docbuilders);
         ensureGreen();
         refresh();
 
@@ -306,7 +307,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testInsaneFromAndSize() throws Exception {
         createIndex("idx");
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertWindowFails(prepareSearch("idx").setFrom(Integer.MAX_VALUE));
         assertWindowFails(prepareSearch("idx").setSize(Integer.MAX_VALUE));
@@ -314,7 +315,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeFromAndSize() throws Exception {
         createIndex("idx");
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertWindowFails(prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)));
         assertWindowFails(prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1));
@@ -326,7 +327,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testLargeFromAndSizeSucceeds() throws Exception {
         createIndex("idx");
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) - 10), 1);
         assertHitCount(prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)), 1);
@@ -342,7 +343,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2)
         ).get();
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)), 1);
         assertHitCount(prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1), 1);
@@ -360,7 +361,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2),
             "idx"
         );
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)), 1);
         assertHitCount(prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1), 1);
@@ -373,7 +374,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeFromAndSizeBackwardsCompatibilityRecommendation() throws Exception {
         prepareCreate("idx").setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE)).get();
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10), 1);
         assertHitCount(prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10), 1);
@@ -386,7 +387,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeRescoreWindow() throws Exception {
         createIndex("idx");
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertRescoreWindowFails(Integer.MAX_VALUE);
         assertRescoreWindowFails(IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY) + 1);
@@ -396,7 +397,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
         prepareCreate("idx").setSettings(Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2))
             .get();
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)), 1);
     }
@@ -410,7 +411,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                     defaultMaxWindow * 2
                 )
         ).get();
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)), 1);
     }
@@ -419,7 +420,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
         createIndex("idx");
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2), "idx");
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)), 1);
     }
@@ -432,7 +433,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), defaultMaxWindow * 2),
             "idx"
         );
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)), 1);
     }
@@ -453,10 +454,11 @@ public class SimpleSearchIT extends ESIntegTestCase {
         prepareCreate("idx").setMapping("field", "type=keyword").get();
         ensureGreen("idx");
 
-        prepareIndex("idx").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("idx").setId("1")
             .setSource("{\"field\" : 80315953321748200608 }", XContentType.JSON)
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         String queryJson = "{ \"field\" : { \"value\" : 80315953321748200608 } }";
         XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
@@ -467,7 +469,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLongRegexInRegexpQuery() throws Exception {
         createIndex("idx");
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandomAndDecRefRequests(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         int defaultMaxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY);
         StringBuilder regexp = new StringBuilder(defaultMaxRegexLength);
@@ -496,7 +498,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testStrictlyCountRequest() throws Exception {
         createIndex("test_count_1");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test_count_1").setId("1").setSource("field", "value"),
             prepareIndex("test_count_1").setId("2").setSource("field", "value"),
@@ -507,7 +509,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         );
 
         createIndex("test_count_2");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test_count_2").setId("1").setSource("field", "value_2"),
             prepareIndex("test_count_2").setId("2").setSource("field", "value_2"),
@@ -556,6 +558,35 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 "This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."
             )
         );
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     public static class VerifyReaderContextPlugin extends Plugin {

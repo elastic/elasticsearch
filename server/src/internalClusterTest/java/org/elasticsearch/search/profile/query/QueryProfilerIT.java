@@ -56,7 +56,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         List<String> stringFields = Arrays.asList("field1");
         List<String> numericFields = Arrays.asList("field2");
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         refresh();
         int iters = between(20, 100);
@@ -105,7 +105,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         List<String> stringFields = Arrays.asList("field1");
         List<String> numericFields = Arrays.asList("field2");
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         refresh();
         QueryBuilder q = randomQueryBuilder(stringFields, numericFields, numDocs, 3);
@@ -182,7 +182,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
         ensureGreen();
 
         QueryBuilder q = QueryBuilders.matchQuery("field1", "one");
@@ -222,7 +222,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         QueryBuilder q = QueryBuilders.boolQuery()
             .must(QueryBuilders.matchQuery("field1", "one"))
@@ -281,7 +281,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         refresh();
 
@@ -324,7 +324,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         refresh();
 
@@ -364,7 +364,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         refresh();
 
@@ -404,7 +404,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         refresh();
 
@@ -444,7 +444,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         refresh();
 
@@ -484,7 +484,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setSource("field1", English.intToEnglish(i) + " " + English.intToEnglish(i + 1), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
 
         refresh();
 
@@ -536,7 +536,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
-        indexRandom(true, docs);
+        indexRandomAndDecRefRequests(true, docs);
         refresh();
         QueryBuilder q = QueryBuilders.rangeQuery("field2").from(0).to(5);
 
@@ -546,5 +546,15 @@ public class QueryProfilerIT extends ESIntegTestCase {
             prepareSearch().setQuery(q).setProfile(false),
             response -> assertThat("Profile response element should be an empty map", response.getProfileResults().size(), equalTo(0))
         );
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

@@ -102,13 +102,17 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         final byte[] randomBytesDoc2 = getRandomBytes(16);
 
         assertAcked(indicesAdmin().prepareCreate("my-index").setMapping(createMappingSource("binary")).setSettings(indexSettings()));
-        prepareIndex("my-index").setId("1")
-            .setSource(jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc1)).endObject())
-            .get();
+        index(
+            "my-index",
+            "1",
+            jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc1)).endObject()
+        );
         flush();
-        prepareIndex("my-index").setId("2")
-            .setSource(jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc2)).endObject())
-            .get();
+        index(
+            "my-index",
+            "2",
+            jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc2)).endObject()
+        );
         flush();
         refresh();
 
@@ -150,17 +154,11 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
     public void testCustomScriptBoost() throws Exception {
         createIndex("test");
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
-            .get();
+        index("test", "1", jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject());
         flush();
-        prepareIndex("test").setId("2")
-            .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject())
-            .get();
+        index("test", "2", jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject());
         flush();
-        prepareIndex("test").setId("3")
-            .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
-            .get();
+        index("test", "3", jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject());
         refresh();
 
         logger.info("running doc['num1'].value > 1");
@@ -229,7 +227,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
             assertAcked(prepareCreate("test-index").setMapping("num1", "type=double"));
             int docCount = 10;
             for (int i = 1; i <= docCount; i++) {
-                prepareIndex("test-index").setId("" + i).setSource("num1", i).get();
+                indexDoc("test-index", "" + i, "num1", i);
             }
             refresh();
 

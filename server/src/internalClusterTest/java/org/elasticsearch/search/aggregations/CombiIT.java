@@ -58,6 +58,9 @@ public class CombiIT extends ESIntegTestCase {
             }
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
 
         final long finalMissingValues = missingValues;

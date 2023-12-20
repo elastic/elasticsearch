@@ -101,6 +101,9 @@ public class ExistsIT extends ESIntegTestCase {
         // would have _field_names indexed while the current type might not which might
         // confuse the exists/missing parser at query time
         indexRandom(true, false, reqs);
+        for (IndexRequestBuilder builder : reqs) {
+            builder.request().decRef();
+        }
 
         final Map<String, Integer> expected = new LinkedHashMap<>();
         expected.put("foo", 1);
@@ -189,6 +192,9 @@ public class ExistsIT extends ESIntegTestCase {
         indexRequests.add(prepareIndex("idx").setSource("foo", singletonMap("bar", 2.718)));
         indexRequests.add(prepareIndex("idx").setSource("foo", singletonMap("bar", 6.283)));
         indexRandom(true, false, indexRequests);
+        for (IndexRequestBuilder builder : indexRequests) {
+            builder.request().decRef();
+        }
 
         Map<String, Integer> expected = new LinkedHashMap<>();
         expected.put("foo.bar", 2);
@@ -228,6 +234,9 @@ public class ExistsIT extends ESIntegTestCase {
         indexRequests.add(prepareIndex("idx").setSource("foo", 3));
         indexRequests.add(prepareIndex("idx").setSource("foo", 43));
         indexRandom(true, false, indexRequests);
+        for (IndexRequestBuilder builder : indexRequests) {
+            builder.request().decRef();
+        }
 
         assertHitCountAndNoFailures(prepareSearch("idx").setQuery(QueryBuilders.existsQuery("foo-alias")), 2L);
     }

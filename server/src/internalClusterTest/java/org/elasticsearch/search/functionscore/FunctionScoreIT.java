@@ -186,6 +186,9 @@ public class FunctionScoreIT extends ESIntegTestCase {
             docs.add(prepareIndex(INDEX).setId(Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
+        for (IndexRequestBuilder builder : docs) {
+            builder.request().decRef();
+        }
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return (doc['num'].value)", Collections.emptyMap());
         int numMatchingDocs = numDocs + scoreOffset - minScore;
         if (numMatchingDocs < 0) {

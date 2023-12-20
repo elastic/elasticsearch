@@ -11,6 +11,7 @@ package org.elasticsearch.search.fieldcaps;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -48,12 +49,16 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         final Client remoteClient = client("remote_cluster");
         String localIndex = "local_test";
         assertAcked(localClient.admin().indices().prepareCreate(localIndex).setSettings(indexSettings));
-        localClient.prepareIndex(localIndex).setId("1").setSource("foo", "bar").get();
+        IndexRequestBuilder indexRequestBuilder = localClient.prepareIndex(localIndex).setId("1").setSource("foo", "bar");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         localClient.admin().indices().prepareRefresh(localIndex).get();
 
         String remoteErrorIndex = "remote_test_error";
         assertAcked(remoteClient.admin().indices().prepareCreate(remoteErrorIndex).setSettings(indexSettings));
-        remoteClient.prepareIndex(remoteErrorIndex).setId("2").setSource("foo", "bar").get();
+        indexRequestBuilder = remoteClient.prepareIndex(remoteErrorIndex).setId("2").setSource("foo", "bar");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         remoteClient.admin().indices().prepareRefresh(remoteErrorIndex).get();
 
         // regular field_caps across clusters
@@ -87,7 +92,9 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
 
         // add an index that doesn't fail to the remote
         assertAcked(remoteClient.admin().indices().prepareCreate("okay_remote_index"));
-        remoteClient.prepareIndex("okay_remote_index").setId("2").setSource("foo", "bar").get();
+        indexRequestBuilder = remoteClient.prepareIndex("okay_remote_index").setId("2").setSource("foo", "bar");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         remoteClient.admin().indices().prepareRefresh("okay_remote_index").get();
 
         response = client().prepareFieldCaps("*", "remote_cluster:*")

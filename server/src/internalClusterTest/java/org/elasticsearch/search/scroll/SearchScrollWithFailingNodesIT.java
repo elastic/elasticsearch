@@ -56,6 +56,9 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
             writes.add(prepareIndex("test").setSource(jsonBuilder().startObject().field("field", i).endObject()));
         }
         indexRandom(false, writes);
+        for (IndexRequestBuilder builder : writes) {
+            builder.request().decRef();
+        }
         refresh();
 
         SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())

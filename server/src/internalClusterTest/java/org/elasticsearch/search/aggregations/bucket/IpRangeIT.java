@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.plugins.Plugin;
@@ -20,6 +21,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -48,13 +50,16 @@ public class IpRangeIT extends ESIntegTestCase {
         assertAcked(prepareCreate("idx").setMapping("ip", "type=ip", "ips", "type=ip"));
         waitForRelocation(ClusterHealthStatus.GREEN);
 
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("idx").setId("1").setSource("ip", "192.168.1.7", "ips", Arrays.asList("192.168.0.13", "192.168.1.2")),
             prepareIndex("idx").setId("2").setSource("ip", "192.168.1.10", "ips", Arrays.asList("192.168.1.25", "192.168.1.28")),
             prepareIndex("idx").setId("3")
                 .setSource("ip", "2001:db8::ff00:42:8329", "ips", Arrays.asList("2001:db8::ff00:42:8329", "2001:db8::ff00:42:8380"))
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         assertAcked(prepareCreate("idx_unmapped"));
         waitForRelocation(ClusterHealthStatus.GREEN);

@@ -81,6 +81,9 @@ public class RandomSamplerIT extends ESIntegTestCase {
             varNumeric = (i * (varNumeric + Math.pow(avgNumericDiff, 2.0)) + Math.pow(resNumeric, 2.0)) / (i + 1);
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 

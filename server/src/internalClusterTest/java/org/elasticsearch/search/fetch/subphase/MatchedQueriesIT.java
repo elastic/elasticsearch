@@ -41,9 +41,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("name", "test1", "number", 1).get();
-        prepareIndex("test").setId("2").setSource("name", "test2", "number", 2).get();
-        prepareIndex("test").setId("3").setSource("name", "test3", "number", 3).get();
+        indexDoc("test", "1", "name", "test1", "number", 1);
+        indexDoc("test", "2", "name", "test2", "number", 2);
+        indexDoc("test", "3", "name", "test3", "number", 3);
         refresh();
 
         assertResponse(
@@ -99,9 +99,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("name", "test", "title", "title1").get();
-        prepareIndex("test").setId("2").setSource("name", "test").get();
-        prepareIndex("test").setId("3").setSource("name", "test").get();
+        indexDoc("test", "1", "name", "test", "title", "title1");
+        indexDoc("test", "2", "name", "test");
+        indexDoc("test", "3", "name", "test");
         refresh();
 
         assertResponse(
@@ -159,9 +159,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("name", "test", "title", "title1").get();
-        prepareIndex("test").setId("2").setSource("name", "test", "title", "title2").get();
-        prepareIndex("test").setId("3").setSource("name", "test", "title", "title3").get();
+        indexDoc("test", "1", "name", "test", "title", "title1");
+        indexDoc("test", "2", "name", "test", "title", "title2");
+        indexDoc("test", "3", "name", "test", "title", "title3");
         refresh();
 
         assertResponse(
@@ -208,7 +208,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        prepareIndex("test1").setId("1").setSource("title", "title1").get();
+        indexDoc("test1", "1", "title", "title1");
         refresh();
 
         assertResponse(prepareSearch().setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex")), response -> {
@@ -230,7 +230,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        prepareIndex("test1").setId("1").setSource("title", "title1").get();
+        indexDoc("test1", "1", "title", "title1");
         refresh();
 
         assertResponse(prepareSearch().setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix")), response -> {
@@ -252,7 +252,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        prepareIndex("test1").setId("1").setSource("title", "title1").get();
+        indexDoc("test1", "1", "title", "title1");
         refresh();
 
         assertResponse(prepareSearch().setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy")), response -> {
@@ -274,7 +274,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        prepareIndex("test1").setId("1").setSource("title", "title1").get();
+        indexDoc("test1", "1", "title", "title1");
         refresh();
 
         assertResponse(prepareSearch().setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard")), response -> {
@@ -296,7 +296,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        prepareIndex("test1").setId("1").setSource("title", "title1 title2").get();
+        indexDoc("test1", "1", "title", "title1 title2");
         refresh();
 
         assertResponse(
@@ -324,8 +324,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("content", "Lorem ipsum dolor sit amet").get();
-        prepareIndex("test").setId("2").setSource("content", "consectetur adipisicing elit").get();
+        indexDoc("test", "1", "content", "Lorem ipsum dolor sit amet");
+        indexDoc("test", "2", "content", "consectetur adipisicing elit");
         refresh();
 
         // Execute search at least two times to load it in cache
@@ -361,7 +361,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("content", "Lorem ipsum dolor sit amet").get();
+        indexDoc("test", "1", "content", "Lorem ipsum dolor sit amet");
         refresh();
 
         MatchQueryBuilder matchQueryBuilder = matchQuery("content", "amet").queryName("abc");
@@ -384,8 +384,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("content", "hello world").get();
-        prepareIndex("test").setId("2").setSource("content", "hello you").get();
+        indexDoc("test", "1", "content", "hello world");
+        indexDoc("test", "2", "content", "hello you");
         refresh();
 
         assertResponse(

@@ -8,16 +8,19 @@
 package org.elasticsearch.mget;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -37,10 +40,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
 
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate("test", "1", jsonBuilder().startObject().field("foo", "bar").endObject());
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
             .add(new MultiGetRequest.Item("test", "1"))
@@ -74,10 +74,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("multiIndexAlias")));
         assertAcked(prepareCreate("test2").addAlias(new Alias("multiIndexAlias")));
 
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate("test", "1", jsonBuilder().startObject().field("foo", "bar").endObject());
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
             .add(new MultiGetRequest.Item("test", "1"))
@@ -113,10 +110,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 )
         );
 
-        prepareIndex("alias1").setId("1")
-            .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate("alias1", "1", jsonBuilder().startObject().field("foo", "bar").endObject());
 
         MultiGetResponse mgetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item("alias1", "1")).get();
         assertEquals(1, mgetResponse.getResponses().length);
@@ -139,7 +133,10 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .endObject()
         );
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i))
+                .setSource(sourceBytesRef, XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         MultiGetRequestBuilder request = client().prepareMultiGet();
@@ -186,11 +183,12 @@ public class SimpleMgetIT extends ESIntegTestCase {
         final String id = routingKeyForShard("test", 0);
         final String routingOtherShard = routingKeyForShard("test", 1);
 
-        prepareIndex("test").setId(id)
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(id)
             .setRefreshPolicy(IMMEDIATE)
             .setRouting(routingOtherShard)
-            .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
-            .get();
+            .setSource(jsonBuilder().startObject().field("foo", "bar").endObject());
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
             .add(new MultiGetRequest.Item(indexOrAlias(), id).routing(routingOtherShard))
@@ -209,5 +207,14 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
+    }
+
+    private DocWriteResponse indexImmediate(String index, String id, XContentBuilder source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

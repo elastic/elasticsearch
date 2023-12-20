@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -56,23 +57,23 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertHitCount(prepareSearch("test"), 0L);
         assertHitCount(prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")), 0L);
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", "value1")
-                    .startArray("nested1")
-                    .startObject()
-                    .field("n_field1", "n_value1_1")
-                    .field("n_field2", "n_value2_1")
-                    .endObject()
-                    .startObject()
-                    .field("n_field1", "n_value1_2")
-                    .field("n_field2", "n_value2_2")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("field1", "value1")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
         waitForRelocation(ClusterHealthStatus.GREEN);
         GetResponse getResponse = client().prepareGet("test", "1").get();
@@ -101,23 +102,23 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         // add another doc, one that would match if it was not nested...
 
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", "value1")
-                    .startArray("nested1")
-                    .startObject()
-                    .field("n_field1", "n_value1_1")
-                    .field("n_field2", "n_value2_2")
-                    .endObject()
-                    .startObject()
-                    .field("n_field1", "n_value1_2")
-                    .field("n_field2", "n_value2_1")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("field1", "value1")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         waitForRelocation(ClusterHealthStatus.GREEN);
         refresh();
         assertDocumentCount("test", 6);
@@ -195,37 +196,37 @@ public class SimpleNestedIT extends ESIntegTestCase {
         );
 
         ensureGreen();
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field", "value")
-                    .startArray("nested1")
-                    .startObject()
-                    .field("field1", "1")
-                    .startArray("nested2")
-                    .startObject()
-                    .field("field2", "2")
-                    .endObject()
-                    .startObject()
-                    .field("field2", "3")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("field1", "4")
-                    .startArray("nested2")
-                    .startObject()
-                    .field("field2", "5")
-                    .endObject()
-                    .startObject()
-                    .field("field2", "6")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("field", "value")
+                .startArray("nested1")
+                .startObject()
+                .field("field1", "1")
+                .startArray("nested2")
+                .startObject()
+                .field("field2", "2")
+                .endObject()
+                .startObject()
+                .field("field2", "3")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("field1", "4")
+                .startArray("nested2")
+                .startObject()
+                .field("field2", "5")
+                .endObject()
+                .startObject()
+                .field("field2", "6")
+                .endObject()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
         GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
@@ -344,41 +345,41 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", "value1")
-                    .startArray("nested1")
-                    .startObject()
-                    .field("n_field1", "n_value1_1")
-                    .field("n_field2", "n_value2_1")
-                    .endObject()
-                    .startObject()
-                    .field("n_field1", "n_value1_2")
-                    .field("n_field2", "n_value2_2")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("field1", "value1")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", "value2")
-                    .startArray("nested1")
-                    .startObject()
-                    .field("n_field1", "n_value1_1")
-                    .field("n_field2", "n_value2_1")
-                    .endObject()
-                    .startObject()
-                    .field("n_field1", "n_value1_2")
-                    .field("n_field2", "n_value2_2")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("field1", "value2")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
         flush();
         refresh();
@@ -402,7 +403,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("field1", "value1")
@@ -416,8 +417,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
                     .endArray()
                     .endObject()
             )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1"), ScoreMode.Total))
@@ -455,51 +457,51 @@ public class SimpleNestedIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", 1)
-                    .startArray("nested1")
-                    .startObject()
-                    .field("field1", 5)
-                    .endObject()
-                    .startObject()
-                    .field("field1", 4)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", 2)
-                    .startArray("nested1")
-                    .startObject()
-                    .field("field1", 1)
-                    .endObject()
-                    .startObject()
-                    .field("field1", 2)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
-        prepareIndex("test").setId("3")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", 3)
-                    .startArray("nested1")
-                    .startObject()
-                    .field("field1", 3)
-                    .endObject()
-                    .startObject()
-                    .field("field1", 4)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 5)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("field1", 2)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 1)
+                .endObject()
+                .startObject()
+                .field("field1", 2)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        index(
+            "test",
+            "3",
+            jsonBuilder().startObject()
+                .field("field1", 3)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 3)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         refresh();
 
         assertResponse(
@@ -555,59 +557,59 @@ public class SimpleNestedIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", 1)
-                    .startArray("nested1")
-                    .startObject()
-                    .field("field1", 5)
-                    .field("field2", true)
-                    .endObject()
-                    .startObject()
-                    .field("field1", 4)
-                    .field("field2", true)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", 2)
-                    .startArray("nested1")
-                    .startObject()
-                    .field("field1", 1)
-                    .field("field2", true)
-                    .endObject()
-                    .startObject()
-                    .field("field1", 2)
-                    .field("field2", true)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 5)
+                .field("field2", true)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .field("field2", true)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("field1", 2)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 1)
+                .field("field2", true)
+                .endObject()
+                .startObject()
+                .field("field1", 2)
+                .field("field2", true)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         // Doc with missing nested docs if nested filter is used
         refresh();
-        prepareIndex("test").setId("3")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("field1", 3)
-                    .startArray("nested1")
-                    .startObject()
-                    .field("field1", 3)
-                    .field("field2", false)
-                    .endObject()
-                    .startObject()
-                    .field("field1", 4)
-                    .field("field2", false)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "3",
+            jsonBuilder().startObject()
+                .field("field1", 3)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 3)
+                .field("field2", false)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .field("field2", false)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         refresh();
 
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
@@ -682,7 +684,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             }"""));
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("""
+        index("test", "1", """
             {
               "acl": [
                 {
@@ -730,9 +732,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
                   ]
                 }
               ]
-            }""", XContentType.JSON).get();
+            }""", XContentType.JSON);
 
-        prepareIndex("test").setId("2").setSource("""
+        index("test", "2", """
             {
               "acl": [
                 {
@@ -777,7 +779,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                   ]
                 }
               ]
-            }""", XContentType.JSON).get();
+            }""", XContentType.JSON);
         refresh();
 
         // access id = 1, read, max value, asc, should use matt and shay
@@ -912,7 +914,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             """));
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("""
+        index("test", "1", """
             {
               "nested1": [
                 {
@@ -924,9 +926,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
                   ]
                 }
              ]
-            }""", XContentType.JSON).get();
+            }""", XContentType.JSON);
 
-        prepareIndex("test").setId("2").setSource("""
+        index("test", "2", """
             {
               "nested1": [
                 {
@@ -938,7 +940,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                   ]
                 }
               ]
-            }""", XContentType.JSON).get();
+            }""", XContentType.JSON);
 
         refresh();
 
@@ -997,130 +999,130 @@ public class SimpleNestedIT extends ESIntegTestCase {
         ensureGreen();
 
         // sum: 11
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("grand_parent_values", 1L)
-                    .startArray("parent")
-                    .startObject()
-                    .field("filter", false)
-                    .field("parent_values", 1L)
-                    .startArray("child")
-                    .startObject()
-                    .field("filter", true)
-                    .field("child_values", 1L)
-                    .startObject("child_obj")
-                    .field("value", 1L)
-                    .endObject()
-                    .endObject()
-                    .startObject()
-                    .field("filter", false)
-                    .field("child_values", 6L)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("filter", true)
-                    .field("parent_values", 2L)
-                    .startArray("child")
-                    .startObject()
-                    .field("filter", false)
-                    .field("child_values", -1L)
-                    .endObject()
-                    .startObject()
-                    .field("filter", false)
-                    .field("child_values", 5L)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("grand_parent_values", 1L)
+                .startArray("parent")
+                .startObject()
+                .field("filter", false)
+                .field("parent_values", 1L)
+                .startArray("child")
+                .startObject()
+                .field("filter", true)
+                .field("child_values", 1L)
+                .startObject("child_obj")
+                .field("value", 1L)
+                .endObject()
+                .endObject()
+                .startObject()
+                .field("filter", false)
+                .field("child_values", 6L)
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("filter", true)
+                .field("parent_values", 2L)
+                .startArray("child")
+                .startObject()
+                .field("filter", false)
+                .field("child_values", -1L)
+                .endObject()
+                .startObject()
+                .field("filter", false)
+                .field("child_values", 5L)
+                .endObject()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
         // sum: 7
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("grand_parent_values", 2L)
-                    .startArray("parent")
-                    .startObject()
-                    .field("filter", false)
-                    .field("parent_values", 2L)
-                    .startArray("child")
-                    .startObject()
-                    .field("filter", true)
-                    .field("child_values", 2L)
-                    .startObject("child_obj")
-                    .field("value", 2L)
-                    .endObject()
-                    .endObject()
-                    .startObject()
-                    .field("filter", false)
-                    .field("child_values", 4L)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("parent_values", 3L)
-                    .field("filter", true)
-                    .startArray("child")
-                    .startObject()
-                    .field("child_values", -2L)
-                    .field("filter", false)
-                    .endObject()
-                    .startObject()
-                    .field("filter", false)
-                    .field("child_values", 3L)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("grand_parent_values", 2L)
+                .startArray("parent")
+                .startObject()
+                .field("filter", false)
+                .field("parent_values", 2L)
+                .startArray("child")
+                .startObject()
+                .field("filter", true)
+                .field("child_values", 2L)
+                .startObject("child_obj")
+                .field("value", 2L)
+                .endObject()
+                .endObject()
+                .startObject()
+                .field("filter", false)
+                .field("child_values", 4L)
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("parent_values", 3L)
+                .field("filter", true)
+                .startArray("child")
+                .startObject()
+                .field("child_values", -2L)
+                .field("filter", false)
+                .endObject()
+                .startObject()
+                .field("filter", false)
+                .field("child_values", 3L)
+                .endObject()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
         // sum: 2
-        prepareIndex("test").setId("3")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("grand_parent_values", 3L)
-                    .startArray("parent")
-                    .startObject()
-                    .field("parent_values", 3L)
-                    .field("filter", false)
-                    .startArray("child")
-                    .startObject()
-                    .field("filter", true)
-                    .field("child_values", 3L)
-                    .startObject("child_obj")
-                    .field("value", 3L)
-                    .endObject()
-                    .endObject()
-                    .startObject()
-                    .field("filter", false)
-                    .field("child_values", 1L)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("parent_values", 4L)
-                    .field("filter", true)
-                    .startArray("child")
-                    .startObject()
-                    .field("filter", false)
-                    .field("child_values", -3L)
-                    .endObject()
-                    .startObject()
-                    .field("filter", false)
-                    .field("child_values", 1L)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "3",
+            jsonBuilder().startObject()
+                .field("grand_parent_values", 3L)
+                .startArray("parent")
+                .startObject()
+                .field("parent_values", 3L)
+                .field("filter", false)
+                .startArray("child")
+                .startObject()
+                .field("filter", true)
+                .field("child_values", 3L)
+                .startObject("child_obj")
+                .field("value", 3L)
+                .endObject()
+                .endObject()
+                .startObject()
+                .field("filter", false)
+                .field("child_values", 1L)
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("parent_values", 4L)
+                .field("filter", true)
+                .startArray("child")
+                .startObject()
+                .field("filter", false)
+                .field("child_values", -3L)
+                .endObject()
+                .startObject()
+                .field("filter", false)
+                .field("child_values", 1L)
+                .endObject()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         refresh();
 
         // Without nested filter
@@ -1392,110 +1394,110 @@ public class SimpleNestedIT extends ESIntegTestCase {
             )
         );
 
-        DocWriteResponse indexResponse1 = prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("officelocation", "gendale")
-                    .startArray("users")
-                    .startObject()
-                    .field("first", "fname1")
-                    .field("last", "lname1")
-                    .startArray("workstations")
-                    .startObject()
-                    .field("stationid", "s1")
-                    .field("phoneid", "p1")
-                    .endObject()
-                    .startObject()
-                    .field("stationid", "s2")
-                    .field("phoneid", "p2")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("first", "fname2")
-                    .field("last", "lname2")
-                    .startArray("workstations")
-                    .startObject()
-                    .field("stationid", "s3")
-                    .field("phoneid", "p3")
-                    .endObject()
-                    .startObject()
-                    .field("stationid", "s4")
-                    .field("phoneid", "p4")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("first", "fname3")
-                    .field("last", "lname3")
-                    .startArray("workstations")
-                    .startObject()
-                    .field("stationid", "s5")
-                    .field("phoneid", "p5")
-                    .endObject()
-                    .startObject()
-                    .field("stationid", "s6")
-                    .field("phoneid", "p6")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        DocWriteResponse indexResponse1 = index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("officelocation", "gendale")
+                .startArray("users")
+                .startObject()
+                .field("first", "fname1")
+                .field("last", "lname1")
+                .startArray("workstations")
+                .startObject()
+                .field("stationid", "s1")
+                .field("phoneid", "p1")
+                .endObject()
+                .startObject()
+                .field("stationid", "s2")
+                .field("phoneid", "p2")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("first", "fname2")
+                .field("last", "lname2")
+                .startArray("workstations")
+                .startObject()
+                .field("stationid", "s3")
+                .field("phoneid", "p3")
+                .endObject()
+                .startObject()
+                .field("stationid", "s4")
+                .field("phoneid", "p4")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("first", "fname3")
+                .field("last", "lname3")
+                .startArray("workstations")
+                .startObject()
+                .field("stationid", "s5")
+                .field("phoneid", "p5")
+                .endObject()
+                .startObject()
+                .field("stationid", "s6")
+                .field("phoneid", "p6")
+                .endObject()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         assertTrue(indexResponse1.getShardInfo().getSuccessful() > 0);
 
-        DocWriteResponse indexResponse2 = prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("officelocation", "gendale")
-                    .startArray("users")
-                    .startObject()
-                    .field("first", "fname4")
-                    .field("last", "lname4")
-                    .startArray("workstations")
-                    .startObject()
-                    .field("stationid", "s1")
-                    .field("phoneid", "p1")
-                    .endObject()
-                    .startObject()
-                    .field("stationid", "s2")
-                    .field("phoneid", "p2")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("first", "fname5")
-                    .field("last", "lname5")
-                    .startArray("workstations")
-                    .startObject()
-                    .field("stationid", "s3")
-                    .field("phoneid", "p3")
-                    .endObject()
-                    .startObject()
-                    .field("stationid", "s4")
-                    .field("phoneid", "p4")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .startObject()
-                    .field("first", "fname1")
-                    .field("last", "lname1")
-                    .startArray("workstations")
-                    .startObject()
-                    .field("stationid", "s5")
-                    .field("phoneid", "p5")
-                    .endObject()
-                    .startObject()
-                    .field("stationid", "s6")
-                    .field("phoneid", "p6")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        DocWriteResponse indexResponse2 = index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("officelocation", "gendale")
+                .startArray("users")
+                .startObject()
+                .field("first", "fname4")
+                .field("last", "lname4")
+                .startArray("workstations")
+                .startObject()
+                .field("stationid", "s1")
+                .field("phoneid", "p1")
+                .endObject()
+                .startObject()
+                .field("stationid", "s2")
+                .field("phoneid", "p2")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("first", "fname5")
+                .field("last", "lname5")
+                .startArray("workstations")
+                .startObject()
+                .field("stationid", "s3")
+                .field("phoneid", "p3")
+                .endObject()
+                .startObject()
+                .field("stationid", "s4")
+                .field("phoneid", "p4")
+                .endObject()
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("first", "fname1")
+                .field("last", "lname1")
+                .startArray("workstations")
+                .startObject()
+                .field("stationid", "s5")
+                .field("phoneid", "p5")
+                .endObject()
+                .startObject()
+                .field("stationid", "s6")
+                .field("phoneid", "p6")
+                .endObject()
+                .endArray()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         assertTrue(indexResponse2.getShardInfo().getSuccessful() > 0);
         refresh();
 
@@ -1533,8 +1535,8 @@ public class SimpleNestedIT extends ESIntegTestCase {
         }
         assertAcked(prepareCreate("test").setSettings(settingsBuilder));
 
-        prepareIndex("test").setId("0").setSource("field", "value").get();
-        prepareIndex("test").setId("1").setSource("field", "value").get();
+        indexDoc("test", "0", "field", "value");
+        indexDoc("test", "1", "field", "value");
         refresh();
         ensureSearchable("test");
 
@@ -1553,11 +1555,11 @@ public class SimpleNestedIT extends ESIntegTestCase {
             .endArray()
             .endObject();
         // index simple data
-        prepareIndex("test").setId("2").setSource(builder).get();
-        prepareIndex("test").setId("3").setSource(builder).get();
-        prepareIndex("test").setId("4").setSource(builder).get();
-        prepareIndex("test").setId("5").setSource(builder).get();
-        prepareIndex("test").setId("6").setSource(builder).get();
+        index("test", "2", builder);
+        index("test", "3", builder);
+        index("test", "4", builder);
+        index("test", "5", builder);
+        index("test", "6", builder);
         refresh();
         ensureSearchable("test");
 
@@ -1583,6 +1585,15 @@ public class SimpleNestedIT extends ESIntegTestCase {
         IndicesStatsResponse stats = indicesAdmin().prepareStats(index).clear().setDocs(true).get();
         assertNoFailures(stats);
         assertThat(stats.getIndex(index).getPrimaries().docs.getCount(), is(numdocs));
+    }
+
+    private void index(String index, String id, String source, XContentType contentType) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source, contentType).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
 }

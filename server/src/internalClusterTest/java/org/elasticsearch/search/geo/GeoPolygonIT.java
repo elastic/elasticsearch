@@ -47,7 +47,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        indexRandomAndDecrefRequests(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1")
                 .setSource(
@@ -182,7 +182,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         );
     }
 
-    private void indexRandomAndDecrefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
         try {
             indexRandom(forceRefresh, builders);
         } finally {

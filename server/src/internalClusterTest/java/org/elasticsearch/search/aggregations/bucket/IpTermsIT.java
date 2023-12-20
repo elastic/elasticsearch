@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -52,12 +54,15 @@ public class IpTermsIT extends AbstractTermsTestCase {
 
     public void testScriptValue() throws Exception {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
             prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
             prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['ip'].value", Collections.emptyMap());
         assertNoFailuresAndResponse(
@@ -83,12 +88,15 @@ public class IpTermsIT extends AbstractTermsTestCase {
 
     public void testScriptValues() throws Exception {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
             prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
             prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['ip']", Collections.emptyMap());
         assertNoFailuresAndResponse(
@@ -114,13 +122,16 @@ public class IpTermsIT extends AbstractTermsTestCase {
 
     public void testMissingValue() throws Exception {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
             prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
             prepareIndex("index").setId("3").setSource("ip", "127.0.0.1"),
             prepareIndex("index").setId("4").setSource("not_ip", "something")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         assertNoFailuresAndResponse(
             prepareSearch("index").addAggregation(
                 new TermsAggregationBuilder("my_terms").field("ip").missing("127.0.0.1").executionHint(randomExecutionHint())

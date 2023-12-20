@@ -85,12 +85,15 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
 
         // index some docs and check if they are coming back
         int numDocs = randomIntBetween(100, 200);
-        List<IndexRequestBuilder> builder = new ArrayList<>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            builder.add(prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
+            builders.add(prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
         }
-        indexRandom(true, builder);
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
             assertHitCount(prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);

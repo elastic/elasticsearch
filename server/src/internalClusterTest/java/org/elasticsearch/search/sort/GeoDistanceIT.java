@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -56,89 +58,89 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("names", "New York")
-                    .startObject("locations")
-                    .field("lat", 40.7143528)
-                    .field("lon", -74.0059731)
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("names", "New York")
+                .startObject("locations")
+                .field("lat", 40.7143528)
+                .field("lon", -74.0059731)
+                .endObject()
+                .endObject()
+        );
 
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("names", "New York 2")
-                    .startObject("locations")
-                    .field("lat", 400.7143528)
-                    .field("lon", 285.9990269)
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("names", "New York 2")
+                .startObject("locations")
+                .field("lat", 400.7143528)
+                .field("lon", 285.9990269)
+                .endObject()
+                .endObject()
+        );
 
-        prepareIndex("test").setId("3")
-            .setSource(
-                jsonBuilder().startObject()
-                    .array("names", "Times Square", "Tribeca")
-                    .startArray("locations")
-                    // to NY: 5.286 km
-                    .startObject()
-                    .field("lat", 40.759011)
-                    .field("lon", -73.9844722)
-                    .endObject()
-                    // to NY: 0.4621 km
-                    .startObject()
-                    .field("lat", 40.718266)
-                    .field("lon", -74.007819)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "3",
+            jsonBuilder().startObject()
+                .array("names", "Times Square", "Tribeca")
+                .startArray("locations")
+                // to NY: 5.286 km
+                .startObject()
+                .field("lat", 40.759011)
+                .field("lon", -73.9844722)
+                .endObject()
+                // to NY: 0.4621 km
+                .startObject()
+                .field("lat", 40.718266)
+                .field("lon", -74.007819)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
-        prepareIndex("test").setId("4")
-            .setSource(
-                jsonBuilder().startObject()
-                    .array("names", "Wall Street", "Soho")
-                    .startArray("locations")
-                    // to NY: 1.055 km
-                    .startObject()
-                    .field("lat", 40.7051157)
-                    .field("lon", -74.0088305)
-                    .endObject()
-                    // to NY: 1.258 km
-                    .startObject()
-                    .field("lat", 40.7247222)
-                    .field("lon", -74)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "4",
+            jsonBuilder().startObject()
+                .array("names", "Wall Street", "Soho")
+                .startArray("locations")
+                // to NY: 1.055 km
+                .startObject()
+                .field("lat", 40.7051157)
+                .field("lon", -74.0088305)
+                .endObject()
+                // to NY: 1.258 km
+                .startObject()
+                .field("lat", 40.7247222)
+                .field("lon", -74)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
-        prepareIndex("test").setId("5")
-            .setSource(
-                jsonBuilder().startObject()
-                    .array("names", "Greenwich Village", "Brooklyn")
-                    .startArray("locations")
-                    // to NY: 2.029 km
-                    .startObject()
-                    .field("lat", 40.731033)
-                    .field("lon", -73.9962255)
-                    .endObject()
-                    // to NY: 8.572 km
-                    .startObject()
-                    .field("lat", 40.65)
-                    .field("lon", -73.95)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "5",
+            jsonBuilder().startObject()
+                .array("names", "Greenwich Village", "Brooklyn")
+                .startArray("locations")
+                // to NY: 2.029 km
+                .startObject()
+                .field("lat", 40.731033)
+                .field("lon", -73.9962255)
+                .endObject()
+                // to NY: 8.572 km
+                .startObject()
+                .field("lat", 40.65)
+                .field("lon", -73.95)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
         indicesAdmin().prepareRefresh().get();
 
@@ -248,27 +250,27 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .array("names", "Times Square", "Tribeca")
-                    .startArray("locations")
-                    // to NY: 5.286 km
-                    .startObject()
-                    .field("lat", 40.759011)
-                    .field("lon", -73.9844722)
-                    .endObject()
-                    // to NY: 0.4621 km
-                    .startObject()
-                    .field("lat", 40.718266)
-                    .field("lon", -74.007819)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .array("names", "Times Square", "Tribeca")
+                .startArray("locations")
+                // to NY: 5.286 km
+                .startObject()
+                .field("lat", 40.759011)
+                .field("lon", -73.9844722)
+                .endObject()
+                // to NY: 0.4621 km
+                .startObject()
+                .field("lat", 40.718266)
+                .field("lon", -74.007819)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
-        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject()).get();
+        index("test", "2", jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject());
 
         refresh();
 
@@ -320,8 +322,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("companies").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("companies").setId("1")
                 .setSource(
                     jsonBuilder().startObject()
@@ -355,8 +356,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .field("lat", 40.718266)
                         .field("lon", -74.007819)
                         .endObject() // to NY:
-                                     // 0.4621
-                                     // km
+                        // 0.4621
+                        // km
                         .endObject()
                         .endArray()
                         .endObject()
@@ -379,7 +380,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .field("lat", 40.7247222)
                         .field("lon", -74)
                         .endObject() // to NY: 1.258
-                                     // km
+                        // km
                         .endObject()
                         .endArray()
                         .endObject()
@@ -395,8 +396,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .field("lat", 40.731033)
                         .field("lon", -73.9962255)
                         .endObject() // to NY:
-                                     // 2.029
-                                     // km
+                        // 2.029
+                        // km
                         .endObject()
                         .startObject()
                         .field("name", "Brooklyn")
@@ -404,12 +405,16 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .field("lat", 40.65)
                         .field("lon", -73.95)
                         .endObject() // to NY:
-                                     // 8.572 km
+                        // 8.572 km
                         .endObject()
                         .endArray()
                         .endObject()
                 )
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         // Order: Asc
         assertResponse(
@@ -566,7 +571,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
         XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", Geohash.stringEncode(lon, lat)).endObject();
 
         assertAcked(prepareCreate("locations").setSettings(settings).setMapping(mapping));
-        prepareIndex("locations").setId("1").setCreate(true).setSource(source).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("locations").setId("1").setCreate(true).setSource(source);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
         client().prepareGet("locations", "1").get();
 
@@ -589,27 +596,27 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2"));
         ensureGreen();
 
-        prepareIndex("test1").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .array("names", "Times Square", "Tribeca")
-                    .startArray("locations")
-                    // to NY: 5.286 km
-                    .startObject()
-                    .field("lat", 40.759011)
-                    .field("lon", -73.9844722)
-                    .endObject()
-                    // to NY: 0.4621 km
-                    .startObject()
-                    .field("lat", 40.718266)
-                    .field("lon", -74.007819)
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test1",
+            "1",
+            jsonBuilder().startObject()
+                .array("names", "Times Square", "Tribeca")
+                .startArray("locations")
+                // to NY: 5.286 km
+                .startObject()
+                .field("lat", 40.759011)
+                .field("lon", -73.9844722)
+                .endObject()
+                // to NY: 0.4621 km
+                .startObject()
+                .field("lat", 40.718266)
+                .field("lon", -74.007819)
+                .endObject()
+                .endArray()
+                .endObject()
+        );
 
-        prepareIndex("test2").setId("2").setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject()).get();
+        index("test2", "2", jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject());
 
         refresh();
 

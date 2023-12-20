@@ -181,11 +181,11 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").field("field3", "value3").endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject().field("field1", "value1").field("field2", "value2").field("field3", "value3").endObject()
+        );
 
         indicesAdmin().prepareRefresh().get();
 
@@ -274,23 +274,23 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).field("date", "1970-01-01T00:00:00").endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).field("date", "1970-01-01T00:00:00").endObject()
+        );
         indicesAdmin().prepareFlush().get();
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).field("date", "1970-01-01T00:00:25").endObject()
-            )
-            .get();
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).field("date", "1970-01-01T00:00:25").endObject()
+        );
         indicesAdmin().prepareFlush().get();
-        prepareIndex("test").setId("3")
-            .setSource(
-                jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).field("date", "1970-01-01T00:02:00").endObject()
-            )
-            .get();
+        index(
+            "test",
+            "3",
+            jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).field("date", "1970-01-01T00:02:00").endObject()
+        );
         indicesAdmin().refresh(new RefreshRequest()).actionGet();
 
         logger.info("running doc['num1'].value");
@@ -376,7 +376,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
         String date = "2019-01-31T10:00:00.123456789Z";
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             false,
             prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("date", "1970-01-01T00:00:00.000Z").endObject()),
@@ -420,7 +420,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             indexRequestBuilders[i] = prepareIndex("test").setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("num1", i).endObject());
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandomAndDecRefRequests(true, indexRequestBuilders);
 
         assertNoFailuresAndResponse(
             prepareSearch().setQuery(matchAllQuery())
@@ -442,26 +442,26 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testScriptFieldUsingSource() throws Exception {
         createIndex("test");
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .startObject("obj1")
-                    .field("test", "something")
-                    .endObject()
-                    .startObject("obj2")
-                    .startArray("arr2")
-                    .value("arr_value1")
-                    .value("arr_value2")
-                    .endArray()
-                    .endObject()
-                    .startArray("arr3")
-                    .startObject()
-                    .field("arr3_field1", "arr3_value1")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .startObject("obj1")
+                .field("test", "something")
+                .endObject()
+                .startObject("obj2")
+                .startArray("arr2")
+                .value("arr_value1")
+                .value("arr_value2")
+                .endArray()
+                .endObject()
+                .startArray("arr3")
+                .startObject()
+                .field("arr3_field1", "arr3_value1")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         indicesAdmin().refresh(new RefreshRequest()).actionGet();
 
         assertResponse(
@@ -505,7 +505,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testScriptFieldsForNullReturn() throws Exception {
-        prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy("true").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy("true");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertNoFailuresAndResponse(
             prepareSearch().setQuery(matchAllQuery())
@@ -526,28 +528,28 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testPartialFields() throws Exception {
         createIndex("test");
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("field1", "value1")
-                    .startObject("obj1")
-                    .startArray("arr1")
-                    .startObject()
-                    .startObject("obj2")
-                    .field("field2", "value21")
-                    .endObject()
-                    .endObject()
-                    .startObject()
-                    .startObject("obj2")
-                    .field("field2", "value22")
-                    .endObject()
-                    .endObject()
-                    .endArray()
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field1", "value1")
+                .startObject("obj1")
+                .startArray("arr1")
+                .startObject()
+                .startObject("obj2")
+                .field("field2", "value21")
+                .endObject()
+                .endObject()
+                .startObject()
+                .startObject("obj2")
+                .field("field2", "value22")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+        );
 
         indicesAdmin().prepareRefresh().get();
     }
@@ -607,21 +609,21 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("byte_field", (byte) 1)
-                    .field("short_field", (short) 2)
-                    .field("integer_field", 3)
-                    .field("long_field", 4L)
-                    .field("float_field", 5.0f)
-                    .field("double_field", 6.0d)
-                    .field("date_field", DateFormatter.forPattern("date_optional_time").format(date))
-                    .field("boolean_field", true)
-                    .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes("UTF-8")))
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("byte_field", (byte) 1)
+                .field("short_field", (short) 2)
+                .field("integer_field", 3)
+                .field("long_field", 4L)
+                .field("float_field", 5.0f)
+                .field("double_field", 6.0d)
+                .field("date_field", DateFormatter.forPattern("date_optional_time").format(date))
+                .field("boolean_field", true)
+                .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes("UTF-8")))
+                .endObject()
+        );
 
         indicesAdmin().prepareRefresh().get();
 
@@ -758,7 +760,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("test_field", "type=keyword").get());
-        indexRandom(true, prepareIndex("test").setId("1").setSource("test_field", "foobar"));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("1").setSource("test_field", "foobar"));
         refresh();
         assertResponse(
             prepareSearch("test").setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field")),
@@ -827,24 +829,24 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("text_field", "foo")
-                    .field("keyword_field", "foo")
-                    .field("byte_field", (byte) 1)
-                    .field("short_field", (short) 2)
-                    .field("integer_field", 3)
-                    .field("long_field", 4L)
-                    .field("float_field", 5.0f)
-                    .field("double_field", 6.0d)
-                    .field("date_field", DateFormatter.forPattern("date_optional_time").format(date))
-                    .field("boolean_field", true)
-                    .field("binary_field", new byte[] { 42, 100 })
-                    .field("ip_field", "::1")
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("text_field", "foo")
+                .field("keyword_field", "foo")
+                .field("byte_field", (byte) 1)
+                .field("short_field", (short) 2)
+                .field("integer_field", 3)
+                .field("long_field", 4L)
+                .field("float_field", 5.0f)
+                .field("double_field", 6.0d)
+                .field("date_field", DateFormatter.forPattern("date_optional_time").format(date))
+                .field("boolean_field", true)
+                .field("binary_field", new byte[] { 42, 100 })
+                .field("ip_field", "::1")
+                .endObject()
+        );
 
         indicesAdmin().prepareRefresh().get();
 
@@ -1015,7 +1017,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     )
             );
         }
-        indexRandom(true, reqs);
+        indexRandomAndDecRefRequests(true, reqs);
         ensureSearchable();
         SearchRequestBuilder req = prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
@@ -1253,7 +1255,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testLoadMetadata() throws Exception {
         assertAcked(prepareCreate("test"));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setRouting("1").setSource(jsonBuilder().startObject().field("field1", "value").endObject())
         );
@@ -1267,5 +1269,36 @@ public class SearchFieldsIT extends ESIntegTestCase {
             assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
             assertThat(response.getHits().getAt(0).getDocumentFields().size(), equalTo(0));
         });
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders)
+        throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

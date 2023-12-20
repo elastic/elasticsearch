@@ -59,7 +59,10 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                     )
             );
         }
-        indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
+        indexRandom(true, indexBuilders);
+        for (IndexRequestBuilder indexRequestBuilder : indexBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
         assertHitCount(prepareSearch(), (numDocs));
         final int numIters = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {

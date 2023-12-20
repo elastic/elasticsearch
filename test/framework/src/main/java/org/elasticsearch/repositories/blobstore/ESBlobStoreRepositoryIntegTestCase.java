@@ -627,6 +627,9 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 .setSource("field", "value");
         }
         indexRandom(true, indexRequestBuilders);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     private String[] generateRandomNames(int num) {

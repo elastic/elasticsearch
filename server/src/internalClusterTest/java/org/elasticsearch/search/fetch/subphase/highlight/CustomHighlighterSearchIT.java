@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
@@ -37,11 +39,14 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
     @Before
     protected void setup() throws Exception {
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("test").setId("1").setSource("name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
             prepareIndex("test").setId("2").setSource("other_name", "foo", "other_other_name", "bar")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
     }
 
     public void testThatCustomHighlightersAreSupported() throws IOException {

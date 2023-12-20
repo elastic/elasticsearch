@@ -128,6 +128,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         }
 
         indexRandom(true, indexBuilders);
+        for (IndexRequestBuilder builder : indexBuilders) {
+            builder.request().decRef();
+        }
 
         // Test Gauss
         List<Float> lonlat = new ArrayList<>();
@@ -232,6 +235,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         }
 
         indexRandom(true, indexBuilders);
+        for (IndexRequestBuilder builder : indexBuilders) {
+            builder.request().decRef();
+        }
 
         // Test Gauss
 
@@ -353,6 +359,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 )
         );
         indexRandom(true, false, indexBuilders); // force no dummy docs
+        for (IndexRequestBuilder builder : indexBuilders) {
+            builder.request().decRef();
+        }
 
         // Test Gauss
         List<Float> lonlat = new ArrayList<>();
@@ -430,7 +439,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             )
         );
 
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("test", "value")
@@ -440,8 +449,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         FunctionScoreQueryBuilder baseQueryBuilder = functionScoreQuery(
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(randomIntBetween(1, 10))
@@ -505,10 +515,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             )
         );
 
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setRefreshPolicy(IMMEDIATE)
-            .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject())
-            .get();
+            .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject());
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         FunctionScoreQueryBuilder baseQueryBuilder = functionScoreQuery(
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(2)
@@ -647,14 +658,14 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                     .endObject()
             )
         );
-        client().index(
-            new IndexRequest("test").id("1")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("2")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-28").endObject())
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id("1")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
+        indexRequest = new IndexRequest("test").id("2")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-28").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         refresh();
 
         SearchPhaseExecutionException e = expectThrows(
@@ -689,19 +700,19 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                     .endObject()
             )
         );
-        client().index(
-            new IndexRequest("test").id("1")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", System.currentTimeMillis()).endObject())
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("2")
-                .source(
-                    jsonBuilder().startObject()
-                        .field("test", "value")
-                        .field("num1", System.currentTimeMillis() - (1000 * 60 * 60 * 24))
-                        .endObject()
-                )
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id("1")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", System.currentTimeMillis()).endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
+        indexRequest = new IndexRequest("test").id("2")
+            .source(
+                jsonBuilder().startObject()
+                    .field("test", "value")
+                    .field("num1", System.currentTimeMillis() - (1000 * 60 * 60 * 24))
+                    .endObject()
+            );
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         refresh();
 
         assertNoFailuresAndResponse(
@@ -744,21 +755,22 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             )
         );
 
-        client().index(
-            new IndexRequest("test").id("1")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").field("num2", "1.0").endObject())
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("2").source(jsonBuilder().startObject().field("test", "value").field("num2", "1.0").endObject())
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("3")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-30").field("num2", "1.0").endObject())
-        ).actionGet();
-        client().index(
-            new IndexRequest("test").id("4")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-30").endObject())
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id("1")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").field("num2", "1.0").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
+        indexRequest = new IndexRequest("test").id("2")
+            .source(jsonBuilder().startObject().field("test", "value").field("num2", "1.0").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
+        indexRequest = new IndexRequest("test").id("3")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-30").field("num2", "1.0").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
+        indexRequest = new IndexRequest("test").id("4")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-30").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         refresh();
 
@@ -815,30 +827,30 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             + Strings.format("%02d", docDate.getMonthValue())
             + "-"
             + Strings.format("%02d", docDate.getDayOfMonth());
-        client().index(
-            new IndexRequest("test").id("1")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id("1")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         docDate = dt.minusDays(2);
         docDateString = docDate.getYear()
             + "-"
             + Strings.format("%02d", docDate.getMonthValue())
             + "-"
             + Strings.format("%02d", docDate.getDayOfMonth());
-        client().index(
-            new IndexRequest("test").id("2")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())
-        ).actionGet();
+        indexRequest = new IndexRequest("test").id("2")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         docDate = dt.minusDays(3);
         docDateString = docDate.getYear()
             + "-"
             + Strings.format("%02d", docDate.getMonthValue())
             + "-"
             + Strings.format("%02d", docDate.getDayOfMonth());
-        client().index(
-            new IndexRequest("test").id("3")
-                .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())
-        ).actionGet();
+        indexRequest = new IndexRequest("test").id("3")
+            .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         refresh();
 
@@ -918,6 +930,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, indexBuilders);
+        for (IndexRequestBuilder builder : indexBuilders) {
+            builder.request().decRef();
+        }
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(100f);
         lonlat.add(110f);
@@ -969,17 +984,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             )
         );
         int numDocs = 2;
-        client().index(
-            new IndexRequest("test").source(
-                jsonBuilder().startObject()
-                    .field("test", "value")
-                    .startObject("geo")
-                    .field("lat", 1)
-                    .field("lon", 2)
-                    .endObject()
-                    .endObject()
-            )
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").source(
+            jsonBuilder().startObject().field("test", "value").startObject("geo").field("lat", 1).field("lon", 2).endObject().endObject()
+        );
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         refresh();
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(100f);
@@ -1019,11 +1028,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                     .endObject()
             )
         );
-        client().index(
-            new IndexRequest("test").source(
-                jsonBuilder().startObject().field("test", "value").field("num", Integer.toString(1)).endObject()
-            )
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").source(
+            jsonBuilder().startObject().field("test", "value").field("num", Integer.toString(1)).endObject()
+        );
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         refresh();
         // so, we indexed a string field, but now we try to score a num field
         SearchPhaseExecutionException e = expectThrows(
@@ -1059,8 +1068,11 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                     .endObject()
             )
         );
-        client().index(new IndexRequest("test").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
-            .actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").source(
+            jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()
+        );
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         refresh();
         // so, we indexed a string field, but now we try to score a num field
         assertResponse(
@@ -1126,6 +1138,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             );
 
         indexRandom(true, doc1, doc2);
+        doc1.request().decRef();
+        doc2.request().decRef();
 
         assertResponse(client().search(new SearchRequest(new String[] {}).source(searchSource().query(baseQuery))), response -> {
             assertSearchHits(response, "1", "2");
@@ -1178,6 +1192,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         doc2 = prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject());
 
         indexRandom(true, doc1, doc2);
+        doc1.request().decRef();
+        doc2.request().decRef();
         assertResponse(
             client().search(
                 new SearchRequest(new String[] {}).source(

@@ -30,7 +30,9 @@ public class RareTermsIT extends ESSingleNodeTestCase {
     private void indexDocs(int numDocs) {
         try (BulkRequestBuilder bulk = client().prepareBulk()) {
             for (int i = 0; i < numDocs; ++i) {
-                bulk.add(new IndexRequest(index).source("{\"str_value\" : \"s" + i + "\"}", XContentType.JSON));
+                IndexRequest indexRequest = new IndexRequest(index).source("{\"str_value\" : \"s" + i + "\"}", XContentType.JSON);
+                bulk.add(indexRequest);
+                indexRequest.decRef();
             }
             assertNoFailures(bulk.get());
         }

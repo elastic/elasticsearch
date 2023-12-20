@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -93,7 +94,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);
-        prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        index("test", "0", "{\"foo\" : \"bar\"}", XContentType.JSON);
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
@@ -126,7 +127,9 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         started.await();
         assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
-            prepareIndex("test").setId("" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).execute(new ActionListener<>() {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("" + i)
+                .setSource("{\"foo\" : \"bar\"}", XContentType.JSON);
+            indexRequestBuilder.execute(ActionListener.runAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(DocWriteResponse indexResponse) {
                     indexingDone.countDown();
@@ -137,7 +140,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
                     indexingDone.countDown();
                     throw new AssertionError(e);
                 }
-            });
+            }, () -> indexRequestBuilder.request().decRef()));
         }
         indexingDone.await();
         t.join();
@@ -155,7 +158,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", builder.build());
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
-        prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        index("test", "0", "{\"foo\" : \"bar\"}", XContentType.JSON);
         IndexShard shard = indexService.getShard(0);
         scheduleRefresh(shard, false);
         assertTrue(shard.isSearchIdle());
@@ -163,7 +166,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // async on purpose to make sure it happens concurrently
         indicesAdmin().prepareRefresh().execute(ActionListener.running(refreshLatch::countDown));
         assertHitCount(client().prepareSearch(), 1);
-        prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        index("test", "1", "{\"foo\" : \"bar\"}", XContentType.JSON);
         scheduleRefresh(shard, false);
         assertTrue(shard.hasRefreshPending());
 
@@ -180,7 +183,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // We need to ensure a `scheduledRefresh` triggered by the internal refresh setting update is executed before we index a new doc;
         // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
         ensureNoPendingScheduledRefresh(indexService.getThreadPool());
-        prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        index("test", "2", "{\"foo\" : \"bar\"}", XContentType.JSON);
         scheduleRefresh(shard, true);
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());
@@ -280,15 +283,11 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
 
         assertEquals(
             RestStatus.CREATED,
-            prepareIndex(idleIndex).setSource("keyword", "idle", "@timestamp", "2021-05-10T19:00:03.765Z", "routing_field", "aaa")
-                .get()
-                .status()
+            indexDoc(idleIndex, null, "keyword", "idle", "@timestamp", "2021-05-10T19:00:03.765Z", "routing_field", "aaa").status()
         );
         assertEquals(
             RestStatus.CREATED,
-            prepareIndex(activeIndex).setSource("keyword", "active", "@timestamp", "2021-05-12T20:07:12.112Z", "routing_field", "aaa")
-                .get()
-                .status()
+            indexDoc(activeIndex, null, "keyword", "active", "@timestamp", "2021-05-12T20:07:12.112Z", "routing_field", "aaa").status()
         );
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
@@ -352,8 +351,8 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", "idle").get().status());
-        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", "active", "unmapped", "bbb").get().status());
+        assertEquals(RestStatus.CREATED, indexDoc(idleIndex, null, "keyword", "idle").status());
+        assertEquals(RestStatus.CREATED, indexDoc(activeIndex, null, "keyword", "active", "unmapped", "bbb").status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
@@ -395,5 +394,23 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertEquals(refreshStatsBefore.size(), refreshStatsAfter.size());
         assertTrue(refreshStatsAfter.containsAll(refreshStatsBefore));
         assertTrue(refreshStatsBefore.containsAll(refreshStatsAfter));
+    }
+
+    private void index(String index, String id, String source, XContentType contentType) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source, contentType).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.versioning;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -31,7 +32,8 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(numberOfUpdates);
         for (int i = 0; i < numberOfUpdates; i++) {
-            prepareIndex("test").setId("1").setSource("field1", i).execute(new ActionListener<>() {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("field1", i);
+            indexRequestBuilder.execute(ActionListener.runAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(DocWriteResponse response) {
                     latch.countDown();
@@ -43,7 +45,7 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
                     failure.set(e);
                     latch.countDown();
                 }
-            });
+            }, () -> indexRequestBuilder.request().decRef()));
         }
 
         latch.await();

@@ -14,6 +14,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -82,7 +83,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             numInitialDocs = between(10, 100);
             ensureGreen();
             for (int i = 0; i < numInitialDocs; i++) {
-                prepareIndex("test").setId("init" + i).setSource("test", "init").get();
+                indexDoc("test", "init" + i, "test", "init");
             }
             indicesAdmin().prepareRefresh("test").execute().get();
             indicesAdmin().prepareFlush("test").execute().get();
@@ -120,8 +121,9 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             added[i] = false;
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test");
             try {
-                DocWriteResponse indexResponse = prepareIndex("test").setId(Integer.toString(i))
+                DocWriteResponse indexResponse = indexRequestBuilder.setId(Integer.toString(i))
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))
                     .get();
@@ -129,7 +131,9 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                     numCreated++;
                     added[i] = true;
                 }
-            } catch (ElasticsearchException ex) {}
+            } catch (ElasticsearchException ex) {} finally {
+                indexRequestBuilder.request().decRef();
+            }
 
         }
         ESIntegTestCase.NumShards numShards = getNumShards("test");

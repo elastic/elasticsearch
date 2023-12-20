@@ -96,7 +96,9 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
 
         // index a single document through the pipeline
         try (BulkRequest bulkRequest = new BulkRequest()) {
-            bulkRequest.add(new IndexRequest("index1").id("1").source("{}", XContentType.JSON).setPipeline("pipeline1"));
+            IndexRequest indexRequest = new IndexRequest("index1").id("1").source("{}", XContentType.JSON).setPipeline("pipeline1");
+            bulkRequest.add(indexRequest);
+            indexRequest.decRef();
             client().bulk(bulkRequest).actionGet();
         }
 

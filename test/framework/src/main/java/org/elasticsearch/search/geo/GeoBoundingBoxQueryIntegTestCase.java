@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -55,45 +57,44 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("name", "New York").field("location", "POINT(-74.0059731 40.7143528)").endObject())
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject().field("name", "New York").field("location", "POINT(-74.0059731 40.7143528)").endObject()
+        );
 
         // to NY: 5.286 km
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject().field("name", "Times Square").field("location", "POINT(-73.9844722 40.759011)").endObject()
-            )
-            .get();
+        index(
+            "test",
+            "2",
+            jsonBuilder().startObject().field("name", "Times Square").field("location", "POINT(-73.9844722 40.759011)").endObject()
+        );
 
         // to NY: 0.4621 km
-        prepareIndex("test").setId("3")
-            .setSource(jsonBuilder().startObject().field("name", "Tribeca").field("location", "POINT(-74.007819 40.718266)").endObject())
-            .get();
+        index(
+            "test",
+            "3",
+            jsonBuilder().startObject().field("name", "Tribeca").field("location", "POINT(-74.007819 40.718266)").endObject()
+        );
 
         // to NY: 1.055 km
-        prepareIndex("test").setId("4")
-            .setSource(
-                jsonBuilder().startObject().field("name", "Wall Street").field("location", "POINT(-74.0088305 40.7051157)").endObject()
-            )
-            .get();
+        index(
+            "test",
+            "4",
+            jsonBuilder().startObject().field("name", "Wall Street").field("location", "POINT(-74.0088305 40.7051157)").endObject()
+        );
 
         // to NY: 1.258 km
-        prepareIndex("test").setId("5")
-            .setSource(jsonBuilder().startObject().field("name", "Soho").field("location", "POINT(-74 40.7247222)").endObject())
-            .get();
+        index("test", "5", jsonBuilder().startObject().field("name", "Soho").field("location", "POINT(-74 40.7247222)").endObject());
 
         // to NY: 2.029 km
-        prepareIndex("test").setId("6")
-            .setSource(
-                jsonBuilder().startObject().field("name", "Greenwich Village").field("location", "POINT(-73.9962255 40.731033)").endObject()
-            )
-            .get();
-
+        index(
+            "test",
+            "6",
+            jsonBuilder().startObject().field("name", "Greenwich Village").field("location", "POINT(-73.9962255 40.731033)").endObject()
+        );
         // to NY: 8.572 km
-        prepareIndex("test").setId("7")
-            .setSource(jsonBuilder().startObject().field("name", "Brooklyn").field("location", "POINT(-73.95 40.65)").endObject())
-            .get();
+        index("test", "7", jsonBuilder().startObject().field("name", "Brooklyn").field("location", "POINT(-73.95 40.65)").endObject());
 
         client().admin().indices().prepareRefresh().get();
 
@@ -178,27 +179,25 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("userid", 880)
-                    .field("title", "Place in Stockholm")
-                    .field("location", "POINT(59.328355000000002 18.036842)")
-                    .endObject()
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("userid", 880)
+                .field("title", "Place in Stockholm")
+                .field("location", "POINT(59.328355000000002 18.036842)")
+                .endObject()
+        );
 
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("userid", 534)
-                    .field("title", "Place in Montreal")
-                    .field("location", "POINT(-73.570986000000005 45.509526999999999)")
-                    .endObject()
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("userid", 534)
+                .field("title", "Place in Montreal")
+                .field("location", "POINT(-73.570986000000005 45.509526999999999)")
+                .endObject()
+        );
 
         assertHitCount(
             client().prepareSearch()
@@ -330,27 +329,25 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("userid", 880)
-                    .field("title", "Place in Stockholm")
-                    .field("location", "POINT(18.036842 59.328355000000002)")
-                    .endObject()
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("userid", 880)
+                .field("title", "Place in Stockholm")
+                .field("location", "POINT(18.036842 59.328355000000002)")
+                .endObject()
+        );
 
-        prepareIndex("test").setId("2")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("userid", 534)
-                    .field("title", "Place in Montreal")
-                    .field("location", "POINT(-73.570986000000005 45.509526999999999)")
-                    .endObject()
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        indexImmediate(
+            "test",
+            "2",
+            jsonBuilder().startObject()
+                .field("userid", 534)
+                .field("title", "Place in Montreal")
+                .field("location", "POINT(-73.570986000000005 45.509526999999999)")
+                .endObject()
+        );
 
         assertHitCount(
             client().prepareSearch()
@@ -424,5 +421,14 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
             client().prepareSearch().setQuery(geoDistanceQuery("location").point(60.0, -20.0).distance(1800, DistanceUnit.MILES)),
             1L
         );
+    }
+
+    private DocWriteResponse indexImmediate(String index, String id, XContentBuilder source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

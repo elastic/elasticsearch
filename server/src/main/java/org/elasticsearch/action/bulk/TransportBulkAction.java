@@ -658,7 +658,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             new ShardId(concreteIndex, shardId),
                             shard -> new ArrayList<>()
                         );
-                        shardRequests.add(new BulkItemRequest(i, docWriteRequest, true));
+                        shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                     } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException
                         | ResourceNotFoundException e) {
                         System.err.println("*** I am here");

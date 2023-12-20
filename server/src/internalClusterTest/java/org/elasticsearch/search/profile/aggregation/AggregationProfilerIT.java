@@ -116,6 +116,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         }
 
         indexRandom(true, false, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         createIndex("idx_unmapped");
     }
 
@@ -645,6 +648,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             builders.add(prepareIndex("dateidx").setSource(jsonBuilder().startObject().field("date", date).endObject()));
         }
         indexRandom(true, false, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("dateidx").setProfile(true)
@@ -724,6 +730,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 );
             }
             indexRandom(true, false, builders);
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
 
             assertNoFailuresAndResponse(
                 prepareSearch("date_filter_by_filter_disabled").setProfile(true)

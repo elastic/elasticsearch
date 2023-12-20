@@ -128,6 +128,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, false, true, reqs);
+        for (IndexRequestBuilder indexRequestBuilder : reqs) {
+            indexRequestBuilder.request().decRef();
+        }
 
         // clear field data cache (thus setting the loaded field data back to 0)
         clearFieldData();
@@ -191,6 +194,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             reqs.add(client.prepareIndex("ramtest").setId(Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, false, true, reqs);
+        for (IndexRequestBuilder indexRequestBuilder : reqs) {
+            indexRequestBuilder.request().decRef();
+        }
 
         // execute a search that loads field data (sorting on the "test" field)
         client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get().decRef();
@@ -241,6 +247,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
+        for (IndexRequestBuilder indexRequestBuilder : reqs) {
+            indexRequestBuilder.request().decRef();
+        }
 
         // A cardinality aggregation uses BigArrays and thus the REQUEST breaker
         try {
@@ -274,6 +283,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             reqs.add(client.prepareIndex("cb-test").setId(Long.toString(id)).setSource("test", id));
         }
         indexRandom(true, reqs);
+        for (IndexRequestBuilder indexRequestBuilder : reqs) {
+            indexRequestBuilder.request().decRef();
+        }
 
         // A terms aggregation on the "test" field should trip the bucket circuit breaker
         try {
@@ -370,6 +382,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i));
                 indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "num", i);
                 bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
 
             updateClusterSettings(

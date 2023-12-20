@@ -68,7 +68,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // this
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("f", Integer.toString(i)).get();
+            indexDoc("test", Integer.toString(i), "f", Integer.toString(i));
         }
         refresh();
 
@@ -118,11 +118,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
             ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
         );
 
-        prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
-        prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
-        prepareIndex("test").setId("3")
-            .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
-            .get();
+        indexDoc("test", "1", "field1", "the quick brown fox");
+        indexDoc("test", "2", "field1", "the quick lazy huge brown fox jumps over the tree ");
+        indexDoc("test", "3", "field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree");
         refresh();
         assertResponse(
             prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
@@ -178,21 +176,21 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1)));
 
-        prepareIndex("test").setId("1").setSource("field1", "massachusetts avenue boston massachusetts").get();
-        prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts").get();
-        prepareIndex("test").setId("3").setSource("field1", "boston avenue lexington massachusetts").get();
+        indexDoc("test", "1", "field1", "massachusetts avenue boston massachusetts");
+        indexDoc("test", "2", "field1", "lexington avenue boston massachusetts");
+        indexDoc("test", "3", "field1", "boston avenue lexington massachusetts");
         indicesAdmin().prepareRefresh("test").get();
-        prepareIndex("test").setId("4").setSource("field1", "boston road lexington massachusetts").get();
-        prepareIndex("test").setId("5").setSource("field1", "lexington street lexington massachusetts").get();
-        prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
-        prepareIndex("test").setId("7").setSource("field1", "bosten street san franciso california").get();
+        indexDoc("test", "4", "field1", "boston road lexington massachusetts");
+        indexDoc("test", "5", "field1", "lexington street lexington massachusetts");
+        indexDoc("test", "6", "field1", "massachusetts avenue lexington massachusetts");
+        indexDoc("test", "7", "field1", "bosten street san franciso california");
         indicesAdmin().prepareRefresh("test").get();
-        prepareIndex("test").setId("8").setSource("field1", "hollywood boulevard los angeles california").get();
-        prepareIndex("test").setId("9").setSource("field1", "1st street boston massachussetts").get();
-        prepareIndex("test").setId("10").setSource("field1", "1st street boston massachusetts").get();
+        indexDoc("test", "8", "field1", "hollywood boulevard los angeles california");
+        indexDoc("test", "9", "field1", "1st street boston massachussetts");
+        indexDoc("test", "10", "field1", "1st street boston massachusetts");
         indicesAdmin().prepareRefresh("test").get();
-        prepareIndex("test").setId("11").setSource("field1", "2st street boston massachusetts").get();
-        prepareIndex("test").setId("12").setSource("field1", "3st street boston massachusetts").get();
+        indexDoc("test", "11", "field1", "2st street boston massachusetts");
+        indexDoc("test", "12", "field1", "3st street boston massachusetts");
         indicesAdmin().prepareRefresh("test").get();
         assertResponse(
             prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
@@ -269,11 +267,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1)));
 
-        prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
-        prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        indexDoc("test", "3", "field1", "massachusetts");
+        indexDoc("test", "6", "field1", "massachusetts avenue lexington massachusetts");
         indicesAdmin().prepareRefresh("test").get();
-        prepareIndex("test").setId("1").setSource("field1", "lexington massachusetts avenue").get();
-        prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts road").get();
+        indexDoc("test", "1", "field1", "lexington massachusetts avenue");
+        indexDoc("test", "2", "field1", "lexington avenue boston massachusetts road");
         indicesAdmin().prepareRefresh("test").get();
 
         assertResponse(prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "massachusetts")).setFrom(0).setSize(5), response -> {
@@ -349,11 +347,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1)));
 
-        prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
-        prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        indexDoc("test", "3", "field1", "massachusetts");
+        indexDoc("test", "6", "field1", "massachusetts avenue lexington massachusetts");
         indicesAdmin().prepareRefresh("test").get();
-        prepareIndex("test").setId("1").setSource("field1", "lexington massachusetts avenue").get();
-        prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts road").get();
+        indexDoc("test", "1", "field1", "lexington massachusetts avenue");
+        indexDoc("test", "2", "field1", "lexington avenue boston massachusetts road");
         indicesAdmin().prepareRefresh("test").get();
 
         assertResponse(
@@ -498,11 +496,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
-        prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").get();
-        prepareIndex("test").setId("3")
-            .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
-            .get();
+        indexDoc("test", "1", "field1", "the quick brown fox");
+        indexDoc("test", "2", "field1", "the quick lazy huge brown fox jumps over the tree");
+        indexDoc("test", "3", "field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree");
         refresh();
 
         {
@@ -785,6 +781,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
 
         indexRandom(true, dummyDocs, docs);
+        for (IndexRequestBuilder indexRequestBuilder : docs) {
+            indexRequestBuilder.request().decRef();
+        }
         ensureGreen();
         return numDocs;
     }
@@ -793,7 +792,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testFromSize() throws Exception {
         assertAcked(prepareCreate("test").setSettings(indexSettings(1, 0)));
         for (int i = 0; i < 5; i++) {
-            prepareIndex("test").setId("" + i).setSource("text", "hello world").get();
+            indexDoc("test", "" + i, "text", "hello world");
         }
         refresh();
 
@@ -809,7 +808,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testRescorePhaseWithInvalidSort() throws Exception {
         assertAcked(prepareCreate("test"));
         for (int i = 0; i < 5; i++) {
-            prepareIndex("test").setId("" + i).setSource("number", 0).get();
+            indexDoc("test", "" + i, "number", 0);
         }
         refresh();
 

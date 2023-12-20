@@ -91,6 +91,9 @@ public class FiltersIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 

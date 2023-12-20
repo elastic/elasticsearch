@@ -155,6 +155,9 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         getMultiSortDocs(builders);
 
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 
@@ -949,11 +952,14 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
             prepareCreate("cache_test_idx").setMapping("d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
         );
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("cache_test_idx").setId("1").setSource("s", 1.5),
             prepareIndex("cache_test_idx").setId("2").setSource("s", 2.5)
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         // Make sure we are starting with a clear cache
         assertThat(

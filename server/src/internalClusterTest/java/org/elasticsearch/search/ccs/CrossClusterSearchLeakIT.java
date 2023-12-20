@@ -9,6 +9,7 @@
 package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -49,7 +50,12 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
     private int indexDocs(Client client, String field, String index) {
         int numDocs = between(1, 200);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource(field, "v" + i).get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+            try {
+                indexRequestBuilder.setSource(field, "v" + i).get();
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;

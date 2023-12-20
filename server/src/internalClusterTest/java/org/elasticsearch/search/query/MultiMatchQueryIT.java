@@ -224,6 +224,9 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, false, builders);
+        for (IndexRequestBuilder indexRequestBuilder : builders) {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     private XContentBuilder createMapping() throws IOException {
@@ -920,6 +923,9 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         builders.add(prepareIndex(idx).setId("1").setSource("title", "foo", "body", "bar"));
         builders.add(prepareIndex(idx).setId("2").setSource("title", "bar", "body", "foo"));
         indexRandom(true, false, builders);
+        for (IndexRequestBuilder indexRequestBuilder : builders) {
+            indexRequestBuilder.request().decRef();
+        }
 
         assertResponse(
             prepareSearch(idx).setExplain(true)

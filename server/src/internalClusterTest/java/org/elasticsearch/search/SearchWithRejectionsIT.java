@@ -36,7 +36,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         ensureGreen("test");
         final int docs = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < docs; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
+            indexDoc("test", Integer.toString(i), "field", "value");
         }
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));

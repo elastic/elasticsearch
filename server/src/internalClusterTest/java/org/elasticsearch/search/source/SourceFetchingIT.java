@@ -41,7 +41,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("field1", "value", "field2", "value2").get();
+        indexDoc("test", "1", "field1", "value", "field2", "value2");
         refresh();
 
         assertResponse(
@@ -78,7 +78,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        prepareIndex("test").setId("1").setSource("field", "value").get();
+        indexDoc("test", "1", "field", "value");
         refresh();
 
         assertResponse(prepareSearch("test").setFetchSource(new String[] { "*.notexisting", "field" }, null), response -> {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.similarity;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -47,10 +48,11 @@ public class SimilarityIT extends ESIntegTestCase {
             )
             .get();
 
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource("field1", "the quick brown fox jumped over the lazy dog", "field2", "the quick brown fox jumped over the lazy dog")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertResponse(prepareSearch().setQuery(matchQuery("field1", "quick brown fox")), bm25SearchResponse -> {
             assertThat(bm25SearchResponse.getHits().getTotalHits().value, equalTo(1L));

@@ -50,9 +50,11 @@ public class IndexActionIT extends ESIntegTestCase {
             for (int j = 0; j < numOfDocs; j++) {
                 IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setSource("field", "value_" + j);
                 builders.add(indexRequestBuilder);
-                indexRequestBuilder.request().decRef();
             }
             indexRandom(true, builders);
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
             logger.info("verifying indexed content");
             int numOfChecks = randomIntBetween(8, 12);
             for (int j = 0; j < numOfChecks; j++) {

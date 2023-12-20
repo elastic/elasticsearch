@@ -10,6 +10,7 @@ package org.elasticsearch.routing;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -37,6 +39,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,11 +74,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        prepareIndex("test").setId("1")
-            .setRouting(routingValue)
-            .setSource("field", "value1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+        indexDocImmediateWithRouting("test", "1", routingValue, "field", "value1");
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "1").get().isExists(), equalTo(false));
@@ -100,11 +99,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> indexing with id [1], and routing [0]");
-        prepareIndex("test").setId("1")
-            .setRouting(routingValue)
-            .setSource("field", "value1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+        indexDocImmediateWithRouting("test", "1", routingValue, "field", "value1");
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "1").get().isExists(), equalTo(false));
@@ -121,11 +116,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        prepareIndex("test").setId("1")
-            .setRouting(routingValue)
-            .setSource("field", "value1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+        indexDocImmediateWithRouting("test", "1", routingValue, "field", "value1");
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "1").get().isExists(), equalTo(false));
@@ -154,11 +145,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         String secondRoutingValue = "1";
         logger.info("--> indexing with id [{}], and routing [{}]", routingValue, secondRoutingValue);
-        prepareIndex("test").setId(routingValue)
-            .setRouting(secondRoutingValue)
-            .setSource("field", "value1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+        indexDocImmediateWithRouting("test", routingValue, secondRoutingValue, "field", "value1");
 
         logger.info("--> search with no routing, should fine two");
         for (int i = 0; i < 5; i++) {
@@ -220,16 +207,12 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        prepareIndex(indexOrAlias()).setId("1")
-            .setRouting(routingValue)
-            .setSource("field", "value1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+        indexDocImmediateWithRouting(indexOrAlias(), "1", routingValue, "field", "value1");
         logger.info("--> verifying get with no routing, should fail");
 
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
-            prepareIndex(indexOrAlias()).setId("1").setSource("field", "value1").get();
+            indexDoc(indexOrAlias(), "1", "field", "value1");
             fail("index with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
@@ -321,9 +304,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             String index = indexOrAlias();
-            BulkResponse bulkResponse = bulkRequestBuilder.add(
-                new IndexRequest(index).id("1").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
-            ).get();
+            IndexRequest indexRequest = new IndexRequest(index).id("1").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+            BulkResponse bulkResponse = bulkRequestBuilder.add(indexRequest).get();
+            indexRequest.decRef();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -338,16 +321,16 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             String index = indexOrAlias();
-            BulkResponse bulkResponse = bulkRequestBuilder.add(
-                new IndexRequest(index).id("1").routing("0").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
-            ).get();
+            IndexRequest indexRequest = new IndexRequest(index).id("1").routing("0").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+            BulkResponse bulkResponse = bulkRequestBuilder.add(indexRequest).get();
+            indexRequest.decRef();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(
-                new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
-            ).get();
+            UpdateRequest updateRequest = new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2");
+            BulkResponse bulkResponse = bulkRequestBuilder.add(updateRequest).get();
+            updateRequest.decRef();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -361,9 +344,10 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkRequestBuilder.add(
-                new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2").routing("0")
-            ).get();
+            UpdateRequest updateRequest = new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
+                .routing("0");
+            BulkResponse bulkResponse = bulkRequestBuilder.add(updateRequest).get();
+            updateRequest.decRef();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
 
@@ -408,13 +392,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        prepareIndex(indexOrAlias()).setId("1").setRouting(routingValue).setSource("field", "value1").get();
-        logger.info("--> indexing with id [2], and routing [{}]", routingValue);
-        prepareIndex(indexOrAlias()).setId("2")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexOrAlias()).setId("1")
             .setRouting(routingValue)
-            .setSource("field", "value2")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .get();
+            .setSource("field", "value1");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
+        logger.info("--> indexing with id [2], and routing [{}]", routingValue);
+        indexDocImmediateWithRouting(indexOrAlias(), "2", routingValue, "field", "value2");
 
         logger.info("--> verifying get with id [1] with routing [0], should succeed");
         assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).get().isExists(), equalTo(true));
@@ -534,5 +518,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
+    }
+
+    private DocWriteResponse indexDocImmediateWithRouting(String index, String id, String routing, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setRouting(routing).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

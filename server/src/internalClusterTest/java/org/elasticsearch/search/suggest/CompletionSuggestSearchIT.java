@@ -1471,7 +1471,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             XContentBuilder builder = jsonBuilder().startObject();
             builder.startObject(suggestField).field("input", "suggestion" + i).field("weight", i).endObject();
             builder.field("collapse_field", "collapse me").endObject();  // all docs the same value for collapsing
-            prepareIndex(index).setId("" + i).setSource(builder).get();
+            index(index, "" + i, builder);
         }
         indicesAdmin().prepareRefresh(index).get();
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(suggestField).prefix("sug").size(1);

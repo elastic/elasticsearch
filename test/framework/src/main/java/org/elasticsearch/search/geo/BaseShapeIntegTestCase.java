@@ -8,10 +8,12 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -185,7 +187,9 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
                 .endObject()
         );
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson);
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
         assertHitCount(client().prepareSearch("test").setQuery(matchAllQuery()), 1L);
     }
 
@@ -216,7 +220,12 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
                 }
             }""";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex("test")
+            .setId("0")
+            .setSource(source, XContentType.JSON)
+            .setRouting("ABC");
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
         assertHitCount(
             client().prepareSearch("test")
                 .setQuery(queryBuilder().shapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC")),
@@ -241,7 +250,9 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
                 }
             }""";
 
-        indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("0").setSource(source, XContentType.JSON);
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
         refresh();
 
         try {
@@ -300,7 +311,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             jsonBuilder().startObject().field("area", WellKnownText.toWKT(new MultiPolygon(polygons))).endObject()
         );
 
-        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        index("shapes", "1", data, XContentType.JSON);
         client().admin().indices().prepareRefresh().get();
 
         // Point in polygon
@@ -364,7 +375,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(inverse)).endObject());
-        prepareIndex("shapes").setId("2").setSource(data, XContentType.JSON).get();
+        index("shapes", "2", data, XContentType.JSON);
         client().admin().indices().prepareRefresh().get();
 
         // re-check point on polygon hole
@@ -385,7 +396,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         Polygon crossing = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(crossing)).endObject());
-        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        index("shapes", "1", data, XContentType.JSON);
         client().admin().indices().prepareRefresh().get();
 
         // Create a polygon crossing longitude 180 with hole.
@@ -395,7 +406,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         data = BytesReference.bytes(jsonBuilder().startObject().field("area", WellKnownText.toWKT(crossing)).endObject());
-        prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
+        index("shapes", "1", data, XContentType.JSON);
         client().admin().indices().prepareRefresh().get();
 
         assertHitCount(
@@ -486,5 +497,14 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
     /** Override this method if there is need to modify the test data for specific tests */
     protected byte[] convertTestData(ByteArrayOutputStream out) {
         return out.toByteArray();
+    }
+
+    protected final DocWriteResponse index(String index, String id, BytesReference data, XContentType contentType) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(data, contentType).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

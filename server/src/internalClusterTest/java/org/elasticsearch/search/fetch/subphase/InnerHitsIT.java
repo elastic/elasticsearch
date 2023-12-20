@@ -140,6 +140,9 @@ public class InnerHitsIT extends ESIntegTestCase {
                 )
         );
         indexRandom(true, requests);
+        for (IndexRequestBuilder builder : requests) {
+            builder.request().decRef();
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("articles").setQuery(
@@ -243,6 +246,9 @@ public class InnerHitsIT extends ESIntegTestCase {
             requestBuilders.add(prepareIndex("idx").setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, requestBuilders);
+        for (IndexRequestBuilder builder : requestBuilders) {
+            builder.request().decRef();
+        }
 
         int size = randomIntBetween(0, numDocs);
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
@@ -360,6 +366,9 @@ public class InnerHitsIT extends ESIntegTestCase {
                 )
         );
         indexRandom(true, requests);
+        for (IndexRequestBuilder builder : requests) {
+            builder.request().decRef();
+        }
 
         // Check we can load the first doubly-nested document.
         assertNoFailuresAndResponse(
@@ -529,6 +538,9 @@ public class InnerHitsIT extends ESIntegTestCase {
                 )
         );
         indexRandom(true, requests);
+        for (IndexRequestBuilder builder : requests) {
+            builder.request().decRef();
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("articles").setQuery(
@@ -600,6 +612,9 @@ public class InnerHitsIT extends ESIntegTestCase {
                 )
         );
         indexRandom(true, requests);
+        for (IndexRequestBuilder builder : requests) {
+            builder.request().decRef();
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("articles").setQuery(
@@ -673,6 +688,9 @@ public class InnerHitsIT extends ESIntegTestCase {
                 )
         );
         indexRandom(true, requests);
+        for (IndexRequestBuilder builder : requests) {
+            builder.request().decRef();
+        }
         assertNoFailuresAndResponse(
             prepareSearch("articles").setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
@@ -775,6 +793,9 @@ public class InnerHitsIT extends ESIntegTestCase {
         }
 
         indexRandom(true, requests);
+        for (IndexRequestBuilder indexRequestBuilder : requests) {
+            indexRequestBuilder.request().decRef();
+        }
         waitForRelocation(ClusterHealthStatus.GREEN);
 
         QueryBuilder query = boolQuery().should(termQuery("nested1.n_field1", "n_value1_1").queryName("test1"))
@@ -809,27 +830,27 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testNestedSource() throws Exception {
         assertAcked(prepareCreate("index1").setMapping("comments", "type=nested"));
-        prepareIndex("index1").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("message", "quick brown fox")
-                    .startArray("comments")
-                    .startObject()
-                    .field("message", "fox eat quick")
-                    .field("x", "y")
-                    .endObject()
-                    .startObject()
-                    .field("message", "fox ate rabbit x y z")
-                    .field("x", "y")
-                    .endObject()
-                    .startObject()
-                    .field("message", "rabbit got away")
-                    .field("x", "y")
-                    .endObject()
-                    .endArray()
-                    .endObject()
-            )
-            .get();
+        index(
+            "index1",
+            "1",
+            jsonBuilder().startObject()
+                .field("message", "quick brown fox")
+                .startArray("comments")
+                .startObject()
+                .field("message", "fox eat quick")
+                .field("x", "y")
+                .endObject()
+                .startObject()
+                .field("message", "fox ate rabbit x y z")
+                .field("x", "y")
+                .endObject()
+                .startObject()
+                .field("message", "rabbit got away")
+                .field("x", "y")
+                .endObject()
+                .endArray()
+                .endObject()
+        );
         refresh();
 
         // the field name (comments.message) used for source filtering should be the same as when using that field for
@@ -909,8 +930,8 @@ public class InnerHitsIT extends ESIntegTestCase {
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("index1").setMapping("nested_type", "type=nested"));
         createIndex("index2");
-        prepareIndex("index1").setId("1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
-        prepareIndex("index2").setId("3").setSource("key", "value").get();
+        indexDoc("index1", "1", "nested_type", Collections.singletonMap("key", "value"));
+        indexDoc("index2", "3", "key", "value");
         refresh();
 
         assertSearchHitsWithoutFailures(
@@ -931,12 +952,13 @@ public class InnerHitsIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
             "index2"
         );
-        prepareIndex("index2").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index2").setId("1")
             .setSource(
                 jsonBuilder().startObject().startArray("nested").startObject().field("field", "value1").endObject().endArray().endObject()
             )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         QueryBuilder query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
@@ -946,12 +968,13 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testTooHighResultWindow() throws Exception {
         assertAcked(prepareCreate("index2").setMapping("nested", "type=nested"));
-        prepareIndex("index2").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index2").setId("1")
             .setSource(
                 jsonBuilder().startObject().startArray("nested").startObject().field("field", "value1").endObject().endArray().endObject()
             )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         assertHitCountAndNoFailures(
             prepareSearch("index2").setQuery(
                 nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(

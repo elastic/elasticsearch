@@ -46,6 +46,9 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         maxValue = numDocs;
         maxValues = numDocs + 2;
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         // creating an index to test the empty buckets functionality. The way it works is by indexing
         // two docs {value: 0} and {value : 2}, then building a histogram agg with interval 1 and with empty
@@ -60,6 +63,9 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
             );
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 

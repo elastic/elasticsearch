@@ -52,9 +52,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.totalNumShards));
 
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setId(Integer.toString(i))
-                .setSource(jsonBuilder().startObject().field("value", "test" + i).endObject())
-                .get();
+            index("test", Integer.toString(i), jsonBuilder().startObject().field("value", "test" + i).endObject());
         }
 
         refresh();

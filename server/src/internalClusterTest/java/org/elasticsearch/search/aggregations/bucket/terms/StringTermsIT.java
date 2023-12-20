@@ -169,6 +169,9 @@ public class StringTermsIT extends AbstractTermsTestCase {
             );
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         createIndex("idx_unmapped");
         ensureSearchable();
     }
@@ -1190,11 +1193,14 @@ public class StringTermsIT extends AbstractTermsTestCase {
             prepareCreate("cache_test_idx").setMapping("d", "type=keyword")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
         );
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("cache_test_idx").setId("1").setSource("s", "foo"),
             prepareIndex("cache_test_idx").setId("2").setSource("s", "bar")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         // Make sure we are starting with a clear cache
         assertThat(

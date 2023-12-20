@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShardsGroup;
@@ -95,7 +96,9 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
     private int indexDocs(Client client, String index) {
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource("f", "v").get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index).setSource("f", "v");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;
@@ -322,11 +325,17 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
         try (BulkRequestBuilder bulkRequestBuilder = cluster("cluster_a").client().prepareBulk("users")) {
-            bulkRequestBuilder.add(new IndexRequest().id("a").source("name", "Remote A"))
-                .add(new IndexRequest().id("b").source("name", "Remote B"))
-                .add(new IndexRequest().id("c").source("name", "Remote C"))
+            IndexRequest indexRequest1 = new IndexRequest().id("a").source("name", "Remote A");
+            IndexRequest indexRequest2 = new IndexRequest().id("b").source("name", "Remote B");
+            IndexRequest indexRequest3 = new IndexRequest().id("c").source("name", "Remote C");
+            bulkRequestBuilder.add(indexRequest1)
+                .add(indexRequest2)
+                .add(indexRequest3)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
+            indexRequest1.decRef();
+            indexRequest2.decRef();
+            indexRequest3.decRef();
         }
 
         client().admin()
@@ -335,11 +344,17 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("users")) {
-            bulkRequestBuilder.add(new IndexRequest().id("a").source("name", "Local A"))
-                .add(new IndexRequest().id("b").source("name", "Local B"))
-                .add(new IndexRequest().id("c").source("name", "Local C"))
+            IndexRequest indexRequest1 = new IndexRequest().id("a").source("name", "Local A");
+            IndexRequest indexRequest2 = new IndexRequest().id("b").source("name", "Local B");
+            IndexRequest indexRequest3 = new IndexRequest().id("c").source("name", "Local C");
+            bulkRequestBuilder.add(indexRequest1)
+                .add(indexRequest2)
+                .add(indexRequest3)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
+            indexRequest1.decRef();
+            indexRequest2.decRef();
+            indexRequest3.decRef();
         }
 
         // Setup calls on the local cluster
@@ -350,10 +365,11 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
             .get();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("local_calls")) {
-            bulkRequestBuilder.add(new IndexRequest().source("from_user", "a", "to_user", List.of("b", "c"), "duration", 95))
-                .add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 25))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            IndexRequest indexRequest1 = new IndexRequest().source("from_user", "a", "to_user", List.of("b", "c"), "duration", 95);
+            IndexRequest indexRequest2 = new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 25);
+            bulkRequestBuilder.add(indexRequest1).add(indexRequest2).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            indexRequest1.decRef();
+            indexRequest2.decRef();
         }
 
         // Setup calls on the remote cluster
@@ -365,11 +381,17 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
             .get();
         try (BulkRequestBuilder bulkRequestBuilder = cluster("cluster_a").client().prepareBulk("remote_calls")) {
-            bulkRequestBuilder.add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 45))
-                .add(new IndexRequest().source("from_user", "unknown_caller", "to_user", "c", "duration", 50))
-                .add(new IndexRequest().source("from_user", List.of("a", "b"), "to_user", "c", "duration", 60))
+            IndexRequest indexRequest1 = new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 45);
+            IndexRequest indexRequest2 = new IndexRequest().source("from_user", "unknown_caller", "to_user", "c", "duration", 50);
+            IndexRequest indexRequest3 = new IndexRequest().source("from_user", List.of("a", "b"), "to_user", "c", "duration", 60);
+            bulkRequestBuilder.add(indexRequest1)
+                .add(indexRequest2)
+                .add(indexRequest3)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
+            indexRequest1.decRef();
+            indexRequest2.decRef();
+            indexRequest3.decRef();
         }
 
         final String runtimeMappingSource = """
@@ -523,7 +545,9 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .get();
         int numDocs = randomIntBetween(100, 500);
         for (int i = 0; i < numDocs; i++) {
-            remoteClient.prepareIndex("my_index").setSource("f", "v").get();
+            IndexRequestBuilder indexRequestBuilder = remoteClient.prepareIndex("my_index").setSource("f", "v");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         remoteClient.admin().indices().prepareRefresh("my_index").get();
         String[] indices = new String[] { "my_index" };

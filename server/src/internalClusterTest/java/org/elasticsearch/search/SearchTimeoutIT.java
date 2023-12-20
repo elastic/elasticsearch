@@ -9,6 +9,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -47,7 +48,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
 
     private void indexDocs() {
         for (int i = 0; i < 32; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
+            indexDoc("test", Integer.toString(i), "field", "value");
         }
         refresh("test");
     }
@@ -90,7 +91,9 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     }
 
     public void testPartialResultsIntolerantTimeout() throws Exception {
-        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         ElasticsearchException ex = expectThrows(
             ElasticsearchException.class,

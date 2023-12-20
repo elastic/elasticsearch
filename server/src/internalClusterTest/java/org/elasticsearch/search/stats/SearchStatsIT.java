@@ -11,6 +11,7 @@ package org.elasticsearch.search.stats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -83,7 +84,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test1").setSettings(indexSettings(shardsIdx1, 0)));
         int docsTest1 = scaledRandomIntBetween(3 * shardsIdx1, 5 * shardsIdx1);
         for (int i = 0; i < docsTest1; i++) {
-            prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
+            indexDoc("test1", Integer.toString(i), "field", "value");
             if (rarely()) {
                 refresh();
             }
@@ -91,7 +92,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2").setSettings(indexSettings(shardsIdx2, 0)));
         int docsTest2 = scaledRandomIntBetween(3 * shardsIdx2, 5 * shardsIdx2);
         for (int i = 0; i < docsTest2; i++) {
-            prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
+            indexDoc("test2", Integer.toString(i), "field", "value");
             if (rarely()) {
                 refresh();
             }
@@ -181,7 +182,11 @@ public class SearchStatsIT extends ESIntegTestCase {
         final int docs = scaledRandomIntBetween(20, 50);
         for (int s = 0; s < numAssignedShards(index); s++) {
             for (int i = 0; i < docs; i++) {
-                prepareIndex(index).setId(Integer.toString(s * docs + i)).setSource("field", "value").setRouting(Integer.toString(s)).get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(Integer.toString(s * docs + i))
+                    .setSource("field", "value")
+                    .setRouting(Integer.toString(s));
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
             }
         }
         indicesAdmin().prepareRefresh(index).get();

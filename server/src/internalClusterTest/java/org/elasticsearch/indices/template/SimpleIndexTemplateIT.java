@@ -723,7 +723,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indexRequestBuilder.get();
         indexRequestBuilder.request().decRef();
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse response = bulkRequestBuilder.add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
+            IndexRequest indexRequest = new IndexRequest("a2").id("test").source("{}", XContentType.JSON);
+            BulkResponse response = bulkRequestBuilder.add(indexRequest).get();
+            indexRequest.decRef();
             assertThat(response.hasFailures(), is(false));
             assertThat(response.getItems()[0].isFailed(), equalTo(false));
             assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
@@ -744,7 +746,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indexRequestBuilder.request().decRef();
 
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            BulkResponse response = bulkRequestBuilder.add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
+            IndexRequest indexRequest = new IndexRequest("b2").id("test").source("{}", XContentType.JSON);
+            BulkResponse response = bulkRequestBuilder.add(indexRequest).get();
+            indexRequest.decRef();
             assertThat(response.hasFailures(), is(false));
             assertThat(response.getItems()[0].isFailed(), equalTo(false));
             assertThat(response.getItems()[0].getId(), equalTo("test"));

@@ -35,6 +35,9 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
             docs.add(prepareIndex("index").setSource("f", Integer.toString(i / 3)));
         }
         indexRandom(true, docs);
+        for (IndexRequestBuilder builder : docs) {
+            builder.request().decRef();
+        }
     }
 
     public void testScroll() {

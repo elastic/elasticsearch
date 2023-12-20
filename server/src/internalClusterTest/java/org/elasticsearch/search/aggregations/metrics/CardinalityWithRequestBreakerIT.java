@@ -33,15 +33,16 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
         final String requestBreaker = randomIntBetween(1, 10000) + "kb";
         logger.info("--> Using request breaker setting: {}", requestBreaker);
 
-        indexRandom(
-            true,
-            IntStream.range(0, randomIntBetween(10, 1000))
-                .mapToObj(
-                    i -> prepareIndex("test").setId("id_" + i)
-                        .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
-                )
-                .toArray(IndexRequestBuilder[]::new)
-        );
+        IndexRequestBuilder[] builders = IntStream.range(0, randomIntBetween(10, 1000))
+            .mapToObj(
+                i -> prepareIndex("test").setId("id_" + i)
+                    .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
+            )
+            .toArray(IndexRequestBuilder[]::new);
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         updateClusterSettings(
             Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), requestBreaker)

@@ -156,6 +156,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                 indexRequestBuilder.setRouting("a");
             }
             indexRandom(false, indexRequestBuilder);
+            indexRequestBuilder.request().decRef();
         }
         refresh();
 
@@ -214,6 +215,9 @@ public class DuelScrollIT extends ESIntegTestCase {
             builders[i] = prepareIndex("test").setId(Integer.toString(i)).setSource("foo", random().nextBoolean());
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         return numDocs;
     }
 

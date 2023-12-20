@@ -65,7 +65,9 @@ public class SearchAfterIT extends ESIntegTestCase {
     public void testsShouldFail() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(true, prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto");
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
@@ -154,11 +156,14 @@ public class SearchAfterIT extends ESIntegTestCase {
     public void testWithNullStrings() throws InterruptedException {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("test").setId("0").setSource("field1", 0),
             prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         assertResponse(
             prepareSearch("test").addSort("field1", SortOrder.ASC)
                 .addSort("field2", SortOrder.ASC)
@@ -327,6 +332,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 requests.add(prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
             }
             indexRandom(true, requests);
+            for (IndexRequestBuilder builder : requests) {
+                builder.request().decRef();
+            }
         }
 
         Collections.sort(documents, LST_COMPARATOR);

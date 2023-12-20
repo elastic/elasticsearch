@@ -9,6 +9,7 @@
 package org.elasticsearch.routing;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -35,12 +37,15 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         ensureGreen();
         indicesAdmin().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
         indicesAdmin().prepareClose("test-1").get();
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("test-0").setId("1").setSource("field1", "the quick brown fox jumps"),
             prepareIndex("test-0").setId("2").setSource("field1", "quick brown"),
             prepareIndex("test-0").setId("3").setSource("field1", "quick")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         refresh("test-*");
         assertHitCount(
             prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(queryStringQuery("quick")),

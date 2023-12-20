@@ -66,8 +66,10 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             )
             .get();
 
-        client().index(new IndexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
-            .actionGet();
+        IndexRequest indexRequest = new IndexRequest("test").id("1")
+            .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
 
         indicesAdmin().prepareRefresh().get();
 

@@ -500,8 +500,7 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public void close() {
-        boolean closed = decRef();
-        assert closed : "Attempted to close BulkRequest but it still has references";
+        decRef();
     }
 
     private static class BulkRequestRefCounted extends AbstractRefCounted {

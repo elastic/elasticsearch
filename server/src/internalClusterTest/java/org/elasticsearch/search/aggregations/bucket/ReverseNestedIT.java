@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -125,7 +126,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
             source.startObject().field("field2", value1).endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, prepareIndex("idx1").setRouting("1").setSource(source));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("idx1").setRouting("1").setSource(source);
+        indexRandom(false, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
     }
 
     private void insertIdx2(String[][] values) throws Exception {
@@ -138,7 +141,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
             source.endArray().endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, prepareIndex("idx2").setRouting("1").setSource(source));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("idx2").setRouting("1").setSource(source);
+        indexRandom(false, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
     }
 
     public void testSimpleReverseNestedToRoot() throws Exception {
@@ -535,7 +540,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("idx3").setSettings(indexSettings(1, 0)).setMapping(mapping));
 
-        prepareIndex("idx3").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("idx3").setId("1")
             .setRefreshPolicy(IMMEDIATE)
             .setSource(
                 jsonBuilder().startObject()
@@ -608,8 +613,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
                     .endObject()
                     .endArray()
                     .endObject()
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertNoFailuresAndResponse(
             prepareSearch("idx3").addAggregation(

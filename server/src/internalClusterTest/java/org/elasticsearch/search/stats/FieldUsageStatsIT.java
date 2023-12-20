@@ -55,9 +55,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         LocalDate date = LocalDate.of(2015, 9, 1);
 
         for (int i = 0; i < 30; i++) {
-            prepareIndex("test").setId(Integer.toString(i))
-                .setSource("field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i)))
-                .get();
+            indexDoc("test", Integer.toString(i), "field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i)));
         }
         indicesAdmin().prepareRefresh("test").get();
 

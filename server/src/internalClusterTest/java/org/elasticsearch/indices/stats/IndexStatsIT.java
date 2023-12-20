@@ -134,8 +134,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .setMapping("field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
         );
         ensureGreen();
-        prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").get();
-        prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").get();
+        indexDoc("test", "1", "field", "value1", "field2", "value1");
+        indexDoc("test", "2", "field", "value2", "field2", "value2");
         indicesAdmin().prepareRefresh().get();
 
         NodesStatsResponse nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).get();
@@ -238,8 +238,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         );
         ensureGreen();
         clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
-        prepareIndex("test").setId("1").setSource("field", "value1").get();
-        prepareIndex("test").setId("2").setSource("field", "value2").get();
+        indexDoc("test", "1", "field", "value1");
+        indexDoc("test", "2", "field", "value2");
         indicesAdmin().prepareRefresh().get();
 
         NodesStatsResponse nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).get();
@@ -460,7 +460,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 sb.append(termUpto++);
                 sb.append(" some random text that keeps repeating over and over again hambone");
             }
-            prepareIndex("test").setId("" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
+            indexDoc("test", "" + termUpto, "field" + (i % 10), sb.toString());
         }
         refresh();
         stats = indicesAdmin().prepareStats().get();
@@ -496,7 +496,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                     sb.append(' ');
                     sb.append(termUpto++);
                 }
-                prepareIndex("test").setId("" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
+                indexDoc("test", "" + termUpto, "field" + (i % 10), sb.toString());
                 if (i % 2 == 0) {
                     refresh();
                 }
@@ -522,9 +522,9 @@ public class IndexStatsIT extends ESIntegTestCase {
         createIndex("test1", "test2");
         ensureGreen();
 
-        prepareIndex("test1").setId(Integer.toString(1)).setSource("field", "value").get();
-        prepareIndex("test1").setId(Integer.toString(2)).setSource("field", "value").get();
-        prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").get();
+        indexDoc("test1", Integer.toString(1), "field", "value");
+        indexDoc("test1", Integer.toString(2), "field", "value");
+        indexDoc("test2", Integer.toString(1), "field", "value");
         refresh();
 
         NumShards test1 = getNumShards("test1");
@@ -613,27 +613,15 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         // index failed
         try {
-            prepareIndex("test1").setId(Integer.toString(1))
-                .setSource("field", "value")
-                .setVersion(1)
-                .setVersionType(VersionType.EXTERNAL)
-                .get();
+            indexDocWithExternalVersion("test1", Integer.toString(1), 1, "field", "value");
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
         try {
-            prepareIndex("test2").setId(Integer.toString(1))
-                .setSource("field", "value")
-                .setVersion(1)
-                .setVersionType(VersionType.EXTERNAL)
-                .get();
+            indexDocWithExternalVersion("test2", Integer.toString(1), 1, "field", "value");
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
         try {
-            prepareIndex("test2").setId(Integer.toString(1))
-                .setSource("field", "value")
-                .setVersion(1)
-                .setVersionType(VersionType.EXTERNAL)
-                .get();
+            indexDocWithExternalVersion("test2", Integer.toString(1), 1, "field", "value");
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
 
@@ -665,7 +653,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().getSearch(), nullValue());
 
         for (int i = 0; i < 20; i++) {
-            prepareIndex("test_index").setId(Integer.toString(i)).setSource("field", "value").get();
+            indexDoc("test_index", Integer.toString(i), "field", "value");
             indicesAdmin().prepareFlush().get();
         }
         indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
@@ -723,9 +711,9 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        prepareIndex("test_index").setId(Integer.toString(1)).setSource("field", "value").get();
-        prepareIndex("test_index").setId(Integer.toString(2)).setSource("field", "value").get();
-        prepareIndex("test_index_2").setId(Integer.toString(1)).setSource("field", "value").get();
+        indexDoc("test_index", Integer.toString(1), "field", "value");
+        indexDoc("test_index", Integer.toString(2), "field", "value");
+        indexDoc("test_index_2", Integer.toString(1), "field", "value");
 
         indicesAdmin().prepareRefresh().get();
         IndicesStatsRequestBuilder builder = indicesAdmin().prepareStats();
@@ -854,9 +842,9 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        prepareIndex("test1").setId(Integer.toString(1)).setSource("field", "value").get();
-        prepareIndex("test1").setId(Integer.toString(2)).setSource("field", "value").get();
-        prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").get();
+        indexDoc("test1", Integer.toString(1), "field", "value");
+        indexDoc("test1", Integer.toString(2), "field", "value");
+        indexDoc("test2", Integer.toString(1), "field", "value");
         refresh();
 
         int numShards1 = getNumShards("test1").totalNumShards;
@@ -911,8 +899,10 @@ public class IndexStatsIT extends ESIntegTestCase {
             }"""));
         ensureGreen();
 
-        prepareIndex("test1").setId(Integer.toString(1)).setSource("""
-            {"bar":"bar","baz":"baz"}""", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test1").setId(Integer.toString(1)).setSource("""
+            {"bar":"bar","baz":"baz"}""", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
 
         IndicesStatsRequestBuilder builder = indicesAdmin().prepareStats();
@@ -954,7 +944,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        prepareIndex("test1").setId(Integer.toString(1)).setSource("foo", "bar").get();
+        indexDoc("test1", Integer.toString(1), "foo", "bar");
         refresh();
 
         prepareSearch("_all").setStats("bar", "baz").get().decRef();
@@ -1090,12 +1080,16 @@ public class IndexStatsIT extends ESIntegTestCase {
             .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
             .build();
         assertAcked(prepareCreate("index").setSettings(settings).get());
-        indexRandom(
-            false,
-            true,
-            prepareIndex("index").setId("1").setSource("foo", "bar"),
-            prepareIndex("index").setId("2").setSource("foo", "baz")
-        );
+        {
+            List<IndexRequestBuilder> builders = List.of(
+                prepareIndex("index").setId("1").setSource("foo", "bar"),
+                prepareIndex("index").setId("2").setSource("foo", "baz")
+            );
+            indexRandom(false, true, builders);
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
         persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
         ensureGreen();
@@ -1157,11 +1151,16 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(response.getTotal().queryCache.getCacheSize(), equalTo(0L));
         assertThat(response.getTotal().queryCache.getCacheCount(), greaterThan(0L));
 
-        indexRandom(
-            true,
-            prepareIndex("index").setId("1").setSource("foo", "bar"),
-            prepareIndex("index").setId("2").setSource("foo", "baz")
-        );
+        {
+            List<IndexRequestBuilder> builders = List.of(
+                prepareIndex("index").setId("1").setSource("foo", "bar"),
+                prepareIndex("index").setId("2").setSource("foo", "baz")
+            );
+            indexRandom(true, builders);
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
 
         assertBusy(() -> {
             assertNoFailures(prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))));
@@ -1259,7 +1258,9 @@ public class IndexStatsIT extends ESIntegTestCase {
                 }
                 while (stop.get() == false) {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
-                    final DocWriteResponse response = prepareIndex("test").setId(id).setSource("{}", XContentType.JSON).get();
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(id).setSource("{}", XContentType.JSON);
+                    final DocWriteResponse response = indexRequestBuilder.get();
+                    indexRequestBuilder.request().decRef();
                     assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
                 }
             });
@@ -1329,16 +1330,19 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertBusy(() -> {
             final int numDocs = randomIntBetween(15, 25);
             final List<ActionFuture<DocWriteResponse>> indexRequestFutures = new ArrayList<>(numDocs);
+            List<IndexRequestBuilder> buildersToDecRef = new ArrayList<>();
             for (int i = 0; i < numDocs; i++) {
-                indexRequestFutures.add(
-                    prepareIndex(indexName).setId(Integer.toString(idGenerator.incrementAndGet()))
-                        .setSource("{}", XContentType.JSON)
-                        .execute()
-                );
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId(Integer.toString(idGenerator.incrementAndGet()))
+                    .setSource("{}", XContentType.JSON);
+                buildersToDecRef.add(indexRequestBuilder);
+                indexRequestFutures.add(indexRequestBuilder.execute());
             }
 
             for (ActionFuture<DocWriteResponse> indexRequestFuture : indexRequestFutures) {
                 assertThat(indexRequestFuture.get().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            }
+            for (IndexRequestBuilder builder : buildersToDecRef) {
+                builder.request().decRef();
             }
 
             final IndicesStatsResponse statsResponseAfterIndexing = indicesAdmin().prepareStats(indexName).get();
@@ -1362,6 +1366,15 @@ public class IndexStatsIT extends ESIntegTestCase {
                     assertThat(indexShard.getLastSyncedGlobalCheckpoint(), equalTo(indexShard.getLastKnownGlobalCheckpoint()));
                 }
             }
+        }
+    }
+
+    private DocWriteResponse indexDocWithExternalVersion(String index, String id, long version, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setVersion(version).setVersionType(VersionType.EXTERNAL).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
     }
 }

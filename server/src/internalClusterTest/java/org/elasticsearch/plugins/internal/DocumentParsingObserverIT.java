@@ -36,29 +36,33 @@ public class DocumentParsingObserverIT extends ESIntegTestCase {
 
     public void testDocumentIsReportedUponBulk() throws IOException {
         hasWrappedParser = false;
-        client().index(
-            new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
-        ).actionGet();
+        IndexRequest indexRequest = new IndexRequest(TEST_INDEX_NAME).id("1")
+            .source(jsonBuilder().startObject().field("test", "I am sam " + "i am").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         assertTrue(hasWrappedParser);
         // there are more assertions in a TestDocumentParsingObserver
 
         hasWrappedParser = false;
         // the format of the request does not matter
-        client().index(
-            new IndexRequest(TEST_INDEX_NAME).id("2").source(cborBuilder().startObject().field("test", "I am sam i am").endObject())
-        ).actionGet();
+        indexRequest = new IndexRequest(TEST_INDEX_NAME).id("2")
+            .source(cborBuilder().startObject().field("test", "I am sam i am").endObject());
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         assertTrue(hasWrappedParser);
         // there are more assertions in a TestDocumentParsingObserver
 
         hasWrappedParser = false;
-        // white spaces does not matter
-        client().index(new IndexRequest(TEST_INDEX_NAME).id("3").source("""
+        indexRequest = new IndexRequest(TEST_INDEX_NAME).id("3").source("""
             {
             "test":
 
             "I am sam i am"
             }
-            """, XContentType.JSON)).actionGet();
+            """, XContentType.JSON);
+        // white spaces does not matter
+        client().index(indexRequest).actionGet();
+        indexRequest.decRef();
         assertTrue(hasWrappedParser);
         // there are more assertions in a TestDocumentParsingObserver
     }

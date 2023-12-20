@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -49,11 +50,11 @@ public class ValueCountIT extends ESIntegTestCase {
         createIndex("idx");
         createIndex("idx_unmapped");
         for (int i = 0; i < 10; i++) {
-            prepareIndex("idx").setId("" + i)
-                .setSource(
-                    jsonBuilder().startObject().field("value", i + 1).startArray("values").value(i + 2).value(i + 3).endArray().endObject()
-                )
-                .get();
+            index(
+                "idx",
+                "" + i,
+                jsonBuilder().startObject().field("value", i + 1).startArray("values").value(i + 2).value(i + 3).endArray().endObject()
+            );
         }
         indicesAdmin().prepareFlush().get();
         indicesAdmin().prepareRefresh().get();
@@ -218,11 +219,14 @@ public class ValueCountIT extends ESIntegTestCase {
             prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
         );
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
             prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         // Make sure we are starting with a clear cache
         assertThat(

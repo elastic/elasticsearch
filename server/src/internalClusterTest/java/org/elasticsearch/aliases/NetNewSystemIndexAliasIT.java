@@ -44,6 +44,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
             final IndexRequest request = new IndexRequest(SYSTEM_INDEX_NAME);
             request.source("some_field", "some_value");
             DocWriteResponse resp = client().index(request).get();
+            request.decRef();
             assertThat(resp.status().getStatus(), is(201));
         }
         ensureGreen();

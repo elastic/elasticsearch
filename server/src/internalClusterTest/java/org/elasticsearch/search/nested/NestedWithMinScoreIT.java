@@ -9,6 +9,7 @@
 package org.elasticsearch.search.nested;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -95,7 +96,11 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         doc.endArray();
         doc.endObject();
 
-        prepareIndex("test").setId("d1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(doc).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("d1")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource(doc);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         final BoolQueryBuilder childQuery = new BoolQueryBuilder().filter(
             new MatchPhraseQueryBuilder("toolTracks.data", "cash dispenser, automated teller machine, automatic teller machine")
         ).filter(new RangeQueryBuilder("toolTracks.confidence").from(0.8));

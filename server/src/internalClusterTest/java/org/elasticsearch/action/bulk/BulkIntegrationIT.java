@@ -14,8 +14,10 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestTestPlugin;
@@ -97,7 +99,9 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         }
 
         try (BulkRequestBuilder bulkBuilder = client().prepareBulk()) {
-            BulkResponse bulkResponse = bulkBuilder.add(client().prepareUpdate("alias1", "id").setDoc("foo", "updated")).get();
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("alias1", "id").setDoc("foo", "updated");
+            BulkResponse bulkResponse = bulkBuilder.add(updateRequestBuilder).get();
+            updateRequestBuilder.request().decRef();
             assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
             assertThat(client().prepareGet("index3", "id").setRouting("1").get().getSource().get("foo"), equalTo("updated"));
         }
@@ -166,14 +170,17 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             threads[i] = new Thread(() -> {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
                     try {
-                        DocWriteResponse response = prepareIndex(index).setId(id)
+                        DocWriteResponse response = indexRequestBuilder.setId(id)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
                     } catch (ElasticsearchException ignore) {
                         logger.info("--> fail to index id={}", id);
+                    } finally {
+                        indexRequestBuilder.request().decRef();
                     }
                 }
             });

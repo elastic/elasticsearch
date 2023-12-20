@@ -157,10 +157,8 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            prepareIndex("test").setId("" + i)
-                // we add 1 to the index field to make sure that the scripts below never compute log(0)
-                .setSource("body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1)
-                .get();
+            // we add 1 to the index field to make sure that the scripts below never compute log(0)
+            indexDoc("test", "" + i, "body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1);
         }
         refresh();
 

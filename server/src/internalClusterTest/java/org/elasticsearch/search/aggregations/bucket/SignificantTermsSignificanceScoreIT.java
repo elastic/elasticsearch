@@ -213,6 +213,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         indexRequestBuilderList.add(prepareIndex(INDEX_NAME).setId("3").setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
         indexRequestBuilderList.add(prepareIndex(INDEX_NAME).setId("4").setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
         indexRandom(true, false, indexRequestBuilderList);
+        for (IndexRequestBuilder builder : indexRequestBuilderList) {
+            builder.request().decRef();
+        }
 
         // Now create some holes in the index with selective deletes caused by updates.
         // This is the scenario that caused this issue https://github.com/elastic/elasticsearch/issues/7951
@@ -225,6 +228,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             indexRequestBuilderList.add(prepareIndex(INDEX_NAME).setId("1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
         }
         indexRandom(true, false, indexRequestBuilderList);
+        for (IndexRequestBuilder builder : indexRequestBuilderList) {
+            builder.request().decRef();
+        }
 
         SearchRequestBuilder request;
         if (randomBoolean()) {
@@ -459,6 +465,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             indexRequestBuilders.add(prepareIndex("test").setId("" + i).setSource("class", parts[0], "text", parts[1]));
         }
         indexRandom(true, false, indexRequestBuilders);
+        for (IndexRequestBuilder builder : indexRequestBuilders) {
+            builder.request().decRef();
+        }
     }
 
     public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
@@ -536,6 +545,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, indexRequestBuilderList);
+        for (IndexRequestBuilder builder : indexRequestBuilderList) {
+            builder.request().decRef();
+        }
     }
 
     public void testReduceFromSeveralShards() throws IOException, ExecutionException, InterruptedException {
@@ -551,11 +563,14 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             prepareCreate("cache_test_idx").setMapping("s", "type=long", "t", "type=text")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
         );
-        indexRandom(
-            true,
+        List<IndexRequestBuilder> builders = List.of(
             prepareIndex("cache_test_idx").setId("1").setSource("s", 1, "t", "foo"),
             prepareIndex("cache_test_idx").setId("2").setSource("s", 2, "t", "bar")
         );
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         // Make sure we are starting with a clear cache
         assertThat(

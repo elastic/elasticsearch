@@ -46,9 +46,9 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
             )
         );
 
-        prepareIndex("test").setId("1").setSource("test", 5, "body", "foo").get();
-        prepareIndex("test").setId("2").setSource("test", 17, "body", "foo").get();
-        prepareIndex("test").setId("3").setSource("body", "bar").get();
+        indexDoc("test", "1", "test", 5, "body", "foo");
+        indexDoc("test", "2", "test", 17, "body", "foo");
+        indexDoc("test", "3", "body", "bar");
 
         refresh();
 
@@ -123,7 +123,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
             response -> assertEquals(response.getHits().getAt(0).getScore(), response.getHits().getAt(2).getScore(), 0)
         );
 
-        prepareIndex("test").setId("2").setSource("test", -1, "body", "foo").get();
+        indexDoc("test", "2", "test", -1, "body", "foo");
         refresh();
 
         // -1 divided by 0 is infinity, which should provoke an exception.

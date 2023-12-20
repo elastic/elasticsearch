@@ -59,6 +59,9 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         addTermsDocs("6", 3, 1, indexBuilders);
         addTermsDocs("7", 0, 3, indexBuilders);// make sure the terms all get score > 0 except for this one
         indexRandom(true, false, indexBuilders);
+        for (IndexRequestBuilder builder : indexBuilders) {
+            builder.request().decRef();
+        }
 
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         assertNoFailuresAndResponse(
@@ -127,6 +130,9 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         addTermsDocs("5", 3, indexBuilders);// low score but high doc freq
         addTermsDocs("6", 3, indexBuilders);
         indexRandom(true, false, indexBuilders);
+        for (IndexRequestBuilder builder : indexBuilders) {
+            builder.request().decRef();
+        }
 
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         assertNoFailuresAndResponse(

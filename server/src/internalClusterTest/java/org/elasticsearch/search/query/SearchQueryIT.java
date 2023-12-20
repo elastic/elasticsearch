@@ -15,6 +15,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.util.English;
 import org.apache.lucene.util.AttributeSource;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchType;
@@ -140,7 +141,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     // see #3952
     public void testEmptyQueryString() throws ExecutionException, InterruptedException, IOException {
         createIndex("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("field1", "the quick brown fox jumps"),
             prepareIndex("test").setId("2").setSource("field1", "quick brown"),
@@ -154,9 +155,9 @@ public class SearchQueryIT extends ESIntegTestCase {
     // see https://github.com/elastic/elasticsearch/issues/3177
     public void testIssue3177() {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        prepareIndex("test").setId("2").setSource("field1", "value2").get();
-        prepareIndex("test").setId("3").setSource("field1", "value3").get();
+        indexDoc("test", "1", "field1", "value1");
+        indexDoc("test", "2", "field1", "value2");
+        indexDoc("test", "3", "field1", "value3");
         ensureGreen();
         waitForRelocation();
         forceMerge();
@@ -184,7 +185,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testIndexOptions() throws Exception {
         assertAcked(prepareCreate("test").setMapping("field1", "type=text,index_options=docs"));
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
             prepareIndex("test").setId("2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox")
@@ -203,7 +204,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testConstantScoreQuery() throws Exception {
         Random random = random();
         createIndex("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
             prepareIndex("test").setId("2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox")
@@ -256,7 +257,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             builders[i] = prepareIndex("test_1").setId("" + i).setSource("f", English.intToEnglish(i));
         }
         createIndex("test_1");
-        indexRandom(true, builders);
+        indexRandomAndDecRefRequests(true, builders);
 
         int queryRounds = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < queryRounds; i++) {
@@ -291,7 +292,11 @@ public class SearchQueryIT extends ESIntegTestCase {
     // see #3521
     public void testAllDocsQueryString() throws InterruptedException, ExecutionException {
         createIndex("test");
-        indexRandom(true, prepareIndex("test").setId("1").setSource("foo", "bar"), prepareIndex("test").setId("2").setSource("foo", "bar"));
+        indexRandomAndDecRefRequests(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "bar"),
+            prepareIndex("test").setId("2").setSource("foo", "bar")
+        );
 
         int iters = scaledRandomIntBetween(100, 200);
         for (int i = 0; i < iters; i++) {
@@ -311,7 +316,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testQueryStringAnalyzedWildcard() throws Exception {
         createIndex("test");
 
-        prepareIndex("test").setId("1").setSource("field1", "value_1", "field2", "value_2").get();
+        indexDoc("test", "1", "field1", "value_1", "field2", "value_2");
         refresh();
 
         assertHitCount(prepareSearch().setQuery(queryStringQuery("value*")), 1L);
@@ -324,7 +329,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testLowercaseExpandedTerms() {
         createIndex("test");
 
-        prepareIndex("test").setId("1").setSource("field1", "value_1", "field2", "value_2").get();
+        indexDoc("test", "1", "field1", "value_1", "field2", "value_2");
         refresh();
 
         assertHitCount(prepareSearch().setQuery(queryStringQuery("VALUE_3~1")), 1L);
@@ -342,7 +347,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minusMonths(1));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plusMonths(1));
-        prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        indexDoc("test", "1", "past", aMonthAgo, "future", aMonthFromNow);
         refresh();
 
         assertHitCount(prepareSearch().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")), 1L);
@@ -365,7 +370,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         ZoneId timeZone = randomZone();
         String now = DateFormatter.forPattern("strict_date_optional_time").format(Instant.now().atZone(timeZone));
         logger.info(" --> Using time_zone [{}], now is [{}]", timeZone.getId(), now);
-        prepareIndex("test").setId("1").setSource("past", now).get();
+        indexDoc("test", "1", "past", now);
         refresh();
 
         assertHitCount(prepareSearch().setQuery(queryStringQuery("past:[now-1m/m TO now+1m/m]").timeZone(timeZone.getId())), 1L);
@@ -377,8 +382,8 @@ public class SearchQueryIT extends ESIntegTestCase {
         // as with dynamic mappings some shards might be lacking behind and parse a different query
         assertAcked(prepareCreate("test").setMapping("past", "type=date"));
 
-        prepareIndex("test").setId("1").setSource("past", "2015-04-05T23:00:00+0000").get();
-        prepareIndex("test").setId("2").setSource("past", "2015-04-06T00:00:00+0000").get();
+        indexDoc("test", "1", "past", "2015-04-05T23:00:00+0000");
+        indexDoc("test", "2", "past", "2015-04-06T00:00:00+0000");
         refresh();
 
         // Timezone set with dates
@@ -403,7 +408,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testIdsQueryTestsIdIndexed() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test"));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("field1", "value1"),
             prepareIndex("test").setId("2").setSource("field1", "value2"),
@@ -424,7 +429,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         for (String indexName : indexNames) {
             assertAcked(indicesAdmin().prepareCreate(indexName));
 
-            indexRandom(true, prepareIndex(indexName).setId(indexName + "1").setSource("field1", "value1"));
+            indexRandomAndDecRefRequests(true, prepareIndex(indexName).setId(indexName + "1").setSource("field1", "value1"));
 
         }
 
@@ -445,7 +450,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testFilterExistsMissing() throws Exception {
         createIndex("test");
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1")
                 .setSource(
@@ -504,7 +509,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testPassQueryOrFilterAsJSONString() throws Exception {
         createIndex("test");
 
-        prepareIndex("test").setId("1").setSource("field1", "value1_1", "field2", "value2_1").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1_1", "field2", "value2_1");
 
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
         assertHitCount(prepareSearch().setQuery(wrapper), 1L);
@@ -519,7 +524,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testFiltersWithCustomCacheKey() throws Exception {
         createIndex("test");
 
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        indexDoc("test", "1", "field1", "value1");
         refresh();
         assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))), 1L);
         assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))), 1L);
@@ -530,7 +535,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMatchQueryNumeric() throws Exception {
         assertAcked(prepareCreate("test").setMapping("long", "type=long", "double", "type=double"));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("long", 1L, "double", 1.0d),
             prepareIndex("test").setId("2").setSource("long", 2L, "double", 2.0d),
@@ -551,7 +556,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMatchQueryFuzzy() throws Exception {
         assertAcked(prepareCreate("test").setMapping("text", "type=text"));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("text", "Unit"),
             prepareIndex("test").setId("2").setSource("text", "Unity")
@@ -575,7 +580,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMultiMatchQuery() throws Exception {
         createIndex("test");
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value4", "field3", "value3"),
             prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value5", "field3", "value2"),
@@ -612,7 +617,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             assertSearchHits(response, "3", "1");
         });
         // Test lenient
-        prepareIndex("test").setId("3").setSource("field1", "value7", "field2", "value8", "field4", 5).get();
+        indexDoc("test", "3", "field1", "value7", "field2", "value8", "field4", 5);
         refresh();
 
         builder = multiMatchQuery("value1", "field1", "field2", "field4");
@@ -645,8 +650,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        prepareIndex("test").setId("2").setSource("field1", "value2").get();
+        indexDoc("test", "1", "field1", "value1");
+        indexDoc("test", "2", "field1", "value2");
         refresh();
 
         BoolQueryBuilder boolQuery = boolQuery().must(matchQuery("field1", "a").zeroTermsQuery(ZeroTermsQueryOption.NONE))
@@ -663,8 +668,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMultiMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
-        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
-        prepareIndex("test").setId("2").setSource("field1", "value3", "field2", "value4").get();
+        indexDoc("test", "1", "field1", "value1", "field2", "value2");
+        indexDoc("test", "2", "field1", "value3", "field2", "value4");
         refresh();
 
         BoolQueryBuilder boolQuery = boolQuery().must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(ZeroTermsQueryOption.NONE))
@@ -682,8 +687,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMultiMatchQueryMinShouldMatch() {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource("field1", new String[] { "value1", "value2", "value3" }).get();
-        prepareIndex("test").setId("2").setSource("field2", "value1").get();
+        indexDoc("test", "1", "field1", new String[] { "value1", "value2", "value3" });
+        indexDoc("test", "2", "field2", "value1");
         refresh();
 
         MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1", "field2");
@@ -727,8 +732,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testBoolQueryMinShouldMatchBiggerThanNumberOfShouldClauses() throws IOException {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource("field1", new String[] { "value1", "value2", "value3" }).get();
-        prepareIndex("test").setId("2").setSource("field2", "value1").get();
+        indexDoc("test", "1", "field1", new String[] { "value1", "value2", "value3" });
+        indexDoc("test", "2", "field2", "value1");
         refresh();
 
         BoolQueryBuilder boolQuery = boolQuery().must(termQuery("field1", "value1"))
@@ -757,8 +762,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testFuzzyQueryString() {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
-        prepareIndex("test").setId("2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
+        indexDoc("test", "1", "str", "kimchy", "date", "2012-02-01", "num", 12);
+        indexDoc("test", "2", "str", "shay", "date", "2012-02-05", "num", 20);
         refresh();
 
         assertNoFailuresAndResponse(prepareSearch().setQuery(queryStringQuery("str:kimcy~1")), response -> {
@@ -775,7 +780,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         float boost = 10.0f;
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             false,
             prepareIndex("test").setId("1").setSource("important", "phrase match", "less_important", "nothing important"),
@@ -795,8 +800,8 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testSpecialRangeSyntaxInQueryString() {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
-        prepareIndex("test").setId("2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
+        indexDoc("test", "1", "str", "kimchy", "date", "2012-02-01", "num", 12);
+        indexDoc("test", "2", "str", "shay", "date", "2012-02-05", "num", 20);
         refresh();
 
         assertResponse(prepareSearch().setQuery(queryStringQuery("num:>19")), response -> {
@@ -818,7 +823,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testEmptytermsQuery() throws Exception {
         assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("term", "1"),
             prepareIndex("test").setId("2").setSource("term", "2"),
@@ -832,7 +837,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testTermsQuery() throws Exception {
         assertAcked(prepareCreate("test").setMapping("str", "type=text", "lng", "type=long", "dbl", "type=double"));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("str", "1", "lng", 1L, "dbl", 1.0d),
             prepareIndex("test").setId("2").setSource("str", "2", "lng", 2L, "dbl", 2.0d),
@@ -892,7 +897,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertAcked(prepareCreate("lookup3").setMapping("_source", "enabled=false", "terms", "type=text"));
         assertAcked(prepareCreate("test").setMapping("term", "type=text"));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("lookup").setId("1").setSource("terms", new String[] { "1", "3" }),
             prepareIndex("lookup").setId("2").setSource("terms", new String[] { "2" }),
@@ -1005,9 +1010,9 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testBasicQueryById() throws Exception {
         assertAcked(prepareCreate("test"));
 
-        prepareIndex("test").setId("1").setSource("field1", "value1").get();
-        prepareIndex("test").setId("2").setSource("field1", "value2").get();
-        prepareIndex("test").setId("3").setSource("field1", "value3").get();
+        indexDoc("test", "1", "field1", "value1");
+        indexDoc("test", "2", "field1", "value2");
+        indexDoc("test", "3", "field1", "value3");
         refresh();
 
         assertResponse(prepareSearch().setQuery(idsQuery().addIds("1", "2")), response -> {
@@ -1050,17 +1055,11 @@ public class SearchQueryIT extends ESIntegTestCase {
             )
         );
 
-        prepareIndex("test").setId("1")
-            .setSource("num_byte", 1, "num_short", 1, "num_integer", 1, "num_long", 1, "num_float", 1, "num_double", 1)
-            .get();
+        indexDoc("test", "1", "num_byte", 1, "num_short", 1, "num_integer", 1, "num_long", 1, "num_float", 1, "num_double", 1);
 
-        prepareIndex("test").setId("2")
-            .setSource("num_byte", 2, "num_short", 2, "num_integer", 2, "num_long", 2, "num_float", 2, "num_double", 2)
-            .get();
+        indexDoc("test", "2", "num_byte", 2, "num_short", 2, "num_integer", 2, "num_long", 2, "num_float", 2, "num_double", 2);
 
-        prepareIndex("test").setId("17")
-            .setSource("num_byte", 17, "num_short", 17, "num_integer", 17, "num_long", 17, "num_float", 17, "num_double", 17)
-            .get();
+        indexDoc("test", "17", "num_byte", 17, "num_short", 17, "num_integer", 17, "num_long", 17, "num_float", 17, "num_double", 17);
         refresh();
 
         logger.info("--> term query on 1");
@@ -1183,10 +1182,10 @@ public class SearchQueryIT extends ESIntegTestCase {
             )
         );
 
-        prepareIndex("test").setId("1").setSource("field1", "test1", "num_long", 1).get();
-        prepareIndex("test").setId("2").setSource("field1", "test1", "num_long", 2).get();
-        prepareIndex("test").setId("3").setSource("field1", "test2", "num_long", 3).get();
-        prepareIndex("test").setId("4").setSource("field1", "test2", "num_long", 4).get();
+        indexDoc("test", "1", "field1", "test1", "num_long", 1);
+        indexDoc("test", "2", "field1", "test1", "num_long", 2);
+        indexDoc("test", "3", "field1", "test2", "num_long", 3);
+        indexDoc("test", "4", "field1", "test2", "num_long", 4);
         refresh();
 
         assertHitCount(
@@ -1223,7 +1222,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)))
         );
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("description", "foo other anything bar"),
             prepareIndex("test").setId("2").setSource("description", "foo other anything"),
@@ -1242,7 +1241,10 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testIntervals() throws InterruptedException {
         createIndex("test");
 
-        indexRandom(true, prepareIndex("test").setId("1").setSource("description", "it's cold outside, there's no kind of atmosphere"));
+        indexRandomAndDecRefRequests(
+            true,
+            prepareIndex("test").setId("1").setSource("description", "it's cold outside, there's no kind of atmosphere")
+        );
 
         String json = """
             {
@@ -1274,7 +1276,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testSimpleSpan() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("description", "foo other anything bar"),
             prepareIndex("test").setId("2").setSource("description", "foo other anything"),
@@ -1294,10 +1296,10 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
 
-        prepareIndex("test").setId("1").setSource("description", "foo other anything bar", "count", 1).get();
-        prepareIndex("test").setId("2").setSource("description", "foo other anything", "count", 2).get();
-        prepareIndex("test").setId("3").setSource("description", "foo other", "count", 3).get();
-        prepareIndex("test").setId("4").setSource("description", "fop", "count", 4).get();
+        indexDoc("test", "1", "description", "foo other anything bar", "count", 1);
+        indexDoc("test", "2", "description", "foo other anything", "count", 2);
+        indexDoc("test", "3", "description", "foo other", "count", 3);
+        indexDoc("test", "4", "description", "fop", "count", 4);
         refresh();
 
         assertHitCount(prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(fuzzyQuery("description", "fop")))), 4);
@@ -1315,8 +1317,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testSpanNot() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
 
-        prepareIndex("test").setId("1").setSource("description", "the quick brown fox jumped over the lazy dog").get();
-        prepareIndex("test").setId("2").setSource("description", "the quick black fox leaped over the sleeping dog").get();
+        indexDoc("test", "1", "description", "the quick brown fox jumped over the lazy dog");
+        indexDoc("test", "2", "description", "the quick black fox leaped over the sleeping dog");
         refresh();
 
         assertHitCount(
@@ -1380,22 +1382,10 @@ public class SearchQueryIT extends ESIntegTestCase {
             )
         );
 
-        prepareIndex("test").setId("1")
-            .setRouting("Y")
-            .setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100, "type", "s")
-            .get();
-        prepareIndex("test").setId("2")
-            .setRouting("X")
-            .setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000, "type", "s")
-            .get();
-        prepareIndex("test").setId("3")
-            .setRouting(randomAlphaOfLength(2))
-            .setSource("online", false, "ts", System.currentTimeMillis() - 100, "type", "bs")
-            .get();
-        prepareIndex("test").setId("4")
-            .setRouting(randomAlphaOfLength(2))
-            .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs")
-            .get();
+        indexDocWithRouting("test", "1", "Y", "online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100, "type", "s");
+        indexDocWithRouting("test", "2", "X", "online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000, "type", "s");
+        indexDocWithRouting("test", "3", randomAlphaOfLength(2), "online", false, "ts", System.currentTimeMillis() - 100, "type", "bs");
+        indexDocWithRouting("test", "4", randomAlphaOfLength(2), "online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs");
         refresh();
 
         assertNoFailures(
@@ -1421,7 +1411,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testMultiFieldQueryString() {
-        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "field1", "value1", "field2", "value2");
 
         logger.info("regular");
         assertHitCount(prepareSearch("test").setQuery(queryStringQuery("value1").field("field1").field("field2")), 1);
@@ -1444,7 +1434,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMultiMatchLenientIssue3797() {
         createIndex("test");
 
-        prepareIndex("test").setId("1").setSource("field1", 123, "field2", "value2").get();
+        indexDoc("test", "1", "field1", 123, "field2", "value2");
         refresh();
 
         assertHitCount(prepareSearch("test").setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true)), 1L);
@@ -1455,10 +1445,10 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testMinScore() throws ExecutionException, InterruptedException {
         createIndex("test");
 
-        prepareIndex("test").setId("1").setSource("score", 1.5).get();
-        prepareIndex("test").setId("2").setSource("score", 1.0).get();
-        prepareIndex("test").setId("3").setSource("score", 2.0).get();
-        prepareIndex("test").setId("4").setSource("score", 0.5).get();
+        indexDoc("test", "1", "score", 1.5);
+        indexDoc("test", "2", "score", 1.0);
+        indexDoc("test", "3", "score", 2.0);
+        indexDoc("test", "4", "score", 0.5);
         refresh();
 
         assertResponse(
@@ -1476,8 +1466,8 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testQueryStringWithSlopAndFields() {
         assertAcked(prepareCreate("test"));
 
-        prepareIndex("test").setId("1").setSource("desc", "one two three", "type", "customer").get();
-        prepareIndex("test").setId("2").setSource("desc", "one two three", "type", "product").get();
+        indexDoc("test", "1", "desc", "one two three", "type", "customer");
+        indexDoc("test", "2", "desc", "one two three", "type", "product");
         refresh();
 
         assertHitCount(prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")), 2);
@@ -1506,7 +1496,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testDateProvidedAsNumber() throws InterruptedException {
         createIndex("test");
         assertAcked(indicesAdmin().preparePutMapping("test").setSource("field", "type=date,format=epoch_millis").get());
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("field", 1000000000001L),
             prepareIndex("test").setId("2").setSource("field", 1000000000000L),
@@ -1523,7 +1513,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testRangeQueryWithTimeZone() throws Exception {
         assertAcked(prepareCreate("test").setMapping("date", "type=date", "num", "type=integer"));
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("date", "2014-01-01", "num", 1),
             prepareIndex("test").setId("2").setSource("date", "2013-12-31T23:00:00", "num", 2),
@@ -1651,7 +1641,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             )
         );
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800"),
             prepareIndex("test").setId("2").setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800")
@@ -1672,7 +1662,9 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testSearchEmptyDoc() {
-        prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         refresh();
         assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
@@ -1680,7 +1672,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMatchPhrasePrefixQuery() throws ExecutionException, InterruptedException {
         createIndex("test1");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test1").setId("1").setSource("field", "Johnnie Walker Black Label"),
             prepareIndex("test1").setId("2").setSource("field", "trying out Elasticsearch")
@@ -1693,7 +1685,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testQueryStringParserCache() throws Exception {
         createIndex("test");
-        indexRandom(true, false, prepareIndex("test").setId("1").setSource("nameTokens", "xyz"));
+        indexRandomAndDecRefRequests(true, false, prepareIndex("test").setId("1").setSource("nameTokens", "xyz"));
         final float[] first = new float[1];
         assertResponse(
             prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(QueryBuilders.queryStringQuery("xyz").boost(100)),
@@ -1721,9 +1713,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     public void testRangeQueryRangeFields_24744() throws Exception {
         assertAcked(prepareCreate("test").setMapping("int_range", "type=integer_range"));
 
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().startObject("int_range").field("gte", 10).field("lte", 20).endObject().endObject())
-            .get();
+        index("test", "1", jsonBuilder().startObject().startObject("int_range").field("gte", 10).field("lte", 20).endObject().endObject());
         refresh();
 
         RangeQueryBuilder range = new RangeQueryBuilder("int_range").relation("intersects").from(Integer.MIN_VALUE).to(Integer.MAX_VALUE);
@@ -1789,7 +1779,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
 
         IndexRequestBuilder indexRequest = prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
-        indexRandom(true, false, indexRequest);
+        indexRandomAndDecRefRequests(true, false, indexRequest);
         updateClusterSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true));
         try {
             assertResponse(prepareSearch().setQuery(termQuery("routing-alias", "custom")).addDocValueField("id-alias"), response -> {
@@ -1821,7 +1811,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     .build()
             ).setMapping("field1", "type=keyword,normalizer=lowercase_normalizer")
         );
-        prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
+        indexDoc("test", "1", "field1", "Bbb Aaa");
         refresh();
 
         {
@@ -1846,7 +1836,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     .build()
             ).setMapping("field1", "type=text,analyzer=lowercase_analyzer")
         );
-        prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
+        indexDoc("test", "1", "field1", "Bbb Aaa");
         refresh();
 
         {
@@ -1876,7 +1866,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     .build()
             ).setMapping("field", "type=keyword,normalizer=no_wildcard")
         );
-        prepareIndex("test").setId("1").setSource("field", "label-1").get();
+        indexDoc("test", "1", "field", "label-1");
         refresh();
 
         WildcardQueryBuilder wildCardQuery = wildcardQuery("field", "la*");
@@ -1928,7 +1918,7 @@ public class SearchQueryIT extends ESIntegTestCase {
      */
     public void testIssueFuzzyInsideSpanMulti() {
         createIndex("test");
-        prepareIndex("test").setId("1").setSource("field", "foobarbaz").get();
+        indexDoc("test", "1", "field", "foobarbaz");
         ensureGreen();
         refresh();
 
@@ -1940,7 +1930,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         createIndex("test");
         int docCount = randomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
-            prepareIndex("test").setSource("field", "foobarbaz").get();
+            indexDoc("test", "field", "foobarbaz");
         }
         ensureGreen();
         refresh();
@@ -1952,5 +1942,44 @@ public class SearchQueryIT extends ESIntegTestCase {
                 assertNotNull(hit.getFields().get("_id").getValue());
             }
         });
+    }
+
+    private DocWriteResponse indexDocWithRouting(String index, String id, String routing, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setRouting(routing).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders)
+        throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, dummyDocuments, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
     }
 }

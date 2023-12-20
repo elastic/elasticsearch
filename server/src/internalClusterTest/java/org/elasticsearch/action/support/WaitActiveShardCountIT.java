@@ -81,7 +81,6 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .setTimeout(timeValueMillis(100));
             indexRequestBuilder.get();
-            indexRequestBuilder.request().decRef();
             fail("can't index, not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -94,6 +93,8 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
                 )
             );
             // but really, all is well
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
 
         allowNodes("test", 3);

@@ -672,6 +672,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             builders[i] = prepareIndex("test-idx").setId(Integer.toString(i)).setSource("field1", "Foo bar " + i);
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         flushAndRefresh();
 
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "foo")), numdocs);

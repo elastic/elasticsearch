@@ -219,6 +219,9 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=" + fieldTypeName()));
 
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
 
         // Added to debug a test failure where the terms aggregation seems to be reporting two documents with the same

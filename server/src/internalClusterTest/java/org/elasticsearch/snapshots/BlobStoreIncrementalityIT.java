@@ -65,7 +65,9 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         for (int j = 0; j < randomIntBetween(1, 10); ++j) {
             try (BulkRequest bulkRequest = new BulkRequest()) {
                 for (int i = 0; i < scaledRandomIntBetween(1, 100); ++i) {
-                    bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+                    IndexRequest indexRequest = new IndexRequest(indexName).source("foo" + j, "bar" + i);
+                    bulkRequest.add(indexRequest);
+                    indexRequest.decRef();
                 }
                 final BulkResponse bulkResponse = client().bulk(bulkRequest).get();
                 for (BulkItemResponse item : bulkResponse.getItems()) {
@@ -144,7 +146,9 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         for (int j = 0; j < 2; j++) {
             try (BulkRequest bulkRequest = new BulkRequest()) {
                 for (int i = 0; i < scaledRandomIntBetween(1, 100); ++i) {
-                    bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+                    IndexRequest indexRequest = new IndexRequest(indexName).source("foo" + j, "bar" + i);
+                    bulkRequest.add(indexRequest);
+                    indexRequest.decRef();
                 }
                 client().bulk(bulkRequest).get();
                 flushAndRefresh(indexName);
@@ -191,10 +195,10 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
             final int numDocs = scaledRandomIntBetween(100, 1000);
             try (BulkRequestBuilder request = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
                 for (int j = 0; j < numDocs; ++j) {
-                    request.add(
-                        new IndexRequest(indexName).id(Long.toString(id++))
-                            .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
-                    );
+                    IndexRequest indexRequest = new IndexRequest(indexName).id(Long.toString(id++))
+                        .source(jsonBuilder().startObject().field("l", randomLong()).endObject());
+                    request.add(indexRequest);
+                    indexRequest.decRef();
                 }
                 assertNoFailures(request.get());
             }

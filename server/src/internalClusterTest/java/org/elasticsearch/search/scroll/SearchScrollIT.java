@@ -9,6 +9,7 @@
 package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -75,7 +76,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
+            index("test", Integer.toString(i), jsonBuilder().startObject().field("field", i).endObject());
         }
 
         indicesAdmin().prepareRefresh().get();
@@ -130,7 +131,11 @@ public class SearchScrollIT extends ESIntegTestCase {
             } else if (i > 60) {
                 routing = "2";
             }
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", i).setRouting(routing).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i))
+                .setSource("field", i)
+                .setRouting(routing);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         indicesAdmin().prepareRefresh().get();
@@ -192,15 +197,15 @@ public class SearchScrollIT extends ESIntegTestCase {
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 500; i++) {
-            prepareIndex("test").setId(Integer.toString(i))
-                .setSource(
-                    jsonBuilder().startObject()
-                        .field("user", "kimchy")
-                        .field("postDate", System.currentTimeMillis())
-                        .field("message", "test")
-                        .endObject()
-                )
-                .get();
+            index(
+                "test",
+                Integer.toString(i),
+                jsonBuilder().startObject()
+                    .field("user", "kimchy")
+                    .field("postDate", System.currentTimeMillis())
+                    .field("message", "test")
+                    .endObject()
+            );
         }
 
         indicesAdmin().prepareRefresh().get();
@@ -221,7 +226,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                     Map<String, Object> map = searchHit.getSourceAsMap();
                     map.put("message", "update");
-                    prepareIndex("test").setId(searchHit.getId()).setSource(map).get();
+                    index("test", searchHit.getId(), map);
                 }
                 searchResponse.decRef();
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
@@ -246,7 +251,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
+            index("test", Integer.toString(i), jsonBuilder().startObject().field("field", i).endObject());
         }
 
         indicesAdmin().prepareRefresh().get();
@@ -373,7 +378,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
+            index("test", Integer.toString(i), jsonBuilder().startObject().field("field", i).endObject());
         }
 
         indicesAdmin().prepareRefresh().get();
@@ -455,7 +460,9 @@ public class SearchScrollIT extends ESIntegTestCase {
      * Tests that we use an optimization shrinking the batch to the size of the shard. Thus the Integer.MAX_VALUE window doesn't OOM us.
      */
     public void testDeepScrollingDoesNotBlowUp() throws Exception {
-        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         /*
          * Disable the max result window setting for this test because it'll reject the search's unreasonable batch size. We want
          * unreasonable batch sizes to just OOM.
@@ -482,7 +489,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testThatNonExistingScrollIdReturnsCorrectException() throws Exception {
-        prepareIndex("index").setId("1").setSource("field", "value").execute().get();
+        indexDoc("index", "1", "field", "value");
         refresh();
 
         SearchResponse searchResponse = prepareSearch("index").setSize(1).setScroll("1m").get();
@@ -502,7 +509,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("no_field", "type=keyword", "some_field", "type=keyword")
         );
-        prepareIndex("test").setId("1").setSource("some_field", "test").get();
+        indexDoc("test", "1", "some_field", "test");
         refresh();
 
         assertResponse(
@@ -533,7 +540,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testCloseAndReopenOrDeleteWithActiveScroll() {
         createIndex("test");
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("field", i).get();
+            indexDoc("test", Integer.toString(i), "field", i);
         }
         refresh();
         assertResponse(
@@ -589,7 +596,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testInvalidScrollKeepAlive() throws IOException {
         createIndex("test");
         for (int i = 0; i < 2; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource(jsonBuilder().startObject().field("field", i).endObject()).get();
+            index("test", Integer.toString(i), jsonBuilder().startObject().field("field", i).endObject());
         }
         refresh();
         updateClusterSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"));
@@ -632,9 +639,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                     {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}
                     """)
         );
-        prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
-        prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
-        prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
+        indexDoc("test", "1", "created_date", "2020-01-01");
+        indexDoc("test", "2", "created_date", "2020-01-02");
+        indexDoc("test", "3", "created_date", "2020-01-03");
         indicesAdmin().prepareRefresh("test").get();
         SearchResponse resp = null;
         try {

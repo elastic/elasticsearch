@@ -9,6 +9,7 @@
 package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Cluster;
@@ -731,7 +732,12 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             if (i == numDocs - 1) {
                 ts = LATEST_TIMESTAMP;
             }
-            client.prepareIndex(index).setSource("f", "v", "@timestamp", ts).get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+            try {
+                indexRequestBuilder.setSource("f", "v", "@timestamp", ts).get();
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;

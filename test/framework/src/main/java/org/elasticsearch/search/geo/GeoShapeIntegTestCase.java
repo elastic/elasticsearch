@@ -8,6 +8,7 @@
 package org.elasticsearch.search.geo;
 
 import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
@@ -55,7 +56,9 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
               "shape": "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
             }""";
 
-        indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("0").setSource(source, XContentType.JSON);
+        indexRandom(true, indexRequestBuilder);
+        indexRequestBuilder.request().decRef();
 
         assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))), 1L);
         assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))), 0L);

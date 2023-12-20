@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
@@ -29,9 +31,9 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
 
     public void testWrapperQueryIsRewritten() throws IOException {
         createIndex("test", Settings.EMPTY, "test", "title", "type=text");
-        prepareIndex("test").setId("1").setSource("title", "foo bar baz").get();
-        prepareIndex("test").setId("2").setSource("title", "foo foo foo").get();
-        prepareIndex("test").setId("3").setSource("title", "bar baz bax").get();
+        indexDoc("test", "1", "title", "foo bar baz");
+        indexDoc("test", "2", "title", "foo foo foo");
+        indexDoc("test", "3", "title", "bar baz bax");
         client().admin().indices().prepareRefresh("test").get();
 
         XContentType xContentType = randomFrom(XContentType.values());
@@ -62,5 +64,14 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
             assertEquals(2, filters.getBuckets().get(0).getDocCount());
             assertEquals(metadata, filters.getMetadata());
         });
+    }
+
+    protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

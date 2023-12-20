@@ -91,6 +91,9 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
         }
 
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 

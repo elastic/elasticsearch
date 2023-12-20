@@ -10,6 +10,7 @@ package org.elasticsearch.search.msearch;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.common.settings.Settings;
@@ -40,8 +41,8 @@ public class MultiSearchIT extends ESIntegTestCase {
     public void testSimpleMultiSearch() {
         createIndex("test");
         ensureGreen();
-        prepareIndex("test").setId("1").setSource("field", "xxx").get();
-        prepareIndex("test").setId("2").setSource("field", "yyy").get();
+        indexDoc("test", "1", "field", "xxx");
+        indexDoc("test", "2", "field", "yyy");
         refresh();
         assertResponse(
             client().prepareMultiSearch()
@@ -66,7 +67,9 @@ public class MultiSearchIT extends ESIntegTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(0, 16);
         for (int i = 0; i < numDocs; i++) {
-            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         refresh();
 
@@ -95,8 +98,8 @@ public class MultiSearchIT extends ESIntegTestCase {
         TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
         createIndex("test");
         ensureGreen();
-        prepareIndex("test").setId("1").setSource("field", "xxx").get();
-        prepareIndex("test").setId("2").setSource("field", "yyy").get();
+        indexDoc("test", "1", "field", "xxx");
+        indexDoc("test", "2", "field", "yyy");
         refresh();
         assertResponse(
             client().prepareMultiSearch()

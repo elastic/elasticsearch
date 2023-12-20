@@ -88,5 +88,8 @@ public class SharedSignificantTermsTestMethods {
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("6").setSource(TEXT_FIELD, gb, CLASS_FIELD, "0"));
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("7").setSource(TEXT_FIELD, "0", CLASS_FIELD, "0"));
         testCase.indexRandom(true, false, indexRequestBuilderList);
+        for (IndexRequestBuilder builder : indexRequestBuilderList) {
+            builder.request().decRef();
+        }
     }
 }

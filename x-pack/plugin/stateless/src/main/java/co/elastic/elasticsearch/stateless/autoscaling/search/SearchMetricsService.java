@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -184,10 +185,15 @@ public class SearchMetricsService implements ClusterStateListener {
             var settings = entry.getValue();
             maxShardCopies = Math.max(maxShardCopies, settings.replicas);
             for (int i = 0; i < settings.shards; i++) {
-                var metrics = shardMetrics.get(new ShardId(index, i));
+                var shardId = new ShardId(index, i);
+                var metrics = shardMetrics.get(shardId);
                 assert metrics != null : "Metric should be initialized by this point";
                 synchronized (metrics) {
-                    dataSizeExact &= metrics.sourceNode != null && metrics.sourceNode.isOutdated(currentTimestampNanos) == false;
+                    boolean isOutdated = metrics.sourceNode != null && metrics.sourceNode.isOutdated(currentTimestampNanos);
+                    if (isOutdated) {
+                        logger.warn("Storage metrics are stale for shard: {}, {}", shardId, metrics);
+                    }
+                    dataSizeExact &= metrics.sourceNode != null && isOutdated == false;
                     maxInteractiveDataSizeInBytes = Math.max(
                         maxInteractiveDataSizeInBytes,
                         metrics.shardSize.interactiveSizeInBytes() * settings.replicas
@@ -197,7 +203,6 @@ public class SearchMetricsService implements ClusterStateListener {
                 }
             }
         }
-
         return new SearchTierMetrics(
             memoryMetricsService.getMemoryMetrics(),
             new MaxShardCopies(maxShardCopies, shardCopiesExact ? MetricQuality.EXACT : MetricQuality.MINIMUM),
@@ -231,6 +236,11 @@ public class SearchMetricsService implements ClusterStateListener {
                 this.sourceNode = sourceNode;
                 this.shardSize = shardSize;
             }
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format("ShardMetrics{timestamp=%d, shardSize=%s}", sourceNode != null ? sourceNode.timestamp : 0, shardSize);
         }
     }
 

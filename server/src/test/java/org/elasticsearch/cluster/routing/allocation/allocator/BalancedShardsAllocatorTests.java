@@ -59,6 +59,7 @@ import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.getIndexDiskUsageInBytes;
+import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -410,6 +411,20 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
             // should pick the max shard size among forecast and cluster info
             assertThat(indexDiskUsageInBytes, equalTo(Math.max(forecastedShardSize, observedShardSize)));
+        }
+
+        {
+            final var indexMetadata = IndexMetadata.builder("index")
+                .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true))
+                .build();
+
+            final var indexDiskUsageInBytes = getIndexDiskUsageInBytes(
+                createClusterInfo(Map.of("[index][0][p]", randomLongBetween(1024, 10240))),
+                indexMetadata
+            );
+
+            // partially cached indices should not be balanced by disk usage
+            assertThat(indexDiskUsageInBytes, equalTo(0L));
         }
     }
 

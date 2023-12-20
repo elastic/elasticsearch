@@ -371,6 +371,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         // Visible for testing
         static long getIndexDiskUsageInBytes(ClusterInfo clusterInfo, IndexMetadata indexMetadata) {
+            if (indexMetadata.ignoreDiskWatermarks()) {
+                return 0;
+            }
             final long forecastedShardSize = indexMetadata.getForecastedShardSizeInBytes().orElse(-1L);
             long totalSizeInBytes = 0;
             int shardCount = 0;
@@ -394,6 +397,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
+            if (indexMetadata.ignoreDiskWatermarks()) {
+                return 0;
+            }
             return Math.max(indexMetadata.getForecastedShardSizeInBytes().orElse(0L), clusterInfo.getShardSize(shardRouting, 0L));
         }
 

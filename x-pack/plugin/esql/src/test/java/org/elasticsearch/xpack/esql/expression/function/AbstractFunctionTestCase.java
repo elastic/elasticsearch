@@ -32,6 +32,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -279,6 +280,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     public final void testCrankyEvaluateBlockWithoutNulls() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
+        // See https://github.com/elastic/elasticsearch/issues/102996#issuecomment-1860198434
+        assumeTrue(
+            "Convert functions catch CircuitBreakerExceptions in evalVector and emit null instead. Fixed in 8.12",
+            (buildFieldExpression(testCase) instanceof AbstractConvertFunction) == false
+        );
         try {
             testEvaluateBlock(driverContext().blockFactory(), crankyContext(), false, false);
         } catch (CircuitBreakingException ex) {
@@ -297,6 +303,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     public final void testCrankyEvaluateBlockWithoutNullsFloating() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
+        // See https://github.com/elastic/elasticsearch/issues/102996#issuecomment-1860198434
+        assumeTrue(
+            "Convert functions catch CircuitBreakerExceptions in evalVector and emit null instead. Fixed in 8.12",
+            (buildFieldExpression(testCase) instanceof AbstractConvertFunction) == false
+        );
         try {
             testEvaluateBlock(driverContext().blockFactory(), crankyContext(), false, true);
         } catch (CircuitBreakingException ex) {

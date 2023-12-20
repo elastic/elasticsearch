@@ -16,6 +16,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -36,11 +37,26 @@ public class ClusterInfoSimulator {
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
         this.previousClusterInfo = allocation.clusterInfo();
-        this.leastAvailableSpaceUsage = new HashMap<>(allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
-        this.mostAvailableSpaceUsage = new HashMap<>(allocation.clusterInfo().getNodeMostAvailableDiskUsages());
+        this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation.clusterInfo(), ClusterInfo::getNodeLeastAvailableDiskUsages);
+        this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation.clusterInfo(), ClusterInfo::getNodeMostAvailableDiskUsages);
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.shardDataSetSizes = Map.copyOf(allocation.clusterInfo().shardDataSetSizes);
         this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
+    }
+
+    private static Map<String, DiskUsage> getAdjustedDiskSpace(
+        ClusterInfo clusterInfo,
+        Function<ClusterInfo, Map<String, DiskUsage>> getter
+    ) {
+        var availableSpaceUsage = new HashMap<>(getter.apply(clusterInfo));
+        for (var entry : availableSpaceUsage.entrySet()) {
+            var diskUsage = entry.getValue();
+            var reservedSpace = clusterInfo.getReservedSpace(diskUsage.nodeId(), diskUsage.path());
+            if (reservedSpace != ClusterInfo.ReservedSpace.EMPTY) {
+                entry.setValue(updateWithFreeBytes(diskUsage, -reservedSpace.total()));
+            }
+        }
+        return availableSpaceUsage;
     }
 
     /**
@@ -54,6 +70,7 @@ public class ClusterInfoSimulator {
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
+        var shardId = shard.shardId();
         var size = getExpectedShardSize(
             shard,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
@@ -65,12 +82,12 @@ public class ClusterInfoSimulator {
         if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {
                 // relocation
-                modifyDiskUsage(shard.relocatingNodeId(), size);
-                modifyDiskUsage(shard.currentNodeId(), -size);
+                modifyDiskUsage(shard.relocatingNodeId(), shardId, size);
+                modifyDiskUsage(shard.currentNodeId(), shardId, -size);
             } else {
                 // new shard
                 if (shouldReserveSpaceForInitializingShard(shard, allocation.metadata())) {
-                    modifyDiskUsage(shard.currentNodeId(), -size);
+                    modifyDiskUsage(shard.currentNodeId(), shardId, -size);
                 }
                 shardSizes.put(
                     shardIdentifierFromRouting(shard),
@@ -80,22 +97,25 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private void modifyDiskUsage(String nodeId, long delta) {
+    private void modifyDiskUsage(String nodeId, ShardId shardId, long delta) {
         var diskUsage = mostAvailableSpaceUsage.get(nodeId);
         if (diskUsage == null) {
             return;
         }
         var path = diskUsage.getPath();
+        updateDiskUsage(leastAvailableSpaceUsage, nodeId, path, shardId, delta);
+        updateDiskUsage(mostAvailableSpaceUsage, nodeId, path, shardId, delta);
+    }
 
-        var leastUsage = leastAvailableSpaceUsage.get(nodeId);
-        if (leastUsage != null && Objects.equals(leastUsage.getPath(), path)) {
-            // ensure new value is within bounds
-            leastAvailableSpaceUsage.put(nodeId, updateWithFreeBytes(leastUsage, delta));
+    private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, ShardId shardId, long delta) {
+        if (previousClusterInfo.getReservedSpace(nodeId, path).containsShardId(shardId)) {
+            // space is already reserved and accounted for
+            return;
         }
-        var mostUsage = mostAvailableSpaceUsage.get(nodeId);
-        if (mostUsage != null && Objects.equals(mostUsage.getPath(), path)) {
+        var usage = availableSpaceUsage.get(nodeId);
+        if (usage != null && Objects.equals(usage.getPath(), path)) {
             // ensure new value is within bounds
-            mostAvailableSpaceUsage.put(nodeId, updateWithFreeBytes(mostUsage, delta));
+            availableSpaceUsage.put(nodeId, updateWithFreeBytes(usage, delta));
         }
     }
 

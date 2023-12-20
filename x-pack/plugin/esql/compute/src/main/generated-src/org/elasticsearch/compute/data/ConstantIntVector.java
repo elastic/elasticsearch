@@ -13,7 +13,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant int value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantIntVector extends AbstractVector implements IntVector {
+final class ConstantIntVector extends AbstractVector implements IntVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
 
@@ -21,11 +21,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     private final IntBlock block;
 
-    public ConstantIntVector(int value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantIntVector(int value, int positionCount, BlockFactory blockFactory) {
+    ConstantIntVector(int value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
         this.block = new IntVectorBlock(this);
@@ -43,7 +39,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     @Override
     public IntVector filter(int... positions) {
-        return new ConstantIntVector(value, positions.length);
+        return blockFactory().newConstantIntVector(value, positions.length);
     }
 
     @Override

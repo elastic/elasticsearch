@@ -17,7 +17,6 @@ import org.elasticsearch.search.SearchHitTests;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.LookupField;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -47,8 +46,11 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 searchHits[i] = SearchHitTests.createTestItem(randomBoolean(), randomBoolean());
             }
             SearchHits hits = new SearchHits(searchHits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), 1.0f);
-            InternalSearchResponse searchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-            FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, searchResponse, null);
+            FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(
+                searchPhaseContext,
+                new SearchResponseSections(hits, null, null, false, null, null, 1),
+                null
+            );
             phase.run();
             searchPhaseContext.assertNoFailure();
             assertNotNull(searchPhaseContext.searchResponse.get());
@@ -103,18 +105,15 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                         } else {
                             searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
                         }
-                        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-                            searchHits,
-                            null,
-                            null,
-                            null,
-                            false,
-                            null,
-                            1
-                        );
                         responses[i] = new MultiSearchResponse.Item(
                             new SearchResponse(
-                                internalSearchResponse,
+                                searchHits,
+                                null,
+                                null,
+                                false,
+                                null,
+                                null,
+                                1,
                                 null,
                                 1,
                                 1,
@@ -186,8 +185,11 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 new TotalHits(2, TotalHits.Relation.EQUAL_TO),
                 1.0f
             );
-            InternalSearchResponse searchResponse = new InternalSearchResponse(searchHits, null, null, null, false, null, 1);
-            FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, searchResponse, null);
+            FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(
+                searchPhaseContext,
+                new SearchResponseSections(searchHits, null, null, false, null, null, 1),
+                null
+            );
             phase.run();
             assertTrue(requestSent.get());
             searchPhaseContext.assertNoFailure();
@@ -216,9 +218,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 leftHit1.field("lookup_field_3").getValues(),
                 contains(Map.of("field_a", List.of("a2"), "field_b", List.of("b1", "b2")))
             );
-        } finally
-
-        {
+        } finally {
             var resp = searchPhaseContext.searchResponse.get();
             if (resp != null) {
                 resp.decRef();

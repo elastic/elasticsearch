@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -40,12 +40,10 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
-            InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
             SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             searchTemplateResponse.setResponse(
-                new SearchResponse(
-                    internalSearchResponse,
+                SearchResponseUtils.emptyWithTotalHits(
                     null,
                     totalShards,
                     successfulShards,
@@ -78,12 +76,10 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
-                InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
                 SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
                 searchTemplateResponse.setResponse(
-                    new SearchResponse(
-                        internalSearchResponse,
+                    SearchResponseUtils.emptyWithTotalHits(
                         null,
                         totalShards,
                         successfulShards,

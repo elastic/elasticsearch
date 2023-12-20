@@ -14,7 +14,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MetricNameValidatorTests extends ESTestCase {
     public void testMetricNameNotNull() {
-        String metricName = "es.somemodule.somemetric.count";
+        String metricName = "es.somemodule.somemetric.total";
         assertThat(MetricNameValidator.validate(metricName), equalTo(metricName));
 
         expectThrows(NullPointerException.class, () -> MetricNameValidator.validate(null));
@@ -27,29 +27,29 @@ public class MetricNameValidatorTests extends ESTestCase {
     }
 
     public void testESPrefixAndDotSeparator() {
-        MetricNameValidator.validate("es.somemodule.somemetric.count");
+        MetricNameValidator.validate("es.somemodule.somemetric.total");
 
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("somemodule.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("somemodule.somemetric.total"));
         // verify . is a separator
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es_somemodule_somemetric_count"));
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es_somemodule.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es_somemodule_somemetric_total"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es_somemodule.somemetric.total"));
     }
 
     public void testNameElementRegex() {
-        MetricNameValidator.validate("es.somemodulename0.somemetric.count");
-        MetricNameValidator.validate("es.some_module_name0.somemetric.count");
-        MetricNameValidator.validate("es.s.somemetric.count");
+        MetricNameValidator.validate("es.somemodulename0.somemetric.total");
+        MetricNameValidator.validate("es.some_module_name0.somemetric.total");
+        MetricNameValidator.validate("es.s.somemetric.total");
 
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.someModuleName0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.SomeModuleName.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.0some_module_name0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.some_#_name0.somemetric.count"));
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.some-name0.somemetric.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.someModuleName0.somemetric.total"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.SomeModuleName.somemetric.total"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.0some_module_name0.somemetric.total"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.some_#_name0.somemetric.total"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.some-name0.somemetric.total"));
     }
 
     public void testNameHas3Elements() {
-        MetricNameValidator.validate("es.group.count");
-        MetricNameValidator.validate("es.group.subgroup.count");
+        MetricNameValidator.validate("es.group.total");
+        MetricNameValidator.validate("es.group.subgroup.total");
 
         expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es"));
         expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es."));
@@ -57,17 +57,17 @@ public class MetricNameValidatorTests extends ESTestCase {
     }
 
     public void testNumberOfElementsLimit() {
-        MetricNameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.count");
+        MetricNameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.total");
 
-        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.a10.count"));
+        expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.a2.a3.a4.a5.a6.a7.a8.a9.a10.total"));
     }
 
     public void testElementLengthLimit() {
-        MetricNameValidator.validate("es." + "a".repeat(MetricNameValidator.MAX_ELEMENT_LENGTH) + ".count");
+        MetricNameValidator.validate("es." + "a".repeat(MetricNameValidator.MAX_ELEMENT_LENGTH) + ".total");
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> MetricNameValidator.validate("es." + "a".repeat(MetricNameValidator.MAX_ELEMENT_LENGTH + 1) + ".count")
+            () -> MetricNameValidator.validate("es." + "a".repeat(MetricNameValidator.MAX_ELEMENT_LENGTH + 1) + ".total")
         );
     }
 

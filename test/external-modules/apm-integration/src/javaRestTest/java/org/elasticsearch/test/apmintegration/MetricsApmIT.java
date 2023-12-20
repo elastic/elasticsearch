@@ -60,12 +60,12 @@ public class MetricsApmIT extends ESRestTestCase {
     public void testApmIntegration() throws Exception {
         Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
             Map.ofEntries(
-                assertion("es.test.long_counter.count", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.double_counter.count", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.async_double_counter.count", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.async_long_counter.count", m -> (Integer) m.get("value"), equalTo(1)),
-                assertion("es.test.double_gauge.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.long_gauge.total", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion("es.test.long_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.async_double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.async_long_counter.total", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion("es.test.double_gauge.current", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("es.test.long_gauge.current", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion(
                     "es.test.double_histogram.histogram",
                     m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),

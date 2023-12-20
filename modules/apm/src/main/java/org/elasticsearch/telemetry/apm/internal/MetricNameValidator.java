@@ -17,14 +17,14 @@ import java.util.stream.Collectors;
 public class MetricNameValidator {
     private static final Pattern ALLOWED_CHARACTERS = Pattern.compile("[a-z][a-z0-9_]*");
     static final Set<String> ALLOWED_SUFFIXES = Set.of(
-        "size",
         "total",
-        "count",
-        "usage",
-        "utilization",
-        "histogram",
+        "current",
         "ratio",
         "status" /*a workaround for enums */,
+        "usage",
+        "size",
+        "utilization",
+        "histogram",
         "time"
     );
     static final int MAX_METRIC_NAME_LENGTH = 255;

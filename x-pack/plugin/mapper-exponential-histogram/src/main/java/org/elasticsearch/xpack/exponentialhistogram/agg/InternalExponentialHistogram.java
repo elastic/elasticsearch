@@ -222,6 +222,7 @@ public class InternalExponentialHistogram extends InternalAggregation {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field("scale", getCurrentScale());
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : getBuckets()) {
             builder.startObject()

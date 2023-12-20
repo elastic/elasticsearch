@@ -112,7 +112,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .setting("indices.memory.shard_inactive_time", "60m")
         .apply(() -> clusterConfig)
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     @ClassRule

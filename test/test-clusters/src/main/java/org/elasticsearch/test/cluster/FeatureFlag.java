@@ -10,6 +10,8 @@ package org.elasticsearch.test.cluster;
 
 import org.elasticsearch.test.cluster.util.Version;
 
+import java.util.Set;
+
 /**
  * Elasticsearch feature flags. Used in conjunction with {@link org.elasticsearch.test.cluster.local.LocalSpecBuilder#feature(FeatureFlag)}
  * to indicate that this feature is required and should be enabled when appropriate.
@@ -17,6 +19,8 @@ import org.elasticsearch.test.cluster.util.Version;
 public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
     FAILURE_STORE_ENABLED("es.failure_store_feature_flag_enabled=true", Version.fromString("8.12.0"), null);
+
+    public static final Set<FeatureFlag> ALWAYS_ON_FEATURE_FLAGS = Set.of(FAILURE_STORE_ENABLED);
 
     public final String systemProperty;
     public final Version from;

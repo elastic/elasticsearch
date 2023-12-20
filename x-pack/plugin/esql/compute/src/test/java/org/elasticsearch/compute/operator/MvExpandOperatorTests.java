@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 
@@ -224,7 +223,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
 
     public void testExpandStatus() {
         MvExpandOperator op = new MvExpandOperator(0, randomIntBetween(1, 1));
-        var builder = IntBlock.newBlockBuilder(2).beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
+        BlockFactory blockFactory = blockFactory();
+        var builder = blockFactory.newIntBlockBuilder(2).beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
         List<Page> result = drive(op, List.of(new Page(builder.build())).iterator(), driverContext());
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
@@ -232,6 +232,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         assertThat(status.pagesIn(), equalTo(1));
         assertThat(status.pagesOut(), equalTo(1));
         assertThat(status.noops(), equalTo(0));
+        result.forEach(Page::releaseBlocks);
     }
 
     public void testExpandWithBytesRefs() {

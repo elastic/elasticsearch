@@ -183,7 +183,7 @@ public class ExchangeServiceTests extends ESTestCase {
                         return null;
                     }
                     int size = randomIntBetween(1, 10);
-                    IntBlock.Builder builder = IntBlock.newBlockBuilder(size);
+                    IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(size);
                     for (int i = 0; i < size; i++) {
                         int seqNo = nextSeqNo.incrementAndGet();
                         if (seqNo < maxInputSeqNo) {

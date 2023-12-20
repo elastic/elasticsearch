@@ -80,27 +80,33 @@ public class BasicBlockTests extends ESTestCase {
 
     public void testSmallSingleValueDenseGrowthInt() {
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            try (var blockBuilder = IntBlock.newBlockBuilder(initialSize)) {
+            try (var blockBuilder = blockFactory.newIntBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(blockBuilder::appendInt);
-                assertSingleValueDenseBlock(blockBuilder.build());
+                IntBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
             }
         }
     }
 
     public void testSmallSingleValueDenseGrowthLong() {
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            try (var blockBuilder = LongBlock.newBlockBuilder(initialSize)) {
+            try (var blockBuilder = blockFactory.newLongBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(blockBuilder::appendLong);
-                assertSingleValueDenseBlock(blockBuilder.build());
+                LongBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
             }
         }
     }
 
     public void testSmallSingleValueDenseGrowthDouble() {
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            try (var blockBuilder = DoubleBlock.newBlockBuilder(initialSize)) {
+            try (var blockBuilder = blockFactory.newDoubleBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(blockBuilder::appendDouble);
-                assertSingleValueDenseBlock(blockBuilder.build());
+                DoubleBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
             }
         }
     }
@@ -108,18 +114,22 @@ public class BasicBlockTests extends ESTestCase {
     public void testSmallSingleValueDenseGrowthBytesRef() {
         final BytesRef NULL_VALUE = new BytesRef();
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            try (var blockBuilder = BytesRefBlock.newBlockBuilder(initialSize)) {
+            try (var blockBuilder = blockFactory.newBytesRefBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).mapToObj(i -> NULL_VALUE).forEach(blockBuilder::appendBytesRef);
-                assertSingleValueDenseBlock(blockBuilder.build());
+                BytesRefBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
             }
         }
     }
 
     public void testSmallSingleValueDenseGrowthBoolean() {
         for (int initialSize : List.of(0, 1, 2, 3, 4, 5)) {
-            try (var blockBuilder = BooleanBlock.newBlockBuilder(initialSize)) {
+            try (var blockBuilder = blockFactory.newBooleanBlockBuilder(initialSize)) {
                 IntStream.range(0, 10).forEach(i -> blockBuilder.appendBoolean(i % 3 == 0));
-                assertSingleValueDenseBlock(blockBuilder.build());
+                BooleanBlock block = blockBuilder.build();
+                assertSingleValueDenseBlock(block);
+                block.close();
             }
         }
     }
@@ -318,7 +328,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat((double) pos, is(block.getDouble(pos)));
             assertSingleValueDenseBlock(block);
 
-            try (DoubleBlock.Builder blockBuilder = DoubleBlock.newBlockBuilder(1)) {
+            try (DoubleBlock.Builder blockBuilder = blockFactory.newDoubleBlockBuilder(1)) {
                 DoubleBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
                 assertThat(copy, equalTo(block));
                 releaseAndAssertBreaker(block, copy);
@@ -403,7 +413,7 @@ public class BasicBlockTests extends ESTestCase {
         }
         assertSingleValueDenseBlock(block);
 
-        try (BytesRefBlock.Builder blockBuilder = BytesRefBlock.newBlockBuilder(1)) {
+        try (BytesRefBlock.Builder blockBuilder = blockFactory.newBytesRefBlockBuilder(1)) {
             BytesRefBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
             assertThat(copy, equalTo(block));
             releaseAndAssertBreaker(block, copy);
@@ -524,7 +534,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.getBoolean(positionCount - 1), is((positionCount - 1) % 10 == 0));
             assertSingleValueDenseBlock(block);
 
-            try (BooleanBlock.Builder blockBuilder = BooleanBlock.newBlockBuilder(1)) {
+            try (BooleanBlock.Builder blockBuilder = blockFactory.newBooleanBlockBuilder(1)) {
                 BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
                 assertThat(copy, equalTo(block));
                 releaseAndAssertBreaker(block, copy);
@@ -599,7 +609,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testSingleValueSparseInt() {
         int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-        try (var blockBuilder = IntBlock.newBlockBuilder(builderEstimateSize)) {
+        try (var blockBuilder = blockFactory.newIntBlockBuilder(builderEstimateSize)) {
 
             int actualValueCount = 0;
             int[] values = new int[positionCount];
@@ -627,13 +637,14 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
+            block.close();
         }
     }
 
     public void testSingleValueSparseLong() {
         int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-        try (var blockBuilder = LongBlock.newBlockBuilder(builderEstimateSize)) {
+        try (var blockBuilder = blockFactory.newLongBlockBuilder(builderEstimateSize)) {
 
             int actualValueCount = 0;
             long[] values = new long[positionCount];
@@ -660,13 +671,14 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
+            block.close();
         }
     }
 
     public void testSingleValueSparseDouble() {
         int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-        try (var blockBuilder = DoubleBlock.newBlockBuilder(builderEstimateSize)) {
+        try (var blockBuilder = blockFactory.newDoubleBlockBuilder(builderEstimateSize)) {
 
             int actualValueCount = 0;
             double[] values = new double[positionCount];
@@ -693,13 +705,14 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
+            block.close();
         }
     }
 
     public void testSingleValueSparseBoolean() {
         int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-        try (var blockBuilder = BooleanBlock.newBlockBuilder(builderEstimateSize)) {
+        try (var blockBuilder = blockFactory.newBooleanBlockBuilder(builderEstimateSize)) {
 
             boolean[] values = new boolean[positionCount];
             int actualValueCount = 0;
@@ -726,6 +739,7 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
+            block.close();
         }
     }
 
@@ -733,8 +747,8 @@ public class BasicBlockTests extends ESTestCase {
         final int estimatedSize = randomIntBetween(1024, 4096);
 
         try (
-            var boolBlock = BooleanBlock.newBlockBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build();
-            var boolVector = BooleanVector.newVectorBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build()
+            var boolBlock = blockFactory.newBooleanBlockBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build();
+            var boolVector = blockFactory.newBooleanVectorBuilder(estimatedSize).appendBoolean(true).appendBoolean(false).build()
         ) {
             for (Object obj : List.of(boolVector, boolBlock, boolBlock.asVector())) {
                 String s = obj.toString();
@@ -744,8 +758,8 @@ public class BasicBlockTests extends ESTestCase {
         }
 
         try (
-            var intBlock = IntBlock.newBlockBuilder(estimatedSize).appendInt(1).appendInt(2).build();
-            var intVector = IntVector.newVectorBuilder(estimatedSize).appendInt(1).appendInt(2).build()
+            var intBlock = blockFactory.newIntBlockBuilder(estimatedSize).appendInt(1).appendInt(2).build();
+            var intVector = blockFactory.newIntVectorBuilder(estimatedSize).appendInt(1).appendInt(2).build()
         ) {
             for (Object obj : List.of(intVector, intBlock, intBlock.asVector())) {
                 String s = obj.toString();
@@ -753,24 +767,37 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(s, containsString("positions=2"));
             }
             for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
-                assertThat(block.filter(0).toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
-                assertThat(block.filter(1).toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
-                assertThat(
-                    block.filter(0, 1).toString(),
-                    containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]")
-                );
-                assertThat(block.filter().toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
+                try (var filter = block.filter(0)) {
+                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
+                }
+                try (var filter = block.filter(1)) {
+                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
+                }
+                try (var filter = block.filter(0, 1)) {
+                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]"));
+                }
+                try (var filter = block.filter()) {
+                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
+                }
             }
             for (IntVector vector : List.of(intVector, intBlock.asVector())) {
-                assertThat(vector.filter(0).toString(), containsString("ConstantIntVector[positions=1, value=1]"));
-                assertThat(vector.filter(1).toString(), containsString("ConstantIntVector[positions=1, value=2]"));
-                assertThat(vector.filter(0, 1).toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
-                assertThat(vector.filter().toString(), containsString("IntArrayVector[positions=0, values=[]]"));
+                try (var filter = vector.filter(0)) {
+                    assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=1]"));
+                }
+                try (IntVector filter = vector.filter(1)) {
+                    assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=2]"));
+                }
+                try (IntVector filter = vector.filter(0, 1)) {
+                    assertThat(filter.toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
+                }
+                try (IntVector filter = vector.filter()) {
+                    assertThat(filter.toString(), containsString("IntArrayVector[positions=0, values=[]]"));
+                }
             }
         }
 
         try (
-            var longBlock = LongBlock.newBlockBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
+            var longBlock = blockFactory.newLongBlockBuilder(estimatedSize).appendLong(10L).appendLong(20L).build();
             var longVector = LongVector.newVectorBuilder(estimatedSize).appendLong(10L).appendLong(20L).build()
         ) {
             for (Object obj : List.of(longVector, longBlock, longBlock.asVector())) {
@@ -781,7 +808,7 @@ public class BasicBlockTests extends ESTestCase {
         }
 
         try (
-            var doubleBlock = DoubleBlock.newBlockBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build();
+            var doubleBlock = blockFactory.newDoubleBlockBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build();
             var doubleVector = DoubleVector.newVectorBuilder(estimatedSize).appendDouble(3.3).appendDouble(4.4).build()
         ) {
             for (Object obj : List.of(doubleVector, doubleBlock, doubleBlock.asVector())) {
@@ -793,8 +820,8 @@ public class BasicBlockTests extends ESTestCase {
 
         assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("2b").toString().equals("[32 62]");
         try (
-            var blockBuilder = BytesRefBlock.newBlockBuilder(estimatedSize);
-            var vectorBuilder = BytesRefVector.newVectorBuilder(estimatedSize)
+            var blockBuilder = blockFactory.newBytesRefBlockBuilder(estimatedSize);
+            var vectorBuilder = blockFactory.newBytesRefVectorBuilder(estimatedSize)
         ) {
             var bytesRefBlock = blockBuilder.appendBytesRef(new BytesRef("1a")).appendBytesRef(new BytesRef("2b")).build();
             var bytesRefVector = vectorBuilder.appendBytesRef(new BytesRef("1a")).appendBytesRef(new BytesRef("2b")).build();
@@ -802,6 +829,7 @@ public class BasicBlockTests extends ESTestCase {
                 String s = obj.toString();
                 assertThat(s, containsString("positions=2"));
             }
+            Releasables.close(bytesRefBlock, bytesRefVector);
         }
     }
 

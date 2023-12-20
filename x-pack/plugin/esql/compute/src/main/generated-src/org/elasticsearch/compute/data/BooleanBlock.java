@@ -167,32 +167,12 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     }
 
     /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newBooleanBlockBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
      * Returns a builder.
      * @deprecated use {@link BlockFactory#newBooleanBlockBuilder}
      */
     @Deprecated
     static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newBooleanBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantBooleanBlockWith}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static BooleanBlock newConstantBlockWith(boolean value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
     }
 
     /**

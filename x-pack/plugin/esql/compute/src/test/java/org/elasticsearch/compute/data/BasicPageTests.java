@@ -45,7 +45,7 @@ public class BasicPageTests extends SerializationTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             in,
             page -> new Page(0),
-            page -> new Page(1, IntBlock.newConstantBlockWith(1, 1)),
+            page -> new Page(1, blockFactory.newConstantIntBlockWith(1, 1)),
             Page::releaseBlocks
         );
         in.releaseBlocks();
@@ -71,8 +71,8 @@ public class BasicPageTests extends SerializationTestCase {
         in = new Page(blockFactory.newIntArrayVector(new int[] { 1, 1, 1 }, 3).asBlock());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             in,
-            page -> new Page(IntBlock.newConstantBlockWith(1, 3)),
-            page -> new Page(IntBlock.newConstantBlockWith(1, 2)),
+            page -> new Page(blockFactory.newConstantIntBlockWith(1, 3)),
+            page -> new Page(blockFactory.newConstantIntBlockWith(1, 2)),
             Page::releaseBlocks
         );
         in.releaseBlocks();
@@ -137,10 +137,10 @@ public class BasicPageTests extends SerializationTestCase {
                 case 0 -> blockFactory.newIntArrayVector(randomInts(positions).toArray(), positions).asBlock();
                 case 1 -> blockFactory.newLongArrayVector(randomLongs(positions).toArray(), positions).asBlock();
                 case 2 -> blockFactory.newDoubleArrayVector(randomDoubles(positions).toArray(), positions).asBlock();
-                case 3 -> IntBlock.newConstantBlockWith(randomInt(), positions);
-                case 4 -> LongBlock.newConstantBlockWith(randomLong(), positions);
-                case 5 -> DoubleBlock.newConstantBlockWith(randomDouble(), positions);
-                case 6 -> BytesRefBlock.newConstantBlockWith(new BytesRef(Integer.toHexString(randomInt())), positions);
+                case 3 -> blockFactory.newConstantIntBlockWith(randomInt(), positions);
+                case 4 -> blockFactory.newConstantLongBlockWith(randomLong(), positions);
+                case 5 -> blockFactory.newConstantDoubleBlockWith(randomDouble(), positions);
+                case 6 -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(Integer.toHexString(randomInt())), positions);
                 default -> throw new AssertionError();
             };
         }
@@ -183,10 +183,10 @@ public class BasicPageTests extends SerializationTestCase {
             blockFactory.newLongArrayVector(LongStream.range(10, 20).toArray(), 10).asBlock(),
             blockFactory.newDoubleArrayVector(LongStream.range(30, 40).mapToDouble(i -> i).toArray(), 10).asBlock(),
             blockFactory.newBytesRefArrayVector(bytesRefArrayOf("0a", "1b", "2c", "3d", "4e", "5f", "6g", "7h", "8i", "9j"), 10).asBlock(),
-            IntBlock.newConstantBlockWith(randomInt(), 10),
-            LongBlock.newConstantBlockWith(randomInt(), 10),
-            DoubleBlock.newConstantBlockWith(randomInt(), 10),
-            BytesRefBlock.newConstantBlockWith(new BytesRef(Integer.toHexString(randomInt())), 10),
+            blockFactory.newConstantIntBlockWith(randomInt(), 10),
+            blockFactory.newConstantLongBlockWith(randomLong(), 10),
+            blockFactory.newConstantDoubleBlockWith(randomDouble(), 10),
+            blockFactory.newConstantBytesRefBlockWith(new BytesRef(Integer.toHexString(randomInt())), 10),
             toFilter.filter(5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
         );
         toFilter.close();
@@ -215,9 +215,9 @@ public class BasicPageTests extends SerializationTestCase {
             new Page(blockFactory.newIntArrayVector(randomInts(positions).toArray(), positions).asBlock()),
             new Page(
                 blockFactory.newLongArrayVector(randomLongs(positions).toArray(), positions).asBlock(),
-                DoubleBlock.newConstantBlockWith(randomInt(), positions)
+                blockFactory.newConstantDoubleBlockWith(randomInt(), positions)
             ),
-            new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("Hello World"), positions))
+            new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("Hello World"), positions))
         );
         try {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPages, page -> {

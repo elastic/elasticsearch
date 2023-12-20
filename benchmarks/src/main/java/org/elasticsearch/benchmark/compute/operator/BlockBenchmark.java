@@ -17,35 +17,20 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanArrayBlock;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBigArrayBlock;
 import org.elasticsearch.compute.data.BooleanBigArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefArrayBlock;
-import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.ConstantBooleanVector;
-import org.elasticsearch.compute.data.ConstantBytesRefVector;
-import org.elasticsearch.compute.data.ConstantDoubleVector;
-import org.elasticsearch.compute.data.ConstantIntVector;
-import org.elasticsearch.compute.data.ConstantLongVector;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBigArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayBlock;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -146,6 +131,7 @@ public class BlockBenchmark {
     private record BenchmarkBlocks(Block[] blocks, long[] checkSums) {};
 
     private static BenchmarkBlocks buildBlocks(String dataType, String blockKind, int totalPositions) {
+        BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
         Block[] blocks = new Block[NUM_BLOCKS_PER_ITERATION];
         long[] checkSums = new long[NUM_BLOCKS_PER_ITERATION];
 
@@ -153,7 +139,7 @@ public class BlockBenchmark {
             case "boolean" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     if (blockKind.equalsIgnoreCase("vector-const")) {
-                        BooleanVector vector = new ConstantBooleanVector(random.nextBoolean(), totalPositions);
+                        BooleanVector vector = blockFactory.newConstantBooleanVector(random.nextBoolean(), totalPositions);
                         blocks[blockIndex] = vector.asBlock();
                         continue;
                     }
@@ -165,7 +151,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new BooleanArrayBlock(
+                            blocks[blockIndex] = blockFactory.newBooleanArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -178,7 +164,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new BooleanArrayBlock(
+                            blocks[blockIndex] = blockFactory.newBooleanArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -207,7 +193,7 @@ public class BlockBenchmark {
                             );
                         }
                         case "vector" -> {
-                            BooleanVector vector = new BooleanArrayVector(values, totalPositions);
+                            BooleanVector vector = blockFactory.newBooleanArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         case "vector-big-array" -> {
@@ -217,7 +203,7 @@ public class BlockBenchmark {
                                     valuesBigArray.set(i);
                                 }
                             }
-                            BooleanVector vector = new BooleanBigArrayVector(valuesBigArray, totalPositions);
+                            BooleanVector vector = new BooleanBigArrayVector(valuesBigArray, totalPositions, blockFactory);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
@@ -237,7 +223,7 @@ public class BlockBenchmark {
                         byte[] bytes = new byte[random.nextInt(MAX_BYTES_REF_LENGTH)];
                         random.nextBytes(bytes);
 
-                        BytesRefVector vector = new ConstantBytesRefVector(new BytesRef(bytes), totalPositions);
+                        BytesRefVector vector = blockFactory.newConstantBytesRefVector(new BytesRef(bytes), totalPositions);
                         blocks[blockIndex] = vector.asBlock();
                         continue;
                     }
@@ -252,7 +238,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new BytesRefArrayBlock(
+                            blocks[blockIndex] = blockFactory.newBytesRefArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -265,7 +251,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new BytesRefArrayBlock(
+                            blocks[blockIndex] = blockFactory.newBytesRefArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -274,7 +260,7 @@ public class BlockBenchmark {
                             );
                         }
                         case "vector" -> {
-                            BytesRefVector vector = new BytesRefArrayVector(values, totalPositions);
+                            BytesRefVector vector = blockFactory.newBytesRefArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
@@ -291,7 +277,7 @@ public class BlockBenchmark {
             case "double" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     if (blockKind.equalsIgnoreCase("vector-const")) {
-                        DoubleVector vector = new ConstantDoubleVector(random.nextDouble() * 1000000.0, totalPositions);
+                        DoubleVector vector = blockFactory.newConstantDoubleVector(random.nextDouble() * 1000000.0, totalPositions);
                         blocks[blockIndex] = vector.asBlock();
                         continue;
                     }
@@ -303,7 +289,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new DoubleArrayBlock(
+                            blocks[blockIndex] = blockFactory.newDoubleArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -316,7 +302,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new DoubleArrayBlock(
+                            blocks[blockIndex] = blockFactory.newDoubleArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -345,7 +331,7 @@ public class BlockBenchmark {
                             );
                         }
                         case "vector" -> {
-                            DoubleVector vector = new DoubleArrayVector(values, totalPositions);
+                            DoubleVector vector = blockFactory.newDoubleArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         case "vector-big-array" -> {
@@ -355,7 +341,7 @@ public class BlockBenchmark {
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
                             }
-                            DoubleVector vector = new DoubleBigArrayVector(valuesBigArray, totalPositions);
+                            DoubleVector vector = new DoubleBigArrayVector(valuesBigArray, totalPositions, blockFactory);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
@@ -372,7 +358,7 @@ public class BlockBenchmark {
             case "int" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     if (blockKind.equalsIgnoreCase("vector-const")) {
-                        IntVector vector = new ConstantIntVector(random.nextInt(), totalPositions);
+                        IntVector vector = blockFactory.newConstantIntVector(random.nextInt(), totalPositions);
                         blocks[blockIndex] = vector.asBlock();
                         continue;
                     }
@@ -384,7 +370,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new IntArrayBlock(
+                            blocks[blockIndex] = blockFactory.newIntArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -397,7 +383,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new IntArrayBlock(
+                            blocks[blockIndex] = blockFactory.newIntArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -424,7 +410,7 @@ public class BlockBenchmark {
                             );
                         }
                         case "vector" -> {
-                            IntVector vector = new IntArrayVector(values, totalPositions);
+                            IntVector vector = blockFactory.newIntArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         case "vector-big-array" -> {
@@ -432,7 +418,7 @@ public class BlockBenchmark {
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
                             }
-                            IntVector vector = new IntBigArrayVector(valuesBigArray, totalPositions);
+                            IntVector vector = new IntBigArrayVector(valuesBigArray, totalPositions, blockFactory);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {
@@ -449,7 +435,7 @@ public class BlockBenchmark {
             case "long" -> {
                 for (int blockIndex = 0; blockIndex < NUM_BLOCKS_PER_ITERATION; blockIndex++) {
                     if (blockKind.equalsIgnoreCase("vector-const")) {
-                        LongVector vector = new ConstantLongVector(random.nextLong(), totalPositions);
+                        LongVector vector = blockFactory.newConstantLongVector(random.nextLong(), totalPositions);
                         blocks[blockIndex] = vector.asBlock();
                         continue;
                     }
@@ -461,7 +447,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new LongArrayBlock(
+                            blocks[blockIndex] = blockFactory.newLongArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -474,7 +460,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new LongArrayBlock(
+                            blocks[blockIndex] = blockFactory.newLongArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -503,7 +489,7 @@ public class BlockBenchmark {
                             );
                         }
                         case "vector" -> {
-                            LongVector vector = new LongArrayVector(values, totalPositions);
+                            LongVector vector = blockFactory.newLongArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         case "vector-big-array" -> {
@@ -513,7 +499,7 @@ public class BlockBenchmark {
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
                             }
-                            LongVector vector = new LongBigArrayVector(valuesBigArray, totalPositions);
+                            LongVector vector = new LongBigArrayVector(valuesBigArray, totalPositions, blockFactory);
                             blocks[blockIndex] = vector.asBlock();
                         }
                         default -> {

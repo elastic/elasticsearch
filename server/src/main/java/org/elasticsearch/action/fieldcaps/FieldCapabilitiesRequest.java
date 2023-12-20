@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +47,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
     private Map<String, Object> runtimeFields = Collections.emptyMap();
+    private Map<String, Object> fieldHasValue = Collections.emptyMap();
     private Long nowInMillis;
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
@@ -62,6 +64,16 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             filters = in.readStringArray();
             types = in.readStringArray();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+            this.fieldHasValue = in.readMap();
+        } else {
+            HashMap<String, Object> fieldHasValue = new HashMap<>();
+            for (String field : fields) {
+                fieldHasValue.put(field, true);
+            }
+            this.fieldHasValue = fieldHasValue;
+        }
+
     }
 
     public FieldCapabilitiesRequest() {}
@@ -99,6 +111,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(types);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+            out.writeGenericMap(fieldHasValue);
         }
     }
 
@@ -247,12 +262,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             && Objects.equals(nowInMillis, that.nowInMillis)
             && Arrays.equals(filters, that.filters)
             && Arrays.equals(types, that.types)
-            && Objects.equals(runtimeFields, that.runtimeFields);
+            && Objects.equals(runtimeFields, that.runtimeFields)
+            && Objects.equals(fieldHasValue, that.fieldHasValue);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis, runtimeFields);
+        int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis, runtimeFields, fieldHasValue);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);

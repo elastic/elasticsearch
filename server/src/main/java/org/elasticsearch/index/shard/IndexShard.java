@@ -223,6 +223,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
+    private final IndexService indexService;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -313,7 +314,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
-        final Engine.IndexCommitListener indexCommitListener
+        final Engine.IndexCommitListener indexCommitListener,
+        final IndexService indexService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -398,6 +400,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
+        this.indexService = indexService;
     }
 
     public ThreadPool getThreadPool() {
@@ -971,6 +974,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 ifPrimaryTerm,
                 getRelativeTimeInNanos()
             );
+            operation.parsedDoc().docs().forEach(doc -> {
+                doc.getFields().forEach(indexableField -> { indexService.setFieldHasValue(indexableField.name()); });
+            }); // TODO-MP maybe add inside the update !=null if
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
                 return new Engine.IndexResult(update, operation.parsedDoc().id());
@@ -985,6 +991,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         return index(engine, operation);
+    }
+
+    public void setFieldHasValue(String fieldName) {
+        indexService.setFieldHasValue(fieldName);
     }
 
     public static Engine.Index prepareIndex(

@@ -9,6 +9,9 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -16,6 +19,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -23,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -80,6 +85,20 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 logger.warn(() -> "[" + indexShard.shardId().getId() + "] failed to invoke after shard started callback", e);
                 throw e;
             }
+        }
+        Engine engine = indexShard.getEngineOrNull();
+        if (engine != null) {
+            for (LeafReaderContext leaf : engine.acquireSearcher("find_field_has_value").getIndexReader().leaves()) {
+                try (LeafReader reader = leaf.reader()) {
+                    for (FieldInfo fieldInfo : reader.getFieldInfos()) {
+                        indexShard.setFieldHasValue(fieldInfo.getName());
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException("Another exception here?! WTF...");
+                }
+            }
+        } else {
+            throw new RuntimeException("Engine not yet started, aborting...");
         }
     }
 

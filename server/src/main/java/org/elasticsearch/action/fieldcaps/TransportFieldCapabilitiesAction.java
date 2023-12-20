@@ -316,6 +316,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
+
                 innerMerge(subIndices, responseMapBuilder, request, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }
@@ -411,7 +412,22 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     diff = null;
                 }
-                return new FieldCapabilities(field, "unmapped", false, false, false, false, null, diff, null, null, null, null, Map.of());
+                return new FieldCapabilities(
+                    field,
+                    "unmapped",
+                    false,
+                    false,
+                    false,
+                    true, // TODO-is this correct?
+                    false,
+                    null,
+                    diff,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of()
+                );
             };
         }
         return null;
@@ -448,6 +464,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
+                fieldCap.hasValue(),
                 fieldCap.isDimension(),
                 fieldCap.metricType(),
                 fieldCap.meta()

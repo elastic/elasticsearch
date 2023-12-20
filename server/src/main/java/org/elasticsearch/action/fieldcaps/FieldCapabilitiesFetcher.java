@@ -114,7 +114,8 @@ class FieldCapabilitiesFetcher {
             fieldNameFilter,
             filters,
             fieldTypes,
-            fieldPredicate
+            fieldPredicate,
+            indicesService.indexServiceSafe(shardId.getIndex())
         );
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
@@ -127,7 +128,8 @@ class FieldCapabilitiesFetcher {
         Predicate<String> fieldNameFilter,
         String[] filters,
         String[] types,
-        Predicate<String> indexFieldfilter
+        Predicate<String> indexFieldfilter,
+        IndexService indexService
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
 
@@ -146,6 +148,7 @@ class FieldCapabilitiesFetcher {
                     context.isMetadataField(field),
                     ft.isSearchable(),
                     ft.isAggregatable(),
+                    indexService.getHasValueField(field),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta()
@@ -176,6 +179,7 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             false,
+                            indexService.getHasValueField(field),
                             false,
                             null,
                             Map.of()

@@ -145,6 +145,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private final AsyncGlobalCheckpointTask globalCheckpointTask;
     private final AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
+    private final HashMap<String, Boolean> fieldHasValue;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -276,6 +277,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
         updateFsyncTaskIfNecessary();
+        this.fieldHasValue = new HashMap<>();
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
@@ -546,10 +548,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 snapshotCommitSupplier,
                 System::nanoTime,
-                indexCommitListener
+                indexCommitListener,
+                this
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
+            // TODO-MP maybe here, but engine not started yet.
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
             success = true;
             return indexShard;
@@ -740,6 +744,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public ScriptService getScriptService() {
         return scriptService;
+    }
+
+    // TODO-MP add java doc
+    public void setFieldHasValue(String fieldName) {
+        fieldHasValue.put(fieldName, true);
+    }
+
+    public boolean getHasValueField(String fieldName) {
+        return fieldHasValue.getOrDefault(fieldName, false);
     }
 
     List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing

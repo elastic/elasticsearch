@@ -496,6 +496,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private boolean isMetadataField;
         private int searchableIndices = 0;
         private int aggregatableIndices = 0;
+        private boolean hasValue = false;
         private int dimensionIndices = 0;
         private TimeSeriesParams.MetricType metricType;
         private boolean hasConflictMetricType;
@@ -533,6 +534,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             boolean isMetadataField,
             boolean search,
             boolean agg,
+            boolean hasValue,
             boolean isDimension,
             TimeSeriesParams.MetricType metricType,
             Map<String, String> meta
@@ -545,6 +547,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (agg) {
                 aggregatableIndices += indices.length;
             }
+            this.hasValue = hasValue;
             if (isDimension) {
                 dimensionIndices += indices.length;
             }
@@ -601,7 +604,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             // Iff this field is aggregatable in some indices AND non-aggregatable in others
             // we keep the list of non-aggregatable indices
             final boolean isAggregatable = aggregatableIndices == totalIndices;
-            final boolean hasValue = true; // TODO-MP check in map
             final String[] nonAggregatableIndices;
             if (isAggregatable || aggregatableIndices == 0) {
                 nonAggregatableIndices = null;

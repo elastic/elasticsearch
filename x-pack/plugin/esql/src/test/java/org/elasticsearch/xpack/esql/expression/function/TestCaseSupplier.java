@@ -243,30 +243,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
-    public static List<TestCaseSupplier> forBinaryNumericNotCasting(
-        String name,
-        String lhsName,
-        String rhsName,
-        BinaryOperator<Number> expected,
-        DataType expectedType,
-        List<TypedDataSupplier> lhsSuppliers,
-        List<TypedDataSupplier> rhsSuppliers,
-        List<String> warnings,
-        boolean symetric
-    ) {
-        return forBinaryNotCasting(
-            name,
-            lhsName,
-            rhsName,
-            (lhs, rhs) -> expected.apply((Number) lhs, (Number) rhs),
-            expectedType,
-            lhsSuppliers,
-            rhsSuppliers,
-            warnings,
-            symetric
-        );
-    }
-
     public record NumericTypeTestConfig(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
 
     public record NumericTypeTestConfigs(
@@ -367,8 +343,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
-        List<String> warnings,
-        boolean symetric
+        List<String> warnings
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         casesCrossProduct(
@@ -1184,14 +1159,22 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {}
+    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
+        public TypedData get() {
+            return new TypedData(supplier.get(), type, name);
+        }
+    }
 
     /**
      * Holds a data value and the intended parse type of that value
      * @param data - value to test against
      * @param type - type of the value, for building expressions
+     * @param name - a name for the value, used for generating test case names
      */
     public record TypedData(Object data, DataType type, String name) {
+
+        public static final TypedData NULL = new TypedData(null, DataTypes.NULL, "<null>");
+
         public TypedData(Object data, String name) {
             this(data, EsqlDataTypes.fromJava(data), name);
         }

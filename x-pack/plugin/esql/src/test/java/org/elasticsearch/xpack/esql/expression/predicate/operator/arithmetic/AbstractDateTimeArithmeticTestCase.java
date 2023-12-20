@@ -17,11 +17,11 @@ import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.oneOf;
 
 public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithmeticTestCase {
 
@@ -46,28 +46,61 @@ public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithme
 
     @Override
     protected void validateType(BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
-        if (isDateTime(lhsType) && isTemporalAmount(rhsType) || isTemporalAmount(lhsType) && isDateTime(rhsType)) {
-            assertTrue(op.toString(), op.typeResolved().resolved());
-            assertTrue(op.toString(), isTemporalAmount(lhsType) || isTemporalAmount(rhsType));
-            assertFalse(op.toString(), isTemporalAmount(lhsType) && isTemporalAmount(rhsType));
-            assertThat(op.toString(), op.dataType(), equalTo(expectedType(lhsType, rhsType)));
-            assertThat(op.toString(), op.getClass(), oneOf(Add.class, Sub.class));
-        } else if (isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)) {
-            assertFalse(op.toString(), op.typeResolved().resolved());
-            assertThat(
-                op.toString(),
-                op.typeResolved().message(),
-                equalTo(
-                    String.format(Locale.ROOT, "[%s] has arguments with incompatible types [%s] and [%s]", op.symbol(), lhsType, rhsType)
-                )
-            );
+        if (isDateTime(lhsType) || isDateTime(rhsType)) {
+            String failureMessage = null;
+            if (isDateTime(lhsType) && isDateTime(rhsType)
+                || isNullOrTemporalAmount(lhsType) == false && isNullOrTemporalAmount(rhsType) == false) {
+                failureMessage = String.format(
+                    Locale.ROOT,
+                    "[%s] has arguments with incompatible types [%s] and [%s]",
+                    op.symbol(),
+                    lhsType,
+                    rhsType
+                );
+            } else if (op instanceof Sub && isDateTime(rhsType)) {
+                failureMessage = String.format(
+                    Locale.ROOT,
+                    "[%s] arguments are in unsupported order: cannot subtract a [DATETIME] value [%s] from a [%s] amount [%s]",
+                    op.symbol(),
+                    op.right().sourceText(),
+                    lhsType,
+                    op.left().sourceText()
+                );
+            }
+            assertTypeResolution(failureMessage, op, lhsType, rhsType);
+        } else if (isTemporalAmount(lhsType) || isTemporalAmount(rhsType)) {
+            String failureMessage = isNull(lhsType) || isNull(rhsType) || lhsType == rhsType
+                ? null
+                : String.format(Locale.ROOT, "[%s] has arguments with incompatible types [%s] and [%s]", op.symbol(), lhsType, rhsType);
+            assertTypeResolution(failureMessage, op, lhsType, rhsType);
         } else {
             super.validateType(op, lhsType, rhsType);
         }
     }
 
+    private void assertTypeResolution(String failureMessage, BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
+        if (failureMessage != null) {
+            assertFalse(op.toString(), op.typeResolved().resolved());
+            assertThat(op.toString(), op.typeResolved().message(), equalTo(failureMessage));
+        } else {
+            assertTrue(op.toString(), op.typeResolved().resolved());
+            assertThat(op.toString(), op.dataType(), equalTo(expectedType(lhsType, rhsType)));
+        }
+    }
+
     @Override
     protected DataType expectedType(DataType lhsType, DataType rhsType) {
-        return isDateTimeOrTemporal(lhsType) ? DataTypes.DATETIME : super.expectedType(lhsType, rhsType);
+        if (isDateTime(lhsType) || isDateTime(rhsType)) {
+            return DataTypes.DATETIME;
+        } else if (isNullOrTemporalAmount(lhsType) || isNullOrTemporalAmount(rhsType)) {
+            if (isNull(lhsType)) {
+                return rhsType;
+            } else if (isNull(rhsType)) {
+                return lhsType;
+            } else if (lhsType == rhsType) {
+                return lhsType;
+            } // else: UnsupportedOperationException
+        }
+        return super.expectedType(lhsType, rhsType);
     }
 }

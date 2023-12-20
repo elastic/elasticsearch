@@ -83,16 +83,41 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 DataTypes.UNSIGNED_LONG,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
-                List.of(),
-                false
+                List.of()
             )
         );
 
-        // AwaitsFix https://github.com/elastic/elasticsearch/issues/103085
-        // After fixing that issue, please move this line to below where the date cases are generated
+        // Datetime, Period/Duration Cases
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "No evaluator, the tests only trigger the folding code since Period is not representable",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> ((Period) lhs).plus((Period) rhs),
+                EsqlDataTypes.DATE_PERIOD,
+                TestCaseSupplier.datePeriodCases(),
+                TestCaseSupplier.datePeriodCases(),
+                List.of()
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "No evaluator, the tests only trigger the folding code since Duration is not representable",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> ((Duration) lhs).plus((Duration) rhs),
+                EsqlDataTypes.TIME_DURATION,
+                TestCaseSupplier.timeDurationCases(),
+                TestCaseSupplier.timeDurationCases(),
+                List.of()
+            )
+        );
+
+        // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
+        // Datetime + Period/Duration, since the expression will take the non-null arg's type.
         suppliers = anyNullIsNull(true, suppliers);
 
-        // Datetime Cases
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
@@ -115,21 +140,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of(),
-                true
-            )
-        );
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Period is not representable",
-                "lhs",
-                "rhs",
-                (lhs, rhs) -> ((Period) lhs).plus((Period) rhs),
-                EsqlDataTypes.DATE_PERIOD,
-                TestCaseSupplier.datePeriodCases(),
-                TestCaseSupplier.datePeriodCases(),
-                List.of(),
-                false
+                List.of()
             )
         );
         suppliers.addAll(
@@ -154,23 +165,33 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of(),
-                true
+                List.of()
             )
         );
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                "lhs",
-                "rhs",
-                (lhs, rhs) -> ((Duration) lhs).plus((Duration) rhs),
-                EsqlDataTypes.TIME_DURATION,
-                TestCaseSupplier.timeDurationCases(),
-                TestCaseSupplier.timeDurationCases(),
-                List.of(),
-                false
-            )
-        );
+        suppliers.addAll(TestCaseSupplier.dateCases().stream().<TestCaseSupplier>mapMulti((tds, consumer) -> {
+            consumer.accept(
+                new TestCaseSupplier(
+                    List.of(DataTypes.DATETIME, DataTypes.NULL),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(tds.get(), TestCaseSupplier.TypedData.NULL),
+                        "LiteralsEvaluator[lit=null]",
+                        DataTypes.DATETIME,
+                        nullValue()
+                    )
+                )
+            );
+            consumer.accept(
+                new TestCaseSupplier(
+                    List.of(DataTypes.NULL, DataTypes.DATETIME),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.NULL, tds.get()),
+                        "LiteralsEvaluator[lit=null]",
+                        DataTypes.DATETIME,
+                        nullValue()
+                    )
+                )
+            );
+        }).toList());
 
         // Cases that should generate warnings
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {

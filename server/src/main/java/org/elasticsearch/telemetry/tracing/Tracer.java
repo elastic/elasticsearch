@@ -40,9 +40,7 @@ public interface Tracer {
      * @param name the name of the span. Used to filter out spans, but also sent to the tracing system
      * @param attributes arbitrary key/value data for the span. Sent to the tracing system
      */
-    default void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes) {
-        startTrace(traceContext, traceable, name, attributes);
-    }
+    void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes);
 
     /**
      * Called when a span starts. This version of the method relies on context to assign the span a parent.

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -53,7 +54,13 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
     @Before
     public void init() {
-        memoryMetricsService = new MemoryMetricsService();
+        memoryMetricsService = new MemoryMetricsService(
+            System::nanoTime,
+            new ClusterSettings(
+                Settings.EMPTY,
+                Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING)
+            )
+        );
     }
 
     public void testServiceOnlyReturnDataWhenLocalNodeIsElectedAsMaster() {

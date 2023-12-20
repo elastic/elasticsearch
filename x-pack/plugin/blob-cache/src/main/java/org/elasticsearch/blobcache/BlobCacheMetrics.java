@@ -20,17 +20,17 @@ public class BlobCacheMetrics {
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
         this(
             meterRegistry.registerLongCounter(
-                "elasticsearch.blob_cache.miss_that_triggered_read",
+                "es.blob_cache.miss_that_triggered_read",
                 "The number of times there was a cache miss that triggered a read from the blob store",
                 "count"
             ),
             meterRegistry.registerLongCounter(
-                "elasticsearch.blob_cache.count_of_evicted_used_regions",
+                "es.blob_cache.count_of_evicted_used_regions",
                 "The number of times a cache entry was evicted where the frequency was not zero",
                 "entries"
             ),
             meterRegistry.registerLongHistogram(
-                "elasticsearch.blob_cache.cache_miss_load_times",
+                "es.blob_cache.cache_miss_load_times",
                 "The time in microseconds for populating entries in the blob store resulting from a cache miss, expressed as a histogram.",
                 "micros"
             )

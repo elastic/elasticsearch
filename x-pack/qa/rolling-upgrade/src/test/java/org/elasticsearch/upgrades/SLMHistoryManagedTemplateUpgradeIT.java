@@ -32,8 +32,7 @@ public class SLMHistoryManagedTemplateUpgradeIT extends AbstractUpgradeTestCase 
                     List<Map<String, Object>> indexTemplates = (List<Map<String, Object>>) responseMap.get("index_templates");
                     assertThat(indexTemplates.size(), is(1));
                     assertThat(ObjectPath.evaluate(indexTemplates.get(0), "name"), is(".slm-history-7"));
-                    assertThat(ObjectPath.evaluate(indexTemplates.get(0), "index_template.index_patterns"),
-                        is(List.of(".slm-history-7*")));
+                    assertThat(ObjectPath.evaluate(indexTemplates.get(0), "index_template.index_patterns"), is(List.of(".slm-history-7*")));
                 } catch (ResponseException e) {
                     // Not found is fine
                     assertThat(

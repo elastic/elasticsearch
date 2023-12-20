@@ -369,26 +369,49 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         final List<String> apiKeyIds = new ArrayList<>(3);
         apiKeyIds.add(createApiKey("key1", null, null, Map.of("tag", 1), fileUserHeader).v1());
-        apiKeyIds.add(createApiKey("key1", null, null, Map.of("tag", 4), nativeUserHeader).v1());
-        apiKeyIds.add(createApiKey("key2", null, null, Map.of("tag", 2), adminFileUserHeader).v1());
-        apiKeyIds.add(createApiKey("key2", null, null, Map.of("tag", 3), nativeUserHeader).v1());
-        // query on the creator username field
-        assertQuery(
-                adminFileUserHeader,
-                """
-                    {"query": {"multi_match": {"query": "key1 key2", "fields": [ "username", "realm_name", "name", "metadata.tag" ] }}}""",
-                apiKeys -> {
-                    assertThat(
-                            apiKeys.stream().map(k -> (String) k.get("id")).toList(),
-                            containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1))
-                    );
-                }
-        );
-        // query on the api key name field
+        apiKeyIds.add(createApiKey("key1", null, null, Map.of("tag", 2), nativeUserHeader).v1());
+        apiKeyIds.add(createApiKey("key2", null, null, Map.of("tag", 3), adminFileUserHeader).v1());
+        apiKeyIds.add(createApiKey("key2", null, null, Map.of("tag", 4), nativeUserHeader).v1());
+        apiKeyIds.add(createApiKey("key3", null, null, Map.of("nested.tag", 1, "nested.label", "file_user"), adminFileUserHeader).v1());
+        apiKeyIds.add(createApiKey("key3", null, null, Map.of("nested.tag", 2, "nested.label", "file_user"), fileUserHeader).v1());
+        apiKeyIds.add(createApiKey("key4", null, null, Map.of("nested.tag", 3, "nested.label", "native_user"), nativeUserHeader).v1());
+        apiKeyIds.add(createApiKey("key4", null, null, Map.of("nested.tag", 4, "nested.label", "native_user"), nativeUserHeader).v1());
+        // get all the keys because all are of type "rest"
         assertQuery(adminFileUserHeader, """
-            {"query": {"multi_match": {"query": "key name", "fields": [ "username", "realm_name", "name", "metadata.tag" ] }}}""",
-                apiKeys -> {
-            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1)));
+            {"query": {"multi_match": {"query": "rest", "analyzer": "standard" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
+        });
+        // query on api key name with standard analyzer
+        assertQuery(adminFileUserHeader, """
+            {"query": {"multi_match": {"query": "key1 key2", "analyzer": "standard" }}}""", apiKeys -> {
+            assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(1), apiKeyIds.get(2), apiKeyIds.get(3))
+            );
+        });
+        // query on metadata.tag and metadata.nested.tag with standard analyzer
+        assertQuery(adminFileUserHeader, """
+            {"query": {"multi_match": {"query": "3 1", "analyzer": "standard" }}}""", apiKeys -> {
+            assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(2), apiKeyIds.get(4), apiKeyIds.get(6))
+            );
+        });
+        // query on realm_name and nested.label with standard analyzer
+        assertQuery(adminFileUserHeader, """
+            {"query": {"multi_match": {"query": "file default_file", "analyzer": "standard" }}}""", apiKeys -> {
+            assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(2), apiKeyIds.get(4), apiKeyIds.get(5))
+            );
+        });
+        // query on metadata.nested.label, and username, with standard analyzer
+        assertQuery(adminFileUserHeader, """
+            {"query": {"multi_match": {"query": "native_user api_key_user", "analyzer": "standard" }}}""", apiKeys -> {
+            assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIds.get(0), apiKeyIds.get(5), apiKeyIds.get(6), apiKeyIds.get(7))
+            );
         });
     }
 

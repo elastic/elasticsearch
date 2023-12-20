@@ -179,7 +179,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.jvm.mem.pools.young.used",
+                "es.jvm.mem.pools.young.size",
                 "Memory, in bytes, used by the young generation heap.",
                 "bytes",
                 () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.YOUNG))
@@ -188,7 +188,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongGauge(
-                "es.jvm.mem.pools.survivor.used",
+                "es.jvm.mem.pools.survivor.size",
                 "Memory, in bytes, used by the survivor space.",
                 "bytes",
                 () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR))

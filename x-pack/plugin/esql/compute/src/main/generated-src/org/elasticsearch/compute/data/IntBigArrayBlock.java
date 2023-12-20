@@ -20,7 +20,7 @@ import java.util.BitSet;
 public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final IntArray values;
+    private final IntBigArrayVector values;
 
     public IntBigArrayBlock(
         IntArray values,
@@ -31,7 +31,7 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.values = new IntBigArrayVector(values, (int) values.size());
     }
 
     @Override
@@ -41,7 +41,7 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
 
     @Override
     public int getInt(int valueIndex) {
-        return values.get(valueIndex);
+        return values.getInt(valueIndex);
     }
 
     @Override

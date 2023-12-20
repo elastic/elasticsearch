@@ -20,7 +20,7 @@ import java.util.BitSet;
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final $if(boolean)$Bit$else$$Type$$endif$Array values;
+    private final $Type$BigArrayVector values;
 
     public $Type$BigArrayBlock(
         $if(boolean)$Bit$else$$Type$$endif$Array values,
@@ -31,7 +31,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.values = new $Type$BigArrayVector(values, (int) values.size());
     }
 
     @Override
@@ -41,7 +41,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public $type$ get$Type$(int valueIndex) {
-        return values.get(valueIndex);
+        return values.get$Type$(valueIndex);
     }
 
     @Override

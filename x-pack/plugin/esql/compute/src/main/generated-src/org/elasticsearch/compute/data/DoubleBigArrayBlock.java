@@ -20,7 +20,7 @@ import java.util.BitSet;
 public final class DoubleBigArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final DoubleArray values;
+    private final DoubleBigArrayVector values;
 
     public DoubleBigArrayBlock(
         DoubleArray values,
@@ -31,7 +31,7 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.values = new DoubleBigArrayVector(values, (int) values.size());
     }
 
     @Override
@@ -41,7 +41,7 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
 
     @Override
     public double getDouble(int valueIndex) {
-        return values.get(valueIndex);
+        return values.getDouble(valueIndex);
     }
 
     @Override

@@ -20,7 +20,7 @@ import java.util.BitSet;
 public final class BooleanBigArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final BitArray values;
+    private final BooleanBigArrayVector values;
 
     public BooleanBigArrayBlock(
         BitArray values,
@@ -31,7 +31,7 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.values = new BooleanBigArrayVector(values, (int) values.size());
     }
 
     @Override
@@ -41,7 +41,7 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
 
     @Override
     public boolean getBoolean(int valueIndex) {
-        return values.get(valueIndex);
+        return values.getBoolean(valueIndex);
     }
 
     @Override

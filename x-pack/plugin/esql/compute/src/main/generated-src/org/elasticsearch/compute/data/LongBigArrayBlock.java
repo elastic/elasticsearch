@@ -20,7 +20,7 @@ import java.util.BitSet;
 public final class LongBigArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final LongArray values;
+    private final LongBigArrayVector values;
 
     public LongBigArrayBlock(
         LongArray values,
@@ -31,7 +31,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.values = new LongBigArrayVector(values, (int) values.size());
     }
 
     @Override
@@ -41,7 +41,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
 
     @Override
     public long getLong(int valueIndex) {
-        return values.get(valueIndex);
+        return values.getLong(valueIndex);
     }
 
     @Override

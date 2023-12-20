@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -1871,17 +1870,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Expects
      * ProjectExec[[a{r}#7]]
-     * \_EvalExec[[__a_SUM@fe21f5{r}#18 / __a_COUNT@375293d7{r}#19 AS a]]
+     * \_EvalExec[[__a_SUM@937dc822{r}#18 / __a_COUNT@aae8271e{r}#19 AS a]]
      *   \_LimitExec[10000[INTEGER]]
-     *     \_AggregateExec[[],[SUM(salary{f}#13) AS __a_SUM@fe21f5, COUNT(salary{f}#13) AS __a_COUNT@375293d7],FINAL,24]
-     *       \_AggregateExec[[],[SUM(salary{f}#13) AS __a_SUM@fe21f5, COUNT(salary{f}#13) AS __a_COUNT@375293d7],PARTIAL,16]
-     *         \_FilterExec[ISNOTNULL(salary{f}#13)]
-     *           \_LimitExec[10[INTEGER]]
-     *             \_ExchangeExec[[],false]
-     *               \_ProjectExec[[salary{f}#13]]
-     *                 \_FieldExtractExec[salary{f}#13]
-     *                   \_EsQueryExec[test], query[][_doc{f}#33], limit[10], sort[] estimatedRowSize[8]
+     *     \_AggregateExec[[],[SUM(salary{f}#13) AS __a_SUM@937dc822, COUNT(salary{f}#13) AS __a_COUNT@aae8271e],FINAL,24]
+     *       \_AggregateExec[[],[SUM(salary{f}#13) AS __a_SUM@937dc822, COUNT(salary{f}#13) AS __a_COUNT@aae8271e],PARTIAL,16]
+     *         \_LimitExec[10[INTEGER]]
+     *           \_ExchangeExec[[],false]
+     *             \_ProjectExec[[salary{f}#13]]
+     *               \_FieldExtractExec[salary{f}#13]
+     *                 \_EsQueryExec[test], query[][_doc{f}#33], limit[10], sort[] estimatedRowSize[8]
      */
     public void testAvgSurrogateFunctionAfterRenameAndLimit() {
         var plan = optimizedPlan(physicalPlan("""
@@ -1900,10 +1899,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(aggFinal.getMode(), equalTo(FINAL));
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
         assertThat(aggPartial.getMode(), equalTo(AggregateExec.Mode.PARTIAL));
-        var filter = as(aggPartial.child(), FilterExec.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(inn.field()), is("salary"));
-        limit = as(filter.child(), LimitExec.class);
+        limit = as(aggPartial.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(limit.limit().fold(), equalTo(10));
 

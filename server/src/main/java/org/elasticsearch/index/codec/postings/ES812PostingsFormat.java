@@ -41,6 +41,7 @@ import java.io.IOException;
 
 /**
  * Based on Lucene 9.0 postings format, which encodes postings in packed integer blocks for fast decode.
+ * It is introduced to preserve PFOR space efficiency when Lucene switched back to FOR in 9.9
  *
  * <p>Basic idea:
  *
@@ -396,8 +397,7 @@ public final class ES812PostingsFormat extends PostingsFormat {
                 state,
                 postingsWriter,
                 Lucene90BlockTreeTermsWriter.DEFAULT_MIN_BLOCK_SIZE,
-                Lucene90BlockTreeTermsWriter.DEFAULT_MAX_BLOCK_SIZE,
-                VERSION_START
+                Lucene90BlockTreeTermsWriter.DEFAULT_MAX_BLOCK_SIZE
             );
             success = true;
             return ret;

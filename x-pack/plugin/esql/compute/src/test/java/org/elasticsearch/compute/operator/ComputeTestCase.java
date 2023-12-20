@@ -67,13 +67,12 @@ public abstract class ComputeTestCase extends ESTestCase {
     public void allBreakersEmpty() throws Exception {
         // first check that all big arrays are released, which can affect breakers
         MockBigArrays.ensureAllArraysAreReleased();
-
-        for (CircuitBreaker breaker : breakers) {
-            for (var factory : blockFactories) {
-                if (factory instanceof MockBlockFactory mockBlockFactory) {
-                    mockBlockFactory.ensureAllBlocksAreReleased();
-                }
+        for (var factory : blockFactories) {
+            if (factory instanceof MockBlockFactory mockBlockFactory) {
+                mockBlockFactory.ensureAllBlocksAreReleased();
             }
+        }
+        for (CircuitBreaker breaker : breakers) {
             assertThat("Unexpected used in breaker: " + breaker, breaker.getUsed(), equalTo(0L));
         }
     }

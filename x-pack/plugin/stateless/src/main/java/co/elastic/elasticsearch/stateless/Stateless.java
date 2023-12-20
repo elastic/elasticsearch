@@ -427,7 +427,7 @@ public class Stateless extends Plugin
         );
         components.add(indicesMappingSizeCollector);
 
-        var memoryMetricsService = new MemoryMetricsService();
+        var memoryMetricsService = new MemoryMetricsService(threadPool::relativeTimeInNanos, clusterService.getClusterSettings());
         clusterService.addListener(memoryMetricsService);
         components.add(memoryMetricsService);
 
@@ -634,6 +634,7 @@ public class Stateless extends Plugin
             IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
             IndicesMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
             IndicesMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
+            MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
             IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
             IngestLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
             IngestMetricsService.ACCURATE_LOAD_WINDOW,

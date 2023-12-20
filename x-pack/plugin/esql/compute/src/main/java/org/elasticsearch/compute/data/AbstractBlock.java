@@ -101,7 +101,7 @@ abstract class AbstractBlock implements Block {
     }
 
     @Override
-    public boolean isReleased() {
+    public final boolean isReleased() {
         return hasReferences() == false;
     }
 

@@ -1003,12 +1003,6 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("can't release already released block"));
     }
 
-    static void assertCannotReleaseIfVectorAlreadyReleased(Block block) {
-        var ex = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(ex.getMessage(), containsString("can't release block"));
-        assertThat(ex.getMessage(), containsString("containing already released vector"));
-    }
-
     static void assertCannotReadFromPage(Page page) {
         var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
         assertThat(e.getMessage(), containsString("can't read released block"));
@@ -1096,37 +1090,6 @@ public class BasicBlockTests extends ESTestCase {
 
         expectThrows(IllegalStateException.class, b::close);
         expectThrows(IllegalStateException.class, b::incRef);
-    }
-
-    public void testReleasedVectorInvalidatesBlockState() {
-        Vector vector = randomNonDocVector();
-        Block block = vector.asBlock();
-
-        int numRefs = randomIntBetween(1, 10);
-        for (int i = 0; i < numRefs - 1; i++) {
-            block.incRef();
-        }
-
-        vector.close();
-        assertEquals(false, block.tryIncRef());
-        expectThrows(IllegalStateException.class, block::close);
-        expectThrows(IllegalStateException.class, block::incRef);
-    }
-
-    public void testReleasedDocVectorInvalidatesBlockState() {
-        int positionCount = randomIntBetween(0, 100);
-        DocVector vector = new DocVector(intVector(positionCount), intVector(positionCount), intVector(positionCount), true);
-        DocBlock block = vector.asBlock();
-
-        int numRefs = randomIntBetween(1, 10);
-        for (int i = 0; i < numRefs - 1; i++) {
-            block.incRef();
-        }
-
-        vector.close();
-        assertEquals(false, block.tryIncRef());
-        expectThrows(IllegalStateException.class, block::close);
-        expectThrows(IllegalStateException.class, block::incRef);
     }
 
     private IntVector intVector(int positionCount) {

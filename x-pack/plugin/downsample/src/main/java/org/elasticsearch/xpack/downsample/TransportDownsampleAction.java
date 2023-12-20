@@ -400,14 +400,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
-                    var runningPersistentTaskState = (DownsampleShardPersistentTaskState) persistentTask.getState();
-                    if (runningPersistentTaskState != null) {
-                        if (runningPersistentTaskState.failed()) {
-                            onFailure(new ElasticsearchException("downsample task [" + persistentTaskId + "] failed"));
-                            return;
-                        } else if (runningPersistentTaskState.cancelled()) {
-                            onFailure(new ElasticsearchException("downsample task [" + persistentTaskId + "] cancelled"));
-                            return;
+                    if (persistentTask != null) {
+                        var runningPersistentTaskState = (DownsampleShardPersistentTaskState) persistentTask.getState();
+                        if (runningPersistentTaskState != null) {
+                            if (runningPersistentTaskState.failed()) {
+                                onFailure(new ElasticsearchException("downsample task [" + persistentTaskId + "] failed"));
+                                return;
+                            } else if (runningPersistentTaskState.cancelled()) {
+                                onFailure(new ElasticsearchException("downsample task [" + persistentTaskId + "] cancelled"));
+                                return;
+                            }
                         }
                     }
 

@@ -33,6 +33,38 @@ public final class MlStrings {
 
     public static final int ID_LENGTH_LIMIT = 64;
 
+    // for testing
+    public static String[] someInvalidChars = {
+        "%",
+        " ",
+        "!",
+        "@",
+        "#",
+        "$",
+        "^",
+        "&",
+        "*",
+        "(",
+        ")",
+        "+",
+        "=",
+        "{",
+        "}",
+        "[",
+        "]",
+        "|",
+        "\\",
+        ":",
+        ";",
+        "\"",
+        "'",
+        "<",
+        ">",
+        ",",
+        "?",
+        "/",
+        "~" };
+
     private MlStrings() {}
 
     /**

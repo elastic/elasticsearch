@@ -1,0 +1,5 @@
+pr: 103615
+summary: Don't ignore failed downsample state
+area: Downsampling
+type: bug
+issues: []

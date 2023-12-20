@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
+import java.time.Duration;
+import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
@@ -30,14 +32,29 @@ public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithme
         Object lhs = data.get(0);
         Object rhs = data.get(1);
         if (lhs instanceof TemporalAmount || rhs instanceof TemporalAmount) {
-            TemporalAmount temporal = lhs instanceof TemporalAmount leftTemporal ? leftTemporal : (TemporalAmount) rhs;
-            long datetime = temporal == lhs ? (Long) rhs : (Long) lhs;
-            return equalTo(expectedValue(datetime, temporal));
+            Object expectedValue;
+            if (lhs instanceof TemporalAmount && rhs instanceof TemporalAmount) {
+                assertThat("temporal amounts of different kinds", lhs.getClass(), equalTo(rhs.getClass()));
+                if (lhs instanceof Period) {
+                    expectedValue = expectedValue((Period) lhs, (Period) rhs);
+                } else {
+                    expectedValue = expectedValue((Duration) lhs, (Duration) rhs);
+                }
+            } else if (lhs instanceof TemporalAmount lhsTemporal) {
+                expectedValue = expectedValue((long) rhs, lhsTemporal);
+            } else { // rhs instanceof TemporalAmount
+                expectedValue = expectedValue((long) lhs, (TemporalAmount) rhs);
+            }
+            return equalTo(expectedValue);
         }
         return super.resultMatcher(data, dataType);
     }
 
     protected abstract long expectedValue(long datetime, TemporalAmount temporalAmount);
+
+    protected abstract Period expectedValue(Period lhs, Period rhs);
+
+    protected abstract Duration expectedValue(Duration lhs, Duration rhs);
 
     @Override
     protected final boolean supportsType(DataType type) {

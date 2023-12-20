@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
@@ -145,7 +146,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                // TODO: There is an evaluator for Datetime + Duration, so it should be tested. Similarly below.
+                // TODO: There is an evaluator for Datetime + Duration, so it should be tested. Similarly above.
                 "No evaluator, the tests only trigger the folding code since Duration is not representable",
                 "lhs",
                 "rhs",
@@ -217,7 +218,10 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
     @Override
     protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
         if (isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)) {
-            return isDateTime(lhsType) && isTemporalAmount(rhsType) || isTemporalAmount(lhsType) && isDateTime(rhsType);
+            return isNull(lhsType) || isNull(rhsType)
+                || isDateTime(lhsType) && isTemporalAmount(rhsType)
+                || isTemporalAmount(lhsType) && isDateTime(rhsType)
+                || isTemporalAmount(lhsType) && isTemporalAmount(rhsType) && lhsType == rhsType;
         }
         return super.supportsTypes(lhsType, rhsType);
     }
@@ -252,5 +256,15 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
     @Override
     protected long expectedValue(long datetime, TemporalAmount temporalAmount) {
         return asMillis(asDateTime(datetime).plus(temporalAmount));
+    }
+
+    @Override
+    protected Period expectedValue(Period lhs, Period rhs) {
+        return lhs.plus(rhs);
+    }
+
+    @Override
+    protected Duration expectedValue(Duration lhs, Duration rhs) {
+        return lhs.plus(rhs);
     }
 }

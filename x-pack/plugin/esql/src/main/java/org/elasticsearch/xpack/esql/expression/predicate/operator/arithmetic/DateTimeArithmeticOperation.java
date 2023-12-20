@@ -24,11 +24,10 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrDatePeriod;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTimeDuration;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
@@ -63,14 +62,14 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         // - both arguments are TemporalValues (so we can fold them), or
         // - one argument is NULL and the other one a DATETIME.
         if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
-            if ((isDateTime(leftType) && isNullOrTemporalAmount(rightType))
-                || (isNullOrTemporalAmount(leftType) && isDateTime(rightType))) {
+            if (isNull(leftType) || isNull(rightType)) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if (isNullOrTimeDuration(leftType) && isNullOrTimeDuration(rightType)) {
+            if ((isDateTime(leftType) && isTemporalAmount(rightType))
+                || (isTemporalAmount(leftType) && isDateTime(rightType))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if (isNullOrDatePeriod(leftType) && isNullOrDatePeriod(rightType)) {
+            if (isTemporalAmount(leftType) && isTemporalAmount(rightType) && leftType == rightType) {
                 return TypeResolution.TYPE_RESOLVED;
             }
 
@@ -129,6 +128,9 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 // manually and provide a user-friendly error message.
                 throw ExceptionUtils.math(source(), e);
             }
+        }
+        if (isNull(leftDataType) || isNull(rightDataType)) {
+            return null;
         }
         return super.fold();
     }

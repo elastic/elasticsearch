@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
 import java.util.BitSet;
 
 /**
@@ -20,7 +20,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class);
 
-    private final double[] values;
+    private final DoubleArrayVector values;
 
     public DoubleArrayBlock(double[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
@@ -35,7 +35,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.values = new DoubleArrayVector(values, values.length);
     }
 
     @Override
@@ -45,7 +45,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public double getDouble(int valueIndex) {
-        return values[valueIndex];
+        return values.getDouble(valueIndex);
     }
 
     @Override
@@ -100,14 +100,13 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
         }
     }
 
-    public static long ramBytesEstimated(double[] values, int[] firstValueIndexes, BitSet nullsMask) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    public long ramBytesUsedOnlyBlock() {
+        return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+        return ramBytesUsedOnlyBlock() + values.ramBytesUsed();
     }
 
     @Override
@@ -131,12 +130,13 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
             + ", mvOrdering="
             + mvOrdering()
             + ", values="
-            + Arrays.toString(values)
+            + values
             + ']';
     }
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        Releasables.closeExpectNoException(values);
     }
 }

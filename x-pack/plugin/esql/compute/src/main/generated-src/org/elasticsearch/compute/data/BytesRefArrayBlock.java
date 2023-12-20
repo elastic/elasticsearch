@@ -22,7 +22,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 
-    private final BytesRefArray values;
+    private final BytesRefArrayVector values;
 
     public BytesRefArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
@@ -37,7 +37,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.values = new BytesRefArrayVector(values, (int) values.size());
     }
 
     @Override
@@ -47,7 +47,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return values.get(valueIndex, dest);
+        return values.getBytesRef(valueIndex, dest);
     }
 
     @Override
@@ -104,14 +104,13 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         }
     }
 
-    public static long ramBytesEstimated(BytesRefArray values, int[] firstValueIndexes, BitSet nullsMask) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    public long ramBytesUsedOnlyBlock() {
+        return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+        return ramBytesUsedOnlyBlock() + values.ramBytesUsed();
     }
 
     @Override
@@ -135,13 +134,13 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
             + ", mvOrdering="
             + mvOrdering()
             + ", values="
-            + values.size()
+            + values.getPositionCount()
             + ']';
     }
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
         Releasables.closeExpectNoException(values);
     }
 }

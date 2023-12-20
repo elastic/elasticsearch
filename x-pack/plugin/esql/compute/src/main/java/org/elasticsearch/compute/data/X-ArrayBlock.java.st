@@ -15,8 +15,8 @@ import org.elasticsearch.core.Releasables;
 
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
 $endif$
 import java.util.BitSet;
 
@@ -28,12 +28,7 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 
-$if(BytesRef)$
-    private final BytesRefArray values;
-
-$else$
-    private final $type$[] values;
-$endif$
+    private final $Type$ArrayVector values;
 
     public $Type$ArrayBlock($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
@@ -48,7 +43,11 @@ $endif$
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        $if(BytesRef)$
+        this.values = new BytesRefArrayVector(values, (int) values.size());
+        $else$
+        this.values = new $Type$ArrayVector(values, values.length);
+        $endif$
     }
 
     @Override
@@ -59,10 +58,10 @@ $endif$
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return values.get(valueIndex, dest);
+        return values.getBytesRef(valueIndex, dest);
 $else$
     public $type$ get$Type$(int valueIndex) {
-        return values[valueIndex];
+        return values.get$Type$(valueIndex);
 $endif$
     }
 
@@ -128,14 +127,13 @@ $endif$
         }
     }
 
-    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    public long ramBytesUsedOnlyBlock() {
+        return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+        return ramBytesUsedOnlyBlock() + values.ramBytesUsed();
     }
 
     @Override
@@ -160,21 +158,17 @@ $endif$
             + mvOrdering()
 $if(BytesRef)$
             + ", values="
-            + values.size()
+            + values.getPositionCount()
 $else$
             + ", values="
-            + Arrays.toString(values)
+            + values
 $endif$
             + ']';
     }
 
     @Override
     public void closeInternal() {
-    $if(BytesRef)$
-        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
         Releasables.closeExpectNoException(values);
-    $else$
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
-    $endif$
     }
 }

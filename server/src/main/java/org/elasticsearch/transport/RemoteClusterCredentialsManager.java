@@ -23,22 +23,22 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 
-public final class RemoteClusterCredentialsManager {
+public class RemoteClusterCredentialsManager {
     private static final Logger logger = LogManager.getLogger(RemoteClusterCredentialsManager.class);
 
-    private volatile Map<String, SecureString> clusterCredentials;
+    private volatile Map<String, SecureString> clusterCredentials = Collections.emptyMap();
 
     public RemoteClusterCredentialsManager(Settings settings) {
-        this.clusterCredentials = Collections.emptyMap();
         updateClusterCredentials(settings);
     }
 
-    public synchronized UpdateRemoteClusterCredentialsResult updateClusterCredentials(Settings settings) {
+    public final synchronized UpdateRemoteClusterCredentialsResult updateClusterCredentials(Settings settings) {
         final Map<String, SecureString> newClusterCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
         if (clusterCredentials.isEmpty()) {
             setClusterCredentialsAndLog(newClusterCredentials);
             return new UpdateRemoteClusterCredentialsResult(new TreeSet<>(newClusterCredentials.keySet()), Collections.emptySortedSet());
         }
+
         final SortedSet<String> addedClusterAliases = Sets.sortedDifference(newClusterCredentials.keySet(), clusterCredentials.keySet());
         final SortedSet<String> removedClusterAliases = Sets.sortedDifference(clusterCredentials.keySet(), newClusterCredentials.keySet());
         setClusterCredentialsAndLog(newClusterCredentials);

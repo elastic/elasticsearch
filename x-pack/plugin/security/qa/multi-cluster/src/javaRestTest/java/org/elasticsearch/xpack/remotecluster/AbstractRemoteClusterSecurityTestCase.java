@@ -242,10 +242,12 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
             : targetFulfillingCluster.getRemoteClusterServerEndpoint(0);
         if (isProxyMode) {
             builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
-                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint);
+                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint)
+                .putNull("cluster.remote." + clusterAlias + ".seeds");
         } else {
             builder.put("cluster.remote." + clusterAlias + ".mode", "sniff")
-                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint);
+                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint)
+                .putNull("cluster.remote." + clusterAlias + ".proxy_address");
         }
         builder.put("cluster.remote." + clusterAlias + ".skip_unavailable", skipUnavailable);
         updateClusterSettings(builder.build());

@@ -114,7 +114,11 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
 
         // Now migrate to RCS 2.0
         {
-            removeRemoteCluster();
+            // Optionally remove existing cluster definition first. In practice this is the recommended approach since otherwise
+            // the reload call may result in WARN logs, but it's functionally possible not to remove the definition
+            if (randomBoolean()) {
+                removeRemoteCluster();
+            }
 
             configureRcs2();
 

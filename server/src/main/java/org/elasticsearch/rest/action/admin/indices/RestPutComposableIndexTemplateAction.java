@@ -43,7 +43,9 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
-        putRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));
+        try (var parser = request.contentParser()) {
+            putRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+        }
 
         return channel -> client.execute(PutComposableIndexTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }

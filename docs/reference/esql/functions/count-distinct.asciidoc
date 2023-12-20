@@ -1,21 +1,28 @@
 [discrete]
 [[esql-agg-count-distinct]]
 === `COUNT_DISTINCT`
-The approximate number of distinct values.
 
-[source.merge.styled,esql]
-----
-include::{esql-specs}/stats_count_distinct.csv-spec[tag=count-distinct]
-----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/stats_count_distinct.csv-spec[tag=count-distinct-result]
-|===
+*Syntax*
 
-Can take any field type as input and the result is always a `long` not matter
-the input type.
+[source,esql]
+----
+COUNT_DISTINCT(column[, precision])
+----
+
+*Parameters*
+
+`column`::
+Column for which to count the number of distinct values.
+
+`precision`::
+Precision. Refer to <<esql-agg-count-distinct-approximate>>.
+
+*Description*
+
+Returns the approximate number of distinct values.
 
 [discrete]
+[[esql-agg-count-distinct-approximate]]
 ==== Counts are approximate
 
 Computing exact counts requires loading values into a set and returning its
@@ -30,11 +37,25 @@ properties:
 
 include::../../aggregations/metrics/cardinality-aggregation.asciidoc[tag=explanation]
 
-[discrete]
-==== Precision is configurable
-
 The `COUNT_DISTINCT` function takes an optional second parameter to configure the
-precision discussed previously.
+precision.
+
+*Supported types*
+
+Can take any field type as input.
+
+*Examples*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats_count_distinct.csv-spec[tag=count-distinct]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats_count_distinct.csv-spec[tag=count-distinct-result]
+|===
+
+With the optional second parameter to configure the precision:
 
 [source.merge.styled,esql]
 ----

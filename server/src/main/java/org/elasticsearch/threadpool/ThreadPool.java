@@ -195,7 +195,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
-        final Map<String, ArrayList<Instrument>> instruments = new HashMap<String, ArrayList<Instrument>>();
+        final Map<String, ArrayList<Instrument>> instruments = new HashMap<>();
 
         builders.put(
             Names.GENERIC,
@@ -338,7 +338,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             logger.info("Starting tp metrics {}", name);
             instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "count",
+                    prefix + "count.current",
                     "number of threads for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getPoolSize(), at)
@@ -346,7 +346,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "queue",
+                    prefix + "queue.size",
                     "number queue size for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getQueue().size(), at)
@@ -354,7 +354,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "active",
+                    prefix + "active.current",
                     "number of active threads for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getActiveCount(), at)
@@ -362,7 +362,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             instruments.add(
                 meterRegistry.registerLongGauge(
-                    prefix + "largest",
+                    prefix + "largest.current",
                     "largest pool size for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getLargestPoolSize(), at)
@@ -370,7 +370,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             instruments.add(
                 meterRegistry.registerLongAsyncCounter(
-                    prefix + "completed",
+                    prefix + "completed.total",
                     "number of completed threads for " + name,
                     "count",
                     () -> new LongWithAttributes(threadPoolExecutor.getCompletedTaskCount(), at)

@@ -441,7 +441,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             false,
             false,
             false,
-            false,
+            true,
             false
         );
     }

@@ -257,26 +257,28 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                     ActionListener<Response> listener
                 ) {
                     assert EnrichCoordinatorProxyAction.NAME.equals(action.name());
-                    var emptyResponse = new SearchResponse(
-                        new InternalSearchResponse(
-                            new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                            InternalAggregations.EMPTY,
-                            new Suggest(Collections.emptyList()),
-                            new SearchProfileResults(Collections.emptyMap()),
-                            false,
-                            false,
-                            1
-                        ),
-                        "",
-                        1,
-                        1,
-                        0,
-                        0,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    );
                     requestCounter[0]++;
-                    listener.onResponse((Response) emptyResponse);
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            new InternalSearchResponse(
+                                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                                InternalAggregations.EMPTY,
+                                new Suggest(Collections.emptyList()),
+                                new SearchProfileResults(Collections.emptyMap()),
+                                false,
+                                false,
+                                1
+                            ),
+                            "",
+                            1,
+                            1,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        )
+                    );
                 }
             };
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);

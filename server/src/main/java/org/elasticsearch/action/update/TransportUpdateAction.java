@@ -269,7 +269,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             );
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
-                        }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest),
+                        }, exception -> {
+                            request.incRef();
+                            handleUpdateFailureWithRetry(listener, request, exception, retryCount);
+                        })), bulkRequest),
                         maybeDecRefIndexRequest
                     )
                 );

@@ -620,7 +620,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertNull(updateContext.get("_ttl"));
     }
 
-    public void xxtestConcurrentUpdateWithRetryOnConflict() throws Exception {
+    public void testConcurrentUpdateWithRetryOnConflict() throws Exception {
         final boolean useBulkApi = randomBoolean();
         createTestIndex();
         ensureGreen();
@@ -654,15 +654,19 @@ public class UpdateIT extends ESIntegTestCase {
                                     .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
                                 try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
                                     bulkRequestBuilder.add(updateRequestBuilder).get();
+                                } finally {
                                     updateRequestBuilder.request().decRef();
                                 }
                             } else {
-                                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), Integer.toString(i))
-                                    .setScript(fieldIncScript)
-                                    .setRetryOnConflict(Integer.MAX_VALUE)
-                                    .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
-                                updateRequestBuilder.get();
-                                updateRequestBuilder.request().decRef();
+                                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), Integer.toString(i));
+                                try {
+                                    updateRequestBuilder.setScript(fieldIncScript)
+                                        .setRetryOnConflict(Integer.MAX_VALUE)
+                                        .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
+                                        .get();
+                                } finally {
+                                    updateRequestBuilder.request().decRef();
+                                }
                             }
                         }
                         logger.info("Client [{}] issued all [{}] requests.", Thread.currentThread().getName(), numberOfUpdatesPerThread);

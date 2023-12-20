@@ -792,7 +792,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     private void indexDoc(String index, String id, String source, XContentType contentType, WriteRequest.RefreshPolicy refreshPolicy) {
         IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
         try {
-            indexRequestBuilder.setId(id).setSource(source, contentType).setRefreshPolicy(refreshPolicy);
+            indexRequestBuilder.setId(id).setSource(source, contentType);
+            if (refreshPolicy != null) {
+                indexRequestBuilder.setRefreshPolicy(refreshPolicy);
+            }
+            indexRequestBuilder.get();
         } finally {
             indexRequestBuilder.request().decRef();
         }

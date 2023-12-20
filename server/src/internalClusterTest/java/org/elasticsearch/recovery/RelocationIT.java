@@ -539,12 +539,13 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> flush so we have an actual index");
         indicesAdmin().prepareFlush().get();
         logger.info("--> index more docs so we have something in the translog");
+        List<IndexRequestBuilder> buildersToDecRef = new ArrayList<>();
         for (int i = 10; i < 20; i++) {
             IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource("field", "value" + i);
-            indexRequestBuilder.get();
-            indexRequestBuilder.request().decRef();
+            buildersToDecRef.add(indexRequestBuilder);
+            indexRequestBuilder.execute();
         }
 
         logger.info("--> start another node");
@@ -568,6 +569,9 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> verifying count");
         indicesAdmin().prepareRefresh().get();
         assertHitCount(prepareSearch("test").setSize(0), 20);
+        for (IndexRequestBuilder builder : buildersToDecRef) {
+            builder.request().decRef();
+        }
     }
 
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {

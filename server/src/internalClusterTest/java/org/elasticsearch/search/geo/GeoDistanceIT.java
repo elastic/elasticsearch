@@ -109,17 +109,17 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testDistanceScript() throws Exception {
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "TestPosition")
-                    .startObject("location")
-                    .field("lat", src_lat)
-                    .field("lon", src_lon)
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("name", "TestPosition")
+                .startObject("location")
+                .field("lat", src_lat)
+                .field("lon", src_lon)
+                .endObject()
+                .endObject()
+        );
 
         refresh();
 
@@ -190,17 +190,17 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testGeoDistanceAggregation() throws IOException {
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "TestPosition")
-                    .startObject("location")
-                    .field("lat", src_lat)
-                    .field("lon", src_lon)
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("name", "TestPosition")
+                .startObject("location")
+                .field("lat", src_lat)
+                .field("lon", src_lon)
+                .endObject()
+                .endObject()
+        );
 
         refresh();
 

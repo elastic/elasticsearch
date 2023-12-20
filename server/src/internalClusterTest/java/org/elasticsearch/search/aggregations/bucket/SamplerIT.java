@@ -75,12 +75,8 @@ public class SamplerIT extends ESIntegTestCase {
 
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
-            prepareIndex("test").setId("" + i)
-                .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
-                .get();
-            prepareIndex("idx_unmapped_author").setId("" + i)
-                .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
-                .get();
+            indexDoc("test", "" + i, "author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]));
+            indexDoc("idx_unmapped_author", "" + i, "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]));
             // frequent refresh makes it more likely that more segments are created, hence we may parallelize the search across slices
             indicesAdmin().refresh(new RefreshRequest()).get();
         }

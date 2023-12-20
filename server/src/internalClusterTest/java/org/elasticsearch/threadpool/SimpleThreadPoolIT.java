@@ -60,6 +60,9 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         int numSearches = randomIntBetween(2, 100);
         for (int i = 0; i < numSearches; i++) {
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)));

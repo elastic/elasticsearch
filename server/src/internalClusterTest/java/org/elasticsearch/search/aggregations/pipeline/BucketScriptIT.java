@@ -138,6 +138,9 @@ public class BucketScriptIT extends ESIntegTestCase {
         }
 
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         ensureSearchable();
     }
 

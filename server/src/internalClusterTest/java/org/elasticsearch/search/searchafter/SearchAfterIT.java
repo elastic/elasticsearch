@@ -230,13 +230,19 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .setMapping(mappings)
         );
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(new IndexRequest("test").id("1").source("start_date", "2019-03-24", "end_date", "2020-01-21"))
-                .add(new IndexRequest("test").id("2").source("start_date", "2018-04-23", "end_date", "2021-02-22"))
-                .add(new IndexRequest("test").id("3").source("start_date", "2015-01-22", "end_date", "2022-07-23"))
-                .add(new IndexRequest("test").id("4").source("start_date", "2016-02-21", "end_date", "2024-03-24"))
-                .add(new IndexRequest("test").id("5").source("start_date", "2017-01-20", "end_date", "2025-05-28"))
-                .get();
+            List<IndexRequest> indexRequests = List.of(
+                new IndexRequest("test").id("1").source("start_date", "2019-03-24", "end_date", "2020-01-21"),
+                new IndexRequest("test").id("2").source("start_date", "2018-04-23", "end_date", "2021-02-22"),
+                new IndexRequest("test").id("3").source("start_date", "2015-01-22", "end_date", "2022-07-23"),
+                new IndexRequest("test").id("4").source("start_date", "2016-02-21", "end_date", "2024-03-24"),
+                new IndexRequest("test").id("5").source("start_date", "2017-01-20", "end_date", "2025-05-28")
+            );
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (IndexRequest indexRequest : indexRequests) {
+                bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
+            }
+            bulkRequestBuilder.get();
         }
 
         assertNoFailuresAndResponse(
@@ -446,7 +452,9 @@ public class SearchAfterIT extends ESIntegTestCase {
         try (BulkRequestBuilder bulk = client().prepareBulk()) {
             bulk.setRefreshPolicy(IMMEDIATE);
             for (long timestamp : timestamps) {
-                bulk.add(new IndexRequest("test").source("timestamp", timestamp));
+                IndexRequest indexRequest = new IndexRequest("test").source("timestamp", timestamp);
+                bulk.add(indexRequest);
+                indexRequest.decRef();
             }
             bulk.get();
         }

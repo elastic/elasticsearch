@@ -675,11 +675,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testSearchFieldsMetadata() throws Exception {
-        prepareIndex("my-index").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("my-index").setId("1")
             .setRouting("1")
             .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+            .setRefreshPolicy(IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertResponse(prepareSearch("my-index").addStoredField("field1").addStoredField("_routing"), response -> {
             assertThat(response.getHits().getTotalHits().value, equalTo(1L));
@@ -745,7 +746,11 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        prepareIndex("my-index").setId("1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("my-index").setId("1")
+            .setRefreshPolicy(IMMEDIATE)
+            .setSource(source, XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         String field = "field1.field2.field3.field4";
 

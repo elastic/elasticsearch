@@ -121,6 +121,9 @@ public class ExplainableScriptIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, true, indexRequests);
+        for (IndexRequestBuilder builder : indexRequests) {
+            builder.request().decRef();
+        }
         client().admin().indices().prepareRefresh().get();
         ensureYellow();
         assertNoFailuresAndResponse(

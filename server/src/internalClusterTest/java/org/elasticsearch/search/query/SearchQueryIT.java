@@ -1930,7 +1930,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         createIndex("test");
         int docCount = randomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
-            indexDoc("test", "field", "foobarbaz");
+            indexDoc("test", null, "field", "foobarbaz");
         }
         ensureGreen();
         refresh();

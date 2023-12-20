@@ -9,6 +9,8 @@
 package org.elasticsearch.search.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -147,9 +149,11 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
     public void testRandomPoint() throws Exception {
         final double lat = GeometryTestUtils.randomLat();
         final double lon = GeometryTestUtils.randomLon();
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("name", "TestPosition").field("location", new double[] { lon, lat }).endObject())
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject().field("name", "TestPosition").field("location", new double[] { lon, lat }).endObject()
+        );
 
         client().admin().indices().prepareRefresh("test").get();
         assertNoFailuresAndResponse(
@@ -193,7 +197,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         }
 
         XContentBuilder builder = jsonBuilder().startObject().field("name", "TestPosition").field("location", values).endObject();
-        prepareIndex("test").setId("1").setSource(builder).get();
+        index("test", "1", builder);
 
         client().admin().indices().prepareRefresh("test").get();
 
@@ -232,9 +236,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testNullPoint() throws Exception {
-        prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject())
-            .get();
+        index("test", "1", jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject());
 
         client().admin().indices().prepareRefresh("test").get();
 
@@ -257,6 +259,15 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
 
     private static MultiPointLabelPosition isMultiPointLabelPosition(double[] lats, double[] lons) {
         return new MultiPointLabelPosition(lats, lons);
+    }
+
+    protected final DocWriteResponse index(String index, String id, XContentBuilder source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     private static class MultiPointLabelPosition extends BaseMatcher<GeoPoint> {

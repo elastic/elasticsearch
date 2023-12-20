@@ -42,17 +42,16 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
             int skippedShards = totalShards - successfulShards;
             SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-            searchTemplateResponse.setResponse(
-                SearchResponseUtils.emptyWithTotalHits(
-                    null,
-                    totalShards,
-                    successfulShards,
-                    skippedShards,
-                    tookInMillis,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    clusters
-                )
+            SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
+                null,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                ShardSearchFailure.EMPTY_ARRAY,
+                clusters
             );
+            searchTemplateResponse.setResponse(searchResponse);
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
         }
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
@@ -78,17 +77,16 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
                 int skippedShards = totalShards - successfulShards;
                 SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-                searchTemplateResponse.setResponse(
-                    SearchResponseUtils.emptyWithTotalHits(
-                        null,
-                        totalShards,
-                        successfulShards,
-                        skippedShards,
-                        tookInMillis,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        clusters
-                    )
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
+                    null,
+                    totalShards,
+                    successfulShards,
+                    skippedShards,
+                    tookInMillis,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    clusters
                 );
+                searchTemplateResponse.setResponse(searchResponse);
                 items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
             } else {
                 items[i] = new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("an error"));
@@ -97,7 +95,7 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
 
-    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
+    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) {
         return MultiSearchTemplateResponse.fromXContext(parser);
     }
 

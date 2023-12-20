@@ -45,9 +45,9 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
 
         final int originalScale = 10;
         ExponentialHistogramFieldMapper.ExponentialHistogramBuckets negative =
-            new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 0L, 0L, 2L));
+            new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 0L, 0L, 2L), null);
         ExponentialHistogramFieldMapper.ExponentialHistogramBuckets positive =
-            new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 0L, 0L, 2L));
+            new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 0L, 0L, 2L), null);
 
         // Aggregate at a lower scale, illustrating that the aggregated histogram buckets are fewer and wider.
         ExponentialHistogramAggregationBuilder aggBuilder =
@@ -71,13 +71,11 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
                 lastBucket = bucket;
             }
 
-            assertEquals(6, buckets.size());
+            assertEquals(4, buckets.size());
             assertEquals(4, buckets.get(0).getCount());
-            assertEquals(0, buckets.get(1).getCount());
+            assertEquals(2, buckets.get(1).getCount());
             assertEquals(2, buckets.get(2).getCount());
-            assertEquals(2, buckets.get(3).getCount());
-            assertEquals(0, buckets.get(4).getCount());
-            assertEquals(4, buckets.get(5).getCount());
+            assertEquals(4, buckets.get(3).getCount());
         },  new AggTestConfig(aggBuilder, mapper.fieldType()));
     }
 
@@ -88,7 +86,7 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
 
         final int originalScale = 10;
         ExponentialHistogramFieldMapper.ExponentialHistogramBuckets positive =
-            new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 2L, 3L));
+            new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 2L, 3L), null);
 
         final int maxBuckets = 2;
         ExponentialHistogramAggregationBuilder aggBuilder =
@@ -106,6 +104,31 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
         },  new AggTestConfig(aggBuilder, mapper.fieldType()));
     }
 
+    public void testMaxBuckets2() throws Exception {
+        ExponentialHistogramFieldMapper mapper = new ExponentialHistogramFieldMapper.Builder(FIELD_NAME).build(
+            MapperBuilderContext.root(false, false)
+        );
+
+        final int originalScale = 10;
+        ExponentialHistogramFieldMapper.ExponentialHistogramBuckets positive =
+            new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(
+                0,
+                List.of(1L, 2L, 3L, 4L),
+                List.of(1D, 10D, 100D, 1000D));
+
+        ExponentialHistogramAggregationBuilder aggBuilder =
+            new ExponentialHistogramAggregationBuilder("my_agg")
+                .field(FIELD_NAME);
+
+        testCase(iw -> {
+            iw.addDocument(doc(mapper, originalScale, null, positive));
+        }, (InternalExponentialHistogram result) -> {
+            List<InternalExponentialHistogram.Bucket> buckets = result.getBuckets();
+            assertEquals(4, buckets.size());
+            assertEquals(20, result.getCurrentScale());
+        },  new AggTestConfig(aggBuilder, mapper.fieldType()));
+    }
+
     private List<IndexableField> doc(
         FieldMapper mapper,
         int scale,
@@ -118,18 +141,8 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
 
             builder.startObject();
             builder.field("scale", scale);
-            if (negative != null) {
-                builder.startObject("negative")
-                    .field("offset", negative.offset)
-                    .field("counts", negative.counts)
-                    .endObject();
-            }
-            if (positive != null) {
-                builder.startObject("positive")
-                    .field("offset", positive.offset)
-                    .field("counts", positive.counts)
-                    .endObject();
-            }
+            marshalBucket(builder, "negative", negative);
+            marshalBucket(builder, "positive", positive);
             builder.endObject();
             builder.close();
 
@@ -151,6 +164,23 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
+    }
+
+    private static XContentBuilder marshalBucket(
+        XContentBuilder builder, String name,
+        ExponentialHistogramFieldMapper.ExponentialHistogramBuckets buckets
+    ) throws IOException {
+        if (buckets == null) {
+            return builder;
+        }
+        builder.startObject(name).field("counts", buckets.counts);
+        if (buckets.offset != 0) {
+            builder.field("offset", buckets.offset);
+        }
+        if (buckets.values != null) {
+            builder.field("values", buckets.values);
+        }
+        return builder.endObject();
     }
 
     @Override

@@ -82,13 +82,27 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
         return null;
     }
 
-    public void testParseValue() throws Exception {
+    public void testParseImpliedValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field")
                 .field("scale", 1)
                 .startObject("positive").field("counts", new long[]{1, 0, 0, 2}).endObject()
                 .startObject("negative").field("counts", new long[]{1, 0, 0, 2}).endObject()
+                .endObject())
+        );
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
+    }
+
+    public void testParseExplicitValues() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field")
+                .field("scale", 1)
+                .startObject("negative")
+                    .field("counts", new long[]{1, 2, 3})
+                    .field("values", new double[]{-10, -100, -1000})
+                    .endObject()
                 .endObject())
         );
         assertThat(doc.rootDoc().getField("field"), notNullValue());

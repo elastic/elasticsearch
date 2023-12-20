@@ -34,7 +34,7 @@ public class InternalExponentialHistogram extends InternalAggregation {
     private SortedMap<Integer, Long> positive;
     private SortedMap<Integer, Long> negative;
 
-    InternalExponentialHistogram(
+    public InternalExponentialHistogram(
         String name,
         int maxBuckets,
         int maxScale,
@@ -112,6 +112,9 @@ public class InternalExponentialHistogram extends InternalAggregation {
             // TODO(axw)
             throw new RuntimeException("zero_count not implemented");
         }
+        if (count == 0) {
+            return;
+        }
         SortedMap<Integer, Long> counts;
         if (value < 0) {
             if (negative == null) {
@@ -126,11 +129,12 @@ public class InternalExponentialHistogram extends InternalAggregation {
         }
 
         final int index = indexer.computeIndex(Math.abs(value));
+        System.out.println("index="+ index + ", value=" + value);
         final Long existing = counts.get(index);
         if (existing != null) {
             counts.put(index, existing+count);
         } else {
-            // NOTE(axw) maxBuckets is maintained independently for the positive and negative ranges,
+            // NOTE(axw) maxBuckets is maintained independently for the positive and negative ranges
             // for simplicity. Having maxBuckets that applies to both ranges simultaneously is harder
             // to reason about when downsampling. e.g. consider what it would mean for a histogram with
             // maxBuckets that initially has only positive values, and then a negative value is recorded.
@@ -169,14 +173,18 @@ public class InternalExponentialHistogram extends InternalAggregation {
     private int getScaleReduction(final int index, final SortedMap<Integer, Long> counts) {
         long newStart = Math.min(index, counts.firstKey());
         long newEnd = Math.max(index, counts.lastKey());
+        System.out.println("getScaleReduction: " + index + ", start/end=" + newStart + ", " + newEnd);
         return getScaleReduction(newStart, newEnd);
     }
 
     private int getScaleReduction(long newStart, long newEnd) {
         int scaleReduction = 0;
-        while (newEnd - newStart + 1 > maxBuckets) {
-            newStart >>= 1;
-            newEnd >>= 1;
+        // TODO(axw) is this correct? The original code shifted both
+        // newStart and newEnd to the right, which ends up shifting
+        // negative values to zero.
+        long delta = newEnd - newStart + 1;
+        while (delta > maxBuckets) {
+            delta >>= 1;
             scaleReduction++;
         }
         return scaleReduction;
@@ -265,6 +273,10 @@ public class InternalExponentialHistogram extends InternalAggregation {
             this.negative = negative;
             this.index = index;
             this.count = count;
+        }
+
+        public int getIndex() {
+            return index;
         }
 
         // lowerBound returns the lower bound of the exponential histogram bucket.

@@ -43,10 +43,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
+import org.elasticsearch.xpack.exponentialhistogram.agg.InternalExponentialHistogram;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -68,6 +70,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     public static final ParseField NEGATIVE_FIELD = new ParseField("negative");
     public static final ParseField OFFSET_FIELD = new ParseField("offset");
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
+    // Documents may specify either counts and values, or counts with an optional offset.
+    // If values are not specified, then the bucket values are implied by the offset
+    // count indices.
+    public static final ParseField VALUES_FIELD = new ParseField("values");
 
     private static class ExponentialHistogramFieldType extends MappedFieldType {
         ExponentialHistogramFieldType(String name, Map<String, String> meta) {
@@ -307,10 +313,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 haveScale = true;
             } else if (fieldName.equals(POSITIVE_FIELD.getPreferredName())) {
                 token = subParser.nextToken();
-                positive = ExponentialHistogramBuckets.parse(subParser);
+                positive = ExponentialHistogramBuckets.parse(subParser, false);
             } else if (fieldName.equals(NEGATIVE_FIELD.getPreferredName())) {
                 token = subParser.nextToken();
-                negative = ExponentialHistogramBuckets.parse(subParser);
+                negative = ExponentialHistogramBuckets.parse(subParser, true);
             } else {
                 throw new DocumentParsingException(
                     subParser.getTokenLocation(),
@@ -340,10 +346,16 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                     + "] to be specified and non-empty"
             );
         }
+        if (positive != null && positive.values != null) {
+            positive.aggregateValues(scale);
+        }
+        if (negative != null && negative.values != null) {
+            negative.aggregateValues(scale);
+        }
         return encodeBinaryDocValuesField(name(), scale, negative, positive);
     }
 
-    protected static BinaryDocValuesField encodeBinaryDocValuesField(String name, int scale, ExponentialHistogramBuckets negative, ExponentialHistogramBuckets positive) throws IOException {
+    private static BinaryDocValuesField encodeBinaryDocValuesField(String name, int scale, ExponentialHistogramBuckets negative, ExponentialHistogramBuckets positive) throws IOException {
         final int numPositiveCounts = positive == null ? 0 : positive.counts.size();
         final int numNegativeCounts = negative == null ? 0 : negative.counts.size();
 
@@ -382,20 +394,54 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     protected static class ExponentialHistogramBuckets {
         int offset;
         List<Long> counts;
+        final List<Double> values; // absolute values
 
-        ExponentialHistogramBuckets(int offset, List<Long> counts) {
+        ExponentialHistogramBuckets(int offset, List<Long> counts, List<Double> values) {
             this.offset = offset;
             this.counts = counts;
+            this.values = values;
         }
 
-        static ExponentialHistogramBuckets parse(XContentParser parser) throws Exception {
+        // aggregateValues aggregates values and counts into exponential buckets with
+        // the given scale, updating counts and offset.
+        void aggregateValues(final int scale) {
+            InternalExponentialHistogram histogram = new InternalExponentialHistogram(
+                "name", Integer.MAX_VALUE, scale, DocValueFormat.RAW, Map.of()
+            );
+            for (int i = 0; i < counts.size(); i++) {
+                final long count = counts.get(i);
+                final double value = values.get(i);
+                histogram.add(value, count);
+            }
+            counts.clear();
+
+            List<InternalExponentialHistogram.Bucket> buckets = histogram.getBuckets();
+            InternalExponentialHistogram.Bucket lastBucket = null;
+            for (InternalExponentialHistogram.Bucket bucket : buckets) {
+                if (lastBucket != null) {
+                    // buckets may have holes, we need to fill these with zeroes for the offset+counts representation.
+                    for (int indexDelta = bucket.getIndex() - lastBucket.getIndex(); indexDelta > 1; --indexDelta) {
+                        counts.add(0L);
+                    }
+                }
+                counts.add(bucket.getCount());
+                lastBucket = bucket;
+            }
+            offset = buckets.get(0).getIndex();
+
+            System.out.println("aggregated: offset=" + offset + ", numCounts=" + counts.size());
+        }
+
+        static ExponentialHistogramBuckets parse(final XContentParser parser, final boolean negative) throws Exception {
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 return null;
             }
 
             int offset = 0;
+            boolean haveOffset = false;
             ArrayList<Long> counts = null;
+            ArrayList<Double> values = null;
 
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
             token = parser.nextToken();
@@ -406,6 +452,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                     token = parser.nextToken();
                     ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                     offset = parser.intValue();
+                    haveOffset = true;
                 } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
                     token = parser.nextToken();
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
@@ -423,6 +470,33 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                         counts.add(count);
                         token = parser.nextToken();
                     }
+                } else if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
+                    token = parser.nextToken();
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+                    values = new ArrayList<>();
+                    token = parser.nextToken();
+                    while (token != XContentParser.Token.END_ARRAY) {
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        double value = parser.doubleValue();
+                        if (negative) {
+                            if (value >= 0) {
+                                throw new DocumentParsingException(
+                                    parser.getTokenLocation(),
+                                    "error parsing negative exponential histogram values, value must be < 0 but got " + value
+                                );
+                            }
+                            value = -value;
+                        } else {
+                            if (value <= 0) {
+                                throw new DocumentParsingException(
+                                    parser.getTokenLocation(),
+                                    "error parsing positive exponential histogram values, value must be > 0 but got " + value
+                                );
+                            }
+                        }
+                        values.add(value);
+                        token = parser.nextToken();
+                    }
                 } else {
                     throw new DocumentParsingException(
                         parser.getTokenLocation(),
@@ -438,8 +512,26 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                     "error parsing exponential histogram buckets, expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
                 );
             }
+            if (values != null) {
+                if (haveOffset) {
+                    throw new DocumentParsingException(
+                        parser.getTokenLocation(),
+                        "error parsing exponential histogram buckets, [" +
+                            OFFSET_FIELD.getPreferredName() + "] and [" +
+                            VALUES_FIELD.getPreferredName() + "] are mutually exclusive"
+                    );
+                }
+                if (counts.size() != values.size()) {
+                    throw new DocumentParsingException(
+                        parser.getTokenLocation(),
+                        "error parsing exponential histogram buckets, [" +
+                            COUNTS_FIELD.getPreferredName() + "] and [" +
+                            VALUES_FIELD.getPreferredName() + "] have different sizes"
+                    );
+                }
+            }
 
-            return new ExponentialHistogramBuckets(offset, counts);
+            return new ExponentialHistogramBuckets(offset, counts, values);
         }
     }
 

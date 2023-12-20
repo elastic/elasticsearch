@@ -421,7 +421,7 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
-            ES812PostingsFormat;
+            org.elasticsearch.index.codec.postings.ES812PostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
 
     exports org.elasticsearch.cluster.routing.allocation.shards

@@ -120,6 +120,7 @@ import javax.net.ssl.SSLContext;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1227,7 +1228,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
         Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
         Response response = client.performRequest(refreshRequest);
-        return RefreshResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return RefreshResponse.fromXContent(parser);
+        }
     }
 
     private static void waitForPendingRollupTasks() throws Exception {
@@ -1684,7 +1687,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         entity += "}";
         request.setJsonEntity(entity);
         Response response = client.performRequest(request);
-        return CreateIndexResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return CreateIndexResponse.fromXContent(parser);
+        }
     }
 
     protected static AcknowledgedResponse deleteIndex(String name) throws IOException {
@@ -1694,7 +1699,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static AcknowledgedResponse deleteIndex(RestClient restClient, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
         Response response = restClient.performRequest(request);
-        return AcknowledgedResponse.fromXContent(responseAsParser(response));
+        try (var parser = responseAsParser(response)) {
+            return AcknowledgedResponse.fromXContent(parser);
+        }
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1744,8 +1751,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getIndexMappingAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexMapping(index);
-        return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("mappings");
+        Map<String, Object> indexMapping = getIndexMapping(index);
+        return (Map<String, Object>) ((Map<String, Object>) indexMapping.get(index)).get("mappings");
     }
 
     protected static boolean indexExists(String index) throws IOException {
@@ -1817,7 +1824,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return responseEntity;
     }
 
-    protected static XContentParser responseAsParser(Response response) throws IOException {
+    public static XContentParser responseAsParser(Response response) throws IOException {
         return XContentHelper.createParser(XContentParserConfiguration.EMPTY, responseAsBytes(response), XContentType.JSON);
     }
 
@@ -1940,10 +1947,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             || name.startsWith("logs-apm")) {
             return true;
         }
+        if (name.startsWith(".slm-history") || name.startsWith("ilm-history")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
-            case ".slm-history":
             case ".async-search":
             case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
@@ -1958,7 +1967,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
-            case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
@@ -2149,7 +2157,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             // In that case the transport_version field won't exist. Use version, but only for <8.8.0: after that versions diverge.
             var version = parseLegacyVersion(versionField);
             assert version.isPresent();
-            if (version.get().before(Version.V_8_8_0)) {
+            if (version.get().before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
                 return TransportVersion.fromId(version.get().id);
             }
         }

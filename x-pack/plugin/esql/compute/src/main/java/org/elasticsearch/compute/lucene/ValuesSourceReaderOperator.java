@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -77,7 +76,22 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "ValuesSourceReaderOperator[field = " + fields.stream().map(f -> f.name).collect(Collectors.joining(", ")) + "]";
+            StringBuilder sb = new StringBuilder();
+            sb.append("ValuesSourceReaderOperator[fields = [");
+            if (fields.size() < 10) {
+                boolean first = true;
+                for (FieldInfo f : fields) {
+                    if (first) {
+                        first = false;
+                    } else {
+                        sb.append(", ");
+                    }
+                    sb.append(f.name);
+                }
+            } else {
+                sb.append(fields.size()).append(" fields");
+            }
+            return sb.append("]]").toString();
         }
     }
 
@@ -377,7 +391,22 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return "ValuesSourceReaderOperator[field = " + fields.stream().map(f -> f.info.name).collect(Collectors.joining(", ")) + "]";
+        StringBuilder sb = new StringBuilder();
+        sb.append("ValuesSourceReaderOperator[fields = [");
+        if (fields.size() < 10) {
+            boolean first = true;
+            for (FieldWork f : fields) {
+                if (first) {
+                    first = false;
+                } else {
+                    sb.append(", ");
+                }
+                sb.append(f.info.name);
+            }
+        } else {
+            sb.append(fields.size()).append(" fields");
+        }
+        return sb.append("]]").toString();
     }
 
     @Override

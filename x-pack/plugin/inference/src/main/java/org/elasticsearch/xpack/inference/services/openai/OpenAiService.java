@@ -149,10 +149,7 @@ public class OpenAiService extends SenderService {
             ServiceUtils.getEmbeddingSize(
                 model,
                 this,
-                ActionListener.wrap(
-                    size -> listener.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
             );
         } else {
             listener.onResponse(model);
@@ -165,7 +162,7 @@ public class OpenAiService extends SenderService {
             model.getServiceSettings().organizationId(),
             SimilarityMeasure.DOT_PRODUCT,
             embeddingSize,
-            null
+            model.getServiceSettings().maxInputTokens()
         );
 
         return new OpenAiEmbeddingsModel(model, serviceSettings);

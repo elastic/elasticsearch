@@ -17,7 +17,7 @@ import org.elasticsearch.core.Releasable;
  */
 public final class IntBigArrayVector extends AbstractVector implements IntVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntBigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final IntArray values;
 

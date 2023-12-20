@@ -17,7 +17,7 @@ import org.elasticsearch.core.Releasable;
  */
 public final class DoubleBigArrayVector extends AbstractVector implements DoubleVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleBigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final DoubleArray values;
 

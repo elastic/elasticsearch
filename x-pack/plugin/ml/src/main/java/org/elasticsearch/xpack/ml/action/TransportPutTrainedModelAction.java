@@ -289,7 +289,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     .execute(ActionListener.wrap(stats -> {
                         IndexStats indexStats = stats.getIndices().get(InferenceIndexConstants.nativeDefinitionStore());
                         if (indexStats != null
-                            && indexStats.getTotal().getStore().getSizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
+                            && indexStats.getTotal().getStore().sizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
                             finalResponseListener.onFailure(
                                 new ElasticsearchStatusException(
                                     "Native model store has exceeded the maximum acceptable size of {}, "
@@ -476,15 +476,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         client.execute(
             LoadTrainedModelPackageAction.INSTANCE,
             new LoadTrainedModelPackageAction.Request(modelId, modelPackageConfig, waitForCompletion),
-            ActionListener.wrap(ack -> {
-                if (waitForCompletion) {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure)
+            ActionListener.wrap(ack -> listener.onResponse(null), listener::onFailure)
         );
-        if (waitForCompletion == false) {
-            listener.onResponse(null);
-        }
     }
 
     private void resolvePackageConfig(String modelId, ActionListener<ModelPackageConfig> listener) {
@@ -590,24 +583,27 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         NamedXContentRegistry namedXContentRegistry,
         DeprecationHandler deprecationHandler
     ) throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-        XContentParser sourceParser = XContentType.JSON.xContent()
-            .createParser(
-                XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
-                BytesReference.bytes(xContentBuilder).streamInput()
-            );
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+            XContentParser sourceParser = XContentType.JSON.xContent()
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
+                    BytesReference.bytes(xContentBuilder).streamInput()
+                )
+        ) {
 
-        XContentParser.Token token = sourceParser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
-        token = sourceParser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
-        String currentName = sourceParser.currentName();
+            XContentParser.Token token = sourceParser.nextToken();
+            assert token == XContentParser.Token.START_OBJECT;
+            token = sourceParser.nextToken();
+            assert token == XContentParser.Token.FIELD_NAME;
+            String currentName = sourceParser.currentName();
 
-        InferenceConfig inferenceConfig = sourceParser.namedObject(LenientlyParsedInferenceConfig.class, currentName, null);
-        // consume the end object token
-        token = sourceParser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
-        return inferenceConfig;
+            InferenceConfig inferenceConfig = sourceParser.namedObject(LenientlyParsedInferenceConfig.class, currentName, null);
+            // consume the end object token
+            token = sourceParser.nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
+            return inferenceConfig;
+        }
     }
 
 }

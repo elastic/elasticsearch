@@ -57,8 +57,8 @@ public final class ExpressionParser {
      * @param content The XContent (typically JSON) DSL representation of the expression
      */
     public RoleMapperExpression parse(String name, XContentSource content) throws IOException {
-        try (InputStream stream = content.getBytes().streamInput()) {
-            return parse(name, content.parser(NamedXContentRegistry.EMPTY, stream));
+        try (InputStream stream = content.getBytes().streamInput(); var parser = content.parser(NamedXContentRegistry.EMPTY, stream)) {
+            return parse(name, parser);
         }
     }
 

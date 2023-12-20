@@ -257,7 +257,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         return new Task(
             randomLong(),
             "transport",
-            MultiGetAction.NAME,
+            TransportMultiGetAction.NAME,
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
             emptyMap()

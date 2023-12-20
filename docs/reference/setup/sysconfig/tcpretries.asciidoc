@@ -32,7 +32,7 @@ therefore reduce the maximum number of TCP retransmissions.
 
 You can decrease the maximum number of TCP retransmissions to `5` by running the
 following command as `root`. Five retransmissions corresponds with a timeout of
-around six seconds.
+around 13 seconds.
 
 [source,sh]
 -------------------------------------

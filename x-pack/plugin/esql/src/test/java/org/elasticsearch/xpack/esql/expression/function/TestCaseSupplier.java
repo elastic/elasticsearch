@@ -188,7 +188,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 + "]",
             warnings,
             suppliers,
-            DataTypes.DOUBLE
+            DataTypes.DOUBLE,
+            false
         );
         return suppliers;
     }
@@ -200,38 +201,53 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<DataType, DataType, String> evaluatorToString,
         List<String> warnings,
         List<TestCaseSupplier> suppliers,
-        DataType expectedType
+        DataType expectedType,
+        boolean symmetric
     ) {
         for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
             for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
-                String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
-                suppliers.add(new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
-                    Object lhs = lhsSupplier.supplier().get();
-                    Object rhs = rhsSupplier.supplier().get();
-                    TypedData lhsTyped = new TypedData(
-                        // TODO there has to be a better way to handle unsigned long
-                        lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
-                        lhsSupplier.type(),
-                        "lhs"
-                    );
-                    TypedData rhsTyped = new TypedData(
-                        rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
-                        rhsSupplier.type(),
-                        "rhs"
-                    );
-                    TestCase testCase = new TestCase(
-                        List.of(lhsTyped, rhsTyped),
-                        evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type()),
-                        expectedType,
-                        equalTo(expected.apply(lhs, rhs))
-                    );
-                    for (String warning : warnings) {
-                        testCase = testCase.withWarning(warning);
-                    }
-                    return testCase;
-                }));
+                suppliers.add(testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expected, warnings));
+                if (symmetric) {
+                    suppliers.add(testCaseSupplier(rhsSupplier, lhsSupplier, evaluatorToString, expectedType, expected, warnings));
+                }
             }
         }
+    }
+
+    private static TestCaseSupplier testCaseSupplier(
+        TypedDataSupplier lhsSupplier,
+        TypedDataSupplier rhsSupplier,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        DataType expectedType,
+        BinaryOperator<Object> expectedValue,
+        List<String> warnings
+    ) {
+        String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
+        return new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
+            Object lhs = lhsSupplier.supplier().get();
+            Object rhs = rhsSupplier.supplier().get();
+            TypedData lhsTyped = new TypedData(
+                // TODO there has to be a better way to handle unsigned long
+                lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
+                lhsSupplier.type(),
+                "lhs"
+            );
+            TypedData rhsTyped = new TypedData(
+                rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
+                rhsSupplier.type(),
+                "rhs"
+            );
+            TestCase testCase = new TestCase(
+                List.of(lhsTyped, rhsTyped),
+                evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type()),
+                expectedType,
+                equalTo(expectedValue.apply(lhs, rhs))
+            );
+            for (String warning : warnings) {
+                testCase = testCase.withWarning(warning);
+            }
+            return testCase;
+        });
     }
 
     public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
@@ -309,25 +325,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (DataType rhsType : numericTypes) {
                 DataType expected = widen(lhsType, rhsType);
                 NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
-                String evaluator = expectedTypeStuff.evaluatorName()
+                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
                     + "["
                     + lhsName
                     + "="
-                    + getCastEvaluator("Attribute[channel=0]", lhsType, expected)
+                    + getCastEvaluator("Attribute[channel=0]", lhs, expected)
                     + ", "
                     + rhsName
                     + "="
-                    + getCastEvaluator("Attribute[channel=1]", rhsType, expected)
+                    + getCastEvaluator("Attribute[channel=1]", rhs, expected)
                     + "]";
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
                     getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                    // TODO: This doesn't really need to be a function
-                    (lt, rt) -> evaluator,
+                    evaluatorToString,
                     warnings,
                     suppliers,
-                    expected
+                    expected,
+                    true
                 );
             }
         }
@@ -353,7 +369,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
             warnings,
             suppliers,
-            expectedType
+            expectedType,
+            true
         );
         return suppliers;
     }

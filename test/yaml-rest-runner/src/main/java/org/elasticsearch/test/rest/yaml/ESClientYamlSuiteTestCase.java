@@ -151,9 +151,22 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 hosts,
                 os
             );
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, ESRestTestCase::clusterHasFeature, os);
-            restTestExecutionContext = createRestTestExecutionContext(testCandidate, clientYamlTestClient);
-            adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts);
+            restTestExecutionContext = createRestTestExecutionContext(
+                testCandidate,
+                clientYamlTestClient,
+                esVersion,
+                ESRestTestCase::clusterHasFeature,
+                os
+            );
+            adminExecutionContext = new ClientYamlTestExecutionContext(
+                testCandidate,
+                clientYamlTestClient,
+                false,
+                esVersion,
+                ESRestTestCase::clusterHasFeature,
+                os
+            );
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (final String entry : blacklist) {
@@ -179,28 +192,27 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient
+        ClientYamlTestClient clientYamlTestClient,
+        final Version esVersion,
+        final Predicate<String> clusterFeaturesPredicate,
+        final String os
     ) {
-        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType());
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            esVersion,
+            clusterFeaturesPredicate,
+            os
+        );
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
-        final List<HttpHost> hosts,
-        final Version esVersion,
-        final Predicate<String> clusterFeaturesPredicate,
-        final String os
+        final List<HttpHost> hosts
     ) {
-        return new ClientYamlTestClient(
-            restSpec,
-            restClient,
-            hosts,
-            esVersion,
-            clusterFeaturesPredicate,
-            os,
-            this::getClientBuilderWithSniffedHosts
-        );
+        return new ClientYamlTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass

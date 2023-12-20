@@ -17,13 +17,11 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanArrayBlock;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBigArrayBlock;
 import org.elasticsearch.compute.data.BooleanBigArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefArrayBlock;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -32,19 +30,16 @@ import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.ConstantDoubleVector;
 import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.ConstantLongVector;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBigArrayBlock;
 import org.elasticsearch.compute.data.DoubleBigArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayVector;
@@ -146,6 +141,7 @@ public class BlockBenchmark {
     private record BenchmarkBlocks(Block[] blocks, long[] checkSums) {};
 
     private static BenchmarkBlocks buildBlocks(String dataType, String blockKind, int totalPositions) {
+        BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
         Block[] blocks = new Block[NUM_BLOCKS_PER_ITERATION];
         long[] checkSums = new long[NUM_BLOCKS_PER_ITERATION];
 
@@ -165,7 +161,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new BooleanArrayBlock(
+                            blocks[blockIndex] = blockFactory.newBooleanArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -178,7 +174,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new BooleanArrayBlock(
+                            blocks[blockIndex] = blockFactory.newBooleanArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -252,7 +248,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new BytesRefArrayBlock(
+                            blocks[blockIndex] = blockFactory.newBytesRefArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -265,7 +261,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new BytesRefArrayBlock(
+                            blocks[blockIndex] = blockFactory.newBytesRefArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -303,7 +299,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new DoubleArrayBlock(
+                            blocks[blockIndex] = blockFactory.newDoubleArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -316,7 +312,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new DoubleArrayBlock(
+                            blocks[blockIndex] = blockFactory.newDoubleArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -384,7 +380,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new IntArrayBlock(
+                            blocks[blockIndex] = blockFactory.newIntArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -397,7 +393,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new IntArrayBlock(
+                            blocks[blockIndex] = blockFactory.newIntArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,
@@ -461,7 +457,7 @@ public class BlockBenchmark {
 
                     switch (blockKind) {
                         case "array" -> {
-                            blocks[blockIndex] = new LongArrayBlock(
+                            blocks[blockIndex] = blockFactory.newLongArrayBlock(
                                 values,
                                 totalPositions,
                                 null,
@@ -474,7 +470,7 @@ public class BlockBenchmark {
                             int positionCount = firstValueIndexes.length - 1;
                             BitSet nulls = randomNulls(positionCount);
 
-                            blocks[blockIndex] = new LongArrayBlock(
+                            blocks[blockIndex] = blockFactory.newLongArrayBlock(
                                 values,
                                 positionCount,
                                 firstValueIndexes,

@@ -24,7 +24,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.telemetry.tracing.SpanId;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -629,8 +628,8 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     @Override
-    public SpanId getSpanId() {
-        return SpanId.forRestRequest(this);
+    public String getSpanId() {
+        return "rest-" + getRequestId();
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

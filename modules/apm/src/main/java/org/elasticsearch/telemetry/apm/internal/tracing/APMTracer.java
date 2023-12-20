@@ -34,7 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.tracing.SpanId;
+import org.elasticsearch.telemetry.tracing.Traceable;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -61,7 +61,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
     /** Holds in-flight span information. */
-    private final Map<SpanId, Context> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -160,8 +160,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void startTrace(ThreadContext threadContext, SpanId spanId, String spanName, @Nullable Map<String, Object> attributes) {
+    public void startTrace(ThreadContext threadContext, Traceable traceable, String spanName, @Nullable Map<String, Object> attributes) {
         assert threadContext != null;
+        String spanId = traceable.getSpanId();
         assert spanId != null;
         assert spanName != null;
 
@@ -276,12 +277,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      * However, if a scope is active, then the APM agent can capture additional information, so this method
      * exists to make it possible to use scopes in the few situation where it makes sense.
      *
-     * @param spanId the ID of a currently-open span for which to open a scope.
+     * @param traceable provides the ID of a currently-open span for which to open a scope.
      * @return a method to close the scope when you are finished with it.
      */
     @Override
-    public Releasable withScope(SpanId spanId) {
-        final Context context = spans.get(spanId);
+    public Releasable withScope(Traceable traceable) {
+        final Context context = spans.get(traceable.getSpanId());
         if (context != null) {
             var scope = AccessController.doPrivileged((PrivilegedAction<Scope>) context::makeCurrent);
             return scope::close;
@@ -337,50 +338,50 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void addError(SpanId spanId, Throwable throwable) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void addError(Traceable traceable, Throwable throwable) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.recordException(throwable);
         }
     }
 
     @Override
-    public void setAttribute(SpanId spanId, String key, boolean value) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void setAttribute(Traceable traceable, String key, boolean value) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(SpanId spanId, String key, double value) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void setAttribute(Traceable traceable, String key, double value) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(SpanId spanId, String key, long value) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void setAttribute(Traceable traceable, String key, long value) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(SpanId spanId, String key, String value) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void setAttribute(Traceable traceable, String key, String value) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void stopTrace(SpanId spanId) {
-        final var span = Span.fromContextOrNull(spans.remove(spanId));
+    public void stopTrace(Traceable traceable) {
+        final var span = Span.fromContextOrNull(spans.remove(traceable));
         if (span != null) {
-            logger.trace("Finishing trace [{}]", spanId);
+            logger.trace("Finishing trace [{}]", traceable);
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 span.end();
                 return null;
@@ -400,8 +401,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void addEvent(SpanId spanId, String eventName) {
-        final var span = Span.fromContextOrNull(spans.get(spanId));
+    public void addEvent(Traceable traceable, String eventName) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
             span.addEvent(eventName);
         }
@@ -425,7 +426,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     // VisibleForTesting
-    Map<SpanId, Context> getSpans() {
+    Map<String, Context> getSpans() {
         return spans;
     }
 

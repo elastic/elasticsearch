@@ -9,5 +9,5 @@
 package org.elasticsearch.telemetry.tracing;
 
 public interface Traceable {
-    SpanId getSpanId();
+    String getSpanId();
 }

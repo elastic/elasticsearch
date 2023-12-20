@@ -11,7 +11,6 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.telemetry.tracing.SpanId;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -269,7 +268,7 @@ public class Task implements Traceable {
     }
 
     @Override
-    public SpanId getSpanId() {
-        return SpanId.forTask(this);
+    public String getSpanId() {
+        return "task-" + getId();
     }
 }

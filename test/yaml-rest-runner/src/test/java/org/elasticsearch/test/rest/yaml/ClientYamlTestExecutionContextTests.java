@@ -9,15 +9,14 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.is;
@@ -26,12 +25,12 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
-        final Version version = VersionUtils.randomVersion(random());
+        final String version = randomAlphaOfLength(10);
         final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(
             null,
             null,
             randomBoolean(),
-            version,
+            Set.of(version),
             feature -> true,
             "os"
         ) {
@@ -64,12 +63,12 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
     }
 
     public void testStashHeadersOnException() throws IOException {
-        final Version version = VersionUtils.randomVersion(random());
+        final String version = randomAlphaOfLength(10);
         final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(
             null,
             null,
             randomBoolean(),
-            version,
+            Set.of(version),
             feature -> true,
             "os"
         ) {

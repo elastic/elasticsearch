@@ -15,7 +15,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.rest.Stash;
@@ -30,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
@@ -51,7 +51,7 @@ public class ClientYamlTestExecutionContext {
 
     private ClientYamlTestResponse response;
 
-    private final Version esVersion;
+    private final Set<String> nodesVersions;
 
     private final String os;
     private final Predicate<String> clusterFeaturesPredicate;
@@ -63,7 +63,7 @@ public class ClientYamlTestExecutionContext {
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
         boolean randomizeContentType,
-        final Version esVersion,
+        final Set<String> nodesVersions,
         final Predicate<String> clusterFeaturesPredicate,
         final String os
     ) {
@@ -71,7 +71,7 @@ public class ClientYamlTestExecutionContext {
             clientYamlTestCandidate,
             clientYamlTestClient,
             randomizeContentType,
-            esVersion,
+            nodesVersions,
             clusterFeaturesPredicate,
             os,
             (ignoreApi, ignorePath) -> true
@@ -82,7 +82,7 @@ public class ClientYamlTestExecutionContext {
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
         boolean randomizeContentType,
-        final Version esVersion,
+        final Set<String> nodesVersions,
         final Predicate<String> clusterFeaturesPredicate,
         final String os,
         BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
@@ -90,7 +90,7 @@ public class ClientYamlTestExecutionContext {
         this.clientYamlTestClient = clientYamlTestClient;
         this.clientYamlTestCandidate = clientYamlTestCandidate;
         this.randomizeContentType = randomizeContentType;
-        this.esVersion = esVersion;
+        this.nodesVersions = nodesVersions;
         this.clusterFeaturesPredicate = clusterFeaturesPredicate;
         this.os = os;
         this.pathPredicate = pathPredicate;
@@ -247,10 +247,10 @@ public class ClientYamlTestExecutionContext {
     }
 
     /**
-     * @return the version of the oldest node in the cluster
+     * @return the distinct node versions running in the cluster
      */
-    public Version esVersion() {
-        return esVersion;
+    public Set<String> nodesVersions() {
+        return nodesVersions;
     }
 
     public String os() {

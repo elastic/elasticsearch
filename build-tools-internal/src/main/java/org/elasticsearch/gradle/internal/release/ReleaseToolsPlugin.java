@@ -51,7 +51,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             .register(
                 "updateVersions",
                 UpdateVersionsTask.class,
-                t -> t.finalizedBy(project.findProject("server").getTasks().named("spotlessApply").get())
+                t -> project.getTasks().named("spotlessApply").get().mustRunAfter(t)
             );
 
         final FileTree yamlFiles = projectDirectory.dir("docs/changelog")

@@ -30,9 +30,9 @@ public class InternalExponentialHistogram extends InternalAggregation {
     private final DocValueFormat format;
     private final int maxBuckets;
     private int currentScale;
+    Base2ExponentialHistogramIndexer indexer;
     private SortedMap<Integer, Long> positive;
     private SortedMap<Integer, Long> negative;
-    private int totalBuckets;
 
     InternalExponentialHistogram(
         String name,
@@ -45,6 +45,7 @@ public class InternalExponentialHistogram extends InternalAggregation {
         this.format = formatter;
         this.maxBuckets = maxBuckets;
         this.currentScale = maxScale;
+        this.indexer = Base2ExponentialHistogramIndexer.get(currentScale);
         this.positive = null;
         this.negative = null;
     }
@@ -59,6 +60,7 @@ public class InternalExponentialHistogram extends InternalAggregation {
         currentScale = in.readVInt();
         positive = readCounts(in);
         negative = readCounts(in);
+        indexer = Base2ExponentialHistogramIndexer.get(currentScale);
     }
 
     @Override
@@ -96,7 +98,6 @@ public class InternalExponentialHistogram extends InternalAggregation {
         return m;
     }
 
-
     @Override
     public String getWriteableName() {
         return ExponentialHistogramAggregationBuilder.NAME;
@@ -124,18 +125,61 @@ public class InternalExponentialHistogram extends InternalAggregation {
             counts = positive;
         }
 
-        final Base2ExponentialHistogramIndexer indexer = Base2ExponentialHistogramIndexer.get(currentScale);
         final int index = indexer.computeIndex(Math.abs(value));
         final Long existing = counts.get(index);
         if (existing != null) {
             counts.put(index, existing+count);
         } else {
-            final int totalBuckets = (positive != null ? positive.size() : 0) + (negative != null ? negative.size() : 0);
-            if (totalBuckets == maxBuckets) {
-                // TODO(axw) downscale to maintain the maxBuckets constraint
+            // NOTE(axw) maxBuckets is maintained independently for the positive and negative ranges,
+            // for simplicity. Having maxBuckets that applies to both ranges simultaneously is harder
+            // to reason about when downsampling. e.g. consider what it would mean for a histogram with
+            // maxBuckets that initially has only positive values, and then a negative value is recorded.
+            if (counts.size() == maxBuckets) {
+                downscale(getScaleReduction(index, counts));
             }
             counts.put(index, count);
         }
+    }
+
+    private void downscale(final int scaleReduction) {
+        if (scaleReduction <= 0) {
+            throw new IllegalStateException("Cannot downscale by non-positive amount: " + scaleReduction);
+        }
+        negative = downscaleCounts(scaleReduction, negative);
+        positive = downscaleCounts(scaleReduction, positive);
+        currentScale -= scaleReduction;
+        indexer = Base2ExponentialHistogramIndexer.get(currentScale);
+    }
+
+    private SortedMap<Integer, Long> downscaleCounts(final int scaleReduction, final SortedMap<Integer, Long> counts) {
+        if (counts == null || counts.isEmpty()) {
+            return counts;
+        }
+        SortedMap<Integer, Long> newCounts = new TreeMap<>();
+        for (Map.Entry<Integer, Long> e : counts.entrySet()) {
+            final long count = e.getValue();
+            if (count > 0) {
+                final int newIndex = e.getKey() >> scaleReduction;
+                newCounts.put(newIndex, newCounts.getOrDefault(newIndex, 0L) + count);
+            }
+        }
+        return newCounts;
+    }
+
+    private int getScaleReduction(final int index, final SortedMap<Integer, Long> counts) {
+        long newStart = Math.min(index, counts.firstKey());
+        long newEnd = Math.max(index, counts.lastKey());
+        return getScaleReduction(newStart, newEnd);
+    }
+
+    private int getScaleReduction(long newStart, long newEnd) {
+        int scaleReduction = 0;
+        while (newEnd - newStart + 1 > maxBuckets) {
+            newStart >>= 1;
+            newEnd >>= 1;
+            scaleReduction++;
+        }
+        return scaleReduction;
     }
 
     public List<Bucket> getBuckets() {

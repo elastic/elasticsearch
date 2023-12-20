@@ -81,6 +81,31 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
         },  new AggTestConfig(aggBuilder, mapper.fieldType()));
     }
 
+    public void testMaxBuckets() throws Exception {
+        ExponentialHistogramFieldMapper mapper = new ExponentialHistogramFieldMapper.Builder(FIELD_NAME).build(
+            MapperBuilderContext.root(false, false)
+        );
+
+        final int originalScale = 10;
+        ExponentialHistogramFieldMapper.ExponentialHistogramBuckets positive =
+            new ExponentialHistogramFieldMapper.ExponentialHistogramBuckets(0, List.of(1L, 2L, 3L));
+
+        final int maxBuckets = 2;
+        ExponentialHistogramAggregationBuilder aggBuilder =
+            new ExponentialHistogramAggregationBuilder("my_agg")
+                .setMaxScale(originalScale)
+                .setMaxBuckets(maxBuckets)
+                .field(FIELD_NAME);
+
+        testCase(iw -> {
+            iw.addDocument(doc(mapper, originalScale, null, positive));
+        }, (InternalExponentialHistogram result) -> {
+            List<InternalExponentialHistogram.Bucket> buckets = result.getBuckets();
+            assertEquals(maxBuckets, buckets.size());
+            assertEquals(9, result.getCurrentScale());
+        },  new AggTestConfig(aggBuilder, mapper.fieldType()));
+    }
+
     private List<IndexableField> doc(
         FieldMapper mapper,
         int scale,

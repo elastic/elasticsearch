@@ -57,13 +57,4 @@ public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPl
         );
         return List.copyOf(specs);
     }
-
-    /*
-    @Override
-    public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return List.of(
-            ExponentialHistogramAggregatorFactory::registerHistoBackedHistogramAggregator
-        );
-    }
-    */
 }

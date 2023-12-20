@@ -182,19 +182,21 @@ public class WatcherServiceTests extends ESTestCase {
             null,
             1
         );
-        SearchResponse scrollSearchResponse = new SearchResponse(
-            scrollSearchSections,
-            "scrollId",
-            1,
-            1,
-            0,
-            10,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(scrollSearchResponse);
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(
+                    scrollSearchSections,
+                    "scrollId",
+                    1,
+                    1,
+                    0,
+                    10,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                )
+            );
             return null;
         }).when(client).execute(eq(TransportSearchScrollAction.TYPE), any(SearchScrollRequest.class), anyActionListener());
 
@@ -222,19 +224,12 @@ public class WatcherServiceTests extends ESTestCase {
         }
         SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
-        SearchResponse searchResponse = new SearchResponse(
-            sections,
-            "scrollId",
-            1,
-            1,
-            0,
-            10,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
+            );
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
 

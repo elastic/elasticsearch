@@ -27,7 +27,14 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
         final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(
+            null,
+            null,
+            randomBoolean(),
+            version,
+            feature -> true,
+            "os"
+        ) {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
@@ -38,11 +45,6 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             ) {
                 headersRef.set(headers);
                 return null;
-            }
-
-            @Override
-            public Version esVersion() {
-                return version;
             }
         };
         final Map<String, String> headers = new HashMap<>();
@@ -63,7 +65,14 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
     public void testStashHeadersOnException() throws IOException {
         final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(
+            null,
+            null,
+            randomBoolean(),
+            version,
+            feature -> true,
+            "os"
+        ) {
             @Override
             ClientYamlTestResponse callApiInternal(
                 String apiName,
@@ -73,11 +82,6 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
                 NodeSelector nodeSelector
             ) {
                 throw new RuntimeException("boom!");
-            }
-
-            @Override
-            public Version esVersion() {
-                return version;
             }
         };
         final Map<String, String> headers = new HashMap<>();

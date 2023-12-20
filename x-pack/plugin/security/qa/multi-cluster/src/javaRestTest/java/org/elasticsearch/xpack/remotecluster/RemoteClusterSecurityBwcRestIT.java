@@ -189,7 +189,10 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 ? performRequestWithRemoteAccessUser(searchRequest)
                 : performRequestWithApiKey(searchRequest, apiKeyEncoded);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            final SearchResponse searchResponse;
+            try (var parser = responseAsParser(response)) {
+                searchResponse = SearchResponse.fromXContent(parser);
+            }
             try {
                 final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
                     .map(SearchHit::getIndex)

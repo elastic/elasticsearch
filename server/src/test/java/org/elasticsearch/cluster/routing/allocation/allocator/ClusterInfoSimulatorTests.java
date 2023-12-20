@@ -372,7 +372,57 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         );
     }
 
-    // TODO test searchable snapshot relocation
+    public void testRelocateSearchableSnapshotShard() {
+
+        var shardSize = 100;
+        var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //
+            .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+            .put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(IndexMetadata.builder("my-index").settings(indexSettings)))
+            .build();
+
+        var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
+        var indexId = new IndexId("my-index", "_na_");
+
+        var fromNodeId = "node-0";
+        var toNodeId = "node-1";
+
+        var shard = newShardRouting(
+            new ShardId("my-index", "_na_", 0),
+            toNodeId,
+            fromNodeId,
+            true,
+            INITIALIZING,
+            RecoverySource.PeerRecoverySource.INSTANCE
+        );
+
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(fromNodeId, new DiskUsageBuilder(1000, 1000))
+            .withNode(toNodeId, new DiskUsageBuilder(1000, 1000))
+            .withShard(shard, 0)
+            .build();
+        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
+            .withShard(snapshot, indexId, shard.shardId(), shardSize)
+            .build();
+
+        var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
+        var simulator = new ClusterInfoSimulator(allocation);
+        simulator.simulateShardStarted(shard);
+
+        assertThat(
+            simulator.getClusterInfo(),
+            equalTo(
+                new ClusterInfoTestBuilder() //
+                    .withNode(fromNodeId, new DiskUsageBuilder(1000, 1000))
+                    .withNode(toNodeId, new DiskUsageBuilder(1000, 1000))
+                    .withShard(shard, 0)
+                    .build()
+            )
+        );
+    }
 
     public void testInitializeShardFromClone() {
 

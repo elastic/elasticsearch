@@ -98,6 +98,9 @@ public class ClusterInfoSimulator {
     }
 
     private void modifyDiskUsage(String nodeId, ShardId shardId, long delta) {
+        if (delta == 0) {
+            return;
+        }
         var diskUsage = mostAvailableSpaceUsage.get(nodeId);
         if (diskUsage == null) {
             return;
@@ -132,7 +135,6 @@ public class ClusterInfoSimulator {
     }
 
     public ClusterInfo getClusterInfo() {
-        // TODO account for initial reserved space
         var clusterInfo = new ClusterInfo(
             leastAvailableSpaceUsage,
             mostAvailableSpaceUsage,

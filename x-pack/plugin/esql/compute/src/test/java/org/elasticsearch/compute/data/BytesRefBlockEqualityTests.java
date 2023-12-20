@@ -10,18 +10,23 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 
-public class BytesRefBlockEqualityTests extends ESTestCase {
+public class BytesRefBlockEqualityTests extends ComputeTestCase {
 
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+    private BigArrays bigArrays;
+    private BlockFactory blockFactory;
+
+    @Before
+    public void setupBlockFactory() {
+        blockFactory = blockFactory();
+        bigArrays = blockFactory.bigArrays();
+    }
 
     public void testEmptyVector() {
         // all these "empty" vectors should be equivalent
@@ -47,14 +52,16 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
                     0,
                     new int[] {},
                     BitSet.valueOf(new byte[] { 0b00 }),
-                    randomFrom(Block.MvOrdering.values())
+                    randomFrom(Block.MvOrdering.values()),
+                    blockFactory
                 ),
                 new BytesRefArrayBlock(
                     bytesRefArray2,
                     0,
                     new int[] {},
                     BitSet.valueOf(new byte[] { 0b00 }),
-                    randomFrom(Block.MvOrdering.values())
+                    randomFrom(Block.MvOrdering.values()),
+                    blockFactory
                 ),
                 BytesRefBlock.newConstantBlockWith(new BytesRef(), 0),
                 BytesRefBlock.newBlockBuilder(0).build(),
@@ -160,14 +167,16 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
                     3,
                     new int[] { 0, 1, 2, 3 },
                     BitSet.valueOf(new byte[] { 0b000 }),
-                    randomFrom(Block.MvOrdering.values())
+                    randomFrom(Block.MvOrdering.values()),
+                    blockFactory
                 ),
                 new BytesRefArrayBlock(
                     bytesRefArray2,
                     3,
                     new int[] { 0, 1, 2, 3 },
                     BitSet.valueOf(new byte[] { 0b1000 }),
-                    randomFrom(Block.MvOrdering.values())
+                    randomFrom(Block.MvOrdering.values()),
+                    blockFactory
                 ),
                 new BytesRefArrayVector(bytesRefArray1, 3).filter(0, 1, 2).asBlock(),
                 new BytesRefArrayVector(bytesRefArray2, 3).filter(0, 1, 2).asBlock(),
@@ -210,14 +219,16 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
                     2,
                     new int[] { 0, 1, 2 },
                     BitSet.valueOf(new byte[] { 0b000 }),
-                    randomFrom(Block.MvOrdering.values())
+                    randomFrom(Block.MvOrdering.values()),
+                    blockFactory
                 ),
                 new BytesRefArrayBlock(
                     bytesRefArray2,
                     2,
                     new int[] { 0, 1, 2 },
                     BitSet.valueOf(new byte[] { 0b100 }),
-                    randomFrom(Block.MvOrdering.values())
+                    randomFrom(Block.MvOrdering.values()),
+                    blockFactory
                 ),
                 new BytesRefArrayVector(bytesRefArray1, 2).filter(0, 1).asBlock(),
                 new BytesRefArrayVector(bytesRefArray2, 2).filter(0, 1).asBlock(),

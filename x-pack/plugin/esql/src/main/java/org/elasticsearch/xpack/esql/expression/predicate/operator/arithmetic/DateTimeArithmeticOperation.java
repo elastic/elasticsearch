@@ -65,8 +65,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             if (isNull(leftType) || isNull(rightType)) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if ((isDateTime(leftType) && isTemporalAmount(rightType))
-                || (isTemporalAmount(leftType) && isDateTime(rightType))) {
+            if ((isDateTime(leftType) && isTemporalAmount(rightType)) || (isTemporalAmount(leftType) && isDateTime(rightType))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
             if (isTemporalAmount(leftType) && isTemporalAmount(rightType) && leftType == rightType) {

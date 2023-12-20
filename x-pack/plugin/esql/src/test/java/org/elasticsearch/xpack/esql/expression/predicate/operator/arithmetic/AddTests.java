@@ -218,7 +218,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
     @Override
     protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
         if (isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)) {
-            return isNull(lhsType) || isNull(rhsType)
+            return isNull(lhsType)
+                || isNull(rhsType)
                 || isDateTime(lhsType) && isTemporalAmount(rhsType)
                 || isTemporalAmount(lhsType) && isDateTime(rhsType)
                 || isTemporalAmount(lhsType) && isTemporalAmount(rhsType) && lhsType == rhsType;

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.postings.Lucene90PostingsFormatWrapper;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -43,6 +44,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
+    private final PostingsFormat lucene90PostingsFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
@@ -54,6 +56,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
+        this.lucene90PostingsFormat = Lucene90PostingsFormatWrapper.newInstance();
     }
 
     @Override
@@ -69,7 +72,8 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         if (format != null) {
             return format;
         }
-        return super.getPostingsFormatForField(field);
+        // use the 90 posting format which has PFOR encoding
+        return lucene90PostingsFormat;
     }
 
     boolean useBloomFilter(String field) {

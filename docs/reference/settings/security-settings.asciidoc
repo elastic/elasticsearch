@@ -73,7 +73,7 @@ Enables fips mode of operation. Set this to `true` if you run this {es} instance
 
 `xpack.security.fips_mode.required_providers`::
 (<<static-cluster-setting,Static>>)
-Optionally enforce specific Java JCE/JSSE security providers. For example set this to `["BCFIPS"]` to require the Bouncy Castle FIPS
+Optionally enforce specific Java JCE/JSSE security providers. For example, set this to `["BCFIPS"]` to require the Bouncy Castle FIPS
 security provider. Only applicable when `xpack.security.fips_mode.enabled` is set to `true`.
 
 [discrete]

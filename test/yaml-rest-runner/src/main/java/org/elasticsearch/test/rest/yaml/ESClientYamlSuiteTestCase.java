@@ -197,7 +197,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         final Predicate<String> clusterFeaturesPredicate,
         final String os
     ) {
-        // TODO:
         return new ClientYamlTestExecutionContext(
             clientYamlTestCandidate,
             clientYamlTestClient,

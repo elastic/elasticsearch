@@ -82,7 +82,7 @@ public class ClientYamlTestExecutionContext {
             getEsVersion(nodesVersions),
             testFeatureService::clusterHasFeature,
             osList.iterator().next(),
-            (ignoreApi, ignorePath) -> true
+            pathPredicate
         );
     }
 
@@ -106,7 +106,7 @@ public class ClientYamlTestExecutionContext {
     }
 
     @Deprecated
-    private static Version getEsVersion(Set<String> nodesVersions) {
+    static Version getEsVersion(Set<String> nodesVersions) {
         return nodesVersions.stream()
             .map(ESRestTestCase::parseLegacyVersion)
             .flatMap(Optional::stream)

@@ -64,6 +64,7 @@ import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext.getEsVersion;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -200,14 +201,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         final TestFeatureService testFeatureService,
         final Set<String> osList
     ) {
-        return new ClientYamlTestExecutionContext(
+        return createRestTestExecutionContext(
             clientYamlTestCandidate,
             clientYamlTestClient,
-            randomizeContentType(),
-            nodesVersions,
-            testFeatureService,
-            osList
-        );
+            getEsVersion(nodesVersions),
+            testFeatureService::clusterHasFeature,
+            osList.iterator().next());
     }
 
     @Deprecated

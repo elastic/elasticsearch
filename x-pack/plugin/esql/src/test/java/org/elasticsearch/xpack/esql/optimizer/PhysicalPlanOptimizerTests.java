@@ -14,13 +14,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -106,7 +106,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -253,9 +253,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_AggregateExec[[],[SUM(salary{f}#14) AS x],FINAL,8]
      *   \_ExchangeExec[[sum{r}#19, seen{r}#20],true]
      *     \_AggregateExec[[],[SUM(salary{f}#14) AS x],PARTIAL,8]
-     *       \_FilterExec[ROUND(emp_no{f}#9) > 10[INTEGER] AND ISNOTNULL(salary{f}#14)]
-     *         \_FieldExtractExec[emp_no{f}#9, salary{f}#14]
-     *           \_EsQueryExec[test], query[][_doc{f}#34], limit[], sort[] estimatedRowSize[12]
+     *       \_FieldExtractExec[salary{f}#14]
+     *         \_FilterExec[ROUND(emp_no{f}#9) > 10[INTEGER]]
+     *           \_FieldExtractExec[emp_no{f}#9]
+     *             \_EsQueryExec[test], query[{"exists":{"field":"salary","boost":1.0}}][_doc{f}#34], limit[], sort[] estimatedRowSize[12]
      */
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
         var plan = physicalPlan("""
@@ -266,7 +267,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = optimizedPlan(plan);
-
         var limit = as(optimized, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
@@ -274,15 +274,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(aggregate.child());
         aggregate = as(exchange.child(), AggregateExec.class);
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
-
-        var filter = as(aggregate.child(), FilterExec.class);
-        var extract = as(filter.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("emp_no", "salary"));
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("salary"));
+        var filter = as(extract.child(), FilterExec.class);
+        extract = as(filter.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no and salary*/));
+        assertThat(query.query(), is(QueryBuilders.existsQuery("salary")));
     }
 
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SUM(salary{f}#14) AS x],FINAL,8]
+     *   \_ExchangeExec[[sum{r}#19, seen{r}#20],true]
+     *     \_AggregateExec[[],[SUM(salary{f}#14) AS x],PARTIAL,8]
+     *       \_FieldExtractExec[salary{f}#14]
+     *         \_FilterExec[ROUND(emp_no{f}#9) > 10[INTEGER]]
+     *           \_FieldExtractExec[emp_no{f}#9]
+     *             \_EsQueryExec[test], query[{"exists":{"field":"salary","boost":1.0}}][_doc{f}#34], limit[], sort[] estimatedRowSize[12]
+     */
     public void testTripleExtractorPerField() {
         var plan = physicalPlan("""
             from test
@@ -296,15 +309,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggregate = as(limit.child(), AggregateExec.class);
         var exchange = asRemoteExchange(aggregate.child());
         aggregate = as(exchange.child(), AggregateExec.class);
-
-        var filter = as(aggregate.child(), FilterExec.class);
-        var extract = as(filter.child(), FieldExtractExec.class);
-        assertThat(names(extract.attributesToExtract()), contains("emp_no", "salary"));
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("salary"));
+        var filter = as(extract.child(), FilterExec.class);
+        extract = as(filter.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
         // for doc ids, emp_no, salary
         int estimatedSize = Integer.BYTES * 3;
         assertThat(query.estimatedRowSize(), equalTo(estimatedSize));
+        assertThat(query.query(), is(QueryBuilders.existsQuery("salary")));
     }
 
     /**
@@ -422,9 +437,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_AggregateExec[[],[SUM(emp_no{f}#5) AS emp_no],FINAL,8]
      *   \_ExchangeExec[[sum{r}#15, seen{r}#16],true]
      *     \_AggregateExec[[],[SUM(emp_no{f}#5) AS emp_no],PARTIAL,8]
-     *       \_FilterExec[ISNOTNULL(emp_no{f}#5)]
-     *         \_FieldExtractExec[emp_no{f}#5]
-     *           \_EsQueryExec[test], query[][_doc{f}#30], limit[], sort[] estimatedRowSize[8]
+     *       \_FieldExtractExec[emp_no{f}#5]
+     *         \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#30], limit[], sort[] estimatedRowSize[8]
      */
     public void testExtractorsOverridingFields() {
         var plan = physicalPlan("""
@@ -437,9 +451,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var node = as(limit.child(), AggregateExec.class);
         var exchange = asRemoteExchange(node.child());
         var aggregate = as(exchange.child(), AggregateExec.class);
-        var filter = as(aggregate.child(), FilterExec.class);
-        var extract = as(filter.child(), FieldExtractExec.class);
+        var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
+        assertThat(query.query(), is(QueryBuilders.existsQuery("emp_no")));
     }
 
     public void testDoNotExtractGroupingFields() {
@@ -520,12 +536,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * LimitExec[500[INTEGER]]
-     * \_AggregateExec[[],[SUM(emp_no{f}#784) AS sum(emp_no)],FINAL,8]
-     *   \_ExchangeExec[[sum{r}#794, seen{r}#795],true]
-     *     \_AggregateExec[[],[SUM(emp_no{f}#784) AS sum(emp_no)],PARTIAL,8]
-     *       \_FilterExec[ISNOTNULL(emp_no{f}#784)]
-     *         \_FieldExtractExec[emp_no{f}#784]
-     *           \_EsQueryExec[test], query[][_doc{f}#809], limit[], sort[] estimatedRowSize[8]
+     * \_AggregateExec[[],[SUM(emp_no{f}#309) AS sum(emp_no)],FINAL,8]
+     *   \_ExchangeExec[[sum{r}#319, seen{r}#320],true]
+     *     \_AggregateExec[[],[SUM(emp_no{f}#309) AS sum(emp_no)],PARTIAL,8]
+     *       \_FieldExtractExec[emp_no{f}#309]
+     *         \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#334], limit[], sort[] estimatedRowSize[8]
      */
     public void testQueryWithAggregation() {
         var plan = physicalPlan("""
@@ -534,19 +549,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = optimizedPlan(plan);
-        System.out.println(optimized);
         var limit = as(optimized, LimitExec.class);
         var node = as(limit.child(), AggregateExec.class);
         var exchange = asRemoteExchange(node.child());
         var aggregate = as(exchange.child(), AggregateExec.class);
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
-
-        var filter = as(aggregate.child(), FilterExec.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(inn.field()), is("emp_no"));
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
+        assertThat(query.query(), is(QueryBuilders.existsQuery("emp_no")));
     }
 
     /**
@@ -556,9 +570,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *   \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],FINAL,16]
      *     \_ExchangeExec[[sum{r}#18, seen{r}#19],true]
      *       \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],PARTIAL,8]
-     *         \_FilterExec[ISNOTNULL(emp_no{f}#8)]
-     *           \_FieldExtractExec[emp_no{f}#8]
-     *             \_EsQueryExec[test], query[][_doc{f}#34], limit[], sort[] estimatedRowSize[8]
+     *         \_FieldExtractExec[emp_no{f}#8]
+     *           \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#34], limit[], sort[] estimatedRowSize[8]
      */
     public void testQueryWithAggAfterEval() {
         var plan = physicalPlan("""
@@ -575,13 +588,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(agg.estimatedRowSize(), equalTo(Long.BYTES * 2));
         var exchange = asRemoteExchange(agg.child());
         var aggregate = as(exchange.child(), AggregateExec.class);
-        // sum is long a long, x isn't calculated until the agg above
+        // sum is long, x isn't calculated until the agg above
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
-        var filter = as(aggregate.child(), FilterExec.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.name(inn.field()), is("emp_no"));
-        var extract = as(filter.child(), FieldExtractExec.class);
+        var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
+        assertThat(query.query(), is(QueryBuilders.existsQuery("emp_no")));
     }
 
     public void testQueryWithNull() {

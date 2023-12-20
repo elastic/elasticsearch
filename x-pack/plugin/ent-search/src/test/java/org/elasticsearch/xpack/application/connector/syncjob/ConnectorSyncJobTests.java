@@ -400,7 +400,7 @@ public class ConnectorSyncJobTests extends ESTestCase {
             }
             """);
 
-        Connector connector = ConnectorSyncJob.syncJobConnectorFromXContentBytes(new BytesArray(content), XContentType.JSON);
+        Connector connector = ConnectorSyncJob.syncJobConnectorFromXContentBytes(new BytesArray(content), null, XContentType.JSON);
 
         assertThat(connector.getConnectorId(), equalTo("connector-id"));
         assertThat(connector.getFiltering().size(), equalTo(1));
@@ -474,7 +474,7 @@ public class ConnectorSyncJobTests extends ESTestCase {
             }
             """);
 
-        ConnectorSyncJob.syncJobConnectorFromXContentBytes(new BytesArray(content), XContentType.JSON);
+        ConnectorSyncJob.syncJobConnectorFromXContentBytes(new BytesArray(content), null, XContentType.JSON);
     }
 
     private void assertTransportSerialization(ConnectorSyncJob testInstance) throws IOException {

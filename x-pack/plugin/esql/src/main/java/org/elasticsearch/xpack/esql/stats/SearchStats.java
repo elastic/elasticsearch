@@ -161,14 +161,16 @@ public class SearchStats {
             if (exists(field) == false) {
                 stat.singleValue = true;
             } else {
-                var sv = new boolean[] { false };
+                var sv = new boolean[] { true };
                 for (SearchContext context : contexts) {
                     MappedFieldType mappedType = context.getSearchExecutionContext().getFieldType(field);
-                    doWithContexts(r -> {
-                        sv[0] &= detectSingleValue(r, mappedType, field);
-                        return sv[0];
-                    }, true);
-                    break;
+                    if (mappedType != null) {
+                        doWithContexts(r -> {
+                            sv[0] &= detectSingleValue(r, mappedType, field);
+                            return sv[0];
+                        }, true);
+                        break;
+                    }
                 }
                 stat.singleValue = sv[0];
             }

@@ -49,12 +49,7 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
          * remote cluster version here and return it if it is lower than the local client version. This is used to
          * skip tests if some feature isn't available on the remote cluster yet.
          */
-        final Version commonEsVersion;
-        if (remoteEsVersion == null) {
-            commonEsVersion = esVersion;
-        } else {
-            commonEsVersion = remoteEsVersion.before(esVersion) ? remoteEsVersion : esVersion;
-        }
+        final Version commonEsVersion = remoteEsVersion != null && remoteEsVersion.before(esVersion) ? remoteEsVersion : esVersion;
 
         // TODO: same for os and features
 

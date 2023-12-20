@@ -23,8 +23,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CompetitiveImpactAccumulator;
 import org.apache.lucene.codecs.lucene90.blocktree.FieldReader;
 import org.apache.lucene.codecs.lucene90.blocktree.Stats;
-import org.apache.lucene.codecs.lucene99.Lucene99PostingsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99SkipWriter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
@@ -78,18 +76,6 @@ public class ES812PostingsFormatTests extends BasePostingsFormatTestCase {
         d.close();
     }
 
-    private void shouldFail(int minItemsInBlock, int maxItemsInBlock) {
-        expectThrows(IllegalArgumentException.class, () -> { new Lucene99PostingsFormat(minItemsInBlock, maxItemsInBlock); });
-    }
-
-    public void testInvalidBlockSizes() throws Exception {
-        shouldFail(0, 0);
-        shouldFail(10, 8);
-        shouldFail(-1, 10);
-        shouldFail(10, -1);
-        shouldFail(10, 12);
-    }
-
     public void testImpactSerialization() throws IOException {
         // omit norms and omit freqs
         doTestImpactSerialization(Collections.singletonList(new Impact(1, 1L)));
@@ -136,7 +122,7 @@ public class ES812PostingsFormatTests extends BasePostingsFormatTestCase {
         }
         try (Directory dir = newDirectory()) {
             try (IndexOutput out = dir.createOutput("foo", IOContext.DEFAULT)) {
-                Lucene99SkipWriter.writeImpacts(acc, out);
+                ES812SkipWriter.writeImpacts(acc, out);
             }
             try (IndexInput in = dir.openInput("foo", IOContext.DEFAULT)) {
                 byte[] b = new byte[Math.toIntExact(in.length())];

@@ -90,6 +90,7 @@ public class BlockBenchmark {
     public static final String[] RELEVANT_TYPE_BLOCK_COMBINATIONS = {
         "boolean/array",
         "boolean/array-multivalue-null",
+        "boolean/big-array",
         "boolean/big-array-multivalue-null",
         "boolean/vector",
         "boolean/vector-big-array",
@@ -100,18 +101,21 @@ public class BlockBenchmark {
         "BytesRef/vector-const",
         "double/array",
         "double/array-multivalue-null",
+        "double/big-array",
         "double/big-array-multivalue-null",
         "double/vector",
         "double/vector-big-array",
         "double/vector-const",
         "int/array",
         "int/array-multivalue-null",
+        "int/big-array",
         "int/big-array-multivalue-null",
         "int/vector",
         "int/vector-big-array",
         "int/vector-const",
         "long/array",
         "long/array-multivalue-null",
+        "long/big-array",
         "long/big-array-multivalue-null",
         "long/vector",
         "long/vector-big-array",
@@ -184,6 +188,23 @@ public class BlockBenchmark {
                                 firstValueIndexes,
                                 nulls,
                                 Block.MvOrdering.UNORDERED
+                            );
+                        }
+                        case "big-array" -> {
+                            BitArray valuesBigArray = new BitArray(totalPositions, BigArrays.NON_RECYCLING_INSTANCE);
+                            for (int i = 0; i < values.length; i++) {
+                                if (values[i]) {
+                                    valuesBigArray.set(i);
+                                }
+                            }
+
+                            blocks[blockIndex] = new BooleanBigArrayBlock(
+                                valuesBigArray,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+                                BlockFactory.getNonBreakingInstance()
                             );
                         }
                         case "big-array-multivalue-null" -> {
@@ -324,6 +345,23 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "big-array" -> {
+                            DoubleArray valuesBigArray = BlockFactory.getNonBreakingInstance()
+                                .bigArrays()
+                                .newDoubleArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            blocks[blockIndex] = new DoubleBigArrayBlock(
+                                valuesBigArray,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+                                BlockFactory.getNonBreakingInstance()
+                            );
+                        }
                         case "big-array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
@@ -405,6 +443,21 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "big-array" -> {
+                            IntArray valuesBigArray = BlockFactory.getNonBreakingInstance().bigArrays().newIntArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            blocks[blockIndex] = new IntBigArrayBlock(
+                                valuesBigArray,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+                                BlockFactory.getNonBreakingInstance()
+                            );
+                        }
                         case "big-array-multivalue-null" -> {
                             int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
                             int positionCount = firstValueIndexes.length - 1;
@@ -480,6 +533,23 @@ public class BlockBenchmark {
                                 firstValueIndexes,
                                 nulls,
                                 Block.MvOrdering.UNORDERED
+                            );
+                        }
+                        case "big-array" -> {
+                            LongArray valuesBigArray = BlockFactory.getNonBreakingInstance()
+                                .bigArrays()
+                                .newLongArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            blocks[blockIndex] = new LongBigArrayBlock(
+                                valuesBigArray,
+                                totalPositions,
+                                null,
+                                null,
+                                Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+                                BlockFactory.getNonBreakingInstance()
                             );
                         }
                         case "big-array-multivalue-null" -> {
@@ -732,6 +802,7 @@ public class BlockBenchmark {
         {
             "boolean/array",
             "boolean/array-multivalue-null",
+            "boolean/big-array",
             "boolean/big-array-multivalue-null",
             "boolean/vector",
             "boolean/vector-big-array",
@@ -742,18 +813,21 @@ public class BlockBenchmark {
             "BytesRef/vector-const",
             "double/array",
             "double/array-multivalue-null",
+            "double/big-array",
             "double/big-array-multivalue-null",
             "double/vector",
             "double/vector-big-array",
             "double/vector-const",
             "int/array",
             "int/array-multivalue-null",
+            "int/big-array",
             "int/big-array-multivalue-null",
             "int/vector",
             "int/vector-big-array",
             "int/vector-const",
             "long/array",
             "long/array-multivalue-null",
+            "long/big-array",
             "long/big-array-multivalue-null",
             "long/vector",
             "long/vector-big-array",

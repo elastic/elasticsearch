@@ -206,7 +206,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             clientYamlTestClient,
             getEsVersion(nodesVersions),
             testFeatureService::clusterHasFeature,
-            osList.iterator().next());
+            osList.iterator().next()
+        );
     }
 
     @Deprecated

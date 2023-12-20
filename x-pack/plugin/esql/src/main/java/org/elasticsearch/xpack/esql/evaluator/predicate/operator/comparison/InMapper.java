@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
@@ -98,7 +97,7 @@ public class InMapper extends ExpressionMapper<In> {
 
         private static Block evalWithNulls(BlockFactory blockFactory, boolean[] values, BitSet nulls, boolean nullInValues) {
             if (nulls.isEmpty() && nullInValues == false) {
-                return new BooleanArrayVector(values, values.length).asBlock();
+                return blockFactory.newBooleanArrayVector(values, values.length).asBlock();
             } else {
                 // 3VL: true trumps null; null trumps false.
                 for (int i = 0; i < values.length; i++) {
@@ -110,7 +109,7 @@ public class InMapper extends ExpressionMapper<In> {
                 }
                 if (nulls.isEmpty()) {
                     // no nulls and no multi-values means we must use a Vector
-                    return new BooleanArrayVector(values, values.length).asBlock();
+                    return blockFactory.newBooleanArrayVector(values, values.length).asBlock();
                 } else {
                     return blockFactory.newBooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
                 }

@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -36,8 +37,11 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCase {
@@ -195,6 +199,34 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
 
         // Ensure remote cluster is connected
         checkRemoteConnection(clusterAlias, targetFulfillingCluster, basicSecurity, isProxyMode);
+    }
+
+    protected void configureRemoteClusterCredentials(String clusterAlias, String credentials, MutableSettingsProvider keystoreSettings)
+        throws IOException {
+        keystoreSettings.put("cluster.remote." + clusterAlias + ".credentials", credentials);
+        queryCluster.updateStoredSecureSettings();
+        reloadSecureSettings();
+    }
+
+    protected void removeRemoteClusterCredentials(String clusterAlias, MutableSettingsProvider keystoreSettings) throws IOException {
+        keystoreSettings.remove("cluster.remote." + clusterAlias + ".credentials");
+        queryCluster.updateStoredSecureSettings();
+        reloadSecureSettings();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void reloadSecureSettings() throws IOException {
+        final Response reloadResponse = adminClient().performRequest(new Request("POST", "/_nodes/reload_secure_settings"));
+        assertOK(reloadResponse);
+        final Map<String, Object> map = entityAsMap(reloadResponse);
+        assertThat(map.get("nodes"), instanceOf(Map.class));
+        final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
+        assertThat(nodes, is(not(anEmptyMap())));
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            assertThat(entry.getValue(), instanceOf(Map.class));
+            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
+            assertThat(node.get("reload_exception"), nullValue());
+        }
     }
 
     protected void putRemoteClusterSettings(

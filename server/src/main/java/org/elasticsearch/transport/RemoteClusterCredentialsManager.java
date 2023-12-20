@@ -23,7 +23,7 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 
-public class RemoteClusterCredentialsManager {
+public final class RemoteClusterCredentialsManager {
     private static final Logger logger = LogManager.getLogger(RemoteClusterCredentialsManager.class);
 
     private volatile Map<String, SecureString> clusterCredentials;

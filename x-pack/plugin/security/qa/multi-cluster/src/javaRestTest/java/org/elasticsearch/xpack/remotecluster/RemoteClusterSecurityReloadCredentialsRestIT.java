@@ -77,7 +77,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
     @After
     public void cleanUp() throws IOException {
         removeRemoteCluster();
-        removeRemoteClusterCredentials("my_remote_cluster");
+        removeRemoteClusterCredentials("my_remote_cluster", keystoreSettings);
     }
 
     public void testFirstTimeSetup() throws Exception {
@@ -207,7 +207,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
             putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
         }
 
-        configureRemoteClusterCredentials("my_remote_cluster", remoteClusterCredentials);
+        configureRemoteClusterCredentials("my_remote_cluster", remoteClusterCredentials, keystoreSettings);
 
         // also valid to configure credentials, then cluster
         if (false == configureSettingsFirst) {
@@ -216,18 +216,6 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
             // now that credentials are configured, we expect a successful connection
             checkRemoteConnection("my_remote_cluster", fulfillingCluster, false, isProxyMode);
         }
-    }
-
-    private void configureRemoteClusterCredentials(String clusterAlias, String credentials) throws IOException {
-        keystoreSettings.put("cluster.remote." + clusterAlias + ".credentials", credentials);
-        queryCluster.updateStoredSecureSettings();
-        reloadSecureSettings();
-    }
-
-    private void removeRemoteClusterCredentials(String clusterAlias) throws IOException {
-        keystoreSettings.remove("cluster.remote." + clusterAlias + ".credentials");
-        queryCluster.updateStoredSecureSettings();
-        reloadSecureSettings();
     }
 
     @SuppressWarnings("unchecked")

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.telemetry.tracing;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 
 import java.util.Map;
@@ -35,14 +34,14 @@ public interface Tracer {
 
     /**
      * Called when a span starts.
-     * @param threadContext the current context. Required for tracing parent/child span activity.
+     * @param traceContext the current context. Required for tracing parent/child span activity.
      * @param traceable provides a unique identifier for the activity, and will not be sent to the tracing system. Add the ID
      *                  to the attributes if it is important
      * @param name the name of the span. Used to filter out spans, but also sent to the tracing system
      * @param attributes arbitrary key/value data for the span. Sent to the tracing system
      */
-    default void startTrace(ThreadContext threadContext, Traceable traceable, String name, Map<String, Object> attributes) {
-        startTrace(threadContext, traceable, name, attributes);
+    default void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes) {
+        startTrace(traceContext, traceable, name, attributes);
     }
 
     /**
@@ -148,7 +147,7 @@ public interface Tracer {
      */
     Tracer NOOP = new Tracer() {
         @Override
-        public void startTrace(ThreadContext threadContext, Traceable traceable, String name, Map<String, Object> attributes) {}
+        public void startTrace(TraceContext traceContext, Traceable traceable, String name, Map<String, Object> attributes) {}
 
         @Override
         public void startTrace(String name, Map<String, Object> attributes) {}

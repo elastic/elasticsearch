@@ -23,6 +23,8 @@ import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsServic
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,12 +37,15 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.junit.Before;
 
 import java.util.List;
@@ -270,6 +275,61 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testReportStaleShardMetric() {
+        int numShards = randomIntBetween(2, 5);
+        var indexMetadata = createIndex(numShards, 1);
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(createNodes(1))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .build();
+
+        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+        for (int i = 0; i < numShards; i++) {
+            service.processShardSizesRequest(
+                new PublishShardSizesRequest(
+                    "search_node_1",
+                    Map.of(new ShardId(indexMetadata.getIndex(), i), new ShardSize(randomNonNegativeInt(), randomNonNegativeInt(), ZERO))
+                )
+            );
+        }
+        currentRelativeTimeInNanos.addAndGet(SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
+
+        var memoryMetricsServiceLogger = LogManager.getLogger(SearchMetricsService.class);
+        var mockLogAppender = new MockLogAppender();
+        mockLogAppender.start();
+        Loggers.addAppender(memoryMetricsServiceLogger, mockLogAppender);
+        try {
+            // Verify that all the shards are reported as stale
+            for (int i = 0; i < numShards; i++) {
+                mockLogAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "expected warn log about stale storage metrics",
+                        SearchMetricsService.class.getName(),
+                        Level.WARN,
+                        Strings.format(
+                            "Storage metrics are stale for shard: %s, ShardMetrics{timestamp=1, shardSize=[interactive_in_bytes=*, "
+                                + "non-interactive_in_bytes=*][primary term=0, generation=0]}",
+                            new ShardId(indexMetadata.getIndex(), i)
+                        )
+                    )
+                );
+            }
+            service.getSearchTierMetrics();
+            mockLogAppender.assertAllExpectationsMatched();
+
+            // Refresh shard metrics, make sure there are no warning anymore
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", SearchMetricsService.class.getName(), Level.WARN, "*")
+            );
+            service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", Map.of()));
+            service.getSearchTierMetrics();
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(memoryMetricsServiceLogger, mockLogAppender);
+            mockLogAppender.stop();
+        }
     }
 
     public void testMetricsAreExactWithEmptyClusterState() {

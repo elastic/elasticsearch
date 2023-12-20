@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,6 +46,14 @@ public class ResolveClusterInfo implements Writeable {
     }
 
     public ResolveClusterInfo(StreamInput in) throws IOException {
+        if (in.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+            throw new UnsupportedOperationException(
+                "ResolveClusterAction requires at least Transport Version "
+                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                    + " but was "
+                    + in.getTransportVersion()
+            );
+        }
         this.connected = in.readBoolean();
         this.skipUnavailable = in.readOptionalBoolean();
         this.matchingIndices = in.readOptionalBoolean();
@@ -58,6 +67,14 @@ public class ResolveClusterInfo implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+            throw new UnsupportedOperationException(
+                "ResolveClusterAction requires at least Transport Version "
+                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                    + " but was "
+                    + out.getTransportVersion()
+            );
+        }
         out.writeBoolean(connected);
         out.writeOptionalBoolean(skipUnavailable);
         out.writeOptionalBoolean(matchingIndices);

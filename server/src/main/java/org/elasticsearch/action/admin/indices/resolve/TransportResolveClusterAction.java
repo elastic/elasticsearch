@@ -168,21 +168,65 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                                 return;
                             }
                             if (notConnectedError(failure)) {
+                                logger.warn("UUU DEBUG 2");
                                 clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
                             } else if (clusterResolveEndpointNotFound(failure)) {
+                                // MP TODO: remove this pathway - I don't think it will ever execute now?
+                                logger.warn("UUU DEBUG 3");
                                 // if the endpoint returns an error that it does not _resolve/cluster, we know we are connected
                                 // TODO: call remoteClusterClient.admin().indices().resolveIndex() to fill in 'matching_indices'?
                                 clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable));
                             } else {
+                                logger.warn("UUU DEBUG 4");
                                 Throwable cause = ExceptionsHelper.unwrapCause(failure);
-                                // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
-                                // determine based on the error, so we default to false in the face of any error and report it
-                                // back to the user for consideration
-                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
-                                logger.warn(
-                                    () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
-                                    failure
-                                );
+                                if (cause instanceof UnsupportedOperationException
+                                    && cause.getMessage().contains("ResolveClusterAction requires at least Transport Version")) {
+                                    logger.warn("UUU DEBUG 5: now calling _resolve/indices instead");
+                                    /// MP TODO: document what we're doing here
+                                    ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
+                                        originalIndices.indices(),
+                                        originalIndices.indicesOptions()
+                                    );
+                                    remoteClusterClient.admin().indices().resolveIndex(resolveIndexRequest, new ActionListener<>() {
+                                        @Override
+                                        public void onResponse(ResolveIndexAction.Response response) {
+                                            boolean matchingIndices = response.getIndices().size() > 0
+                                                || response.getAliases().size() > 0
+                                                || response.getDataStreams().size() > 0;
+                                            logger.warn("UUU DEBUG 44: matchingIndices: " + matchingIndices);
+                                            clusterInfoMap.put(
+                                                clusterAlias,
+                                                new ResolveClusterInfo(true, skipUnavailable, matchingIndices, null)
+                                            );
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                            logger.warn("UUU DEBUG 55: failure: " + e);
+                                            clusterInfoMap.put(
+                                                clusterAlias,
+                                                new ResolveClusterInfo(false, skipUnavailable, cause.toString())
+                                            );
+                                            logger.warn(
+                                                () -> Strings.format(
+                                                    "Failure from _resolve/cluster lookup against cluster %s: ",
+                                                    clusterAlias
+                                                ),
+                                                e
+                                            );
+                                        }
+                                    });
+                                } else {
+                                    // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
+                                    // determine based on the error, so we default to false in the face of any error and report it
+                                    // back to the user for consideration
+                                    clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
+                                    logger.warn(
+                                        () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
+                                        failure
+                                    );
+                                }
                             }
                             if (resolveClusterTask.isCancelled()) {
                                 releaseResourcesOnCancel.run();

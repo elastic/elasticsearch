@@ -59,6 +59,7 @@ import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.getIndexDiskUsageInBytes;
+import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,6 +69,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
+
+    private static final Settings WITH_DISK_BALANCING = Settings.builder().put(DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9").build();
 
     public void testDecideShardAllocation() {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
@@ -107,10 +110,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocationService = new MockAllocationService(
             yesAllocationDeciders(),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                TEST_WRITE_LOAD_FORECASTER
-            ),
+            new BalancedShardsAllocator(ClusterSettings.createBuiltInClusterSettings(), TEST_WRITE_LOAD_FORECASTER),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
@@ -148,12 +148,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testBalanceByForecastDiskUsage() {
 
-        var allocationService = createAllocationService(
-            Settings.builder()
-                // enable disk based balancing
-                .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
-                .build()
-        );
+        var allocationService = createAllocationService(WITH_DISK_BALANCING);
 
         var clusterState = applyStartedShardsUntilNoChange(
             stateWithStartedIndices(
@@ -187,10 +182,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     public void testBalanceByActualDiskUsage() {
 
         var allocationService = createAllocationService(
-            Settings.builder()
-                // enable disk based balancing
-                .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
-                .build(),
+            WITH_DISK_BALANCING,
             () -> createClusterInfo(
                 Map.ofEntries(
                     Map.entry("[heavy-index][0][p]", ByteSizeValue.ofGb(8).getBytes()),
@@ -235,10 +227,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     public void testBalanceByActualAndForecastDiskUsage() {
 
         var allocationService = createAllocationService(
-            Settings.builder()
-                // enable disk based balancing
-                .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
-                .build(),
+            WITH_DISK_BALANCING,
             () -> createClusterInfo(Map.of("[heavy-index][0][p]", ByteSizeValue.ofGb(8).getBytes()))
         );
 
@@ -273,13 +262,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testDoNotBalancePartialIndicesByDiskUsage() {
 
-        var allocationService = createAllocationService(
-            Settings.builder()
-                // enable disk based balancing
-                .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
-                .build(),
-            () -> createClusterInfo(Map.of())
-        );
+        var allocationService = createAllocationService(WITH_DISK_BALANCING, () -> createClusterInfo(Map.of()));
 
         var partialSearchableSnapshotSettings = indexSettings(IndexVersion.current(), 1, 0) //
             .put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);

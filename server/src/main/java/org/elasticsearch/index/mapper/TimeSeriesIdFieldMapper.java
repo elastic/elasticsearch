@@ -233,7 +233,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             // NOTE: concatenate all dimension value hashes up to a certain number of dimensions
             int tsidHashStartIndex = tsidHashIndex;
             for (final Dimension dimension : dimensions) {
-                if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) break;
+                if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) {
+                    break;
+                }
                 final BytesRef dimensionValueBytesRef = dimension.value.toBytesRef();
                 ByteUtils.writeIntLE(
                     StringHelper.murmurhash3_x86_32(

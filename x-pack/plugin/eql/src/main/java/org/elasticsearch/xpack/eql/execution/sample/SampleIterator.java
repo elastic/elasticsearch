@@ -147,6 +147,12 @@ public class SampleIterator implements Executable {
 
     private void queryForCompositeAggPage(ActionListener<Payload> listener, final SampleQueryRequest request) {
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
+            // either the fields values or the fields themselves are missing
+            // or the filter applied on the eql query matches no documents
+            if (r.hasAggregations() == false) {
+                payload(delegate);
+                return;
+            }
             Aggregation a = r.getAggregations().get(COMPOSITE_AGG_NAME);
             if (a instanceof InternalComposite == false) {
                 throw new EqlIllegalArgumentException("Unexpected aggregation result type returned [{}]", a.getClass());

@@ -1,7 +1,29 @@
 [discrete]
 [[esql-agg-count]]
 === `COUNT`
-Counts field values.
+
+*Syntax*
+
+[source,esql]
+----
+COUNT([input])
+----
+
+*Parameters*
+
+`input`::
+Column or literal for which to count the number of values. If omitted, returns a
+count all (the number of rows).
+
+*Description*
+
+Returns the total number (count) of input values.
+
+*Supported types*
+
+Can take any field type as input.
+
+*Examples*
 
 [source.merge.styled,esql]
 ----
@@ -12,10 +34,7 @@ include::{esql-specs}/stats.csv-spec[tag=count]
 include::{esql-specs}/stats.csv-spec[tag=count-result]
 |===
 
-Can take any field type as input and the result is always a `long` not matter
-the input type.
-
-To count the number of rows, use `COUNT(*)`:
+To count the number of rows, use `COUNT()` or `COUNT(*)`:
 
 [source.merge.styled,esql]
 ----

@@ -19,9 +19,18 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -32,6 +41,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -40,6 +50,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class MemoryMetricsServiceTests extends ESTestCase {
 
     private static final Index INDEX = new Index("test-index-001", "e0adaff5-8ac4-4bb8-a8d1-adfde1a064cc");
+    private static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(
+        Settings.EMPTY,
+        Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING)
+    );
 
     private static ExecutorService executorService;
 
@@ -57,7 +71,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     @Before
     public void init() {
-        service = new MemoryMetricsService();
+        service = new MemoryMetricsService(System::nanoTime, CLUSTER_SETTINGS);
     }
 
     public void testReduceFinalIndexMappingSize() {
@@ -69,7 +83,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             expectedSizeInBytes += nameSuffix;
             map.put(
                 new Index("name-" + nameSuffix, "uuid-" + nameSuffix),
-                new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.EXACT)
+                new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.EXACT, System::nanoTime)
             );
         }
 
@@ -82,7 +96,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         int nameSuffix = randomIntBetween(1, numberOfIndices);
         map.put(
             new Index("name-" + nameSuffix, "uuid-" + nameSuffix),
-            new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.MINIMUM)
+            new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.MINIMUM, System::nanoTime)
         );
         result = service.getTotalIndicesMappingSize();
         assertThat(result.getSizeInBytes(), equalTo(expectedSizeInBytes));
@@ -96,7 +110,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(numberOfConcurrentUpdates);
 
         // init value
-        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0"));
+        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", 0));
 
         // simulate concurrent updates
         for (int i = 0; i < numberOfConcurrentUpdates; i++) {
@@ -120,8 +134,114 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertThat(100L, equalTo(service.getTotalIndicesMappingSize().getSizeInBytes()));
     }
 
+    public void testReportNonExactMetricsInTotalIndicesMappingSize() throws Exception {
+        long currentTime = System.nanoTime();
+        MemoryMetricsService customService = new MemoryMetricsService(() -> currentTime, CLUSTER_SETTINGS);
+
+        long updateTime = currentTime - TimeUnit.MINUTES.toNanos(5) - TimeUnit.SECONDS.toNanos(1);
+        for (int i = 0; i < 100; i++) {
+            customService.getIndicesMemoryMetrics()
+                .put(
+                    new Index(randomIdentifier(), randomUUID()),
+                    new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", updateTime)
+                );
+        }
+
+        int count = randomIntBetween(10, 100);
+        List<Index> indicesToSkip = randomSubsetOf(count, customService.getIndicesMemoryMetrics().keySet());
+        for (var entry : customService.getIndicesMemoryMetrics().entrySet()) {
+            if (indicesToSkip.contains(entry.getKey()) == false) {
+                entry.getValue().update(randomNonNegativeInt(), randomNonNegativeInt(), "node-0", 0);
+            }
+        }
+
+        var memoryMetricsServiceLogger = LogManager.getLogger(MemoryMetricsService.class);
+        var mockLogAppender = mockLogAppender(memoryMetricsServiceLogger);
+        for (Index index : indicesToSkip) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected warn log about state index",
+                    MemoryMetricsService.class.getName(),
+                    Level.WARN,
+                    Strings.format(
+                        "Memory metrics are stale for index %s=IndexMemoryMetrics{sizeInBytes=0, seqNo=0, metricQuality=MISSING, "
+                            + "metricShardNodeId='node-0', updateTimestampNanos='%d'}",
+                        index,
+                        updateTime
+                    )
+                )
+            );
+        }
+        try {
+            customService.getTotalIndicesMappingSize();
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(memoryMetricsServiceLogger, mockLogAppender);
+            mockLogAppender.stop();
+        }
+    }
+
+    public void testNoStaleMetricsInTotalIndicesMappingSize() throws Exception {
+        for (int i = 0; i < randomIntBetween(10, 20); i++) {
+            service.getIndicesMemoryMetrics()
+                .put(
+                    new Index(randomIdentifier(), randomUUID()),
+                    new MemoryMetricsService.IndexMemoryMetrics(
+                        randomNonNegativeInt(),
+                        randomNonNegativeInt(),
+                        MetricQuality.EXACT,
+                        "node-0",
+                        System.nanoTime()
+                    )
+                );
+        }
+
+        var memoryMetricsServiceLogger = LogManager.getLogger(MemoryMetricsService.class);
+        var mockLogAppender = mockLogAppender(memoryMetricsServiceLogger);
+        mockLogAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
+        );
+        try {
+            service.getTotalIndicesMappingSize();
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(memoryMetricsServiceLogger, mockLogAppender);
+            mockLogAppender.stop();
+        }
+    }
+
+    public void testDoNotReportNonExactMetricsAsStaleImmediatelyOnStartup() {
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            service.getIndicesMemoryMetrics()
+                .put(
+                    new Index(randomIdentifier(), randomUUID()),
+                    new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", System.nanoTime())
+                );
+        }
+
+        var memoryMetricsServiceLogger = LogManager.getLogger(MemoryMetricsService.class);
+        var mockLogAppender = mockLogAppender(memoryMetricsServiceLogger);
+        mockLogAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
+        );
+        try {
+            service.getTotalIndicesMappingSize();
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(memoryMetricsServiceLogger, mockLogAppender);
+            mockLogAppender.stop();
+        }
+    }
+
+    private static MockLogAppender mockLogAppender(Logger memoryMetricsServiceLogger) {
+        var mockLogAppender = new MockLogAppender();
+        mockLogAppender.start();
+        Loggers.addAppender(memoryMetricsServiceLogger, mockLogAppender);
+        return mockLogAppender;
+    }
+
     public void testDoNotThrowMissedIndicesUpdateExceptionOnOutOfOrderMessages() {
-        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0"));
+        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", 0));
 
         int amount = randomIntBetween(50, 100);
         List<Integer> seqIds = IntStream.range(1, amount + 1).mapToObj(Integer::valueOf).collect(Collectors.toList());
@@ -136,7 +256,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testThrowMissedIndicesUpdateExceptionOnMissedIndex() {
-        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0"));
+        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", 0));
 
         expectThrows(AutoscalingMissedIndicesUpdateException.class, () -> {
             service.updateIndicesMappingSize(
@@ -152,7 +272,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testThrowMissedIndicesUpdateExceptionOnMissedNode() {
-        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0"));
+        service.getIndicesMemoryMetrics().put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.MISSING, "node-0", 0));
 
         expectThrows(AutoscalingMissedIndicesUpdateException.class, () -> {
             service.updateIndicesMappingSize(

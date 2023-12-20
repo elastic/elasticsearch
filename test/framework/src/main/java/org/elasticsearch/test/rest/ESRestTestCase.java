@@ -107,7 +107,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -219,7 +218,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static Set<String> nodesVersions;
     private static TestFeatureService testFeatureService;
 
-    protected static Set<String> getCachedNodeVersions() {
+    protected static Set<String> getCachedNodesVersions() {
         assert nodesVersions != null;
         return nodesVersions;
     }
@@ -259,12 +258,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
-            nodesVersions = new TreeSet<>();
+            Set<String> versions = new HashSet<>();
             boolean serverless = false;
 
             for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
                 var nodeVersion = nodeInfo.get("version").toString();
-                nodesVersions.add(nodeVersion);
+                versions.add(nodeVersion);
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
@@ -303,6 +302,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     );
                 }
             }
+            nodesVersions = Collections.unmodifiableSet(versions);
 
             var semanticNodeVersions = nodesVersions.stream()
                 .map(ESRestTestCase::parseLegacyVersion)
@@ -438,7 +438,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
-        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(getCachedNodeVersions());
+        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(getCachedNodesVersions());
         expectationsSetter.accept(warningsHandler);
         builder.setWarningsHandler(warningsHandler);
         return builder.build();

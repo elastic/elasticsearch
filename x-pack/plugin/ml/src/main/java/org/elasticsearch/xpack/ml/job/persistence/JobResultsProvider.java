@@ -1257,11 +1257,13 @@ public class JobResultsProvider {
     }
 
     /**
-     * Get a job's model snapshot by its id
+     * Get a job's model snapshot by its id.
+     * Quantiles should only be included when strictly required, because they can be very large and consume a lot of heap.
      */
     public void getModelSnapshot(
         String jobId,
         @Nullable String modelSnapshotId,
+        boolean includeQuantiles,
         Consumer<Result<ModelSnapshot>> handler,
         Consumer<Exception> errorHandler
     ) {
@@ -1271,6 +1273,9 @@ public class JobResultsProvider {
         }
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequestBuilder search = createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, modelSnapshotId));
+        if (includeQuantiles == false) {
+            search.setFetchSource(null, ModelSnapshot.QUANTILES.getPreferredName());
+        }
         searchSingleResult(
             jobId,
             ModelSnapshot.TYPE.getPreferredName(),

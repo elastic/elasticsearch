@@ -97,9 +97,11 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
 
         private static class AggregatedIndexStats {
             private long followerToLeaderLaggingDocsCount;
+
             void update(final StatsResponse shardFollowStats) {
                 followerToLeaderLaggingDocsCount += calcFollowerToLeaderShardLaggingDocsCount(shardFollowStats);
             }
+
             private long calcFollowerToLeaderShardLaggingDocsCount(final StatsResponse stats) {
                 final ShardFollowNodeTaskStatus s = stats.status;
                 return Math.abs(s.leaderDocsCount() - s.followerDocsCount());

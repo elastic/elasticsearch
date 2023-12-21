@@ -11,7 +11,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.BitSet;
 
-abstract class AbstractBlock extends AbstractThreadLocalRefCounted implements Block {
+abstract class AbstractBlock extends AbstractNonThreadSafeRefCounted implements Block {
     private final int positionCount;
 
     @Nullable

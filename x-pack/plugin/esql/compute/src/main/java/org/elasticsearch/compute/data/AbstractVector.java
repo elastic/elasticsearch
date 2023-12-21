@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 /**
  * A dense Vector of single values.
  */
-abstract class AbstractVector extends AbstractThreadLocalRefCounted implements Vector {
+abstract class AbstractVector extends AbstractNonThreadSafeRefCounted implements Vector {
 
     private final int positionCount;
     private BlockFactory blockFactory;

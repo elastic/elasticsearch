@@ -12,9 +12,9 @@ import org.elasticsearch.core.Releasable;
 
 /**
  * Releasable, non-threadsafe version of {@link org.elasticsearch.core.AbstractRefCounted}.
- * Calls to {@link AbstractThreadLocalRefCounted#decRef()} and {@link AbstractThreadLocalRefCounted#close()} are equivalent.
+ * Calls to {@link AbstractNonThreadSafeRefCounted#decRef()} and {@link AbstractNonThreadSafeRefCounted#close()} are equivalent.
  */
-abstract class AbstractThreadLocalRefCounted implements RefCounted, Releasable {
+abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable {
     private int references = 1;
 
     @Override

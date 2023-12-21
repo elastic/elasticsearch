@@ -23,6 +23,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -273,7 +274,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void addString(String fieldName, BytesRef utf8Value) {
+        public DocumentDimensions addString(String fieldName, BytesRef utf8Value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.write((byte) 's');
                 /*
@@ -290,15 +291,16 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
             }
+            return this;
         }
 
         @Override
-        public void addIp(String fieldName, InetAddress value) {
-            addString(fieldName, NetworkAddress.format(value));
+        public DocumentDimensions addIp(String fieldName, InetAddress value) {
+            return addString(fieldName, NetworkAddress.format(value));
         }
 
         @Override
-        public void addLong(String fieldName, long value) {
+        public DocumentDimensions addLong(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.write((byte) 'l');
                 out.writeLong(value);
@@ -306,10 +308,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
             }
+            return this;
         }
 
         @Override
-        public void addUnsignedLong(String fieldName, long value) {
+        public DocumentDimensions addUnsignedLong(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value);
                 if (ul instanceof Long l) {
@@ -320,9 +323,25 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     out.writeLong(value);
                 }
                 add(fieldName, out.bytes());
+                return this;
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
             }
+        }
+
+        @Override
+        public DocumentDimensions validate(final IndexSettings settings) {
+            if (settings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ID_HASHING)
+                && dimensions.size() > settings.getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING)) {
+                throw new MapperException(
+                    "Too many dimension fields ["
+                        + dimensions.size()
+                        + "], max ["
+                        + settings.getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING)
+                        + "] dimension fields allowed"
+                );
+            }
+            return this;
         }
 
         private void add(String fieldName, BytesReference encoded) throws IOException {

@@ -30,7 +30,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockUtils;
@@ -116,9 +115,14 @@ public class TransportGetPipelineActionTests extends ESTestCase {
      * Test that the explicit and wildcard IDs are requested.
      */
     public void testGetPipelinesByExplicitAndWildcardIds() {
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(prepareSearchHits(), null, null, null, false, null, 1);
         SearchResponse searchResponse = new SearchResponse(
-            internalSearchResponse,
+            prepareSearchHits(),
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
             null,
             1,
             1,

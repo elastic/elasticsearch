@@ -17,25 +17,18 @@ import org.elasticsearch.core.Releasable;
  */
 public final class DoubleBigArrayVector extends AbstractVector implements DoubleVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleBigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final DoubleArray values;
-
-    private final DoubleBlock block;
-
-    public DoubleBigArrayVector(DoubleArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
 
     public DoubleBigArrayVector(DoubleArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new DoubleVectorBlock(this);
     }
 
     @Override
     public DoubleBlock asBlock() {
-        return block;
+        return new DoubleVectorBlock(this);
     }
 
     @Override
@@ -69,11 +62,7 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         values.close();
     }
 

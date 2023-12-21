@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -1386,7 +1385,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 randomPageSize()
             )
         ) {
-            op.addInput(new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()));
+            op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
         }
     }
 

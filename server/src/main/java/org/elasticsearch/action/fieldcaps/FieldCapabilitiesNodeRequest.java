@@ -39,7 +39,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
     private final Map<String, Object> runtimeFields;
-    private final boolean ignoreHasValue;
+    private final boolean includeFieldsWithNoValue;
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
@@ -57,9 +57,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         nowInMillis = in.readLong();
         runtimeFields = in.readMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            ignoreHasValue = in.readBoolean();
+            includeFieldsWithNoValue = in.readBoolean();
         } else {
-            ignoreHasValue = false;
+            includeFieldsWithNoValue = true;
         }
     }
 
@@ -72,7 +72,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         QueryBuilder indexFilter,
         long nowInMillis,
         Map<String, Object> runtimeFields,
-        boolean ignoreHasValue
+        boolean includeFieldsWithNoValue
     ) {
         this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
@@ -82,7 +82,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
         this.runtimeFields = runtimeFields;
-        this.ignoreHasValue = ignoreHasValue;
+        this.includeFieldsWithNoValue = includeFieldsWithNoValue;
     }
 
     public String[] fields() {
@@ -127,8 +127,8 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         return nowInMillis;
     }
 
-    public boolean ignoreHasValue() {
-        return ignoreHasValue;
+    public boolean includeFieldsWithNoValue() {
+        return includeFieldsWithNoValue;
     }
 
     @Override
@@ -145,7 +145,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
         if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            out.writeBoolean(ignoreHasValue);
+            out.writeBoolean(includeFieldsWithNoValue);
         }
     }
 
@@ -196,12 +196,12 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
             && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && ignoreHasValue == that.ignoreHasValue;
+            && includeFieldsWithNoValue == that.includeFieldsWithNoValue;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, ignoreHasValue);
+        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, includeFieldsWithNoValue);
         result = 31 * result + shardIds.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);

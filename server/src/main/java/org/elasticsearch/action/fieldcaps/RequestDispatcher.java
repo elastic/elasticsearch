@@ -180,7 +180,7 @@ final class RequestDispatcher {
             fieldCapsRequest.indexFilter(),
             nowInMillis,
             fieldCapsRequest.runtimeFields(),
-            fieldCapsRequest.ignoreNoValueFields()
+            fieldCapsRequest.includeFieldsWithNoValue()
         );
         transportService.sendChildRequest(
             node,

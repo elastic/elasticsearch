@@ -512,7 +512,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.ignoreHasValue());
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeFieldsWithNoValue());
                 final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();

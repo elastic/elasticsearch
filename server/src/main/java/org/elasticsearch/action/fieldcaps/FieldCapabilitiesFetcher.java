@@ -39,12 +39,12 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
-    private final boolean ignoreHasValue;
+    private final boolean includeFieldsWithNoValue;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
 
-    FieldCapabilitiesFetcher(IndicesService indicesService, boolean ignoreHasValue) {
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeFieldsWithNoValue) {
         this.indicesService = indicesService;
-        this.ignoreHasValue = ignoreHasValue;
+        this.includeFieldsWithNoValue = includeFieldsWithNoValue;
     }
 
     FieldCapabilitiesIndexResponse fetch(
@@ -118,7 +118,7 @@ class FieldCapabilitiesFetcher {
             fieldTypes,
             fieldPredicate,
             indicesService.getShardOrNull(shardId),
-            ignoreHasValue
+            includeFieldsWithNoValue
         );
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
@@ -133,7 +133,7 @@ class FieldCapabilitiesFetcher {
         String[] types,
         Predicate<String> indexFieldfilter,
         IndexShard indexShard,
-        boolean ignoreHasValue
+        boolean includeFieldsWithNoValue
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
 
@@ -145,10 +145,9 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             MappedFieldType ft = context.getFieldType(field);
-            boolean correctFieldType = filter.test(ft);
+            boolean acceptedFieldType = filter.test(ft);
             boolean hasValue = indexShard.fieldHasValue(field);
-            boolean includeNoValueFields = ignoreHasValue == false;
-            if (correctFieldType && (hasValue || includeNoValueFields)) {
+            if (acceptedFieldType && (hasValue || includeFieldsWithNoValue)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

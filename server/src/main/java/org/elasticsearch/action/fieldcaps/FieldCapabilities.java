@@ -48,7 +48,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
     private static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
     private static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
-    private static final ParseField HAS_VALUE_FIELD = new ParseField("has_value");
     private static final ParseField TIME_SERIES_DIMENSION_FIELD = new ParseField(TIME_SERIES_DIMENSION_PARAM);
     private static final ParseField TIME_SERIES_METRIC_FIELD = new ParseField(TIME_SERIES_METRIC_PARAM);
     private static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -327,7 +326,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_METADATA_FIELD);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), SEARCHABLE_FIELD);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), AGGREGATABLE_FIELD);
-        parser.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_VALUE_FIELD);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), TIME_SERIES_DIMENSION_FIELD);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TIME_SERIES_METRIC_FIELD);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);

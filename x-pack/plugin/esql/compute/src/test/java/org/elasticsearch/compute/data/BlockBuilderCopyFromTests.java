@@ -69,11 +69,11 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
     }
 
     public void testSmallAllNull() {
-        assertSmall(Block.constantNullBlock(10));
+        assertSmall(BlockFactory.getNonBreakingInstance().newConstantNullBlock(10));
     }
 
     public void testEvensAllNull() {
-        assertEvens(Block.constantNullBlock(10));
+        assertEvens(BlockFactory.getNonBreakingInstance().newConstantNullBlock(10));
     }
 
     private void assertSmall(Block block) {

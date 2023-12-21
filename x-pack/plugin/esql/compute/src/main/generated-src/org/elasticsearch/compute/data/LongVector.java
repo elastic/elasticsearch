@@ -103,16 +103,6 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     }
 
     /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize) {
-        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
      * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
      * if you know the size up front because it's faster.
      * @deprecated use {@link BlockFactory#newLongVectorBuilder}

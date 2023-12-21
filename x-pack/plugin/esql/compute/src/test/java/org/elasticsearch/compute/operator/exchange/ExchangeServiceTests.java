@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -183,14 +184,15 @@ public class ExchangeServiceTests extends ESTestCase {
                         return null;
                     }
                     int size = randomIntBetween(1, 10);
-                    IntBlock.Builder builder = IntBlock.newBlockBuilder(size);
-                    for (int i = 0; i < size; i++) {
-                        int seqNo = nextSeqNo.incrementAndGet();
-                        if (seqNo < maxInputSeqNo) {
-                            builder.appendInt(seqNo);
+                    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(size)) {
+                        for (int i = 0; i < size; i++) {
+                            int seqNo = nextSeqNo.incrementAndGet();
+                            if (seqNo < maxInputSeqNo) {
+                                builder.appendInt(seqNo);
+                            }
                         }
+                        return new Page(builder.build());
                     }
-                    return new Page(builder.build());
                 }
 
                 @Override
@@ -390,8 +392,8 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeService exchange1 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
-        final int maxSeqNo = randomIntBetween(1000, 5000);
-        final int disconnectOnSeqNo = randomIntBetween(100, 500);
+        final int maxSeqNo = randomIntBetween(10, 50);
+        final int disconnectOnSeqNo = randomIntBetween(10, 20);
         node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, new StubbableTransport.RequestHandlingBehavior<>() {
             @Override
             public void messageReceived(
@@ -414,8 +416,8 @@ public class ExchangeServiceTests extends ESTestCase {
                                 }
                             }
                         }
-                        ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
                         origResp.decRef();
+                        ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
                         super.sendResponse(newResp);
                     }
                 };
@@ -435,6 +437,7 @@ public class ExchangeServiceTests extends ESTestCase {
             Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
+            sinkHandler.onFailure(new RuntimeException(cause));
         }
     }
 
@@ -499,11 +502,18 @@ public class ExchangeServiceTests extends ESTestCase {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new BlockFactory(breaker, bigArrays);
+        MockBlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        blockFactories.add(factory);
+        return factory;
     }
+
+    private final List<MockBlockFactory> blockFactories = new ArrayList<>();
 
     @After
     public void allMemoryReleased() {
+        for (MockBlockFactory blockFactory : blockFactories) {
+            blockFactory.ensureAllBlocksAreReleased();
+        }
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }

@@ -39,6 +39,7 @@ public class ReleaseVersions {
 
     private static final Map<Class<?>, NavigableMap<Integer, String>> RESOLVED_VERSIONS = new ConcurrentHashMap<>();
 
+    private static final Pattern COMMENT_LINE = Pattern.compile("^\\h*#");
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)(\\h*#.*)?");
 
     static NavigableMap<Integer, String> readVersionsFile(Class<?> versionContainer) {
@@ -57,7 +58,7 @@ public class ReleaseVersions {
             NavigableMap<Integer, String> versions = new TreeMap<>();
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.startsWith("#")) continue; // a comment
+                if (COMMENT_LINE.matcher(line).find()) continue; // a comment
 
                 var matcher = VERSION_LINE.matcher(line);
                 if (matcher.matches() == false) {

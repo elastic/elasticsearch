@@ -48,7 +48,7 @@ teardown:
             "processors": [
               {
                 "rename" : {
-                  "field" : "{{message}}",
+                  "field" : "message",
                   "target_field": "event.original"
                 }
               }
@@ -80,7 +80,7 @@ teardown:
             "processors": [
               {
                 "rename" : {
-                  "field" : "{{message}}",
+                  "field" : "message",
                   "target_field": "event.original",
                   "override": true
                 }

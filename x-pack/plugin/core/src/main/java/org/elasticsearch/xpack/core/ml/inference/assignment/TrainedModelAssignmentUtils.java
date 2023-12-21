@@ -5,15 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.assignment;
+package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
-import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 
 import java.util.List;
 import java.util.Optional;

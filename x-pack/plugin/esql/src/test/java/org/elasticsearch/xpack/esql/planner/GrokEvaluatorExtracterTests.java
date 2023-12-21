@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -26,6 +27,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class GrokEvaluatorExtracterTests extends ESTestCase {
+    final BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+
     final Map<String, Integer> KEY_TO_BLOCK = Map.of("a", 0, "b", 1, "c", 2, "d", 3, "e", 4, "f", 5);
     final Map<String, ElementType> TYPES = Map.of(
         "a",
@@ -196,7 +199,7 @@ public class GrokEvaluatorExtracterTests extends ESTestCase {
 
     private BytesRefBlock buildInputBlock(int[] mvSize, String... input) {
         int nextString = 0;
-        BytesRefBlock.Builder inputBuilder = BytesRefBlock.newBlockBuilder(input.length);
+        BytesRefBlock.Builder inputBuilder = blockFactory.newBytesRefBlockBuilder(input.length);
         for (int i = 0; i < mvSize.length; i++) {
             if (mvSize[i] == 0) {
                 inputBuilder.appendNull();
@@ -222,12 +225,12 @@ public class GrokEvaluatorExtracterTests extends ESTestCase {
 
     private Block.Builder[] buidDefaultTargetBlocks(int estimatedSize) {
         return new Block.Builder[] {
-            BytesRefBlock.newBlockBuilder(estimatedSize),
-            IntBlock.newBlockBuilder(estimatedSize),
-            LongBlock.newBlockBuilder(estimatedSize),
-            DoubleBlock.newBlockBuilder(estimatedSize),
-            DoubleBlock.newBlockBuilder(estimatedSize),
-            BooleanBlock.newBlockBuilder(estimatedSize) };
+            blockFactory.newBytesRefBlockBuilder(estimatedSize),
+            blockFactory.newIntBlockBuilder(estimatedSize),
+            blockFactory.newLongBlockBuilder(estimatedSize),
+            blockFactory.newDoubleBlockBuilder(estimatedSize),
+            blockFactory.newDoubleBlockBuilder(estimatedSize),
+            blockFactory.newBooleanBlockBuilder(estimatedSize) };
     }
 
     private GrokEvaluatorExtracter buildExtracter(String pattern, Map<String, Integer> keyToBlock, Map<String, ElementType> types) {

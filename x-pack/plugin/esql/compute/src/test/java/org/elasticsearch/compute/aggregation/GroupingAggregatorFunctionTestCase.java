@@ -366,18 +366,20 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
      * Run the aggregation passing only null values.
      */
     private void assertNullOnly(List<Operator> operators, DriverContext driverContext) {
-        LongBlock.Builder groupBuilder = LongBlock.newBlockBuilder(1);
-        if (randomBoolean()) {
-            groupBuilder.appendLong(1);
-        } else {
-            groupBuilder.appendNull();
-        }
-        List<Page> source = List.of(new Page(groupBuilder.build(), Block.constantNullBlock(1)));
-        List<Page> results = drive(operators, source.iterator(), driverContext);
+        BlockFactory blockFactory = driverContext.blockFactory();
+        try (var groupBuilder = blockFactory.newLongBlockBuilder(1)) {
+            if (randomBoolean()) {
+                groupBuilder.appendLong(1);
+            } else {
+                groupBuilder.appendNull();
+            }
+            List<Page> source = List.of(new Page(groupBuilder.build(), blockFactory.newConstantNullBlock(1)));
+            List<Page> results = drive(operators, source.iterator(), driverContext);
 
-        assertThat(results, hasSize(1));
-        Block resultBlock = results.get(0).getBlock(1);
-        assertOutputFromNullOnly(resultBlock, 0);
+            assertThat(results, hasSize(1));
+            Block resultBlock = results.get(0).getBlock(1);
+            assertOutputFromNullOnly(resultBlock, 0);
+        }
     }
 
     public final void testNullSome() {
@@ -465,7 +467,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 if (blockIndex != 0) {
                     return super.merge(blockIndex, block);
                 }
-                Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount() / 2);
+                Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount() / 2, blockFactory);
                 for (int p = 0; p + 1 < block.getPositionCount(); p += 2) {
                     builder.copyFrom(block, p, p + 1);
                 }
@@ -565,7 +567,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             @Override
                             public void add(int positionOffset, IntBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
-                                    IntBlock.Builder builder = IntBlock.newBlockBuilder(emitChunkSize);
+                                    IntBlock.Builder builder = blockFactory().newIntBlockBuilder(emitChunkSize);
                                     int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
                                     for (int p = offset; p < endP; p++) {
                                         int start = groupIds.getFirstValueIndex(p);

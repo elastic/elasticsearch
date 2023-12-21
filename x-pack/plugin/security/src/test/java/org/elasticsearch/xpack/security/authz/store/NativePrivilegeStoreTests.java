@@ -22,7 +22,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -822,15 +821,13 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     private static SearchResponse buildSearchResponse(SearchHit[] hits) {
         return new SearchResponse(
-            new SearchResponseSections(
-                new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                null,
-                null,
-                false,
-                false,
-                null,
-                1
-            ),
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null,
+            null,
+            false,
+            false,
+            null,
+            1,
             "_scrollId1",
             1,
             1,

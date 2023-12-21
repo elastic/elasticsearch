@@ -13,11 +13,10 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -92,6 +91,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private class TestSourceOperator extends SourceOperator {
 
         boolean finished = false;
+        private final DriverContext driverContext;
+
+        TestSourceOperator(DriverContext driverContext) {
+            this.driverContext = driverContext;
+        }
 
         @Override
         public Page getOutput() {
@@ -99,15 +103,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 finish();
             }
 
-            return new Page(
-                new Block[] {
-                    new DocVector(
-                        IntBlock.newConstantBlockWith(0, testData.getPositionCount()).asVector(),
-                        IntBlock.newConstantBlockWith(0, testData.getPositionCount()).asVector(),
-                        new IntArrayVector(IntStream.range(0, testData.getPositionCount()).toArray(), testData.getPositionCount()),
-                        true
-                    ).asBlock() }
+            BlockFactory blockFactory = driverContext.blockFactory();
+            DocVector docVector = new DocVector(
+                blockFactory.newConstantIntVector(0, testData.getPositionCount()),
+                blockFactory.newConstantIntVector(0, testData.getPositionCount()),
+                blockFactory.newIntArrayVector(IntStream.range(0, testData.getPositionCount()).toArray(), testData.getPositionCount()),
+                true
             );
+            return new Page(docVector.asBlock());
         }
 
         @Override
@@ -128,11 +131,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private class TestSourceOperatorFactory implements SourceOperatorFactory {
 
-        SourceOperator op = new TestSourceOperator();
-
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return op;
+            return new TestSourceOperator(driverContext);
         }
 
         @Override
@@ -292,7 +293,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         DocBlock docBlock = page.getBlock(0);
         IntVector docIndices = docBlock.asVector().docs();
         Block originalData = testData.getBlock(columnIndex);
-        Block.Builder builder = originalData.elementType().newBlockBuilder(docIndices.getPositionCount());
+        Block.Builder builder = originalData.elementType()
+            .newBlockBuilder(docIndices.getPositionCount(), BlockFactory.getNonBreakingInstance());
         for (int c = 0; c < docIndices.getPositionCount(); c++) {
             int doc = docIndices.getInt(c);
             builder.copyFrom(originalData, doc, doc + 1);

@@ -289,7 +289,8 @@ public class FilteredBlockTests extends ESTestCase {
             assertThat(
                 filter.toString(),
                 containsString(
-                    "BooleanArrayBlock[positions=2, mvOrdering=UNORDERED, vector=BooleanArrayVector[positions=4, values=[true, true, false, false]]]"
+                    "BooleanArrayBlock[positions=2, mvOrdering=UNORDERED, "
+                        + "vector=BooleanArrayVector[positions=4, values=[true, true, false, false]]]"
                 )
             );
             Releasables.close(builder, block);
@@ -337,7 +338,8 @@ public class FilteredBlockTests extends ESTestCase {
             assertThat(
                 filter.toString(),
                 containsString(
-                    "DoubleArrayBlock[positions=2, mvOrdering=UNORDERED, vector=DoubleArrayVector[positions=4, values=[0.0, 10.0, 0.002, 1.0E9]]]"
+                    "DoubleArrayBlock[positions=2, mvOrdering=UNORDERED, "
+                        + "vector=DoubleArrayVector[positions=4, values=[0.0, 10.0, 0.002, 1.0E9]]]"
                 )
             );
             Releasables.close(builder, block);

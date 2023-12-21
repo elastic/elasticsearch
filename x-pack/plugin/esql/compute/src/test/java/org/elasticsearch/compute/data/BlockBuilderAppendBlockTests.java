@@ -98,7 +98,7 @@ public class BlockBuilderAppendBlockTests extends ComputeTestCase {
         while (block.getPositionCount() > 1 || randomBoolean()) {
             int positionCount = block.getPositionCount();
             int offset = 0;
-            Block.Builder builder = block.elementType().newBlockBuilder(randomIntBetween(1, 100));
+            Block.Builder builder = block.elementType().newBlockBuilder(randomIntBetween(1, 100), BlockFactory.getNonBreakingInstance());
             List<Object> expected = new ArrayList<>();
             while (offset < positionCount) {
                 int length = randomIntBetween(1, positionCount - offset);

@@ -78,13 +78,15 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
 
     private void assertSmall(Block block) {
         int smallSize = Math.min(block.getPositionCount(), 10);
-        Block.Builder builder = elementType.newBlockBuilder(smallSize);
+        BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+        Block.Builder builder = elementType.newBlockBuilder(smallSize, blockFactory);
         builder.copyFrom(block, 0, smallSize);
         assertBlockValues(builder.build(), BasicBlockTests.valuesAtPositions(block, 0, smallSize));
     }
 
     private void assertEvens(Block block) {
-        Block.Builder builder = elementType.newBlockBuilder(block.getPositionCount() / 2);
+        BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+        Block.Builder builder = elementType.newBlockBuilder(block.getPositionCount() / 2, blockFactory);
         List<List<Object>> expected = new ArrayList<>();
         for (int i = 0; i < block.getPositionCount(); i += 2) {
             builder.copyFrom(block, i, i + 1);

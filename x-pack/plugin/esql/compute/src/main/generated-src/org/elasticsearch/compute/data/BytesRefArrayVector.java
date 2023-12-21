@@ -16,17 +16,13 @@ import org.elasticsearch.core.Releasables;
  * Vector implementation that stores an array of BytesRef values.
  * This class is generated. Do not edit it.
  */
-public final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
+final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class);
 
     private final BytesRefArray values;
 
-    public BytesRefArrayVector(BytesRefArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
+    BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
     }

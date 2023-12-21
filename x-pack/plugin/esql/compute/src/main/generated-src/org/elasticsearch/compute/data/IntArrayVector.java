@@ -15,17 +15,13 @@ import java.util.Arrays;
  * Vector implementation that stores an array of int values.
  * This class is generated. Do not edit it.
  */
-public final class IntArrayVector extends AbstractVector implements IntVector {
+final class IntArrayVector extends AbstractVector implements IntVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class);
 
     private final int[] values;
 
-    public IntArrayVector(int[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
+    IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
     }

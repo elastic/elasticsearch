@@ -21,10 +21,6 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     private final LongArray values;
 
-    public LongBigArrayVector(LongArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
     public LongBigArrayVector(LongArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;

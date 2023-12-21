@@ -101,22 +101,15 @@ public final class ExpressionTranslators {
     }
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
-        Query translation = toQueryMaybe(e, handler);
-        if (translation != null) {
-            return translation;
-        }
-        throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
-    }
-
-    public static Query toQueryMaybe(Expression e, TranslatorHandler handler) {
         Query translation = null;
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, handler);
             if (translation != null) {
-                break;
+                return translation;
             }
         }
-        return translation;
+
+        throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
     }
 
     public static Object valueOf(Expression e) {

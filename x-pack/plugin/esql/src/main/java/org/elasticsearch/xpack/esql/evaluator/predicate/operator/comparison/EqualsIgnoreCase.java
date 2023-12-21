@@ -11,8 +11,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -20,10 +18,10 @@ import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class EqualsIgnoreCase extends BinaryComparison {
+public class EqualsIgnoreCase extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.EqualsIgnoreCase {
 
     public EqualsIgnoreCase(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.EQ_IGNORE_CASE, zoneId);
+        super(source, left, right, zoneId);
     }
 
     @Override
@@ -32,12 +30,7 @@ public class EqualsIgnoreCase extends BinaryComparison {
     }
 
     @Override
-    public BinaryComparison reverse() {
-        return this;
-    }
-
-    @Override
-    protected NodeInfo<EqualsIgnoreCase> info() {
+    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.EqualsIgnoreCase> info() {
         return NodeInfo.create(this, EqualsIgnoreCase::new, left(), right(), zoneId());
     }
 

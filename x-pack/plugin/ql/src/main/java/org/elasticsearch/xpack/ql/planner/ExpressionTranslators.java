@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.EqualsIgnoreCase;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
@@ -336,7 +337,7 @@ public final class ExpressionTranslators {
             if (bc instanceof LessThanOrEqual) {
                 return new RangeQuery(source, name, null, false, value, true, format, zoneId);
             }
-            if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
+            if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals || bc instanceof EqualsIgnoreCase) {
                 name = pushableAttributeName(attribute);
 
                 Query query;
@@ -344,7 +345,7 @@ public final class ExpressionTranslators {
                     // dates equality uses a range query because it's the one that has a "format" parameter
                     query = new RangeQuery(source, name, value, true, value, true, format, zoneId);
                 } else {
-                    query = new TermQuery(source, name, value);
+                    query = new TermQuery(source, name, value, bc instanceof EqualsIgnoreCase);
                 }
                 if (bc instanceof NotEquals) {
                     query = new NotQuery(source, query);

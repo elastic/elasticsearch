@@ -21,17 +21,14 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
     private final double[] values;
 
-    private final DoubleBlock block;
-
     DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new DoubleVectorBlock(this);
     }
 
     @Override
     public DoubleBlock asBlock() {
-        return block;
+        return new DoubleVectorBlock(this);
     }
 
     @Override

@@ -13,22 +13,15 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant long value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantLongVector extends AbstractVector implements LongVector {
+final class ConstantLongVector extends AbstractVector implements LongVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
 
     private final long value;
 
-    private final LongBlock block;
-
-    public ConstantLongVector(long value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {
+    ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new LongVectorBlock(this);
     }
 
     @Override
@@ -38,12 +31,12 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     @Override
     public LongBlock asBlock() {
-        return block;
+        return new LongVectorBlock(this);
     }
 
     @Override
     public LongVector filter(int... positions) {
-        return new ConstantLongVector(value, positions.length);
+        return blockFactory().newConstantLongVector(value, positions.length);
     }
 
     @Override

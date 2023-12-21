@@ -21,21 +21,14 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
 
     private final IntArray values;
 
-    private final IntBlock block;
-
-    public IntBigArrayVector(IntArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
     public IntBigArrayVector(IntArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return block;
+        return new IntVectorBlock(this);
     }
 
     @Override

@@ -14,8 +14,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * TODO update doc strings
- * Block implementation that stores values in a LongArray.
+ * Block implementation that stores values in a {@link LongBigArrayVector}.
  * This class is generated. Do not edit it.
  */
 public final class LongBigArrayBlock extends AbstractArrayBlock implements LongBlock {

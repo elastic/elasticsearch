@@ -13,7 +13,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of double.
+ * Block implementation that stores values in a {@link DoubleArrayVector}.
  * This class is generated. Do not edit it.
  */
 final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {

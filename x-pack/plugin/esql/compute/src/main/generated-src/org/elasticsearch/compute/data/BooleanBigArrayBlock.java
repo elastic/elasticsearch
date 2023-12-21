@@ -14,8 +14,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * TODO update doc strings
- * Block implementation that stores values in a BooleanArray.
+ * Block implementation that stores values in a {@link BooleanBigArrayVector}.
  * This class is generated. Do not edit it.
  */
 public final class BooleanBigArrayBlock extends AbstractArrayBlock implements BooleanBlock {

@@ -13,7 +13,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of boolean.
+ * Block implementation that stores values in a {@link BooleanArrayVector}.
  * This class is generated. Do not edit it.
  */
 final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {

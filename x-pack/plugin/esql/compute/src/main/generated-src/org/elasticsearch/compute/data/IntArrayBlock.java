@@ -13,7 +13,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of int.
+ * Block implementation that stores values in a {@link IntArrayVector}.
  * This class is generated. Do not edit it.
  */
 final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {

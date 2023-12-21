@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of BytesRef.
+ * Block implementation that stores values in a {@link BytesRefArrayVector}.
  * This class is generated. Do not edit it.
  */
 final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {

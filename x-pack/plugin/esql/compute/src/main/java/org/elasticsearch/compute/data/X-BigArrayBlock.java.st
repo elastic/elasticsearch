@@ -14,8 +14,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * TODO update doc strings
- * Block implementation that stores values in a $Type$Array.
+ * Block implementation that stores values in a {@link $Type$BigArrayVector}.
  * This class is generated. Do not edit it.
  */
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {

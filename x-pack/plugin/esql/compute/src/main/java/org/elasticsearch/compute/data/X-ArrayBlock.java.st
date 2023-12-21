@@ -21,7 +21,7 @@ $endif$
 import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of $type$.
+ * Block implementation that stores values in a {@link $Type$ArrayVector}.
  * This class is generated. Do not edit it.
  */
 final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {

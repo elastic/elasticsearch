@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a DoubleVector.
+ * Block view of a {@link DoubleVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class DoubleVectorBlock extends AbstractVectorBlock implements DoubleBlock {

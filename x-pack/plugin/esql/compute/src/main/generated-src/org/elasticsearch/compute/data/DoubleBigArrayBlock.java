@@ -14,8 +14,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * TODO update doc strings
- * Block implementation that stores values in a DoubleArray.
+ * Block implementation that stores values in a {@link DoubleBigArrayVector}.
  * This class is generated. Do not edit it.
  */
 public final class DoubleBigArrayBlock extends AbstractArrayBlock implements DoubleBlock {

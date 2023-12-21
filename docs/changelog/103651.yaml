@@ -1,0 +1,5 @@
+pr: 103651
+summary: Flag in `_field_caps` to return only fields with values in index
+area: Search
+type: enhancement
+issues: []

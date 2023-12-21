@@ -69,7 +69,6 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
 
     @Before
     public void setupIndex() throws IOException {
-        System.out.println("Pausable setupIndex");
         assumeTrue("requires query pragmas", canUseQueryPragmas());
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();

@@ -153,8 +153,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             .keepAlive(randomKeepAlive());
 
         try (var response = request.execute().actionGet(60, TimeUnit.SECONDS)) {
-            System.out.println("HEGO EsqlQueryResponse tst 1: " + System.identityHashCode(response));
-
             if (keepOnCompletion) {
                 assertThat(response.asyncExecutionId(), isPresent());
             } else {
@@ -169,7 +167,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 var getResultsRequest = new GetAsyncResultRequest(id);
                 getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(60));
                 try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).actionGet(60, TimeUnit.SECONDS)) {
-                    System.out.println("HEGO EsqlQueryResponse tst 2: " + System.identityHashCode(resp));
                     assertThat(resp.asyncExecutionId().get(), equalTo(id));
                     assertThat(resp.isRunning(), is(false));
                     assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("sum(pause_me)", "long"))));

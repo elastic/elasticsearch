@@ -294,6 +294,10 @@ public class TransportVersions {
         return VERSION_IDS.values();
     }
 
+    public static String toReleaseVersion(TransportVersion version) {
+        return ReleaseVersions.findReleaseVersion(TransportVersions.class, version.id());
+    }
+
     // no instance
     private TransportVersions() {}
 }

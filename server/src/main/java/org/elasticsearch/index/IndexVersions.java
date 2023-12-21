@@ -9,6 +9,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
 
@@ -203,5 +204,9 @@ public class IndexVersions {
 
     static Collection<IndexVersion> getAllVersions() {
         return VERSION_IDS.values();
+    }
+
+    public static String toReleaseVersion(IndexVersion version) {
+        return ReleaseVersions.findReleaseVersion(IndexVersions.class, version.id());
     }
 }

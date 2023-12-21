@@ -26,10 +26,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
+/**
+ * Runs test scenarios from EsqlActionIT, with an extra level of indirection
+ * through the async query and async get APIs.
+ */
 public class EsqlAsyncActionIT extends EsqlActionIT {
 
     @Override
@@ -77,9 +82,7 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
 
     EsqlQueryResponse getAsyncResponse(String id) {
         try {
-            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(id).setWaitForCompletionTimeout(
-                TimeValue.timeValueSeconds(60)
-            );
+            var getResultsRequest = new GetAsyncResultRequest(id).setWaitForCompletionTimeout(timeValueSeconds(60));
             return client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).actionGet(30, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);

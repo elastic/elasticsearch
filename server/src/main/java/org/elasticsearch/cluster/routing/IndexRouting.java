@@ -247,6 +247,10 @@ public abstract class IndexRouting {
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
         }
 
+        public boolean matchesField(String fieldName) {
+            return isRoutingPath.test(fieldName);
+        }
+
         @Override
         public void process(IndexRequest indexRequest) {}
 

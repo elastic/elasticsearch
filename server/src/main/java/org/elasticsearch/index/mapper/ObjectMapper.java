@@ -318,6 +318,15 @@ public class ObjectMapper extends Mapper {
                                 + "] which does not support subobjects"
                         );
                     }
+                    if (objBuilder.subobjects.value() == false && type.equals(PassthroughObjectMapper.CONTENT_TYPE)) {
+                        throw new MapperParsingException(
+                            "Tried to add passthrough subobject ["
+                                + fieldName
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
+                        );
+                    }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");

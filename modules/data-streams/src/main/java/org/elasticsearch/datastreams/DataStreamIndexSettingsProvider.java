@@ -152,8 +152,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             // Avoid failing because index.routing_path is missing
-            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .putList(INDEX_ROUTING_PATH.getKey(), List.of("path"))
             .build();
 
         tmpIndexMetadata.settings(finalResolvedSettings);

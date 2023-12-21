@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -75,6 +76,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
@@ -907,7 +910,22 @@ final class DefaultSearchContext extends SearchContext {
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
             var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
-            return IdLoader.createTsIdLoader(indexRouting, indexService.getMetadata().getRoutingPaths());
+            List<String> routingPaths = indexService.getMetadata().getRoutingPaths();
+            for (String routingField : routingPaths) {
+                if (routingField.contains("*")) {
+                    // In case the routing fields include path matches, find any matches and add them as distinct fields
+                    // to the routing path.
+                    Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
+                    for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
+                        if (indexRouting.matchesField(mapper.name())) {
+                            matchingRoutingPaths.add(mapper.name());
+                        }
+                    }
+                    routingPaths = new ArrayList<>(matchingRoutingPaths);
+                    break;
+                }
+            }
+            return IdLoader.createTsIdLoader(indexRouting, routingPaths);
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }

@@ -106,12 +106,41 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
+            Map<String, Mapper> mappers = buildMappers(context);
+            Map<String, Mapper> aliasMappers = new HashMap<>();
+            for (Mapper mapper : mappers.values()) {
+                // Create aliases for all fields in child passthrough mappers and place them under the root object.
+                if (mapper instanceof PassthroughObjectMapper passthroughMapper) {
+                    for (Mapper internalMapper : passthroughMapper.mappers.values()) {
+                        if (internalMapper instanceof FieldMapper fieldMapper) {
+                            Mapper conflict = mappers.get(fieldMapper.simpleName());
+                            if (conflict != null) {
+                                if (conflict.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false) {
+                                    throw new IllegalArgumentException(
+                                        "field ["
+                                            + fieldMapper.simpleName()
+                                            + "] in object ["
+                                            + passthroughMapper.name()
+                                            + "] with [type=passthrough] conflicts with a field at the root level"
+                                    );
+                                }
+                            } else {
+                                FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
+                                    fieldMapper.mappedFieldType.name()
+                                ).build(context);
+                                aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
+                            }
+                        }
+                    }
+                }
+            }
+            mappers.putAll(aliasMappers);
             return new RootObjectMapper(
                 name,
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(context),
+                mappers,
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,

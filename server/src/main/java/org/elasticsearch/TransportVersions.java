@@ -172,7 +172,8 @@ public class TransportVersions {
     public static final TransportVersion ENRICH_ELASTICSEARCH_VERSION_REMOVED = def(8_560_00_0);
     public static final TransportVersion NODE_STATS_REQUEST_SIMPLIFIED = def(8_561_00_0);
     public static final TransportVersion TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED = def(8_562_00_0);
-    public static final TransportVersion FIELD_CAPS_FIELD_HAS_VALUE = def(8_563_00_0);
+    public static final TransportVersion ESQL_ASYNC_QUERY = def(8_563_00_0);
+    public static final TransportVersion FIELD_CAPS_FIELD_HAS_VALUE = def(8_564_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -104,7 +104,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
 
             private long calcFollowerToLeaderShardLaggingDocsCount(final StatsResponse stats) {
                 final ShardFollowNodeTaskStatus s = stats.status;
-                return Math.abs(s.leaderDocsCount() - s.followerDocsCount());
+                return Math.absExact(s.leaderDocsCount() - s.followerDocsCount());
             }
         }
 

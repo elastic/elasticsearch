@@ -67,7 +67,7 @@ tasks.register("integTest") {
 
 tasks.named("check").configure { dependsOn("integTest") }
 
-//TODO: remove with version 8.14. A new FIPS setting was adding in 8.13. Since FIPS configures all test clusters and this specific integTest uses
+//TODO: remove with version 8.14. A new FIPS setting was added in 8.13. Since FIPS configures all test clusters and this specific integTest uses
 // the previous minor version, that setting is not available when running in FIPS until 8.14.
 def maybeDisableForFips(task) {
   if (BuildParams.inFipsJvm) {

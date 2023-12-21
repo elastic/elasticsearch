@@ -225,7 +225,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
                   "model_text": "bar",
                   "model_id": "baz",
                   "pruning_config": {
-                    "tokens_freq_ratio_threshold": 4.0,
+                    "tokens_freq_ratio_threshold": 4,
                     "tokens_weight_threshold": 0.3
                   }
                 }
@@ -242,7 +242,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
                   "model_text": "bar",
                   "model_id": "baz",
                   "pruning_config": {
-                    "tokens_freq_ratio_threshold": 4.0,
+                    "tokens_freq_ratio_threshold": 4,
                     "tokens_weight_threshold": 0.3,
                     "only_score_pruned_tokens": true
                   }

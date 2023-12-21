@@ -14,6 +14,7 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.telemetry.metric.LongCounter;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.Strings.format;
@@ -31,6 +32,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final HierarchyCircuitBreakerService parent;
     private final String name;
     private final LongCounter trippedCountMeter;
+    private final String circuitBreakerType;
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -38,12 +40,14 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * the given overheadConstant. Uses the given oldBreaker to initialize
      * the starting offset.
      * @param trippedCountMeter the counter used to report the tripped count metric
+     * @param circuitBreakerType the type of circuit breaker (request, in flight requests, ...)
      * @param settings settings to configure this breaker
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
      */
     public ChildMemoryCircuitBreaker(
         LongCounter trippedCountMeter,
+        String circuitBreakerType,
         BreakerSettings settings,
         Logger logger,
         HierarchyCircuitBreakerService parent,
@@ -58,6 +62,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         logger.trace(() -> format("creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
         this.trippedCountMeter = trippedCountMeter;
+        this.circuitBreakerType = circuitBreakerType;
     }
 
     /**
@@ -68,7 +73,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        this.trippedCountMeter.increment();
+        this.trippedCountMeter.incrementBy(1L, Collections.singletonMap("type", this.circuitBreakerType));
         final String message = "["
             + this.name
             + "] Data too large, data for ["

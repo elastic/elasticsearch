@@ -14,7 +14,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -54,10 +54,8 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, totalShards);
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
 
-        return new SearchResponse(
-            internalSearchResponse,
+        return SearchResponseUtils.emptyWithTotalHits(
             null,
             totalShards,
             successfulShards,
@@ -161,17 +159,14 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+        SearchResponse searchResponse = new SearchResponse(
             new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
-            null,
             null,
             null,
             false,
             null,
-            1
-        );
-        SearchResponse searchResponse = new SearchResponse(
-            internalSearchResponse,
+            null,
+            1,
             null,
             0,
             0,

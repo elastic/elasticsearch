@@ -16,17 +16,13 @@ import java.util.BitSet;
  * Block implementation that stores an array of long.
  * This class is generated. Do not edit it.
  */
-public final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
+final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayBlock.class);
 
     private final long[] values;
 
-    public LongArrayBlock(long[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public LongArrayBlock(
+    LongArrayBlock(
         long[] values,
         int positionCount,
         int[] firstValueIndexes,

@@ -46,8 +46,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -231,26 +231,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
         hit.sourceRef(source);
         hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-        SearchResponse searchResponse2 = new SearchResponse(
-            new InternalSearchResponse(hits, null, null, null, false, null, 1),
-            "_scrollId1",
-            1,
-            1,
-            0,
-            1,
-            null,
-            null
-        );
-        SearchResponse searchResponse3 = new SearchResponse(
-            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-            "_scrollId2",
-            1,
-            1,
-            0,
-            1,
-            null,
-            null
-        );
+        SearchResponse searchResponse2 = new SearchResponse(hits, null, null, false, null, null, 1, "_scrollId1", 1, 1, 0, 1, null, null);
+        SearchResponse searchResponse3 = SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, null, null);
 
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];

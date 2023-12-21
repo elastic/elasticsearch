@@ -629,11 +629,13 @@ public class ComputeService {
     }
 
     /**
-     * Performs compute for a single remote cluster.
+     * Performs a compute on a remote cluster. The output pages are placed in an exchange sink specified by
+     * {@code globalSessionId}. The coordinator on the main cluster will poll pages from there.
      * <p>
-     * Currently, the coordinator on the remote cluster collects pages from data nodes in the remote cluster and provides them to the
-     * coordinator of the main cluster. We can use a single exchange buffer for this purpose. However, we use two buffers so that we
-     * run a plan on this coordinator to perform partial reduce operations such as limit, topN, and partial-to-partial aggregation.
+     * Currently, the coordinator on the remote cluster simply collects pages from data nodes in the remote cluster
+     * and places them in the exchange sink. We can achieve this by using a single exchange buffer to minimize overhead.
+     * However, here we use two exchange buffers so that we can run an actual plan on this coordinator to perform partial
+     * reduce operations, such as limit, topN, and partial-to-partial aggregation in the future.
      */
     void runComputeOnRemoteCluster(
         String clusterAlias,

@@ -134,6 +134,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             final Measurement measurement = allMeasurements.get(0);
             assertThat(1L, Matchers.equalTo(measurement.getLong()));
             assertThat(1L, Matchers.equalTo(measurement.value()));
+            assertThat(Map.of("type", "inflight_requests"), Matchers.equalTo(measurement.attributes()));
             assertThat(true, Matchers.equalTo(measurement.isLong()));
             return;
         }

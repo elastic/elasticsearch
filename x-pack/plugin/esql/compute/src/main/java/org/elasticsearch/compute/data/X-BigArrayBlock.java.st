@@ -14,13 +14,14 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
+ * TODO update doc strings
  * Block implementation that stores values in a $Type$Array.
  * This class is generated. Do not edit it.
  */
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final $Type$BigArrayVector values;
+    private final $Type$BigArrayVector vector;
 
     public $Type$BigArrayBlock(
         $if(boolean)$Bit$else$$Type$$endif$Array values,
@@ -31,7 +32,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new $Type$BigArrayVector(values, (int) values.size(), blockFactory);
+        this.vector = new $Type$BigArrayVector(values, (int) values.size(), blockFactory);
     }
 
     @Override
@@ -41,7 +42,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public $type$ get$Type$(int valueIndex) {
-        return values.get$Type$(valueIndex);
+        return vector.get$Type$(valueIndex);
     }
 
     @Override
@@ -79,7 +80,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
             incRef();
             return this;
         }
-        // TODO use reference counting to share the values
+        // TODO use reference counting to share the vector
         try (var builder = blockFactory().new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
@@ -98,7 +99,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
@@ -123,13 +124,13 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
             + ", mvOrdering="
             + mvOrdering()
             + ", ramBytesUsed="
-            + values.ramBytesUsed()
+            + vector.ramBytesUsed()
             + ']';
     }
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed() + RamUsageEstimator.sizeOf(values), true);
-        Releasables.closeExpectNoException(values);
+        blockFactory().adjustBreaker(-ramBytesUsed() + RamUsageEstimator.sizeOf(vector), true);
+        Releasables.closeExpectNoException(vector);
     }
 }

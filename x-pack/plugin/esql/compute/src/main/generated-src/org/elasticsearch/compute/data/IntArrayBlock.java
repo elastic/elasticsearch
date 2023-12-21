@@ -20,7 +20,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
 
-    private final IntArrayVector values;
+    private final IntArrayVector vector;
 
     IntArrayBlock(
         int[] values,
@@ -31,7 +31,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new IntArrayVector(values, values.length, blockFactory);
+        this.vector = new IntArrayVector(values, values.length, blockFactory);
     }
 
     @Override
@@ -41,7 +41,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     @Override
     public int getInt(int valueIndex) {
-        return values.getInt(valueIndex);
+        return vector.getInt(valueIndex);
     }
 
     @Override
@@ -79,7 +79,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
             incRef();
             return this;
         }
-        // TODO use reference counting to share the values
+        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
@@ -102,7 +102,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsedOnlyBlock() + values.ramBytesUsed();
+        return ramBytesUsedOnlyBlock() + vector.ramBytesUsed();
     }
 
     @Override
@@ -125,14 +125,14 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-            + ", values="
-            + values
+            + ", vector="
+            + vector
             + ']';
     }
 
     @Override
     public void closeInternal() {
         blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
-        Releasables.closeExpectNoException(values);
+        Releasables.closeExpectNoException(vector);
     }
 }

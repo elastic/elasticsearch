@@ -14,13 +14,14 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
+ * TODO update doc strings
  * Block implementation that stores values in a LongArray.
  * This class is generated. Do not edit it.
  */
 public final class LongBigArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     private static final long BASE_RAM_BYTES_USED = 0; // TODO: fix this
-    private final LongBigArrayVector values;
+    private final LongBigArrayVector vector;
 
     public LongBigArrayBlock(
         LongArray values,
@@ -31,7 +32,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new LongBigArrayVector(values, (int) values.size(), blockFactory);
+        this.vector = new LongBigArrayVector(values, (int) values.size(), blockFactory);
     }
 
     @Override
@@ -41,7 +42,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
 
     @Override
     public long getLong(int valueIndex) {
-        return values.getLong(valueIndex);
+        return vector.getLong(valueIndex);
     }
 
     @Override
@@ -79,7 +80,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
             incRef();
             return this;
         }
-        // TODO use reference counting to share the values
+        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newLongBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
@@ -98,7 +99,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
@@ -123,13 +124,13 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
             + ", mvOrdering="
             + mvOrdering()
             + ", ramBytesUsed="
-            + values.ramBytesUsed()
+            + vector.ramBytesUsed()
             + ']';
     }
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed() + RamUsageEstimator.sizeOf(values), true);
-        Releasables.closeExpectNoException(values);
+        blockFactory().adjustBreaker(-ramBytesUsed() + RamUsageEstimator.sizeOf(vector), true);
+        Releasables.closeExpectNoException(vector);
     }
 }

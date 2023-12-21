@@ -28,7 +28,7 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 
-    private final $Type$ArrayVector values;
+    private final $Type$ArrayVector vector;
 
     $Type$ArrayBlock(
         $if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values,
@@ -40,9 +40,9 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         $if(BytesRef)$
-        this.values = new BytesRefArrayVector(values, (int) values.size(), blockFactory);
+        this.vector = new BytesRefArrayVector(values, (int) values.size(), blockFactory);
         $else$
-        this.values = new $Type$ArrayVector(values, values.length, blockFactory);
+        this.vector = new $Type$ArrayVector(values, values.length, blockFactory);
         $endif$
     }
 
@@ -54,10 +54,10 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return values.getBytesRef(valueIndex, dest);
+        return vector.getBytesRef(valueIndex, dest);
 $else$
     public $type$ get$Type$(int valueIndex) {
-        return values.get$Type$(valueIndex);
+        return vector.get$Type$(valueIndex);
 $endif$
     }
 
@@ -99,7 +99,7 @@ $endif$
             incRef();
             return this;
         }
-        // TODO use reference counting to share the values
+        // TODO use reference counting to share the vector
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$
@@ -129,7 +129,7 @@ $endif$
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsedOnlyBlock() + values.ramBytesUsed();
+        return ramBytesUsedOnlyBlock() + vector.ramBytesUsed();
     }
 
     @Override
@@ -152,19 +152,14 @@ $endif$
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-$if(BytesRef)$
-            + ", values="
-            + values.getPositionCount()
-$else$
-            + ", values="
-            + values
-$endif$
+            + ", vector="
+            + vector
             + ']';
     }
 
     @Override
     public void closeInternal() {
         blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
-        Releasables.closeExpectNoException(values);
+        Releasables.closeExpectNoException(vector);
     }
 }

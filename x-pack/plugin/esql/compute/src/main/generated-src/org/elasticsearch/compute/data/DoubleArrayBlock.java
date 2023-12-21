@@ -20,7 +20,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class);
 
-    private final DoubleArrayVector values;
+    private final DoubleArrayVector vector;
 
     DoubleArrayBlock(
         double[] values,
@@ -31,7 +31,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new DoubleArrayVector(values, values.length, blockFactory);
+        this.vector = new DoubleArrayVector(values, values.length, blockFactory);
     }
 
     @Override
@@ -41,7 +41,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     @Override
     public double getDouble(int valueIndex) {
-        return values.getDouble(valueIndex);
+        return vector.getDouble(valueIndex);
     }
 
     @Override
@@ -79,7 +79,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
             incRef();
             return this;
         }
-        // TODO use reference counting to share the values
+        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newDoubleBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
@@ -102,7 +102,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsedOnlyBlock() + values.ramBytesUsed();
+        return ramBytesUsedOnlyBlock() + vector.ramBytesUsed();
     }
 
     @Override
@@ -125,14 +125,14 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-            + ", values="
-            + values
+            + ", vector="
+            + vector
             + ']';
     }
 
     @Override
     public void closeInternal() {
         blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
-        Releasables.closeExpectNoException(values);
+        Releasables.closeExpectNoException(vector);
     }
 }

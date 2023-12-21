@@ -94,157 +94,141 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         Map<String, ResolveClusterInfo> clusterInfoMap = new ConcurrentHashMap<>();
-        if (remoteClusterIndices.size() > 0) {
-            final Runnable releaseResourcesOnCancel = () -> {
-                logger.trace("clear index responses on cancellation");
-                clusterInfoMap.clear();
-            };
+        final Runnable releaseResourcesOnCancel = () -> {
+            logger.trace("clear index responses on cancellation");
+            clusterInfoMap.clear();
+        };
 
-            // add local cluster info if in scope of the index-expression from user
-            if (localIndices != null) {
-                clusterInfoMap.put(
-                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    new ResolveClusterInfo(true, false, hasMatchingIndices(localIndices, clusterState), Build.current())
-                );
-            }
-
-            final var finishedOrCancelled = new AtomicBoolean();
-            resolveClusterTask.addListener(() -> {
-                if (finishedOrCancelled.compareAndSet(false, true)) {
-                    releaseResourcesOnCancel.run();
-                }
-            });
-
-            try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
-                finishedOrCancelled.set(true);
-                if (resolveClusterTask.notifyIfCancelled(listener)) {
-                    releaseResourcesOnCancel.run();
-                } else {
-                    listener.onResponse(new ResolveClusterActionResponse(clusterInfoMap));
-                }
-            })) {
-                // make the cross-cluster calls
-                for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
-                    resolveClusterTask.ensureNotCancelled();
-                    String clusterAlias = remoteIndices.getKey();
-                    OriginalIndices originalIndices = remoteIndices.getValue();
-                    boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-                    Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                        threadPool,
-                        clusterAlias,
-                        searchCoordinationExecutor
-                    );
-                    ResolveClusterActionRequest remoteRequest = new ResolveClusterActionRequest(originalIndices.indices());
-                    // allow cancellation requests to propagate to remote clusters
-                    remoteRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-
-                    ActionListener<ResolveClusterActionResponse> remoteListener = new ActionListener<>() {
-                        @Override
-                        public void onResponse(ResolveClusterActionResponse response) {
-                            if (resolveClusterTask.isCancelled()) {
-                                releaseResourcesOnCancel.run();
-                                return;
-                            }
-                            ResolveClusterInfo info = response.getResolveClusterInfo().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                            if (info != null) {
-                                clusterInfoMap.put(
-                                    clusterAlias,
-                                    new ResolveClusterInfo(info.isConnected(), skipUnavailable, info.getMatchingIndices(), info.getBuild())
-                                );
-                            }
-                            if (resolveClusterTask.isCancelled()) {
-                                releaseResourcesOnCancel.run();
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception failure) {
-                            if (resolveClusterTask.isCancelled()) {
-                                releaseResourcesOnCancel.run();
-                                return;
-                            }
-                            if (notConnectedError(failure)) {
-                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
-                            } else {
-                                Throwable cause = ExceptionsHelper.unwrapCause(failure);
-                                // when querying an older cluster that does not have the _resolve/cluster endpoint,
-                                // we will get this error at the Transport layer, since there are version guards
-                                // on the Writeables for this Action.
-                                if (cause instanceof UnsupportedOperationException
-                                    && cause.getMessage().contains("ResolveClusterAction requires at least Transport Version")) {
-                                    // Since this cluster does not have _resolve/cluster, we will call the _resolve/index
-                                    // endpoint to fill in the matching_indices field of the response for that cluster
-                                    ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
-                                        originalIndices.indices(),
-                                        originalIndices.indicesOptions()
-                                    );
-                                    ActionListener<ResolveIndexAction.Response> resolveIndexActionListener = new ActionListener<>() {
-                                        @Override
-                                        public void onResponse(ResolveIndexAction.Response response) {
-                                            boolean matchingIndices = response.getIndices().size() > 0
-                                                || response.getAliases().size() > 0
-                                                || response.getDataStreams().size() > 0;
-                                            clusterInfoMap.put(
-                                                clusterAlias,
-                                                new ResolveClusterInfo(true, skipUnavailable, matchingIndices, null)
-                                            );
-                                        }
-
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            Throwable cause = ExceptionsHelper.unwrapCause(e);
-                                            clusterInfoMap.put(
-                                                clusterAlias,
-                                                new ResolveClusterInfo(false, skipUnavailable, cause.toString())
-                                            );
-                                            logger.warn(
-                                                () -> Strings.format(
-                                                    "Failure from _resolve/cluster lookup against cluster %s: ",
-                                                    clusterAlias
-                                                ),
-                                                e
-                                            );
-                                        }
-                                    };
-                                    remoteClusterClient.admin()
-                                        .indices()
-                                        .resolveIndex(
-                                            resolveIndexRequest,
-                                            ActionListener.releaseAfter(resolveIndexActionListener, refs.acquire())
-                                        );
-                                } else {
-                                    // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
-                                    // determine based on the error, so we default to false in the face of any error and report it
-                                    // back to the user for consideration
-                                    clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
-                                    logger.warn(
-                                        () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
-                                        failure
-                                    );
-                                }
-                            }
-                            if (resolveClusterTask.isCancelled()) {
-                                releaseResourcesOnCancel.run();
-                            }
-                        }
-                    };
-                    remoteClusterClient.admin()
-                        .indices()
-                        .execute(
-                            TransportResolveClusterAction.TYPE,
-                            remoteRequest,
-                            ActionListener.releaseAfter(remoteListener, refs.acquire())
-                        );
-                }
-            }
-        } else {
-            // this block executes on remote cluster (or local cluster if no remote clusters are specified in the user's index expression)
-            resolveClusterTask.ensureNotCancelled();
+        // add local cluster info if in scope of the index-expression from user
+        if (localIndices != null) {
             clusterInfoMap.put(
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                new ResolveClusterInfo(true, null, hasMatchingIndices(localIndices, clusterState), Build.current())
+                new ResolveClusterInfo(true, false, hasMatchingIndices(localIndices, clusterState), Build.current())
             );
-            listener.onResponse(new ResolveClusterActionResponse(clusterInfoMap));
+        }
+
+        final var finishedOrCancelled = new AtomicBoolean();
+        resolveClusterTask.addListener(() -> {
+            if (finishedOrCancelled.compareAndSet(false, true)) {
+                releaseResourcesOnCancel.run();
+            }
+        });
+
+        try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
+            finishedOrCancelled.set(true);
+            if (resolveClusterTask.notifyIfCancelled(listener)) {
+                releaseResourcesOnCancel.run();
+            } else {
+                listener.onResponse(new ResolveClusterActionResponse(clusterInfoMap));
+            }
+        })) {
+            // make the cross-cluster calls
+            for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
+                resolveClusterTask.ensureNotCancelled();
+                String clusterAlias = remoteIndices.getKey();
+                OriginalIndices originalIndices = remoteIndices.getValue();
+                boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
+                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                    threadPool,
+                    clusterAlias,
+                    searchCoordinationExecutor
+                );
+                ResolveClusterActionRequest remoteRequest = new ResolveClusterActionRequest(originalIndices.indices());
+                // allow cancellation requests to propagate to remote clusters
+                remoteRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+
+                ActionListener<ResolveClusterActionResponse> remoteListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(ResolveClusterActionResponse response) {
+                        if (resolveClusterTask.isCancelled()) {
+                            releaseResourcesOnCancel.run();
+                            return;
+                        }
+                        ResolveClusterInfo info = response.getResolveClusterInfo().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        if (info != null) {
+                            clusterInfoMap.put(
+                                clusterAlias,
+                                new ResolveClusterInfo(info.isConnected(), skipUnavailable, info.getMatchingIndices(), info.getBuild())
+                            );
+                        }
+                        if (resolveClusterTask.isCancelled()) {
+                            releaseResourcesOnCancel.run();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception failure) {
+                        if (resolveClusterTask.isCancelled()) {
+                            releaseResourcesOnCancel.run();
+                            return;
+                        }
+                        if (notConnectedError(failure)) {
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                        } else {
+                            Throwable cause = ExceptionsHelper.unwrapCause(failure);
+                            // when querying an older cluster that does not have the _resolve/cluster endpoint,
+                            // we will get this error at the Transport layer, since there are version guards
+                            // on the Writeables for this Action.
+                            if (cause instanceof UnsupportedOperationException
+                                && cause.getMessage().contains("ResolveClusterAction requires at least Transport Version")) {
+                                // Since this cluster does not have _resolve/cluster, we will call the _resolve/index
+                                // endpoint to fill in the matching_indices field of the response for that cluster
+                                ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(
+                                    originalIndices.indices(),
+                                    originalIndices.indicesOptions()
+                                );
+                                ActionListener<ResolveIndexAction.Response> resolveIndexActionListener = new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(ResolveIndexAction.Response response) {
+                                        boolean matchingIndices = response.getIndices().size() > 0
+                                            || response.getAliases().size() > 0
+                                            || response.getDataStreams().size() > 0;
+                                        clusterInfoMap.put(
+                                            clusterAlias,
+                                            new ResolveClusterInfo(true, skipUnavailable, matchingIndices, null)
+                                        );
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                        clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
+                                        logger.warn(
+                                            () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
+                                            e
+                                        );
+                                    }
+                                };
+                                remoteClusterClient.admin()
+                                    .indices()
+                                    .resolveIndex(
+                                        resolveIndexRequest,
+                                        ActionListener.releaseAfter(resolveIndexActionListener, refs.acquire())
+                                    );
+                            } else {
+                                // it is not clear that this error indicates that the cluster is disconnected, but it is hard to
+                                // determine based on the error, so we default to false in the face of any error and report it
+                                // back to the user for consideration
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, cause.toString()));
+                                logger.warn(
+                                    () -> Strings.format("Failure from _resolve/cluster lookup against cluster %s: ", clusterAlias),
+                                    failure
+                                );
+                            }
+                        }
+                        if (resolveClusterTask.isCancelled()) {
+                            releaseResourcesOnCancel.run();
+                        }
+                    }
+                };
+                remoteClusterClient.admin()
+                    .indices()
+                    .execute(
+                        TransportResolveClusterAction.TYPE,
+                        remoteRequest,
+                        ActionListener.releaseAfter(remoteListener, refs.acquire())
+                    );
+            }
         }
     }
 

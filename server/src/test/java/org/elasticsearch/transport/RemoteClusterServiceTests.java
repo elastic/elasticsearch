@@ -1426,6 +1426,91 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
+    public void testCredentialsChangeRebuildsConnectionWithCorrectProfile() throws IOException, InterruptedException {
+        final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+            MockTransportService c = startTransport(
+                "cluster_1",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                Settings.builder()
+                    .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+                    .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+                    .build()
+            )
+        ) {
+            final DiscoveryNode discoNode = c.getLocalDiscoNode().withTransportAddress(c.boundRemoteAccessAddress().publishAddress());
+            try (
+                MockTransportService transportService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
+                    threadPool,
+                    null
+                )
+            ) {
+                transportService.start();
+                transportService.acceptIncomingRequests();
+
+                try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
+                    service.initializeRemoteClusters();
+
+                    final CountDownLatch firstLatch = new CountDownLatch(1);
+                    final Settings.Builder firstRemoteClusterSettingsBuilder = Settings.builder();
+                    final boolean firstRemoteClusterProxyMode = randomBoolean();
+                    if (firstRemoteClusterProxyMode) {
+                        firstRemoteClusterSettingsBuilder.put("cluster.remote.cluster_1.mode", "proxy")
+                            .put("cluster.remote.cluster_1.proxy_address", discoNode.getAddress().toString());
+                    } else {
+                        firstRemoteClusterSettingsBuilder.put("cluster.remote.cluster_1.seeds", discoNode.getAddress().toString());
+                    }
+                    service.updateRemoteCluster("cluster_1", firstRemoteClusterSettingsBuilder.build(), connectionListener(firstLatch));
+                    firstLatch.await();
+
+                    assertThat(
+                        service.getRemoteClusterConnection("cluster_1").getConnectionManager().getConnectionProfile().getTransportProfile(),
+                        equalTo("default")
+                    );
+
+                    {
+                        final MockSecureSettings secureSettings = new MockSecureSettings();
+                        secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
+                        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                        service.updateRemoteClusterCredentials(
+                            Settings.builder().put(firstRemoteClusterSettingsBuilder.build()).setSecureSettings(secureSettings).build(),
+                            listener
+                        );
+                        listener.actionGet(10, TimeUnit.SECONDS);
+                    }
+
+                    assertThat(
+                        service.getRemoteClusterConnection("cluster_1").getConnectionManager().getConnectionProfile().getTransportProfile(),
+                        equalTo(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE)
+                    );
+
+                    {
+                        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                        service.updateRemoteClusterCredentials(
+                            // Settings without credentials constitute credentials removal
+                            firstRemoteClusterSettingsBuilder.build(),
+                            listener
+                        );
+                        listener.actionGet(10, TimeUnit.SECONDS);
+                    }
+
+                    assertThat(
+                        service.getRemoteClusterConnection("cluster_1").getConnectionManager().getConnectionProfile().getTransportProfile(),
+                        equalTo("default")
+                    );
+
+                    // No local node connection
+                    assertEquals(0, transportService.getConnectionManager().size());
+                }
+            }
+        }
+    }
+
     public void testLogsConnectionResult() throws IOException {
 
         try (

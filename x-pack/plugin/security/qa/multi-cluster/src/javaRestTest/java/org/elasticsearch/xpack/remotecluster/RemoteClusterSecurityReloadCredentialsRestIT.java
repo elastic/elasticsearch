@@ -28,6 +28,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,6 +50,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
     }
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
+
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
@@ -67,6 +69,22 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore(keystoreSettings)
+            .settings((ignored) -> {
+                // Use an alternative cluster alias to test credential setup when remote cluster settings are configured in
+                // elasticsearch.yml
+                final Map<String, String> settings = new HashMap<>();
+                final String remoteClusterEndpoint = fulfillingCluster.getRemoteClusterServerEndpoint(0);
+                final boolean isProxyMode = randomBoolean();
+                final String clusterAlias = "my_aliased_remote_cluster";
+                if (isProxyMode) {
+                    settings.put("cluster.remote." + clusterAlias + ".mode", "proxy");
+                    settings.put("cluster.remote." + clusterAlias + ".proxy_address", "\"" + remoteClusterEndpoint + "\"");
+                } else {
+                    settings.put("cluster.remote." + clusterAlias + ".mode", "sniff");
+                    settings.put("cluster.remote." + clusterAlias + ".seeds", "[\"" + remoteClusterEndpoint + "\"]");
+                }
+                return settings;
+            })
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_logs", false)
             .build();
@@ -76,20 +94,34 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
+    @Before
+    public void setup() throws IOException {
+        indexDocumentsOnFulfillingCluster();
+    }
+
     @After
     public void cleanUp() throws IOException {
         removeRemoteCluster();
         removeRemoteClusterCredentials("my_remote_cluster", keystoreSettings);
     }
 
-    @Before
-    public void setup() throws IOException {
-        indexDocumentsOnFulfillingCluster();
+    public void testFirstTimeSetupWithElasticsearchSettings() throws Exception {
+        final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+            {
+              "search": [
+                {
+                    "names": ["*"]
+                }
+              ]
+            }""");
+        configureRemoteClusterCredentials("my_aliased_remote_cluster", (String) apiKeyMap.get("encoded"), keystoreSettings);
+        assertSharedLogsSearchSuccess("my_aliased_remote_cluster");
+        removeRemoteClusterCredentials("my_aliased_remote_cluster", keystoreSettings);
     }
 
     public void testFirstTimeSetup() throws Exception {
         configureRcs2();
-        assertSharedLogsSearchSuccess();
+        assertSharedLogsSearchSuccess("my_remote_cluster");
     }
 
     public void testUpgradeFromRcs1() throws Exception {
@@ -106,7 +138,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
               ]
             }""");
         performRequestAgainstFulfillingCluster(putRoleRequest);
-        assertSharedLogsSearchSuccess();
+        assertSharedLogsSearchSuccess("my_remote_cluster");
 
         // Now migrate to RCS 2.0
         // Optionally remove existing cluster definition first. In practice removing the cluster definition first is the recommended
@@ -116,12 +148,12 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
             removeRemoteCluster();
         }
         configureRcs2();
-        assertSharedLogsSearchSuccess();
+        assertSharedLogsSearchSuccess("my_remote_cluster");
     }
 
     public void testDowngradeToRcs1() throws Exception {
         configureRcs2();
-        assertSharedLogsSearchSuccess();
+        assertSharedLogsSearchSuccess("my_remote_cluster");
 
         if (randomBoolean()) {
             removeRemoteCluster();
@@ -139,7 +171,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
               ]
             }""");
         performRequestAgainstFulfillingCluster(putRoleRequest);
-        assertSharedLogsSearchSuccess();
+        assertSharedLogsSearchSuccess("my_remote_cluster");
     }
 
     private void removeRemoteCluster() throws IOException {
@@ -182,11 +214,11 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         }
     }
 
-    private void assertSharedLogsSearchSuccess() throws IOException {
+    private void assertSharedLogsSearchSuccess(String clusterAlias) throws IOException {
         final Response response = performRequestWithRemoteSearchUser(
             new Request(
                 "GET",
-                String.format(Locale.ROOT, "/my_remote_cluster:shared-logs/_search?ccs_minimize_roundtrips=%s", randomBoolean())
+                String.format(Locale.ROOT, "/%s:shared-logs/_search?ccs_minimize_roundtrips=%s", clusterAlias, randomBoolean())
             )
         );
         assertOK(response);

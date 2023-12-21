@@ -48,7 +48,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
                 "["
                     + TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName()
                     + "] must be between [1] and ["
-                    + String.format(Locale.ROOT, "%.0f", MAX_TOKENS_FREQ_RATIO_THRESHOLD)
+                    + String.format(Locale.ROOT, "%d", (int) MAX_TOKENS_FREQ_RATIO_THRESHOLD)
                     + "], got "
                     + tokensFreqRatioThreshold
             );

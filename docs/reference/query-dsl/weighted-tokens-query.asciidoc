@@ -1,10 +1,10 @@
 [[query-dsl-weighted-tokens-query]]
-== Weighted tokens query
+=== Weighted tokens query
 ++++
 <titleabbrev>Weighted tokens</titleabbrev>
 ++++
 
-preview:[]
+preview::[]
 
 The weighted tokens query requires a list of token-weight pairs that are sent in with a query rather than calculated using a {nlp} model.
 These token pairs are then used in a query against a <<sparse-vector,sparse vector>> or <<rank-features,rank features>> field.
@@ -13,7 +13,7 @@ Weighted tokens queries are useful when you want to use an external query expans
 
 [discrete]
 [[weighted-tokens-query-ex-request]]
-=== Example request
+==== Example request
 
 [source,console]
 ----
@@ -45,7 +45,6 @@ A dictionary of token-weight pairs.
 
 `pruning_config` ::::
 (Optional, object)
-preview:[]
 Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance.
 Default: Disabled.
 +
@@ -54,21 +53,18 @@ Parameters for `<pruning_config>` are:
 
 `tokens_freq_ratio_threshold`::
 (Optional, integer)
-preview:[]
 Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned.
 This value must between 1 and 100.
 Default: `5`.
 
 `tokens_weight_threshold`::
 (Optional, float)
-preview:[]
 Tokens whose weight is less than `tokens_weight_threshold` are considered nonsignificant and pruned.
 This value must be between 0 and 1.
 Default: `0.4`.
 
 `only_score_pruned_tokens`::
 (Optional, boolean)
-preview:[]
 If `true` we only input pruned tokens into scoring, and discard non-pruned tokens.
 It is strongly recommended to set this to `false` for the main query, but this can be set to `true` for a rescore query to get more relevant results.
 Default: `false`.
@@ -78,7 +74,7 @@ NOTE: The default values for `tokens_freq_ratio_threshold` and `tokens_weight_th
 
 [discrete]
 [[weighted-tokens-query-with-pruning-config-and-rescore-example]]
-=== Example weighted tokens query with pruning configuration and rescore
+==== Example weighted tokens query with pruning configuration and rescore
 
 The following example adds a pruning configuration to the `text_expansion` query.
 The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.

@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -85,9 +84,10 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testBasic() throws Exception {
+        BlockFactory blockFactory = blockFactory();
         Page[] pages = new Page[7];
         for (int i = 0; i < pages.length; i++) {
-            pages[i] = new Page(new ConstantIntVector(i, 2).asBlock());
+            pages[i] = new Page(blockFactory.newConstantIntBlockWith(i, 2));
         }
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
@@ -143,6 +143,9 @@ public class ExchangeServiceTests extends ESTestCase {
         sourceExchanger.decRef();
         assertTrue(latch.await(1, TimeUnit.SECONDS));
         ESTestCase.terminate(threadPool);
+        for (Page page : pages) {
+            page.releaseBlocks();
+        }
     }
 
     /**
@@ -338,8 +341,9 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testEarlyTerminate() {
-        IntBlock block1 = new ConstantIntVector(1, 2).asBlock();
-        IntBlock block2 = new ConstantIntVector(1, 2).asBlock();
+        BlockFactory blockFactory = blockFactory();
+        IntBlock block1 = blockFactory.newConstantIntBlockWith(1, 2);
+        IntBlock block2 = blockFactory.newConstantIntBlockWith(1, 2);
         Page p1 = new Page(block1);
         Page p2 = new Page(block2);
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);

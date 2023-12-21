@@ -27,11 +27,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -116,8 +114,7 @@ public class AggregatorBenchmark {
     @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES })
     public String blockType;
 
-    private static Operator operator(String grouping, String op, String dataType) {
-        DriverContext driverContext = driverContext();
+    private static Operator operator(DriverContext driverContext, String grouping, String op, String dataType) {
         if (grouping.equals("none")) {
             return new AggregationOperator(
                 List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE).apply(driverContext)),
@@ -432,8 +429,8 @@ public class AggregatorBenchmark {
         }
     }
 
-    private static Page page(String grouping, String blockType) {
-        Block dataBlock = dataBlock(blockType);
+    private static Page page(BlockFactory blockFactory, String grouping, String blockType) {
+        Block dataBlock = dataBlock(blockFactory, blockType);
         if (grouping.equals("none")) {
             return new Page(dataBlock);
         }
@@ -441,10 +438,10 @@ public class AggregatorBenchmark {
         return new Page(Stream.concat(blocks.stream(), Stream.of(dataBlock)).toArray(Block[]::new));
     }
 
-    private static Block dataBlock(String blockType) {
+    private static Block dataBlock(BlockFactory blockFactory, String blockType) {
         return switch (blockType) {
-            case VECTOR_LONGS -> new LongArrayVector(LongStream.range(0, BLOCK_LENGTH).toArray(), BLOCK_LENGTH).asBlock();
-            case VECTOR_DOUBLES -> new DoubleArrayVector(
+            case VECTOR_LONGS -> blockFactory.newLongArrayVector(LongStream.range(0, BLOCK_LENGTH).toArray(), BLOCK_LENGTH).asBlock();
+            case VECTOR_DOUBLES -> blockFactory.newDoubleArrayVector(
                 LongStream.range(0, BLOCK_LENGTH).mapToDouble(l -> Long.valueOf(l).doubleValue()).toArray(),
                 BLOCK_LENGTH
             ).asBlock();
@@ -574,8 +571,9 @@ public class AggregatorBenchmark {
             default -> throw new IllegalArgumentException();
         };
 
-        Operator operator = operator(grouping, op, dataType);
-        Page page = page(grouping, blockType);
+        DriverContext driverContext = driverContext();
+        Operator operator = operator(driverContext, grouping, op, dataType);
+        Page page = page(driverContext.blockFactory(), grouping, blockType);
         for (int i = 0; i < opCount; i++) {
             operator.addInput(page);
         }

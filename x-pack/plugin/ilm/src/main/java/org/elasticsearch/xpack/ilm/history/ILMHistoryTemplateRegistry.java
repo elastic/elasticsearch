@@ -35,10 +35,11 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     // version 4: add `allow_auto_create` setting
     // version 5: convert to data stream
     // version 6: manage by data stream lifecycle
-    public static final int INDEX_TEMPLATE_VERSION = 6;
+    // version 7: version the index template name so we can upgrade existing deployments
+    public static final int INDEX_TEMPLATE_VERSION = 7;
 
     public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";
-    public static final String ILM_TEMPLATE_NAME = "ilm-history";
+    public static final String ILM_TEMPLATE_NAME = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String ILM_POLICY_NAME = "ilm-history-ilm-policy";
 

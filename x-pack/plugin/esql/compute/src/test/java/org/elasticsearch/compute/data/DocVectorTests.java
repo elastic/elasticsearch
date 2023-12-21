@@ -9,8 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DocVectorTests extends ESTestCase {
+public class DocVectorTests extends ComputeTestCase {
     public void testNonDecreasingSetTrue() {
         int length = between(1, 100);
         DocVector docs = new DocVector(intRange(0, length), intRange(0, length), intRange(0, length), true);
@@ -29,8 +29,10 @@ public class DocVectorTests extends ESTestCase {
     }
 
     public void testNonDecreasingSetFalse() {
-        DocVector docs = new DocVector(intRange(0, 2), intRange(0, 2), new IntArrayVector(new int[] { 1, 0 }, 2), false);
+        BlockFactory blockFactory = blockFactory();
+        DocVector docs = new DocVector(intRange(0, 2), intRange(0, 2), blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2), false);
         assertFalse(docs.singleSegmentNonDecreasing());
+        docs.close();
     }
 
     public void testNonDecreasingNonConstantShard() {
@@ -44,13 +46,15 @@ public class DocVectorTests extends ESTestCase {
     }
 
     public void testNonDecreasingDescendingDocs() {
+        BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
             IntBlock.newConstantBlockWith(0, 2).asVector(),
             IntBlock.newConstantBlockWith(0, 2).asVector(),
-            new IntArrayVector(new int[] { 1, 0 }, 2),
+            blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
             null
         );
         assertFalse(docs.singleSegmentNonDecreasing());
+        docs.close();
     }
 
     public void testShardSegmentDocMap() {
@@ -141,7 +145,7 @@ public class DocVectorTests extends ESTestCase {
         assertThat(block.isReleased(), is(true));
 
         Exception e = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(e.getMessage(), containsString("can't release already released block"));
+        assertThat(e.getMessage(), containsString("can't release already released object"));
 
         e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
         assertThat(e.getMessage(), containsString("can't read released block"));

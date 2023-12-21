@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -292,7 +291,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
                 List.of(new ColumnInfo("foo", "integer")),
-                List.of(new Page(new IntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 null,
                 false,
                 "id-123",
@@ -312,7 +311,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     private EsqlQueryResponse simple(boolean columnar, boolean async) {
         return new EsqlQueryResponse(
             List.of(new ColumnInfo("foo", "integer")),
-            List.of(new Page(new IntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+            List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
             null,
             columnar,
             async
@@ -323,7 +322,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
                 List.of(new ColumnInfo("foo", "integer")),
-                List.of(new Page(new IntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 new EsqlQueryResponse.Profile(
                     List.of(new DriverProfile(List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10)))))
                 ),

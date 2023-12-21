@@ -23,7 +23,7 @@ $endif$
  * Vector implementation that stores an array of $type$ values.
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
+final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
 
@@ -34,21 +34,14 @@ $else$
     private final $type$[] values;
 $endif$
 
-    private final $Type$Block block;
-
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
+    $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return block;
+        return new $Type$VectorBlock(this);
     }
 
 $if(BytesRef)$
@@ -124,11 +117,7 @@ $endif$
 
 $if(BytesRef)$
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }

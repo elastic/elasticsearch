@@ -12,7 +12,8 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed LongArray.
+ * Vector implementation that defers to an enclosed {@link LongArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class LongBigArrayVector extends AbstractVector implements LongVector, Releasable {
@@ -63,7 +64,12 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     @Override
     public void close() {
-        super.close();
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
+        // The circuit breaker that tracks the values {@link LongArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

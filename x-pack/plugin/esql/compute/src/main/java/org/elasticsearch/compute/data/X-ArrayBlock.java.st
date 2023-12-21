@@ -22,6 +22,9 @@ import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link $Type$ArrayVector}.
+$if(BytesRef)$
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
+$endif$
  * This class is generated. Do not edit it.
  */
 final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {

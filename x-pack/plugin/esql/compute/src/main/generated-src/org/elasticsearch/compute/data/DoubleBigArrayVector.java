@@ -12,7 +12,8 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed DoubleArray.
+ * Vector implementation that defers to an enclosed {@link DoubleArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class DoubleBigArrayVector extends AbstractVector implements DoubleVector, Releasable {
@@ -63,7 +64,12 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
 
     @Override
     public void close() {
-        super.close();
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
+        // The circuit breaker that tracks the values {@link DoubleArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

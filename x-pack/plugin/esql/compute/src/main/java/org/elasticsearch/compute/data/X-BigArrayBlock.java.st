@@ -14,7 +14,8 @@ import org.elasticsearch.core.Releasables;
 import java.util.BitSet;
 
 /**
- * Block implementation that stores values in a {@link $Type$BigArrayVector}.
+ * Block implementation that stores values in a {@link $Type$BigArrayVector}. Does not take ownership of the given
+ * {@link $if(boolean)$Bit$else$$Type$$endif$Array} and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Type$Block {

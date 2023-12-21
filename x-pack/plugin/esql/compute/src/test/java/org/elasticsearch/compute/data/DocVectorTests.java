@@ -145,7 +145,7 @@ public class DocVectorTests extends ComputeTestCase {
         assertThat(block.isReleased(), is(true));
 
         Exception e = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(e.getMessage(), containsString("can't release already released block"));
+        assertThat(e.getMessage(), containsString("can't release already released object"));
 
         e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
         assertThat(e.getMessage(), containsString("can't read released block"));

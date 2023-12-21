@@ -11,9 +11,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -1000,7 +1006,7 @@ public class BasicBlockTests extends ESTestCase {
 
     static void assertCannotDoubleRelease(Block block) {
         var ex = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(ex.getMessage(), containsString("can't release already released block"));
+        assertThat(ex.getMessage(), containsString("can't release already released object"));
     }
 
     static void assertCannotReadFromPage(Page page) {
@@ -1035,6 +1041,13 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(breaker.getUsed(), is(0L));
     }
 
+    public void testRefCountingBigArrayBlock() {
+        Block block = randomBigArrayBlock();
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(block);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
     public void testRefCountingConstantNullBlock() {
         Block block = blockFactory.newConstantNullBlock(10);
         assertThat(breaker.getUsed(), greaterThan(0L));
@@ -1051,52 +1064,165 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testRefCountingVectorBlock() {
-        Block block = randomNonDocVector().asBlock();
+        Block block = randomConstantVector().asBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
         assertThat(breaker.getUsed(), is(0L));
     }
 
-    // Take a block with exactly 1 reference and assert that ref counting works fine.
-    static void assertRefCountingBehavior(Block b) {
-        assertTrue(b.hasReferences());
+    public void testRefCountingArrayVector() {
+        Vector vector = randomArrayVector();
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(vector);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testRefCountingBigArrayVector() {
+        Vector vector = randomBigArrayVector();
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(vector);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testRefCountingConstantVector() {
+        Vector vector = randomConstantVector();
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(vector);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testRefCountingDocVector() {
+        int positionCount = randomIntBetween(0, 100);
+        DocVector vector = new DocVector(intVector(positionCount), intVector(positionCount), intVector(positionCount), true);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(vector);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    /**
+     * Take an object with exactly 1 reference and assert that ref counting works fine.
+     * Assumes that {@link Releasable#close()} and {@link RefCounted#decRef()} are equivalent.
+     */
+    static <T extends RefCounted & Releasable> void assertRefCountingBehavior(T object) {
+        assertTrue(object.hasReferences());
         int numShallowCopies = randomIntBetween(0, 15);
         for (int i = 0; i < numShallowCopies; i++) {
             if (randomBoolean()) {
-                b.incRef();
+                object.incRef();
             } else {
-                assertTrue(b.tryIncRef());
+                assertTrue(object.tryIncRef());
             }
         }
 
         for (int i = 0; i < numShallowCopies; i++) {
             if (randomBoolean()) {
-                b.close();
+                object.close();
             } else {
                 // closing and decRef'ing must be equivalent
-                assertFalse(b.decRef());
+                assertFalse(object.decRef());
             }
-            assertTrue(b.hasReferences());
+            assertTrue(object.hasReferences());
         }
 
         if (randomBoolean()) {
-            b.close();
+            object.close();
         } else {
-            assertTrue(b.decRef());
+            assertTrue(object.decRef());
         }
 
-        assertFalse(b.hasReferences());
-        assertFalse(b.tryIncRef());
+        assertFalse(object.hasReferences());
+        assertFalse(object.tryIncRef());
 
-        expectThrows(IllegalStateException.class, b::close);
-        expectThrows(IllegalStateException.class, b::incRef);
+        expectThrows(IllegalStateException.class, object::close);
+        expectThrows(IllegalStateException.class, object::incRef);
     }
 
     private IntVector intVector(int positionCount) {
         return blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
     }
 
-    private Vector randomNonDocVector() {
+    private Vector randomArrayVector() {
+        int positionCount = randomIntBetween(0, 100);
+        int vectorType = randomIntBetween(0, 4);
+
+        return switch (vectorType) {
+            case 0 -> {
+                boolean[] values = new boolean[positionCount];
+                Arrays.fill(values, randomBoolean());
+                yield blockFactory.newBooleanArrayVector(values, positionCount);
+            }
+            case 1 -> {
+                BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
+                for (int i = 0; i < positionCount; i++) {
+                    values.append(new BytesRef(randomByteArrayOfLength(between(1, 20))));
+                }
+
+                yield blockFactory.newBytesRefArrayVector(values, positionCount);
+            }
+            case 2 -> {
+                double[] values = new double[positionCount];
+                Arrays.fill(values, 1.0);
+
+                yield blockFactory.newDoubleArrayVector(values, positionCount);
+            }
+            case 3 -> {
+                int[] values = new int[positionCount];
+                Arrays.fill(values, 1);
+
+                yield blockFactory.newIntArrayVector(values, positionCount);
+            }
+            default -> {
+                long[] values = new long[positionCount];
+                Arrays.fill(values, 1L);
+
+                yield blockFactory.newLongArrayVector(values, positionCount);
+            }
+        };
+    }
+
+    private Vector randomBigArrayVector() {
+        int positionCount = randomIntBetween(0, 10000);
+        int arrayType = randomIntBetween(0, 3);
+
+        return switch (arrayType) {
+            case 0 -> {
+                BitArray values = new BitArray(positionCount, blockFactory.bigArrays());
+                for (int i = 0; i < positionCount; i++) {
+                    if (randomBoolean()) {
+                        values.set(positionCount);
+                    }
+                }
+
+                yield new BooleanBigArrayVector(values, positionCount, blockFactory);
+            }
+            case 1 -> {
+                DoubleArray values = blockFactory.bigArrays().newDoubleArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomDouble());
+                }
+
+                yield new DoubleBigArrayVector(values, positionCount, blockFactory);
+            }
+            case 2 -> {
+                IntArray values = blockFactory.bigArrays().newIntArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomInt());
+                }
+
+                yield new IntBigArrayVector(values, positionCount, blockFactory);
+            }
+            default -> {
+                LongArray values = blockFactory.bigArrays().newLongArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomLong());
+                }
+
+                yield new LongBigArrayVector(values, positionCount, blockFactory);
+            }
+        };
+    }
+
+    private Vector randomConstantVector() {
         int positionCount = randomIntBetween(0, 100);
         int vectorType = randomIntBetween(0, 4);
 
@@ -1116,7 +1242,7 @@ public class BasicBlockTests extends ESTestCase {
         return switch (arrayType) {
             case 0 -> {
                 boolean[] values = new boolean[positionCount];
-                Arrays.fill(values, true);
+                Arrays.fill(values, randomBoolean());
 
                 yield blockFactory.newBooleanArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
             }
@@ -1145,6 +1271,48 @@ public class BasicBlockTests extends ESTestCase {
                 Arrays.fill(values, 1L);
 
                 yield blockFactory.newLongArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+            }
+        };
+    }
+
+    private Block randomBigArrayBlock() {
+        int positionCount = randomIntBetween(0, 10000);
+        int arrayType = randomIntBetween(0, 3);
+
+        return switch (arrayType) {
+            case 0 -> {
+                BitArray values = new BitArray(positionCount, blockFactory.bigArrays());
+                for (int i = 0; i < positionCount; i++) {
+                    if (randomBoolean()) {
+                        values.set(positionCount);
+                    }
+                }
+
+                yield new BooleanBigArrayBlock(values, positionCount, null, new BitSet(), Block.MvOrdering.UNORDERED, blockFactory);
+            }
+            case 1 -> {
+                DoubleArray values = blockFactory.bigArrays().newDoubleArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomDouble());
+                }
+
+                yield new DoubleBigArrayBlock(values, positionCount, null, new BitSet(), Block.MvOrdering.UNORDERED, blockFactory);
+            }
+            case 2 -> {
+                IntArray values = blockFactory.bigArrays().newIntArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomInt());
+                }
+
+                yield new IntBigArrayBlock(values, positionCount, null, new BitSet(), Block.MvOrdering.UNORDERED, blockFactory);
+            }
+            default -> {
+                LongArray values = blockFactory.bigArrays().newLongArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomLong());
+                }
+
+                yield new LongBigArrayBlock(values, positionCount, null, new BitSet(), Block.MvOrdering.UNORDERED, blockFactory);
             }
         };
     }

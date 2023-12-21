@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -45,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -292,8 +294,24 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
         }, listener::onFailure);
 
-        GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
-        client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
+        ActionListener<GetInferenceModelAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
+            if (getInferenceModelResponse.getModels().isEmpty() == false) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Model IDs must be unique. Requested model ID [{}] matches existing model IDs [{}], but must not.",
+                        request.getModelId(),
+                        getInferenceModelResponse.getModels()
+                    )
+                );
+                return;
+            } else {
+                GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
+                client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
+            }
+        }, listener::onFailure);
+
+        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(request.getModelId(), TaskType.ANY);
+        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, getInferenceModelListener);
     }
 
     private void waitForDeploymentState(

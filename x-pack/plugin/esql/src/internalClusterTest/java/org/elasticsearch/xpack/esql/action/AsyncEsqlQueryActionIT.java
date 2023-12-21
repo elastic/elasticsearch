@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Individual tests for specific aspects of the async query API.
  */
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     @Override

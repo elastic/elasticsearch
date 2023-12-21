@@ -1000,7 +1000,7 @@ public class BasicBlockTests extends ESTestCase {
 
     static void assertCannotDoubleRelease(Block block) {
         var ex = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(ex.getMessage(), containsString("can't release already released block"));
+        assertThat(ex.getMessage(), containsString("can't release already released object"));
     }
 
     static void assertCannotReadFromPage(Page page) {

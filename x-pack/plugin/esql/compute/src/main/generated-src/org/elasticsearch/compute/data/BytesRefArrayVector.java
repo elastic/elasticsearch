@@ -22,17 +22,14 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
 
     private final BytesRefArray values;
 
-    private final BytesRefBlock block;
-
     BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
     public BytesRefBlock asBlock() {
-        return block;
+        return new BytesRefVectorBlock(this);
     }
 
     @Override

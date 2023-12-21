@@ -21,17 +21,14 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     private final $if(boolean)$Bit$else$$Type$$endif$Array values;
 
-    private final $Type$Block block;
-
     public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return block;
+        return new $Type$VectorBlock(this);
     }
 
     @Override

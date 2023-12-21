@@ -27,12 +27,9 @@ $endif$
 
     private final $type$ value;
 
-    private final $Type$Block block;
-
     Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
@@ -46,7 +43,7 @@ $endif$
 
     @Override
     public $Type$Block asBlock() {
-        return block;
+        return new $Type$VectorBlock(this);
     }
 
     @Override

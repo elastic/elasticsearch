@@ -19,12 +19,9 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
 
     private final boolean value;
 
-    private final BooleanBlock block;
-
     ConstantBooleanVector(boolean value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
@@ -34,7 +31,7 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
 
     @Override
     public BooleanBlock asBlock() {
-        return block;
+        return new BooleanVectorBlock(this);
     }
 
     @Override

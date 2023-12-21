@@ -19,12 +19,9 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
 
     private final double value;
 
-    private final DoubleBlock block;
-
     ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new DoubleVectorBlock(this);
     }
 
     @Override
@@ -34,7 +31,7 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
 
     @Override
     public DoubleBlock asBlock() {
-        return block;
+        return new DoubleVectorBlock(this);
     }
 
     @Override

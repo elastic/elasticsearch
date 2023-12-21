@@ -16,7 +16,7 @@ import org.elasticsearch.core.Releasable;
 public interface Vector extends Accountable, Releasable {
 
     /**
-     * {@return Returns a Block view over this vector.}
+     * {@return Returns a new Block containing this vector.}
      */
     Block asBlock();
 

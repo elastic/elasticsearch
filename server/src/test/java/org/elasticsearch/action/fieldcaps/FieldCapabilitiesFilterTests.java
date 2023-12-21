@@ -43,7 +43,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             Strings.EMPTY_ARRAY,
             f -> true,
             null,// TODO-MP change with IndexShard
-            false  // TODO-MP check if correct
+            true  // TODO-MP check if correct
         );
 
         assertNotNull(response.get("field1"));
@@ -71,7 +71,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 Strings.EMPTY_ARRAY,
                 f -> true,
                 null,// TODO-MP change with IndexShard
-                false  // TODO-MP check if correct
+                true  // TODO-MP check if correct
             );
             assertNotNull(response.get("_index"));
             assertNull(response.get("field1"));
@@ -84,7 +84,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 Strings.EMPTY_ARRAY,
                 f -> true,
                 null,// TODO-MP change with IndexShard
-                false  // TODO-MP check if correct
+                true  // TODO-MP check if correct
             );
             assertNull(response.get("_index"));
             assertNotNull(response.get("field1"));
@@ -117,7 +117,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             Strings.EMPTY_ARRAY,
             f -> true,
             null,// TODO-MP change with IndexShard
-            false  // TODO-MP check if correct
+            true  // TODO-MP check if correct
         );
         assertNotNull(response.get("field1"));
         assertNull(response.get("field1.keyword"));
@@ -148,7 +148,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             Strings.EMPTY_ARRAY,
             f -> true,
             null,// TODO-MP change with IndexShard
-            false  // TODO-MP check if correct
+            true  // TODO-MP check if correct
         );
         assertNotNull(response.get("parent.field1"));
         assertNotNull(response.get("parent.field2"));
@@ -176,7 +176,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 Strings.EMPTY_ARRAY,
                 securityFilter,
                 null,// TODO-MP change with IndexShard
-                false  // TODO-MP check if correct
+                true  // TODO-MP check if correct
             );
 
             assertNotNull(response.get("permitted1"));
@@ -192,7 +192,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 Strings.EMPTY_ARRAY,
                 securityFilter,
                 null,// TODO-MP change with IndexShard
-                false  // TODO-MP check if correct
+                true  // TODO-MP check if correct
             );
 
             assertNotNull(response.get("permitted1"));
@@ -220,7 +220,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             new String[] { "text", "keyword" },
             f -> true,
             null,// TODO-MP change with IndexShard
-            false  // TODO-MP check if correct
+            true  // TODO-MP check if correct
         );
         assertNotNull(response.get("field1"));
         assertNull(response.get("field2"));

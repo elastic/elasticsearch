@@ -53,7 +53,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             indexFilter,
             nowInMillis,
             runtimeFields,
-            false // TODO-MP: check this
+            true // TODO-MP: check this
         );
     }
 
@@ -107,7 +107,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    false // TODO-MP: check this
+                    true // TODO-MP: check this
                 );
             }
             case 1 -> {
@@ -121,7 +121,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    false // TODO-MP: check this
+                    true // TODO-MP: check this
                 );
             }
             case 2 -> {
@@ -135,7 +135,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    false // TODO-MP: check this
+                    true // TODO-MP: check this
                 );
             }
             case 3 -> {
@@ -149,7 +149,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     indexFilter,
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    false // TODO-MP: check this
+                    true // TODO-MP: check this
                 );
             }
             case 4 -> {
@@ -163,7 +163,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     nowInMillis,
                     instance.runtimeFields(),
-                    false // TODO-MP: check this
+                    true // TODO-MP: check this
                 );
             }
             case 5 -> {
@@ -179,7 +179,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     runtimeFields,
-                    false // TODO-MP: check this
+                    true // TODO-MP: check this
                 );
             }
             case 6 -> {
@@ -193,7 +193,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    false // TODO-MP: check this
+                    true // TODO-MP: check this
                 );
             }
             case 7 -> {
@@ -207,7 +207,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    false // TODO-MP: check this
+                    true // TODO-MP: check this
                 );
             }
             default -> throw new IllegalStateException("The test should only allow 7 parameters mutated");
@@ -224,7 +224,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             null,
             randomNonNegativeLong(),
             Map.of(),
-            false // TODO-MP: check this
+            true // TODO-MP: check this
         );
         assertThat(r1.getDescription(), equalTo("shards[[index-1][0],[index-2][3]], fields[field-1,field-2], filters[], types[]"));
 
@@ -237,7 +237,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             null,
             randomNonNegativeLong(),
             Map.of(),
-            false // TODO-MP: check this
+            true // TODO-MP: check this
         );
         assertThat(r2.getDescription(), equalTo("shards[[index-1][0]], fields[*], filters[-nested,-metadata], types[]"));
     }

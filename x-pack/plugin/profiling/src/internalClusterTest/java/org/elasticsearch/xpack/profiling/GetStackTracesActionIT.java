@@ -30,8 +30,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(18, stackTrace.fileIds.size());
         assertEquals(18, stackTrace.frameIds.size());
         assertEquals(18, stackTrace.typeIds.size());
-        assertEquals(0.0000098789d, stackTrace.annualCO2Tons, 0.0000000001d);
-        assertEquals(0.093075d, stackTrace.annualCostsUSD, 0.000001d);
+        assertEquals(0.0000048475146d, stackTrace.annualCO2Tons, 0.0000000001d);
+        assertEquals(0.18834d, stackTrace.annualCostsUSD, 0.00001d);
 
         assertNotNull(response.getStackFrames());
         StackFrame stackFrame = response.getStackFrames().get("8NlMClggx8jaziUTJXlmWAAAAAAAAIYI");

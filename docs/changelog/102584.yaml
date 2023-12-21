@@ -1,0 +1,5 @@
+pr: 102584
+summary: Expose some ML metrics via APM
+area: Machine Learning
+type: enhancement
+issues: []

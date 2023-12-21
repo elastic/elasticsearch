@@ -16,17 +16,13 @@ import java.util.BitSet;
  * Block implementation that stores an array of boolean.
  * This class is generated. Do not edit it.
  */
-public final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {
+final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayBlock.class);
 
     private final BooleanArrayVector values;
 
-    public BooleanArrayBlock(boolean[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public BooleanArrayBlock(
+    BooleanArrayBlock(
         boolean[] values,
         int positionCount,
         int[] firstValueIndexes,

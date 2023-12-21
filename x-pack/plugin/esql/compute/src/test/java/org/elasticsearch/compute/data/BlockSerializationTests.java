@@ -152,7 +152,7 @@ public class BlockSerializationTests extends SerializationTestCase {
     // TODO: more types, grouping, etc...
     public void testSimulateAggs() {
         DriverContext driverCtx = driverContext();
-        Page page = new Page(new LongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
+        Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
         var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         var params = new Object[] {};
         var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
@@ -167,18 +167,20 @@ public class BlockSerializationTests extends SerializationTestCase {
                     .forEach(i -> EqualsHashCodeTestUtils.checkEqualsAndHashCode(blocks[i], unused -> deserBlocks[i]));
 
                 var inputChannels = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
-                var finalAggregator = SumLongAggregatorFunction.create(driverCtx, inputChannels);
-                finalAggregator.addIntermediateInput(new Page(deserBlocks));
-                Block[] finalBlocks = new Block[1];
-                finalAggregator.evaluateFinal(finalBlocks, 0, driverCtx);
-                try (var finalBlock = (LongBlock) finalBlocks[0]) {
-                    assertThat(finalBlock.getLong(0), is(55L));
+                try (var finalAggregator = SumLongAggregatorFunction.create(driverCtx, inputChannels)) {
+                    finalAggregator.addIntermediateInput(new Page(deserBlocks));
+                    Block[] finalBlocks = new Block[1];
+                    finalAggregator.evaluateFinal(finalBlocks, 0, driverCtx);
+                    try (var finalBlock = (LongBlock) finalBlocks[0]) {
+                        assertThat(finalBlock.getLong(0), is(55L));
+                    }
                 }
             } finally {
                 Releasables.close(deserBlocks);
             }
         } finally {
             Releasables.close(blocks);
+            page.releaseBlocks();
         }
     }
 

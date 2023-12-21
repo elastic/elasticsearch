@@ -16,17 +16,13 @@ import java.util.BitSet;
  * Block implementation that stores an array of int.
  * This class is generated. Do not edit it.
  */
-public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
+final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
 
     private final IntArrayVector values;
 
-    public IntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public IntArrayBlock(
+    IntArrayBlock(
         int[] values,
         int positionCount,
         int[] firstValueIndexes,

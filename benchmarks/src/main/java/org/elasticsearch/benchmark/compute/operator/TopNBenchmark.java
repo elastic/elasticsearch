@@ -115,7 +115,7 @@ public class TopNBenchmark {
             ClusterSettings.createBuiltInClusterSettings()
         );
         return new TopNOperator(
-            BlockFactory.getNonBreakingInstance(),
+            blockFactory,
             breakerService.getBreaker(CircuitBreaker.REQUEST),
             topCount,
             elementTypes,

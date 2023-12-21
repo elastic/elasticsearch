@@ -880,7 +880,7 @@ public class BasicBlockTests extends ESTestCase {
         int maxDupsPerPosition
     ) {
         return randomBlock(
-            BlockFactory.getNonBreakingInstance(),
+            TestBlockFactory.getNonBreakingInstance(),
             elementType,
             positionCount,
             nullAllowed,

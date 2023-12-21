@@ -29,7 +29,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
     public abstract TestBlockBuilder endPositionEntry();
 
     public static Block blockFromValues(List<List<Object>> blockValues, ElementType elementType) {
-        TestBlockBuilder builder = builderOf(BlockFactory.getNonBreakingInstance(), elementType);
+        TestBlockBuilder builder = builderOf(TestBlockFactory.getNonBreakingInstance(), elementType);
         for (List<Object> rowValues : blockValues) {
             if (rowValues.isEmpty()) {
                 builder.appendNull();
@@ -47,7 +47,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
     // Builds a block of single values. Each value can be null or non-null.
     // Differs from blockFromValues, as it does not use begin/endPositionEntry
     public static Block blockFromSingleValues(List<Object> blockValues, ElementType elementType) {
-        TestBlockBuilder builder = builderOf(BlockFactory.getNonBreakingInstance(), elementType);
+        TestBlockBuilder builder = builderOf(TestBlockFactory.getNonBreakingInstance(), elementType);
         for (Object rowValue : blockValues) {
             if (rowValue == null) {
                 builder.appendNull();

@@ -125,7 +125,7 @@ public class BasicPageTests extends SerializationTestCase {
             for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
                 Block block = page.getBlock(blockIndex);
                 blocks[blockIndex] = block.elementType()
-                    .newBlockBuilder(positions, BlockFactory.getNonBreakingInstance())
+                    .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
                     .copyFrom(block, 0, page.getPositionCount() - 1)
                     .build();
             }

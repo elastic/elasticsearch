@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -294,7 +295,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         IntVector docIndices = docBlock.asVector().docs();
         Block originalData = testData.getBlock(columnIndex);
         Block.Builder builder = originalData.elementType()
-            .newBlockBuilder(docIndices.getPositionCount(), BlockFactory.getNonBreakingInstance());
+            .newBlockBuilder(docIndices.getPositionCount(), TestBlockFactory.getNonBreakingInstance());
         for (int c = 0; c < docIndices.getPositionCount(); c++) {
             int doc = docIndices.getInt(c);
             builder.copyFrom(originalData, doc, doc + 1);

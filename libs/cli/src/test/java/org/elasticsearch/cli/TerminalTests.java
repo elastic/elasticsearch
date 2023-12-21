@@ -9,11 +9,15 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
+@WithoutSecurityManager
 public class TerminalTests extends ESTestCase {
 
     public void testSystemTerminalIfRedirected() {
-        // expect system terminal if redirected for tests
+        // Expect system terminal if redirected for tests.
+        // To force new behavior in JDK 22 this should run without security manager.
+        // Otherwise, JDK 22 doesn't provide a console if redirected.
         assertEquals(Terminal.SystemTerminal.class, Terminal.DEFAULT.getClass());
     }
 }

@@ -298,7 +298,7 @@ public abstract class Terminal {
                     Method isTerminal = Console.class.getMethod("isTerminal");
                     return Boolean.TRUE.equals(isTerminal.invoke(console)) ? console : null;
                 } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-                    throw new RuntimeException(e);
+                    throw new AssertionError(e);
                 }
             }
             return console;

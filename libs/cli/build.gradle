@@ -17,12 +17,6 @@ dependencies {
   }
 }
 
-tasks.named("test").configure {
-  // Disable security to force new behavior in JDK 22.
-  // If enabled, JDK 22 doesn't provide a console if redirected.
-  systemProperty 'tests.security.manager', 'false'
-}
-
 // Since CLI does not depend on :server, it cannot run the jarHell task
 tasks.named("jarHell").configure { enabled = false }
 

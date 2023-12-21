@@ -131,8 +131,8 @@
 ---
 "null MappedFieldType on single value detection (https://github.com/elastic/elasticsearch/issues/103141)":
   - skip:
-      version: " - 8.12.99"
-      reason: "fixes in 8.13 or later"
+      version: all
+      reason: "AwaitsFix fix https://github.com/elastic/elasticsearch/issues/103561"
   - do:
       indices.create:
         index: npe_single_value_1

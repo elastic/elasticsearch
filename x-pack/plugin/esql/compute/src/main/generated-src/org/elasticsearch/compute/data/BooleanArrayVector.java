@@ -15,7 +15,7 @@ import java.util.Arrays;
  * Vector implementation that stores an array of boolean values.
  * This class is generated. Do not edit it.
  */
-public final class BooleanArrayVector extends AbstractVector implements BooleanVector {
+final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class);
 
@@ -23,11 +23,7 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
 
     private final BooleanBlock block;
 
-    public BooleanArrayVector(boolean[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {
+    BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
         this.block = new BooleanVectorBlock(this);

@@ -107,7 +107,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -216,8 +215,26 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static EnumSet<ProductFeature> availableFeatures;
-    private static Set<String> nodeVersions;
+    private static Set<String> nodesVersions;
     private static TestFeatureService testFeatureService;
+
+    protected static Set<String> getCachedNodesVersions() {
+        assert nodesVersions != null;
+        return nodesVersions;
+    }
+
+    protected static Set<String> readVersionsFromNodesInfo(RestClient adminClient) throws IOException {
+        return getNodesInfo(adminClient).values().stream().map(nodeInfo -> nodeInfo.get("version").toString()).collect(Collectors.toSet());
+    }
+
+    protected static Map<String, Map<?, ?>> getNodesInfo(RestClient adminClient) throws IOException {
+        Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
+        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+
+        return nodes.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> (Map<?, ?>) entry.getValue()));
+    }
 
     protected static boolean clusterHasFeature(String featureId) {
         return testFeatureService.clusterHasFeature(featureId);
@@ -233,7 +250,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert adminClient == null;
             assert clusterHosts == null;
             assert availableFeatures == null;
-            assert nodeVersions == null;
+            assert nodesVersions == null;
             assert testFeatureService == null;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
@@ -241,16 +258,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
-            nodeVersions = new TreeSet<>();
-            var semanticNodeVersions = new HashSet<Version>();
+            Set<String> versions = new HashSet<>();
             boolean serverless = false;
-            Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
-            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-            for (Map.Entry<?, ?> node : nodes.entrySet()) {
-                Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+
+            for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
                 var nodeVersion = nodeInfo.get("version").toString();
-                nodeVersions.add(nodeVersion);
-                parseLegacyVersion(nodeVersion).map(semanticNodeVersions::add);
+                versions.add(nodeVersion);
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
@@ -289,21 +302,15 @@ public abstract class ESRestTestCase extends ESTestCase {
                     );
                 }
             }
+            nodesVersions = Collections.unmodifiableSet(versions);
 
+            var semanticNodeVersions = nodesVersions.stream()
+                .map(ESRestTestCase::parseLegacyVersion)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
-            // Historical features information is unavailable when using legacy test plugins
-            boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
-            var providers = hasHistoricalFeaturesInformation
-                ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
-                : List.of(new RestTestLegacyFeatures());
-
-            testFeatureService = new TestFeatureService(
-                hasHistoricalFeaturesInformation,
-                providers,
-                semanticNodeVersions,
-                ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures().values())
-            );
+            testFeatureService = createTestFeatureService(adminClient, semanticNodeVersions);
         }
 
         assert testFeatureService != null;
@@ -311,7 +318,23 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert adminClient != null;
         assert clusterHosts != null;
         assert availableFeatures != null;
-        assert nodeVersions != null;
+        assert nodesVersions != null;
+    }
+
+    protected static TestFeatureService createTestFeatureService(RestClient adminClient, Set<Version> semanticNodeVersions)
+        throws IOException {
+        // Historical features information is unavailable when using legacy test plugins
+        boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
+        var providers = hasHistoricalFeaturesInformation
+            ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
+            : List.of(new RestTestLegacyFeatures());
+
+        return new TestFeatureService(
+            hasHistoricalFeaturesInformation,
+            providers,
+            semanticNodeVersions,
+            ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures(adminClient).values())
+        );
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -415,7 +438,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
-        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(new HashSet<>(nodeVersions));
+        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(getCachedNodesVersions());
         expectationsSetter.accept(warningsHandler);
         builder.setWarningsHandler(warningsHandler);
         return builder.build();
@@ -484,7 +507,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = null;
             adminClient = null;
             availableFeatures = null;
-            nodeVersions = null;
+            nodesVersions = null;
             testFeatureService = null;
         }
     }
@@ -1947,10 +1970,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             || name.startsWith("logs-apm")) {
             return true;
         }
+        if (name.startsWith(".slm-history") || name.startsWith("ilm-history")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
-            case ".slm-history":
             case ".async-search":
             case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
@@ -1965,7 +1990,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
-            case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
@@ -2070,11 +2094,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private static Map<String, Set<String>> getClusterStateFeatures() throws IOException {
+    private static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
         final Request request = new Request("GET", "_cluster/state");
         request.addParameter("filter_path", "nodes_features");
 
-        final Response response = adminClient().performRequest(request);
+        final Response response = adminClient.performRequest(request);
 
         var responseData = responseAsMap(response);
         if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {

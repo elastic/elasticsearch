@@ -21,7 +21,6 @@ import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.Task;
@@ -45,15 +44,13 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         listener.onResponse(
             new SearchResponse(
-                new InternalSearchResponse(
-                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                    InternalAggregations.EMPTY,
-                    new Suggest(Collections.emptyList()),
-                    new SearchProfileResults(Collections.emptyMap()),
-                    false,
-                    false,
-                    1
-                ),
+                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                InternalAggregations.EMPTY,
+                new Suggest(Collections.emptyList()),
+                false,
+                false,
+                new SearchProfileResults(Collections.emptyMap()),
+                1,
                 "",
                 1,
                 1,

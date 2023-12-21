@@ -7,18 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.operator.ComputeTestCase;
 
 import java.util.BitSet;
 import java.util.List;
 
-public class LongBlockEqualityTests extends ESTestCase {
+public class LongBlockEqualityTests extends ComputeTestCase {
+
+    static final BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
 
     public void testEmptyVector() {
         // all these "empty" vectors should be equivalent
         List<LongVector> vectors = List.of(
-            new LongArrayVector(new long[] {}, 0),
-            new LongArrayVector(new long[] { 0 }, 0),
+            blockFactory.newLongArrayVector(new long[] {}, 0),
+            blockFactory.newLongArrayVector(new long[] { 0 }, 0),
             LongBlock.newConstantBlockWith(0, 0).asVector(),
             LongBlock.newConstantBlockWith(0, 0).filter().asVector(),
             LongBlock.newBlockBuilder(0).build().asVector(),
@@ -30,8 +32,14 @@ public class LongBlockEqualityTests extends ESTestCase {
     public void testEmptyBlock() {
         // all these "empty" vectors should be equivalent
         List<LongBlock> blocks = List.of(
-            new LongArrayBlock(new long[] {}, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 }), randomFrom(Block.MvOrdering.values())),
-            new LongArrayBlock(
+            blockFactory.newLongArrayBlock(
+                new long[] {},
+                0,
+                new int[] {},
+                BitSet.valueOf(new byte[] { 0b00 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            blockFactory.newLongArrayBlock(
                 new long[] { 0 },
                 0,
                 new int[] {},
@@ -49,13 +57,13 @@ public class LongBlockEqualityTests extends ESTestCase {
     public void testVectorEquality() {
         // all these vectors should be equivalent
         List<LongVector> vectors = List.of(
-            new LongArrayVector(new long[] { 1, 2, 3 }, 3),
-            new LongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock().asVector(),
-            new LongArrayVector(new long[] { 1, 2, 3, 4 }, 3),
-            new LongArrayVector(new long[] { 1, 2, 3 }, 3).filter(0, 1, 2),
-            new LongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
-            new LongArrayVector(new long[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
-            new LongArrayVector(new long[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock().asVector(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).filter(0, 1, 2),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
+            blockFactory.newLongArrayVector(new long[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().asVector(),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().asVector().filter(0, 1, 2),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(4).appendLong(2).appendLong(3).build().filter(0, 2, 3).asVector(),
@@ -65,13 +73,13 @@ public class LongBlockEqualityTests extends ESTestCase {
 
         // all these constant-like vectors should be equivalent
         List<LongVector> moreVectors = List.of(
-            new LongArrayVector(new long[] { 1, 1, 1 }, 3),
-            new LongArrayVector(new long[] { 1, 1, 1 }, 3).asBlock().asVector(),
-            new LongArrayVector(new long[] { 1, 1, 1, 1 }, 3),
-            new LongArrayVector(new long[] { 1, 1, 1 }, 3).filter(0, 1, 2),
-            new LongArrayVector(new long[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
-            new LongArrayVector(new long[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
-            new LongArrayVector(new long[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 1 }, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 1 }, 3).asBlock().asVector(),
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 1, 1 }, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 1 }, 3).filter(0, 1, 2),
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
+            blockFactory.newLongArrayVector(new long[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
             LongBlock.newConstantBlockWith(1, 3).asVector(),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(1).appendLong(1).build().asVector(),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(1).appendLong(1).build().asVector().filter(0, 1, 2),
@@ -84,25 +92,25 @@ public class LongBlockEqualityTests extends ESTestCase {
     public void testBlockEquality() {
         // all these blocks should be equivalent
         List<LongBlock> blocks = List.of(
-            new LongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock(),
-            new LongArrayBlock(
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock(),
+            blockFactory.newLongArrayBlock(
                 new long[] { 1, 2, 3 },
                 3,
                 new int[] { 0, 1, 2, 3 },
                 BitSet.valueOf(new byte[] { 0b000 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            new LongArrayBlock(
+            blockFactory.newLongArrayBlock(
                 new long[] { 1, 2, 3, 4 },
                 3,
                 new int[] { 0, 1, 2, 3 },
                 BitSet.valueOf(new byte[] { 0b1000 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            new LongArrayVector(new long[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
-            new LongArrayVector(new long[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
-            new LongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
-            new LongArrayVector(new long[] { 1, 2, 4, 3 }, 4).filter(0, 1, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 4, 3 }, 4).filter(0, 1, 3).asBlock(),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build(),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().filter(0, 1, 2),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(4).appendLong(2).appendLong(3).build().filter(0, 2, 3),
@@ -112,25 +120,25 @@ public class LongBlockEqualityTests extends ESTestCase {
 
         // all these constant-like blocks should be equivalent
         List<LongBlock> moreBlocks = List.of(
-            new LongArrayVector(new long[] { 9, 9 }, 2).asBlock(),
-            new LongArrayBlock(
+            blockFactory.newLongArrayVector(new long[] { 9, 9 }, 2).asBlock(),
+            blockFactory.newLongArrayBlock(
                 new long[] { 9, 9 },
                 2,
                 new int[] { 0, 1, 2 },
                 BitSet.valueOf(new byte[] { 0b000 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            new LongArrayBlock(
+            blockFactory.newLongArrayBlock(
                 new long[] { 9, 9, 4 },
                 2,
                 new int[] { 0, 1, 2 },
                 BitSet.valueOf(new byte[] { 0b100 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            new LongArrayVector(new long[] { 9, 9 }, 2).filter(0, 1).asBlock(),
-            new LongArrayVector(new long[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
-            new LongArrayVector(new long[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
-            new LongArrayVector(new long[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9, 9 }, 2).filter(0, 1).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
             LongBlock.newConstantBlockWith(9, 2),
             LongBlock.newBlockBuilder(2).appendLong(9).appendLong(9).build(),
             LongBlock.newBlockBuilder(2).appendLong(9).appendLong(9).build().filter(0, 1),
@@ -143,11 +151,11 @@ public class LongBlockEqualityTests extends ESTestCase {
     public void testVectorInequality() {
         // all these vectors should NOT be equivalent
         List<LongVector> notEqualVectors = List.of(
-            new LongArrayVector(new long[] { 1 }, 1),
-            new LongArrayVector(new long[] { 9 }, 1),
-            new LongArrayVector(new long[] { 1, 2 }, 2),
-            new LongArrayVector(new long[] { 1, 2, 3 }, 3),
-            new LongArrayVector(new long[] { 1, 2, 4 }, 3),
+            blockFactory.newLongArrayVector(new long[] { 1 }, 1),
+            blockFactory.newLongArrayVector(new long[] { 9 }, 1),
+            blockFactory.newLongArrayVector(new long[] { 1, 2 }, 2),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 4 }, 3),
             LongBlock.newConstantBlockWith(9, 2).asVector(),
             LongBlock.newBlockBuilder(2).appendLong(1).appendLong(2).build().asVector().filter(1),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(2).appendLong(5).build().asVector(),
@@ -159,11 +167,11 @@ public class LongBlockEqualityTests extends ESTestCase {
     public void testBlockInequality() {
         // all these blocks should NOT be equivalent
         List<LongBlock> notEqualBlocks = List.of(
-            new LongArrayVector(new long[] { 1 }, 1).asBlock(),
-            new LongArrayVector(new long[] { 9 }, 1).asBlock(),
-            new LongArrayVector(new long[] { 1, 2 }, 2).asBlock(),
-            new LongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock(),
-            new LongArrayVector(new long[] { 1, 2, 4 }, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1 }, 1).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9 }, 1).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2 }, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 4 }, 3).asBlock(),
             LongBlock.newConstantBlockWith(9, 2),
             LongBlock.newBlockBuilder(2).appendLong(1).appendLong(2).build().filter(1),
             LongBlock.newBlockBuilder(3).appendLong(1).appendLong(2).appendLong(5).build(),

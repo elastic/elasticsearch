@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 
 import java.util.Map;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class GrokEvaluatorExtracterTests extends ESTestCase {
-    final BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+    final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     final Map<String, Integer> KEY_TO_BLOCK = Map.of("a", 0, "b", 1, "c", 2, "d", 3, "e", 4, "f", 5);
     final Map<String, ElementType> TYPES = Map.of(

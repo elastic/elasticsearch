@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -374,7 +375,7 @@ public class MultivalueDedupeTests extends ESTestCase {
          * This produces a block with a single value per position, but it's good enough
          * for comparison.
          */
-        Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset), BlockFactory.getNonBreakingInstance());
+        Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset), TestBlockFactory.getNonBreakingInstance());
         BytesRef[] toDecode = new BytesRef[encoder.valueCount(offset)];
         for (int i = 0; i < toDecode.length; i++) {
             BytesRefBuilder dest = new BytesRefBuilder();

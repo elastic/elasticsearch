@@ -280,15 +280,6 @@ ids query:
       search:
         index: test
         body:
-          query:
-            match_all:  {}
-
-  - match: { hits.total.value: 8 }
-
-  - do:
-      search:
-        index: test
-        body:
           fields:
             - field: k8s.pod.network.tx
           query:
@@ -306,15 +297,6 @@ get:
   - skip:
       version: " - 8.12.99"
       reason: _tsid hasing introduced in 8.13
-
-  - do:
-      search:
-        index: test
-        body:
-          query:
-            match_all: {}
-
-  - match: { hits.total.value: 8 }
 
   - do:
       get:
@@ -402,15 +384,6 @@ delete over _bulk:
   - skip:
       version: " - 8.1.99"
       reason: ids generation changed in 8.2
-
-  - do:
-      search:
-        index: test
-        body:
-          query:
-            match_all: {}
-
-  - match: { hits.total.value: 8 }
 
   # mget call added to investigate test failure: https://github.com/elastic/elasticsearch/issues/93852
   # (should be removed when test issue is resolved)

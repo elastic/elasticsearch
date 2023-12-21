@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -25,7 +29,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
+/**
+ * A request to start a compute on a remote cluster. The output pages of the compute on the remote cluster will be placed
+ * in an exchange sink specified by {@code sessionId}. The exchange sink with this sessionId should have been opened by
+ * {@link ExchangeService#openExchange(TransportService, Transport.Connection, String, int, Executor, ActionListener)} before
+ * sending this request to the remote cluster. The coordinator on the main cluster will poll pages from this sink.
+ * Internally, this compute can initiate computations on data nodes via {@link DataNodeRequest}.
+ */
 final class ClusterComputeRequest extends TransportRequest implements IndicesRequest {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String clusterAlias;
@@ -36,6 +48,16 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
     private final String[] originalIndices;
     private final String[] indices;
 
+    /**
+     * A request to start a compute on a remote cluster.
+     *
+     * @param clusterAlias the cluster alias of this remote cluster
+     * @param sessionId the sessionId in which the output pages will be placed in the exchange sink specified by this id
+     * @param configuration the configuration for this compute
+     * @param plan the physical plan to be executed
+     * @param indices the target indices
+     * @param originalIndices the original indices - needed to resolve alias filters
+     */
     ClusterComputeRequest(
         String clusterAlias,
         String sessionId,

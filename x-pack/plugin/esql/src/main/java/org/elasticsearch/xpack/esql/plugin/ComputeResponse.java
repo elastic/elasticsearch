@@ -16,6 +16,9 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
+ */
 final class ComputeResponse extends TransportResponse {
     private final List<DriverProfile> profiles;
 

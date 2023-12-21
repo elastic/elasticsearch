@@ -151,6 +151,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             (p, c) -> ElasticsearchException.fromXContent(p),
             FATAL_EXCEPTION
         );
+        STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_DOCS_COUNT);
+        STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), LEADER_DOCS_COUNT);
     }
 
     static final ParseField READ_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
@@ -412,11 +414,11 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.successfulWriteRequests = successfulWriteRequests;
         this.failedWriteRequests = failedWriteRequests;
         this.operationWritten = operationWritten;
-        this.followerDocsCount = followerDocsCount;
-        this.leaderDocsCount = leaderDocsCount;
         this.readExceptions = Objects.requireNonNull(readExceptions);
         this.timeSinceLastReadMillis = timeSinceLastReadMillis;
         this.fatalException = fatalException;
+        this.followerDocsCount = followerDocsCount;
+        this.leaderDocsCount = leaderDocsCount;
     }
 
     public ShardFollowNodeTaskStatus(final StreamInput in) throws IOException {

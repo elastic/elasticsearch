@@ -67,7 +67,7 @@ public class BulkUpdateApiKeyRequestSerializationTests extends AbstractWireSeria
             instance.getIds(),
             instance.getRoleDescriptors(),
             metadata,
-            TimeValue.parseTimeValue(days + "d", null, "expiration")
+            TimeValue.parseTimeValue((days + 1) + "d", null, "expiration")
         );
     }
 }

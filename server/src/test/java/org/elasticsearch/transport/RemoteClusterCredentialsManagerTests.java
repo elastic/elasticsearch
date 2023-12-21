@@ -55,10 +55,62 @@ public class RemoteClusterCredentialsManagerTests extends ESTestCase {
         }
     }
 
+    public void testUpdateRemoteClusterCredentials() {
+        final String clusterAlias = randomAlphaOfLength(9);
+        final String otherClusterAlias = randomAlphaOfLength(10);
+
+        final RemoteClusterCredentialsManager credentialsManager = new RemoteClusterCredentialsManager(Settings.EMPTY);
+
+        // addition
+        {
+            final RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult actual = credentialsManager.updateClusterCredentials(
+                buildSettingsWithRandomCredentialsForAliases(clusterAlias, otherClusterAlias)
+            );
+            assertThat(actual.addedClusterAliases(), containsInAnyOrder(clusterAlias, otherClusterAlias));
+            assertThat(actual.removedClusterAliases(), is(empty()));
+        }
+
+        // update and removal
+        {
+            final RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult actual = credentialsManager.updateClusterCredentials(
+                buildSettingsWithRandomCredentialsForAliases(clusterAlias)
+            );
+            assertThat(actual.addedClusterAliases(), is(empty()));
+            assertThat(actual.removedClusterAliases(), containsInAnyOrder(otherClusterAlias));
+        }
+
+        // addition and removal
+        {
+            final RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult actual = credentialsManager.updateClusterCredentials(
+                buildSettingsWithRandomCredentialsForAliases(otherClusterAlias)
+            );
+            assertThat(actual.addedClusterAliases(), containsInAnyOrder(otherClusterAlias));
+            assertThat(actual.removedClusterAliases(), containsInAnyOrder(clusterAlias));
+        }
+
+        // removal
+        {
+            final RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult actual = credentialsManager.updateClusterCredentials(
+                Settings.EMPTY
+            );
+            assertThat(actual.addedClusterAliases(), is(empty()));
+            assertThat(actual.removedClusterAliases(), containsInAnyOrder(otherClusterAlias));
+        }
+    }
+
     private Settings buildSettingsWithCredentials(String clusterAlias, String secret) {
         final Settings.Builder builder = Settings.builder();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("cluster.remote." + clusterAlias + ".credentials", secret);
+        return builder.setSecureSettings(secureSettings).build();
+    }
+
+    private Settings buildSettingsWithRandomCredentialsForAliases(String... clusterAliases) {
+        final Settings.Builder builder = Settings.builder();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        for (var alias : clusterAliases) {
+            secureSettings.setString("cluster.remote." + alias + ".credentials", randomAlphaOfLength(42));
+        }
         return builder.setSecureSettings(secureSettings).build();
     }
 }

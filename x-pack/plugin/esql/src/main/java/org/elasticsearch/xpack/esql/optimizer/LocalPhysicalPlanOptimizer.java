@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
@@ -334,13 +333,13 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             // check is_not_null pattern
             if (child instanceof FilterExec filterExec) {
                 Expression condition = filterExec.condition();
-                boolean pushdownAgg = true;
                 if (condition instanceof IsNotNull inn) {
                     Expression field = inn.field();
                     boolean found = false;
                     for (NamedExpression agg : aggregateExec.aggregates()) {
                         if (agg instanceof Alias as && as.child() instanceof AggregateFunction af && field.equals(af.field())) {
                             found = true;
+                            break;
                         }
                     }
                     // skip filter

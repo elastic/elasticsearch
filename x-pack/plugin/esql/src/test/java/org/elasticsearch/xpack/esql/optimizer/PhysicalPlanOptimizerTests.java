@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -85,6 +84,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -281,7 +282,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no and salary*/));
-        assertThat(query.query(), is(QueryBuilders.existsQuery("salary")));
+        assertThat(query.query(), is(existsQuery("salary")));
     }
 
     /**
@@ -318,7 +319,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // for doc ids, emp_no, salary
         int estimatedSize = Integer.BYTES * 3;
         assertThat(query.estimatedRowSize(), equalTo(estimatedSize));
-        assertThat(query.query(), is(QueryBuilders.existsQuery("salary")));
+        assertThat(query.query(), is(existsQuery("salary")));
     }
 
     /**
@@ -454,7 +455,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(QueryBuilders.existsQuery("emp_no")));
+        assertThat(query.query(), is(existsQuery("emp_no")));
     }
 
     public void testDoNotExtractGroupingFields() {
@@ -559,7 +560,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(QueryBuilders.existsQuery("emp_no")));
+        assertThat(query.query(), is(existsQuery("emp_no")));
     }
 
     /**
@@ -594,7 +595,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(QueryBuilders.existsQuery("emp_no")));
+        assertThat(query.query(), is(existsQuery("emp_no")));
+    }
+
+    public void testQueryForStatWithMultiAgg() {
+        var plan = physicalPlan("""
+            from test
+            | stats agg_1 = sum(emp_no), agg_2 = min(salary)
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var agg = as(topLimit.child(), AggregateExec.class);
+        var exchange = asRemoteExchange(agg.child());
+        var aggregate = as(exchange.child(), AggregateExec.class);
+        // sum is long, x isn't calculated until the agg above
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("emp_no", "salary"));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
+        assertThat(query.query(), is(boolQuery().should(existsQuery("emp_no")).should(existsQuery("salary"))));
     }
 
     public void testQueryWithNull() {

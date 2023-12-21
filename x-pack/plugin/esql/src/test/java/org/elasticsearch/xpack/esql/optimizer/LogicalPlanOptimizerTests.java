@@ -2144,8 +2144,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[gender{f}#22],[COUNT(emp_no{f}#20) AS cy, MIN(salary{f}#25) AS cx, gender{f}#22]]
-     *   \_Filter[ISNOTNULL(emp_no{f}#20) OR ISNOTNULL(salary{f}#25)]
-     *     \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     *   \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
      */
     public void testPruneEvalAliasMixedWithRenameOnAggGrouped() {
         var plan = plan("""
@@ -2172,9 +2171,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[gender{f}#20],[COUNT(x{r}#4) AS cy, MIN(x{r}#4) AS cx, gender{f}#20]]
-     *   \_Filter[ISNOTNULL(x{r}#4)]
-     *     \_Eval[[emp_no{f}#18 + 1[INTEGER] AS x]]
-     *       \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *   \_Eval[[emp_no{f}#18 + 1[INTEGER] AS x]]
+     *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testEvalAliasingAcrossCommands() {
         var plan = plan("""
@@ -2204,9 +2202,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[gender{f}#20],[COUNT(x{r}#4) AS cy, MIN(x{r}#4) AS cx, gender{f}#20]]
-     *   \_Filter[ISNOTNULL(x{r}#4)]
-     *     \_Eval[[emp_no{f}#18 + 1[INTEGER] AS x]]
-     *       \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *    \_Eval[[emp_no{f}#18 + 1[INTEGER] AS x]]
+     *      \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testEvalAliasingInsideSameCommand() {
         var plan = plan("""
@@ -2233,9 +2230,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * Limit[500[INTEGER]]
      * \_Aggregate[[gender{f}#23],[COUNT(z{r}#10) AS cy, MIN(x{r}#4) AS cx, gender{f}#23]]
-     *   \_Filter[ISNOTNULL(z{r}#10) OR ISNOTNULL(x{r}#4)]
-     *     \_Eval[[emp_no{f}#21 + 1[INTEGER] AS x, x{r}#4 + 1[INTEGER] AS z]]
-     *       \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *   \_Eval[[emp_no{f}#21 + 1[INTEGER] AS x, x{r}#4 + 1[INTEGER] AS z]]
+     *     \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
      */
     public void testEvalAliasingInsideSameCommandWithShadowing() {
         var plan = plan("""

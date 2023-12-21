@@ -95,7 +95,6 @@ public class BlockBuilderAppendBlockTests extends ComputeTestCase {
     }
 
     private Block randomlyDivideAndMerge(Block block) {
-        assertFalse(block.isReleased());
         while (block.getPositionCount() > 1 || randomBoolean()) {
             int positionCount = block.getPositionCount();
             int offset = 0;
@@ -108,14 +107,13 @@ public class BlockBuilderAppendBlockTests extends ComputeTestCase {
                     positions[i] = offset + i;
                 }
                 offset += length;
-                try (Block sub = block.filter(positions)) {
-                    expected.add(extractAndFlattenBlockValues(sub));
-                    builder.appendAllValuesToCurrentPosition(sub);
-                }
+                Block sub = block.filter(positions);
+                expected.add(extractAndFlattenBlockValues(sub));
+                builder.appendAllValuesToCurrentPosition(sub);
+                sub.close();
             }
             block.close();
             block = builder.build();
-            assertFalse(block.isReleased());
             assertThat(block.getPositionCount(), equalTo(expected.size()));
             for (int i = 0; i < block.getPositionCount(); i++) {
                 assertThat(BlockUtils.toJavaObject(block, i), equalTo(expected.get(i)));

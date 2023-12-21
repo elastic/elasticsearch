@@ -12,6 +12,8 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -20,18 +22,37 @@ public class RemoteClusterCredentialsManagerTests extends ESTestCase {
         final String clusterAlias = randomAlphaOfLength(9);
         final String otherClusterAlias = randomAlphaOfLength(10);
 
-        final String secret = randomAlphaOfLength(20);
-        final Settings settings = buildSettingsWithCredentials(clusterAlias, secret);
-        RemoteClusterCredentialsManager credentialsManager = new RemoteClusterCredentialsManager(settings);
-        assertThat(credentialsManager.resolveCredentials(clusterAlias).toString(), equalTo(secret));
-        assertThat(credentialsManager.hasCredentials(otherClusterAlias), is(false));
+        final RemoteClusterCredentialsManager credentialsManager = new RemoteClusterCredentialsManager(Settings.EMPTY);
+        {
+            final String secret = randomAlphaOfLength(20);
+            final Settings settings = buildSettingsWithCredentials(clusterAlias, secret);
+            final RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult actual = credentialsManager.updateClusterCredentials(
+                settings
+            );
+            assertThat(actual.addedClusterAliases(), containsInAnyOrder(clusterAlias));
+            assertThat(actual.removedClusterAliases(), is(empty()));
+            assertThat(credentialsManager.resolveCredentials(clusterAlias).toString(), equalTo(secret));
+            assertThat(credentialsManager.hasCredentials(otherClusterAlias), is(false));
+        }
 
-        final String updatedSecret = randomAlphaOfLength(21);
-        credentialsManager.updateClusterCredentials(buildSettingsWithCredentials(clusterAlias, updatedSecret));
-        assertThat(credentialsManager.resolveCredentials(clusterAlias).toString(), equalTo(updatedSecret));
+        {
+            final String updatedSecret = randomAlphaOfLength(21);
+            final RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult actual = credentialsManager.updateClusterCredentials(
+                buildSettingsWithCredentials(clusterAlias, updatedSecret)
+            );
+            assertThat(credentialsManager.resolveCredentials(clusterAlias).toString(), equalTo(updatedSecret));
+            assertThat(actual.addedClusterAliases(), is(empty()));
+            assertThat(actual.removedClusterAliases(), is(empty()));
+        }
 
-        credentialsManager.updateClusterCredentials(Settings.EMPTY);
-        assertThat(credentialsManager.hasCredentials(clusterAlias), is(false));
+        {
+            final RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult actual = credentialsManager.updateClusterCredentials(
+                Settings.EMPTY
+            );
+            assertThat(actual.addedClusterAliases(), is(empty()));
+            assertThat(actual.removedClusterAliases(), containsInAnyOrder(clusterAlias));
+            assertThat(credentialsManager.hasCredentials(clusterAlias), is(false));
+        }
     }
 
     private Settings buildSettingsWithCredentials(String clusterAlias, String secret) {

@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class RemoteClusterServiceTests extends ESTestCase {
 
@@ -1496,7 +1495,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testUpdateRemoteClusterCredentialsRebuildsConnectionDespiteFailures() throws IOException, InterruptedException {
+    public void testUpdateRemoteClusterCredentialsRebuildsMultipleConnectionsDespiteFailures() throws IOException, InterruptedException {
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
             MockTransportService c1 = startTransport(
@@ -1541,6 +1540,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
                 final String goodCluster = randomAlphaOfLength(10);
                 final String badCluster = randomValueOtherThan(goodCluster, () -> randomAlphaOfLength(10));
+                final String missingCluster = randomValueOtherThanMany(
+                    alias -> alias.equals(goodCluster) || alias.equals(badCluster),
+                    () -> randomAlphaOfLength(10)
+                );
                 try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
                     service.initializeRemoteClusters();
 
@@ -1552,23 +1555,18 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     final Settings cluster2Settings = buildRemoteClusterSettings(badCluster, c2DiscoNode.getAddress().toString());
                     final PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus> future = new PlainActionFuture<>();
                     service.updateRemoteCluster(badCluster, cluster2Settings, future);
-                    Exception ex = null;
-                    try {
-                        future.actionGet(10, TimeUnit.SECONDS);
-                    } catch (Exception e) {
-                        // we're expecting a connection failure
-                        ex = e;
-                    }
-                    assertThat(ex, notNullValue());
+                    final var ex = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
                     assertThat(ex.getMessage(), containsString("bad cluster"));
 
                     assertConnectionHasProfile(service.getRemoteClusterConnection(goodCluster), "default");
                     assertConnectionHasProfile(service.getRemoteClusterConnection(badCluster), "default");
+                    expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
 
                     {
                         final MockSecureSettings secureSettings = new MockSecureSettings();
-                        secureSettings.setString("cluster.remote." + goodCluster + ".credentials", randomAlphaOfLength(10));
                         secureSettings.setString("cluster.remote." + badCluster + ".credentials", randomAlphaOfLength(10));
+                        secureSettings.setString("cluster.remote." + goodCluster + ".credentials", randomAlphaOfLength(10));
+                        secureSettings.setString("cluster.remote." + missingCluster + ".credentials", randomAlphaOfLength(10));
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
                         service.updateRemoteClusterCredentials(
                             Settings.builder().put(cluster1Settings).put(cluster2Settings).setSecureSettings(secureSettings).build(),
@@ -1585,6 +1583,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         service.getRemoteClusterConnection(badCluster),
                         RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
                     );
+                    expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
 
                     {
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
@@ -1598,6 +1597,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
                     assertConnectionHasProfile(service.getRemoteClusterConnection(goodCluster), "default");
                     assertConnectionHasProfile(service.getRemoteClusterConnection(badCluster), "default");
+                    expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
                 }
             }
         }

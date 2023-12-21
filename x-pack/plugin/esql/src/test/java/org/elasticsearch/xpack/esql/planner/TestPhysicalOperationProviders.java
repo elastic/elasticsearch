@@ -293,7 +293,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         DocBlock docBlock = page.getBlock(0);
         IntVector docIndices = docBlock.asVector().docs();
         Block originalData = testData.getBlock(columnIndex);
-        Block.Builder builder = originalData.elementType().newBlockBuilder(docIndices.getPositionCount());
+        Block.Builder builder = originalData.elementType()
+            .newBlockBuilder(docIndices.getPositionCount(), BlockFactory.getNonBreakingInstance());
         for (int c = 0; c < docIndices.getPositionCount(); c++) {
             int doc = docIndices.getInt(c);
             builder.copyFrom(originalData, doc, doc + 1);

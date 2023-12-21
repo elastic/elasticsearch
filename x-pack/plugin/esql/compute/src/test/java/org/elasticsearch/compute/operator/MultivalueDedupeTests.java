@@ -374,7 +374,7 @@ public class MultivalueDedupeTests extends ESTestCase {
          * This produces a block with a single value per position, but it's good enough
          * for comparison.
          */
-        Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset));
+        Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset), BlockFactory.getNonBreakingInstance());
         BytesRef[] toDecode = new BytesRef[encoder.valueCount(offset)];
         for (int i = 0; i < toDecode.length; i++) {
             BytesRefBuilder dest = new BytesRefBuilder();

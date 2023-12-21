@@ -434,13 +434,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
         try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
-            Block[] orig = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), simpleData);
+            BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+            Block[] orig = BlockUtils.fromListRow(blockFactory, simpleData);
             for (int i = 0; i < orig.length; i++) {
                 List<Object> data = new ArrayList<>();
                 Block[] blocks = new Block[orig.length];
                 for (int b = 0; b < blocks.length; b++) {
                     if (b == i) {
-                        blocks[b] = orig[b].elementType().newBlockBuilder(1).appendNull().build();
+                        blocks[b] = orig[b].elementType().newBlockBuilder(1, blockFactory).appendNull().build();
                         data.add(null);
                     } else {
                         blocks[b] = orig[b];

@@ -31,8 +31,13 @@ import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -50,6 +55,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -231,7 +239,58 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Override
     protected EsqlQueryResponse doParseInstance(XContentParser parser) {
-        return EsqlQueryResponse.fromXContent(parser);
+        return ResponseBuilder.fromXContent(parser);
+    }
+
+    public static class ResponseBuilder {
+        private static final ParseField ID = new ParseField("id");
+        private static final ParseField IS_RUNNING = new ParseField("is_running");
+        private static final InstantiatingObjectParser<ResponseBuilder, Void> PARSER;
+
+        static {
+            InstantiatingObjectParser.Builder<ResponseBuilder, Void> parser = InstantiatingObjectParser.builder(
+                "esql/query_response",
+                true,
+                ResponseBuilder.class
+            );
+            parser.declareString(optionalConstructorArg(), ID);
+            parser.declareField(
+                optionalConstructorArg(),
+                p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? false : p.booleanValue(),
+                IS_RUNNING,
+                ObjectParser.ValueType.BOOLEAN_OR_NULL
+            );
+            parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfo.fromXContent(p), new ParseField("columns"));
+            parser.declareField(constructorArg(), (p, c) -> p.list(), new ParseField("values"), ObjectParser.ValueType.OBJECT_ARRAY);
+            PARSER = parser.build();
+        }
+
+        // Used for XContent reconstruction
+        private final EsqlQueryResponse response;
+
+        @ParserConstructor
+        public ResponseBuilder(@Nullable String asyncExecutionId, Boolean isRunning, List<ColumnInfo> columns, List<List<Object>> values) {
+            this.response = new EsqlQueryResponse(
+                columns,
+                List.of(valuesToPage(BlockFactory.getNonBreakingInstance(), columns, values)),
+                null,
+                false,
+                asyncExecutionId,
+                isRunning != null,
+                isAsync(asyncExecutionId, isRunning)
+            );
+        }
+
+        static boolean isAsync(@Nullable String asyncExecutionId, Boolean isRunning) {
+            if (asyncExecutionId != null || isRunning != null) {
+                return true;
+            }
+            return false;
+        }
+
+        static EsqlQueryResponse fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null).response;
+        }
     }
 
     public void testChunkResponseSizeColumnar() {

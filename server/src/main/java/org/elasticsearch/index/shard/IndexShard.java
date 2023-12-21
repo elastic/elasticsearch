@@ -159,6 +159,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -212,6 +213,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexEventListener indexEventListener;
     private final QueryCachingPolicy cachingPolicy;
     private final Supplier<Sort> indexSortSupplier;
+    private final HashMap<String, Boolean> fieldHasValue;
     // Package visible for testing
     final CircuitBreakerService circuitBreakerService;
 
@@ -223,7 +225,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
-    private final IndexService indexService;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -314,8 +315,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
-        final Engine.IndexCommitListener indexCommitListener,
-        final IndexService indexService
+        final Engine.IndexCommitListener indexCommitListener
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -400,7 +400,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.indexService = indexService;
+        this.fieldHasValue = new HashMap<>();
     }
 
     public ThreadPool getThreadPool() {
@@ -974,9 +974,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 ifPrimaryTerm,
                 getRelativeTimeInNanos()
             );
-            operation.parsedDoc().docs().forEach(doc -> {
-                doc.getFields().forEach(indexableField -> { indexService.setFieldHasValue(indexableField.name()); });
-            }); // TODO-MP maybe add inside the update !=null if
+            operation.parsedDoc()
+                .docs()
+                .forEach(doc -> { doc.getFields().forEach(indexableField -> setFieldHasValue(indexableField.name())); });
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
                 return new Engine.IndexResult(update, operation.parsedDoc().id());
@@ -994,7 +994,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void setFieldHasValue(String fieldName) {
-        indexService.setFieldHasValue(fieldName);
+        fieldHasValue.put(fieldName, true);
+    }
+
+    public boolean fieldHasValue(String fieldName) {
+        return fieldHasValue.getOrDefault(fieldName, false);
     }
 
     public static Engine.Index prepareIndex(

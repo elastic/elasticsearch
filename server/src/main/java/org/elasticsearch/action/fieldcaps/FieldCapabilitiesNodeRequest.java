@@ -39,6 +39,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
     private final Map<String, Object> runtimeFields;
+    private final boolean ignoreHasValue;
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
@@ -55,6 +56,11 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
         runtimeFields = in.readMap();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+            ignoreHasValue = in.readBoolean();
+        } else {
+            ignoreHasValue = false;
+        }
     }
 
     FieldCapabilitiesNodeRequest(
@@ -65,7 +71,8 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         OriginalIndices originalIndices,
         QueryBuilder indexFilter,
         long nowInMillis,
-        Map<String, Object> runtimeFields
+        Map<String, Object> runtimeFields,
+        boolean ignoreHasValue
     ) {
         this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
@@ -75,6 +82,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
         this.runtimeFields = runtimeFields;
+        this.ignoreHasValue = ignoreHasValue;
     }
 
     public String[] fields() {
@@ -119,6 +127,10 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         return nowInMillis;
     }
 
+    public boolean ignoreHasValue() {
+        return ignoreHasValue;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -132,6 +144,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
+            out.writeBoolean(ignoreHasValue);
+        }
     }
 
     @Override
@@ -140,12 +155,13 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     }
 
     @Override
-    public String getDescription() {
+    public String getDescription() { // TODO-MP: needs ignoreHasValue to be added to description?
         final StringBuilder stringBuilder = new StringBuilder("shards[");
         Strings.collectionToDelimitedStringWithLimit(shardIds, ",", "", "", 1024, stringBuilder);
         return completeDescription(stringBuilder, fields, filters, allowedTypes);
     }
 
+    // TODO-MP: needs ignoreHasValue to be added to complete description?
     static String completeDescription(StringBuilder stringBuilder, String[] fields, String[] filters, String[] allowedTypes) {
         stringBuilder.append("], fields[");
         Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
@@ -179,12 +195,13 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
             && Arrays.equals(allowedTypes, that.allowedTypes)
             && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter)
-            && Objects.equals(runtimeFields, that.runtimeFields);
+            && Objects.equals(runtimeFields, that.runtimeFields)
+            && ignoreHasValue == that.ignoreHasValue;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields);
+        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, ignoreHasValue);
         result = 31 * result + shardIds.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);

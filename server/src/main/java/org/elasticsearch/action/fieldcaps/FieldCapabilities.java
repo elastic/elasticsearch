@@ -63,7 +63,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final boolean isMetadataField;
     private final boolean isSearchable;
     private final boolean isAggregatable;
-    private final boolean hasValue;
     private final boolean isDimension;
     private final TimeSeriesParams.MetricType metricType;
 
@@ -100,7 +99,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isMetadataField,
         boolean isSearchable,
         boolean isAggregatable,
-        boolean hasValue,
         boolean isDimension,
         TimeSeriesParams.MetricType metricType,
         String[] indices,
@@ -115,7 +113,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = isMetadataField;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
-        this.hasValue = hasValue;
         this.isDimension = isDimension;
         this.metricType = metricType;
         this.indices = indices;
@@ -148,7 +145,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         boolean isMetadataField,
         boolean isSearchable,
         boolean isAggregatable,
-        boolean hasValue,
         String[] indices,
         String[] nonSearchableIndices,
         String[] nonAggregatableIndices,
@@ -160,7 +156,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isMetadataField,
             isSearchable,
             isAggregatable,
-            hasValue,
             false,
             null,
             indices,
@@ -200,7 +195,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         Boolean isMetadataField,
         boolean isSearchable,
         boolean isAggregatable,
-        boolean hasValue,
         Boolean isDimension,
         String metricType,
         List<String> indices,
@@ -216,7 +210,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isMetadataField == null ? false : isMetadataField,
             isSearchable,
             isAggregatable,
-            hasValue,
             isDimension == null ? false : isDimension,
             metricType != null ? TimeSeriesParams.MetricType.fromString(metricType) : null,
             indices != null ? indices.toArray(new String[0]) : null,
@@ -252,11 +245,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.metricConflictsIndices = null;
         }
         meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            this.hasValue = in.readBoolean();
-        } else {
-            this.hasValue = true; // TODO-MP Do we default to true?
-        }
     }
 
     @Override
@@ -278,9 +266,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             out.writeOptionalStringArray(metricConflictsIndices);
         }
         out.writeMap(meta, StreamOutput::writeStringCollection);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            out.writeBoolean(hasValue);
-        }
     }
 
     @Override
@@ -290,7 +275,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(IS_METADATA_FIELD.getPreferredName(), isMetadataField);
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
-        builder.field(HAS_VALUE_FIELD.getPreferredName(), hasValue);
         if (isDimension) {
             builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), true);
         }
@@ -461,7 +445,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return isMetadataField == that.isMetadataField
             && isSearchable == that.isSearchable
             && isAggregatable == that.isAggregatable
-            && hasValue == that.hasValue
             && isDimension == that.isDimension
             && Objects.equals(metricType, that.metricType)
             && Objects.equals(name, that.name)
@@ -476,7 +459,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, hasValue, isDimension, metricType, meta);
+        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, isDimension, metricType, meta);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
@@ -496,7 +479,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private boolean isMetadataField;
         private int searchableIndices = 0;
         private int aggregatableIndices = 0;
-        private boolean hasValue = false;
         private int dimensionIndices = 0;
         private TimeSeriesParams.MetricType metricType;
         private boolean hasConflictMetricType;
@@ -534,7 +516,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             boolean isMetadataField,
             boolean search,
             boolean agg,
-            boolean hasValue,
             boolean isDimension,
             TimeSeriesParams.MetricType metricType,
             Map<String, String> meta
@@ -547,7 +528,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (agg) {
                 aggregatableIndices += indices.length;
             }
-            this.hasValue = hasValue;
             if (isDimension) {
                 dimensionIndices += indices.length;
             }
@@ -640,7 +620,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 isMetadataField,
                 isSearchable,
                 isAggregatable,
-                hasValue,
                 isDimension,
                 metricType,
                 indices,

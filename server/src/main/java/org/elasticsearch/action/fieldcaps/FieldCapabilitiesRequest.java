@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -43,6 +42,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private String[] filters = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
+    private boolean ignoreNoValueFields = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -65,15 +65,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             types = in.readStringArray();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            this.fieldHasValue = in.readMap();
-        } else {
-            HashMap<String, Object> fieldHasValue = new HashMap<>();
-            for (String field : fields) {
-                fieldHasValue.put(field, true);
-            }
-            this.fieldHasValue = fieldHasValue;
+            ignoreNoValueFields = in.readBoolean();
         }
-
     }
 
     public FieldCapabilitiesRequest() {}
@@ -113,7 +106,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             out.writeStringArray(types);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            out.writeGenericMap(fieldHasValue);
+            out.writeBoolean(ignoreNoValueFields);
         }
     }
 
@@ -183,6 +176,11 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return this;
     }
 
+    public FieldCapabilitiesRequest ignoreNoValueFields(boolean ignoreNoValueFields) {
+        this.ignoreNoValueFields = ignoreNoValueFields;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -205,6 +203,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
 
     public boolean includeUnmapped() {
         return includeUnmapped;
+    }
+
+    public boolean ignoreNoValueFields() {
+        return ignoreNoValueFields;
     }
 
     /**

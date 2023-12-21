@@ -39,10 +39,12 @@ import java.util.function.Predicate;
  */
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
+    private final boolean ignoreHasValue;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
 
-    FieldCapabilitiesFetcher(IndicesService indicesService) {
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean ignoreHasValue) {
         this.indicesService = indicesService;
+        this.ignoreHasValue = ignoreHasValue;
     }
 
     FieldCapabilitiesIndexResponse fetch(
@@ -115,7 +117,8 @@ class FieldCapabilitiesFetcher {
             filters,
             fieldTypes,
             fieldPredicate,
-            indicesService.indexServiceSafe(shardId.getIndex())
+            indicesService.getShardOrNull(shardId),
+            ignoreHasValue
         );
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
@@ -129,7 +132,8 @@ class FieldCapabilitiesFetcher {
         String[] filters,
         String[] types,
         Predicate<String> indexFieldfilter,
-        IndexService indexService
+        IndexShard indexShard,
+        boolean ignoreHasValue
     ) {
         boolean includeParentObjects = checkIncludeParents(filters);
 
@@ -141,14 +145,16 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             MappedFieldType ft = context.getFieldType(field);
-            if (filter.test(ft)) {
+            boolean correctFieldType = filter.test(ft);
+            boolean hasValue = indexShard.fieldHasValue(field);
+            boolean includeNoValueFields = ignoreHasValue == false;
+            if (correctFieldType && (hasValue || includeNoValueFields)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
                     context.isMetadataField(field),
                     ft.isSearchable(),
                     ft.isAggregatable(),
-                    indexService.getHasValueField(field),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta()
@@ -170,7 +176,7 @@ class FieldCapabilitiesFetcher {
                         break;
                     }
                     // checks if the parent field contains sub-fields
-                    if (context.getFieldType(parentField) == null) {
+                    if (context.getFieldType(parentField) == null) { // TODO-MP: maybe parent field? should we do the same check as l:151
                         // no field type, it must be an object field
                         String type = context.nestedLookup().getNestedMappers().get(parentField) != null ? "nested" : "object";
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
@@ -179,7 +185,6 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             false,
-                            indexService.getHasValueField(field),
                             false,
                             null,
                             Map.of()

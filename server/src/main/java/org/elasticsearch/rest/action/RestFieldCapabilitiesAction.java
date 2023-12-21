@@ -53,6 +53,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
         fieldRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));
+        fieldRequest.ignoreNoValueFields(request.paramAsBoolean("ignore_no_value_fields", false));
         fieldRequest.filters(request.paramAsStringArray("filters", Strings.EMPTY_ARRAY));
         fieldRequest.types(request.paramAsStringArray("types", Strings.EMPTY_ARRAY));
         request.withContentOrSourceParamParserOrNull(parser -> {

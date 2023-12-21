@@ -412,22 +412,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     diff = null;
                 }
-                return new FieldCapabilities(
-                    field,
-                    "unmapped",
-                    false,
-                    false,
-                    false,
-                    true, // TODO-is this correct?
-                    false,
-                    null,
-                    diff,
-                    null,
-                    null,
-                    null,
-                    null,
-                    Map.of()
-                );
+                return new FieldCapabilities(field, "unmapped", false, false, false, false, null, diff, null, null, null, null, Map.of());
             };
         }
         return null;
@@ -464,7 +449,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
-                fieldCap.hasValue(),
                 fieldCap.isDimension(),
                 fieldCap.metricType(),
                 fieldCap.meta()
@@ -528,7 +512,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.ignoreHasValue());
                 final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();

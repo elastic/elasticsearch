@@ -33,8 +33,6 @@ public record IndexFieldCapabilities(
     boolean isMetadatafield,
     boolean isSearchable,
     boolean isAggregatable,
-
-    boolean hasValue,
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
     Map<String, String> meta
@@ -58,16 +56,12 @@ public record IndexFieldCapabilities(
             isDimension = false;
             metricType = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            hasValue = in.readBoolean();
-        }
         return new IndexFieldCapabilities(
             name,
             type,
             isMetadatafield,
             isSearchable,
             isAggregatable,
-            hasValue,
             isDimension,
             metricType,
             in.readImmutableMap(StreamInput::readString)
@@ -86,9 +80,7 @@ public record IndexFieldCapabilities(
             out.writeOptionalEnum(metricType);
         }
         out.writeMap(meta, StreamOutput::writeString);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_FIELD_HAS_VALUE)) {
-            out.writeBoolean(hasValue);
-        }
+        // instead of the map return just the has_value fields if queryParam == true
     }
 
 }

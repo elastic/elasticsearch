@@ -41,7 +41,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-nested" },
             Strings.EMPTY_ARRAY,
-            f -> true
+            f -> true,
+            null,// TODO-MP change with IndexShard
+            false  // TODO-MP check if correct
         );
 
         assertNotNull(response.get("field1"));
@@ -67,7 +69,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "+metadata" },
                 Strings.EMPTY_ARRAY,
-                f -> true
+                f -> true,
+                null,// TODO-MP change with IndexShard
+                false  // TODO-MP check if correct
             );
             assertNotNull(response.get("_index"));
             assertNull(response.get("field1"));
@@ -78,7 +82,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
-                f -> true
+                f -> true,
+                null,// TODO-MP change with IndexShard
+                false  // TODO-MP check if correct
             );
             assertNull(response.get("_index"));
             assertNotNull(response.get("field1"));
@@ -109,7 +115,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-multifield" },
             Strings.EMPTY_ARRAY,
-            f -> true
+            f -> true,
+            null,// TODO-MP change with IndexShard
+            false  // TODO-MP check if correct
         );
         assertNotNull(response.get("field1"));
         assertNull(response.get("field1.keyword"));
@@ -138,7 +146,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-parent" },
             Strings.EMPTY_ARRAY,
-            f -> true
+            f -> true,
+            null,// TODO-MP change with IndexShard
+            false  // TODO-MP check if correct
         );
         assertNotNull(response.get("parent.field1"));
         assertNotNull(response.get("parent.field2"));
@@ -164,7 +174,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 Strings.EMPTY_ARRAY,
                 Strings.EMPTY_ARRAY,
-                securityFilter
+                securityFilter,
+                null,// TODO-MP change with IndexShard
+                false  // TODO-MP check if correct
             );
 
             assertNotNull(response.get("permitted1"));
@@ -178,7 +190,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
-                securityFilter
+                securityFilter,
+                null,// TODO-MP change with IndexShard
+                false  // TODO-MP check if correct
             );
 
             assertNotNull(response.get("permitted1"));
@@ -204,7 +218,9 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             Strings.EMPTY_ARRAY,
             new String[] { "text", "keyword" },
-            f -> true
+            f -> true,
+            null,// TODO-MP change with IndexShard
+            false  // TODO-MP check if correct
         );
         assertNotNull(response.get("field1"));
         assertNull(response.get("field2"));

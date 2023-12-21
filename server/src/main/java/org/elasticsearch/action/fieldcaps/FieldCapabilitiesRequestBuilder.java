@@ -32,6 +32,11 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
         return this;
     }
 
+    public FieldCapabilitiesRequestBuilder setIgnoreNoValueFields(boolean ignoreNoValueFields) {
+        request().ignoreNoValueFields(ignoreNoValueFields);
+        return this;
+    }
+
     public FieldCapabilitiesRequestBuilder setIndexFilter(QueryBuilder indexFilter) {
         request().indexFilter(indexFilter);
         return this;

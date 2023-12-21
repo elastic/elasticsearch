@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
@@ -67,8 +68,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 

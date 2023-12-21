@@ -63,7 +63,9 @@ public class ShardFollowNodeTaskStatusTests extends AbstractXContentSerializingT
             randomNonNegativeLong(),
             randomReadExceptions(),
             randomNonNegativeLong(),
-            randomBoolean() ? new ElasticsearchException("fatal error") : null
+            randomBoolean() ? new ElasticsearchException("fatal error") : null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 
@@ -114,6 +116,8 @@ public class ShardFollowNodeTaskStatusTests extends AbstractXContentSerializingT
             assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.getCause().getMessage()));
         }
         assertThat(newInstance.timeSinceLastReadMillis(), equalTo(expectedInstance.timeSinceLastReadMillis()));
+        assertThat(newInstance.followerDocsCount(), equalTo(expectedInstance.followerDocsCount()));
+        assertThat(newInstance.leaderDocsCount(), equalTo(expectedInstance.leaderDocsCount()));
     }
 
     @Override

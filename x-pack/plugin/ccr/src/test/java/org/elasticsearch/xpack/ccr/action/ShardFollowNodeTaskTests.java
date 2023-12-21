@@ -193,7 +193,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         shardChangesRequests.clear();
         // The call the updateMapping is a noop, so noting happens.
-        task.start("uuid", 128L, 128L, task.getStatus().followerGlobalCheckpoint(), task.getStatus().followerMaxSeqNo());
+        task.start("uuid", 128L, 128L, task.getStatus().followerGlobalCheckpoint(), task.getStatus().followerMaxSeqNo(), 0L);
         task.markAsCompleted();
         task.coordinateReads();
         assertThat(shardChangesRequests.size(), equalTo(0));
@@ -595,7 +595,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
 
         shardChangesRequests.clear();
-        task.innerHandleReadResponse(0L, 63L, new ShardChangesAction.Response(0, 0, 0, 0, 0, 100, new Translog.Operation[0], 1L));
+        task.innerHandleReadResponse(0L, 63L, new ShardChangesAction.Response(0, 0, 0, 0, 0, 100, new Translog.Operation[0], 1L, 1L));
 
         assertThat(shardChangesRequests.size(), equalTo(1));
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
@@ -1241,7 +1241,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                 SequenceNumbers.NO_OPS_PERFORMED,
                 -1,
                 new Translog.Operation[0],
-                randomLong()
+                randomLong(),
+                randomNonNegativeLong()
             );
             shardFollowNodeTask.handleReadResponse(0, -1, response);
         }
@@ -1412,6 +1413,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                         maxSeqNos.poll(),
                         randomNonNegativeLong(),
                         operations,
+                        1L,
                         1L
                     );
                     handler.accept(response);
@@ -1493,13 +1495,14 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             leaderGlobalCheckPoint,
             randomNonNegativeLong(),
             ops.toArray(new Translog.Operation[0]),
+            1L,
             1L
         );
     }
 
     void startTask(ShardFollowNodeTask task, long leaderGlobalCheckpoint, long followerGlobalCheckpoint) {
         // The call the updateMapping is a noop, so noting happens.
-        task.start("uuid", leaderGlobalCheckpoint, leaderGlobalCheckpoint, followerGlobalCheckpoint, followerGlobalCheckpoint);
+        task.start("uuid", leaderGlobalCheckpoint, leaderGlobalCheckpoint, followerGlobalCheckpoint, followerGlobalCheckpoint, 0);
     }
 
 }

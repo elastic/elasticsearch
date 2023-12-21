@@ -68,7 +68,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     }
 
     private void startAndAssertAndStopTask(ShardFollowNodeTask task, TestRun testRun) throws Exception {
-        task.start("uuid", testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
+        task.start("uuid", testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, 0L);
         assertBusy(() -> {
             ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.leaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
@@ -217,6 +217,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                                 maxSeqNo,
                                 randomNonNegativeLong(),
                                 new Translog.Operation[0],
+                                1L,
                                 1L
                             )
                         );
@@ -329,6 +330,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             nextGlobalCheckPoint,
                             randomNonNegativeLong(),
                             ops.toArray(EMPTY),
+                            randomNonNegativeLong(),
                             randomNonNegativeLong()
                         )
                     )
@@ -361,6 +363,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             prevGlobalCheckpoint,
                             randomNonNegativeLong(),
                             EMPTY,
+                            randomNonNegativeLong(),
                             randomNonNegativeLong()
                         );
                         item.add(new TestResponse(null, mappingVersion, settingsVersion, response));
@@ -380,6 +383,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         localLeaderGCP,
                         randomNonNegativeLong(),
                         ops.toArray(EMPTY),
+                        randomNonNegativeLong(),
                         randomNonNegativeLong()
                     );
                     item.add(new TestResponse(null, mappingVersion, settingsVersion, response));

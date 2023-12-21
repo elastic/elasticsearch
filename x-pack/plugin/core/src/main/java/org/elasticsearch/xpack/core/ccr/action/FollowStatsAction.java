@@ -96,20 +96,13 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         }
 
         private static class AggregatedIndexStats {
-            private long followerToLeaderLaggingTime;
-
+            private long followerToLeaderLaggingDocsCount;
             void update(final StatsResponse shardFollowStats) {
-                // Applying `max` here since overall index lagging time is defined by the most lagging shard
-                followerToLeaderLaggingTime = Math.max(followerToLeaderLaggingTime, calcFollowerToLeaderShardLaggingTime(shardFollowStats));
+                followerToLeaderLaggingDocsCount += calcFollowerToLeaderShardLaggingDocsCount(shardFollowStats);
             }
-
-            private long calcFollowerToLeaderShardLaggingTime(final StatsResponse stats) {
+            private long calcFollowerToLeaderShardLaggingDocsCount(final StatsResponse stats) {
                 final ShardFollowNodeTaskStatus s = stats.status;
-                assert s.leaderMaxSeqNo() >= s.followerMaxSeqNo();
-                if (s.operationsReads() == 0) {
-                    return Long.MAX_VALUE;
-                }
-                return (s.leaderMaxSeqNo() - s.followerMaxSeqNo()) * (s.totalReadTimeMillis() / s.operationsReads());
+                return Math.abs(s.leaderDocsCount() - s.followerDocsCount());
             }
         }
 
@@ -126,8 +119,8 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
                             (builder, params) -> builder.startObject()
                                 .field("index", indexEntry.getKey())
                                 .field(
-                                    "follower_to_leader_lagging_time",
-                                    aggregatedIndexLevelStatsByIndex.get(indexEntry.getKey()).followerToLeaderLaggingTime
+                                    "follower_to_leader_lagging_docs_count",
+                                    aggregatedIndexLevelStatsByIndex.get(indexEntry.getKey()).followerToLeaderLaggingDocsCount
                                 )
                                 .startArray("shards")
                         ),

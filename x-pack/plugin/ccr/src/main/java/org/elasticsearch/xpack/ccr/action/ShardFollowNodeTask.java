@@ -97,6 +97,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long failedWriteRequests = 0;
     private long operationWritten = 0;
     private long lastFetchTime = -1;
+    private long followerDocsCount = 0;
+    private long leaderDocsCount = 0;
     private final Queue<Tuple<Long, Long>> partialReadRequests = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private long bufferSizeInBytes = 0;
@@ -144,7 +146,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         final long leaderGlobalCheckpoint,
         final long leaderMaxSeqNo,
         final long followerGlobalCheckpoint,
-        final long followerMaxSeqNo
+        final long followerMaxSeqNo,
+        final long followerDocsCount
     ) {
         /*
          * While this should only ever be called once and before any other threads can touch these fields, we use synchronization here to
@@ -158,6 +161,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             this.followerGlobalCheckpoint = followerGlobalCheckpoint;
             this.followerMaxSeqNo = followerMaxSeqNo;
             this.lastRequestedSeqNo = followerGlobalCheckpoint;
+            this.followerDocsCount = followerDocsCount;
             renewable = scheduleBackgroundRetentionLeaseRenewal(() -> {
                 synchronized (ShardFollowNodeTask.this) {
                     return this.followerGlobalCheckpoint;
@@ -406,6 +410,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         leaderGlobalCheckpoint = Math.max(leaderGlobalCheckpoint, response.getGlobalCheckpoint());
         leaderMaxSeqNo = Math.max(leaderMaxSeqNo, response.getMaxSeqNo());
         leaderMaxSeqNoOfUpdatesOrDeletes = SequenceNumbers.max(leaderMaxSeqNoOfUpdatesOrDeletes, response.getMaxSeqNoOfUpdatesOrDeletes());
+        leaderDocsCount = response.getDocsCount();
         final long newFromSeqNo;
         if (response.getOperations().length == 0) {
             newFromSeqNo = from;
@@ -469,6 +474,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private synchronized void handleWriteResponse(final BulkShardOperationsResponse response) {
         this.followerGlobalCheckpoint = Math.max(this.followerGlobalCheckpoint, response.getGlobalCheckpoint());
         this.followerMaxSeqNo = Math.max(this.followerMaxSeqNo, response.getMaxSeqNo());
+        this.followerDocsCount = response.getDocCount();
         numOutstandingWrites--;
         assert numOutstandingWrites >= 0;
         coordinateWrites();
@@ -725,7 +731,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> Tuple.tuple(e.getValue().v1().get(), e.getValue().v2())))
             ),
             timeSinceLastFetchMillis,
-            fatalException
+            fatalException,
+            followerDocsCount,
+            leaderDocsCount
         );
     }
 

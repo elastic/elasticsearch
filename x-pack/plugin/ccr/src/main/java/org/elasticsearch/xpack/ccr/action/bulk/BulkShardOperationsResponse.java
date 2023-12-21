@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.TransportVersions.EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT;
+
 public final class BulkShardOperationsResponse extends ReplicationResponse implements WriteResponse {
 
     private long globalCheckpoint;
@@ -35,12 +37,25 @@ public final class BulkShardOperationsResponse extends ReplicationResponse imple
         this.maxSeqNo = maxSeqNo;
     }
 
+    private long docCount;
+    public long getDocCount() {
+        return docCount;
+    }
+    public void setDocCount(final long docCount) {
+        this.docCount = docCount;
+    }
+
     public BulkShardOperationsResponse() {}
 
     public BulkShardOperationsResponse(StreamInput in) throws IOException {
         super(in);
         globalCheckpoint = in.readZLong();
         maxSeqNo = in.readZLong();
+        if (in.getTransportVersion().onOrAfter(EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT)) {
+            docCount = in.readVLong();
+        } else {
+            docCount = 0;
+        }
     }
 
     @Override
@@ -51,6 +66,9 @@ public final class BulkShardOperationsResponse extends ReplicationResponse imple
         super.writeTo(out);
         out.writeZLong(globalCheckpoint);
         out.writeZLong(maxSeqNo);
+        if (out.getTransportVersion().onOrAfter(EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT)) {
+            out.writeVLong(docCount);
+        }
     }
 
 }

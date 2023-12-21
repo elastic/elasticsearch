@@ -43,6 +43,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
@@ -110,7 +111,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo()
+                    followerSeqNoStats.getMaxSeqNo(),
+                    0L
                 );
                 docCount += leaderGroup.appendDocs(randomInt(128));
                 leaderGroup.syncGlobalCheckpoint();
@@ -160,7 +162,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo()
+                    followerSeqNoStats.getMaxSeqNo(),
+                    0L
                 );
                 int batches = between(0, 10);
                 int docCount = 0;
@@ -208,7 +211,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo()
+                    followerSeqNoStats.getMaxSeqNo(),
+                    0L
                 );
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
@@ -257,7 +261,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo()
+                    followerSeqNoStats.getMaxSeqNo(),
+                    0L
                 );
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
@@ -376,7 +381,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leadingPrimary.getLastKnownGlobalCheckpoint(),
                     leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo()
+                    followerSeqNoStats.getMaxSeqNo(),
+                    0L
                 );
                 try {
                     assertBusy(() -> {
@@ -460,7 +466,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leader.getPrimary().getLastKnownGlobalCheckpoint(),
                     leader.getPrimary().seqNoStats().getMaxSeqNo(),
                     follower.getPrimary().getLastKnownGlobalCheckpoint(),
-                    follower.getPrimary().seqNoStats().getMaxSeqNo()
+                    follower.getPrimary().seqNoStats().getMaxSeqNo(),
+                    0L
                 );
                 leader.appendDocs(between(0, 100));
                 if (randomBoolean()) {
@@ -484,7 +491,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leader.getPrimary().getLastKnownGlobalCheckpoint(),
                     leader.getPrimary().seqNoStats().getMaxSeqNo(),
                     follower.getPrimary().getLastKnownGlobalCheckpoint(),
-                    follower.getPrimary().seqNoStats().getMaxSeqNo()
+                    follower.getPrimary().seqNoStats().getMaxSeqNo(),
+                    0L
                 );
                 final Scheduler.Cancellable renewable = task.getRenewable();
                 assertNotNull(renewable);
@@ -661,6 +669,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     for (IndexShard indexShard : indexShards) {
                         try {
                             final SeqNoStats seqNoStats = indexShard.seqNoStats();
+                            final DocsStats docsStats = indexShard.docStats();
                             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                             if (from > seqNoStats.getGlobalCheckpoint()) {
                                 handler.accept(
@@ -671,7 +680,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                         seqNoStats,
                                         maxSeqNoOfUpdatesOrDeletes,
                                         ShardChangesAction.EMPTY_OPERATIONS_ARRAY,
-                                        1L
+                                        1L,
+                                        docsStats
                                     )
                                 );
                                 return;
@@ -693,7 +703,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 seqNoStats.getMaxSeqNo(),
                                 maxSeqNoOfUpdatesOrDeletes,
                                 ops,
-                                1L
+                                1L,
+                                0L
                             );
                             handler.accept(response);
                             return;

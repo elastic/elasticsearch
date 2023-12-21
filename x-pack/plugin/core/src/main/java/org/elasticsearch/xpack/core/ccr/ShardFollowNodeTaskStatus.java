@@ -32,6 +32,8 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT;
+
 public class ShardFollowNodeTaskStatus implements Task.Status {
 
     public static final String STATUS_PARSER_NAME = "shard-follow-node-task-status";
@@ -65,6 +67,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField READ_EXCEPTIONS = new ParseField("read_exceptions");
     private static final ParseField TIME_SINCE_LAST_READ_MILLIS_FIELD = new ParseField("time_since_last_read_millis");
     private static final ParseField FATAL_EXCEPTION = new ParseField("fatal_exception");
+    private static final ParseField FOLLOWER_DOCS_COUNT = new ParseField("follower_docs_count");
+    private static final ParseField LEADER_DOCS_COUNT = new ParseField("leader_docs_count");
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ShardFollowNodeTaskStatus, Void> STATUS_PARSER = new ConstructingObjectParser<>(
@@ -99,7 +103,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[26]).stream()
                 .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
             (long) args[27],
-            (ElasticsearchException) args[28]
+            (ElasticsearchException) args[28],
+            (long) args[29],
+            (long) args[30]
         )
     );
 
@@ -317,6 +323,18 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return operationWritten;
     }
 
+    private final long followerDocsCount;
+
+    public long followerDocsCount() {
+        return followerDocsCount;
+    }
+
+    private final long leaderDocsCount;
+
+    public long leaderDocsCount() {
+        return leaderDocsCount;
+    }
+
     private final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions;
 
     public NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions() {
@@ -364,7 +382,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         final long operationWritten,
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions,
         final long timeSinceLastReadMillis,
-        final ElasticsearchException fatalException
+        final ElasticsearchException fatalException,
+        final long followerDocsCount,
+        final long leaderDocsCount
     ) {
         this.remoteCluster = remoteCluster;
         this.leaderIndex = leaderIndex;
@@ -392,6 +412,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.successfulWriteRequests = successfulWriteRequests;
         this.failedWriteRequests = failedWriteRequests;
         this.operationWritten = operationWritten;
+        this.followerDocsCount = followerDocsCount;
+        this.leaderDocsCount = leaderDocsCount;
         this.readExceptions = Objects.requireNonNull(readExceptions);
         this.timeSinceLastReadMillis = timeSinceLastReadMillis;
         this.fatalException = fatalException;
@@ -433,6 +455,13 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         );
         this.timeSinceLastReadMillis = in.readZLong();
         this.fatalException = in.readException();
+        if (in.getTransportVersion().onOrAfter(EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT)) {
+            this.followerDocsCount = in.readVLong();
+            this.leaderDocsCount = in.readVLong();
+        } else {
+            this.followerDocsCount = 0;
+            this.leaderDocsCount = 0;
+        }
     }
 
     @Override
@@ -476,6 +505,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         });
         out.writeZLong(timeSinceLastReadMillis);
         out.writeException(fatalException);
+        if (out.getTransportVersion().onOrAfter(EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT)) {
+            out.writeVLong(followerDocsCount);
+            out.writeVLong(leaderDocsCount);
+        }
     }
 
     @Override
@@ -562,6 +595,8 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             }
             builder.endObject();
         }
+        builder.field(FOLLOWER_DOCS_COUNT.getPreferredName(), followerDocsCount);
+        builder.field(LEADER_DOCS_COUNT.getPreferredName(), leaderDocsCount);
         return builder;
     }
 
@@ -610,7 +645,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             readExceptions.keySet().equals(that.readExceptions.keySet())
             && getReadExceptionMessages(this).equals(getReadExceptionMessages(that))
             && timeSinceLastReadMillis == that.timeSinceLastReadMillis
-            && Objects.equals(fatalExceptionMessage, otherFatalExceptionMessage);
+            && Objects.equals(fatalExceptionMessage, otherFatalExceptionMessage)
+            && followerDocsCount == that.followerDocsCount
+            && leaderDocsCount == that.leaderDocsCount;
     }
 
     @Override
@@ -649,7 +686,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             readExceptions.keySet(),
             getReadExceptionMessages(this),
             timeSinceLastReadMillis,
-            fatalExceptionMessage
+            fatalExceptionMessage,
+            followerDocsCount,
+            leaderDocsCount
         );
     }
 

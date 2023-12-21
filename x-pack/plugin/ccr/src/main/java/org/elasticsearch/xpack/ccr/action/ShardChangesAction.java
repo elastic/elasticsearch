@@ -29,9 +29,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.MissingHistoryOperationsException;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -54,6 +56,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.elasticsearch.TransportVersions.EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -262,6 +265,11 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             return tookInMillis;
         }
 
+        private final long docsCount;
+        public long getDocsCount() {
+            return docsCount;
+        }
+
         Response(StreamInput in) throws IOException {
             super(in);
             mappingVersion = in.readVLong();
@@ -276,6 +284,11 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
             tookInMillis = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT)) {
+                docsCount = in.readVLong();
+            } else {
+                docsCount = 0;
+            }
         }
 
         Response(
@@ -286,7 +299,8 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final long maxSeqNo,
             final long maxSeqNoOfUpdatesOrDeletes,
             final Translog.Operation[] operations,
-            final long tookInMillis
+            final long tookInMillis,
+            final long docsCount
         ) {
             this.mappingVersion = mappingVersion;
             this.settingsVersion = settingsVersion;
@@ -296,6 +310,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
             this.operations = operations;
             this.tookInMillis = tookInMillis;
+            this.docsCount = docsCount;
         }
 
         @Override
@@ -310,6 +325,9 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
             out.writeArray(operations);
             out.writeVLong(tookInMillis);
+            if (out.getTransportVersion().onOrAfter(EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT)) {
+                out.writeVLong(docsCount);
+            }
         }
 
         @Override
@@ -324,7 +342,8 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 && maxSeqNo == that.maxSeqNo
                 && maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes
                 && Arrays.equals(operations, that.operations)
-                && tookInMillis == that.tookInMillis;
+                && tookInMillis == that.tookInMillis
+                && docsCount == that.docsCount;
         }
 
         @Override
@@ -337,7 +356,8 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 maxSeqNo,
                 maxSeqNoOfUpdatesOrDeletes,
                 Arrays.hashCode(operations),
-                tookInMillis
+                tookInMillis,
+                docsCount
             );
         }
     }
@@ -373,6 +393,13 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
+
+            final Engine engine = indexShard.getEngineOrNull();
+            if (engine != null && engine.refreshNeeded()) {
+                indexShard.refresh("ccr_follow_stats");
+            }
+            final DocsStats docsStats = indexShard.docStats();
+
             final Translog.Operation[] operations = getOperations(
                 indexShard,
                 seqNoStats.getGlobalCheckpoint(),
@@ -397,7 +424,8 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 seqNoStats,
                 maxSeqNoOfUpdatesOrDeletes,
                 operations,
-                request.relativeStartNanos
+                request.relativeStartNanos,
+                docsStats
             );
         }
 
@@ -473,6 +501,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                     final long settingsVersion = indexMetadata.getSettingsVersion();
                     final long aliasesVersion = indexMetadata.getAliasesVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
+                    final DocsStats docsStats = indexShard.docStats();
                     final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                     listener.onResponse(
                         getResponse(
@@ -482,7 +511,8 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                             latestSeqNoStats,
                             maxSeqNoOfUpdatesOrDeletes,
                             EMPTY_OPERATIONS_ARRAY,
-                            request.relativeStartNanos
+                            request.relativeStartNanos,
+                            docsStats
                         )
                     );
                 } catch (final Exception caught) {
@@ -596,7 +626,8 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         final SeqNoStats seqNoStats,
         final long maxSeqNoOfUpdates,
         final Translog.Operation[] operations,
-        long relativeStartNanos
+        final long relativeStartNanos,
+        final DocsStats docsStats
     ) {
         long tookInNanos = System.nanoTime() - relativeStartNanos;
         long tookInMillis = TimeUnit.NANOSECONDS.toMillis(tookInNanos);
@@ -608,7 +639,8 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             seqNoStats.getMaxSeqNo(),
             maxSeqNoOfUpdates,
             operations,
-            tookInMillis
+            tookInMillis,
+            docsStats.getCount()
         );
     }
 

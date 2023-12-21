@@ -103,8 +103,9 @@ public class StringExtractOperatorTests extends OperatorTestCase {
             public void close() {}
         }, new FirstWord("test"), driverContext());
 
-        Page result = null;
-        try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1)) {
+        BlockFactory blockFactory = blockFactory();
+        final Page result;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)) {
             builder.beginPositionEntry();
             builder.appendBytesRef(new BytesRef("foo1 bar1"));
             builder.appendBytesRef(new BytesRef("foo2 bar2"));

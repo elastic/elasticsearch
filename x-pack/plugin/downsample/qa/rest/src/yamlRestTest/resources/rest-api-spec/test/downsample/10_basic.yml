@@ -322,18 +322,18 @@ setup:
   - match:  { hits.hits.0._source.metricset: pod }
 
   - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match:  { hits.hits.0._source.k8s.pod.multi-counter: 21 }
-  - match:  { hits.hits.0._source.k8s.pod.scaled-counter: 20.0 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.min: 90 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.max: 200 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.sum: 726 }
+  - match:  { hits.hits.0._source.k8s.pod.multi-counter: 0 }
+  - match:  { hits.hits.0._source.k8s.pod.scaled-counter: 0.00 }
+  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.min: 100 }
+  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.max: 102 }
+  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.sum: 607 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.value_count: 6 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.min: 90.0 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.max: 100.0 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.sum: 190.0 }
+  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.min: 100.0 }
+  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.max: 101.0 }
+  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.sum: 201.0 }
   - match: { hits.hits.0._source.k8s.pod.scaled-gauge.value_count: 2 }
-  - match:  { hits.hits.0._source.k8s.pod.network.tx.min: 2001818691 }
-  - match:  { hits.hits.0._source.k8s.pod.network.tx.max: 2005177954 }
+  - match:  { hits.hits.0._source.k8s.pod.network.tx.min: 1434521831 }
+  - match:  { hits.hits.0._source.k8s.pod.network.tx.max: 1434577921 }
   - match:  { hits.hits.0._source.k8s.pod.network.tx.value_count: 2 }
   - match:  { hits.hits.0._source.k8s.pod.ip: "10.10.55.56" }
   - match:  { hits.hits.0._source.k8s.pod.created_at: "2021-04-28T19:43:00.000Z" }

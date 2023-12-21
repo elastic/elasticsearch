@@ -94,7 +94,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
     }
 
     public void testTotalNumberOfDimensionFieldsDefaultLimit() {
-        int dimensionFieldLimit = 9999;
+        int dimensionFieldLimit = 21;
         final Exception ex = expectThrows(IllegalArgumentException.class, () -> createTimeSeriesIndex(mapping -> {
             mapping.startObject("routing_field").field("type", "keyword").field("time_series_dimension", true).endObject();
             for (int i = 0; i < dimensionFieldLimit; i++) {

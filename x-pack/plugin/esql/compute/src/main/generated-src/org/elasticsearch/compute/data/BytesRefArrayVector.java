@@ -87,11 +87,7 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
         // of this class.
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);

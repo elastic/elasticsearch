@@ -63,11 +63,7 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         // The circuit breaker that tracks the values {@link LongArray} is adjusted outside
         // of this class.
         values.close();

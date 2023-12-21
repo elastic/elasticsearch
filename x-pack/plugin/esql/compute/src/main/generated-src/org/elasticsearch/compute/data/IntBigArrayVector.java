@@ -63,11 +63,7 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         // The circuit breaker that tracks the values {@link IntArray} is adjusted outside
         // of this class.
         values.close();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
@@ -23,8 +22,6 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,7 +61,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -77,7 +73,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -218,7 +213,7 @@ public class ComputeService {
                     () -> cancelOnFailure(rootTask, cancelled, refs.acquire()).map(response -> {
                         responseHeadersCollector.collect();
                         if (configuration.profile()) {
-                            collectedProfiles.addAll(response.profiles);
+                            collectedProfiles.addAll(response.getProfiles());
                         }
                         return null;
                     })
@@ -287,7 +282,7 @@ public class ComputeService {
         Set<String> concreteIndices,
         String[] originalIndices,
         ExchangeSourceHandler exchangeSource,
-        Supplier<ActionListener<DataNodeResponse>> listener
+        Supplier<ActionListener<ComputeResponse>> listener
     ) {
         // Do not complete the exchange sources until we have linked all remote sinks
         final EmptyRemoteSink emptyRemoteSink = new EmptyRemoteSink();
@@ -315,7 +310,7 @@ public class ComputeService {
                                 new DataNodeRequest(sessionId, configuration, clusterAlias, node.shardIds, node.aliasFilters, dataNodePlan),
                                 parentTask,
                                 TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(delegate, DataNodeResponse::new, esqlExecutor)
+                                new ActionListenerResponseHandler<>(delegate, ComputeResponse::new, esqlExecutor)
                             );
                         })
                     );
@@ -334,7 +329,7 @@ public class ComputeService {
         PhysicalPlan plan,
         ExchangeSourceHandler exchangeSource,
         List<RemoteCluster> clusters,
-        Supplier<ActionListener<ClusterComputeResponse>> listener
+        Supplier<ActionListener<ComputeResponse>> listener
     ) {
         // Do not complete the exchange sources until we have linked all remote sinks
         final EmptyRemoteSink emptyRemoteSink = new EmptyRemoteSink();
@@ -366,7 +361,7 @@ public class ComputeService {
                             clusterRequest,
                             rootTask,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(l, ClusterComputeResponse::new, esqlExecutor)
+                            new ActionListenerResponseHandler<>(l, ComputeResponse::new, esqlExecutor)
                         );
                     })
                 );
@@ -568,39 +563,6 @@ public class ComputeService {
         }
     }
 
-    private static class DataNodeResponse extends TransportResponse {
-        private final List<DriverProfile> profiles;
-
-        DataNodeResponse(List<DriverProfile> profiles) {
-            this.profiles = profiles;
-        }
-
-        DataNodeResponse(StreamInput in) throws IOException {
-            super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
-                if (in.readBoolean()) {
-                    profiles = in.readCollectionAsImmutableList(DriverProfile::new);
-                } else {
-                    profiles = null;
-                }
-            } else {
-                profiles = null;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
-                if (profiles == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    out.writeCollection(profiles);
-                }
-            }
-        }
-    }
-
     // TODO: Use an internal action here
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
 
@@ -611,7 +573,7 @@ public class ComputeService {
             final var sessionId = request.sessionId();
             final var exchangeSink = exchangeService.getSinkHandler(sessionId);
             parentTask.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException("task cancelled")));
-            final ActionListener<DataNodeResponse> listener = new ChannelActionListener<>(channel);
+            final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             final EsqlConfiguration configuration = request.configuration();
             acquireSearchContexts(
                 request.clusterAlias(),
@@ -625,7 +587,7 @@ public class ComputeService {
                         exchangeSink.addCompletionListener(
                             ContextPreservingActionListener.wrapPreservingContext(
                                 ActionListener.releaseAfter(
-                                    listener.map(nullValue -> new DataNodeResponse(driverProfiles)),
+                                    listener.map(nullValue -> new ComputeResponse(driverProfiles)),
                                     () -> exchangeService.finishSinkHandler(sessionId, null)
                                 ),
                                 transportService.getThreadPool().getThreadContext()
@@ -648,7 +610,7 @@ public class ComputeService {
     private class ClusterRequestHandler implements TransportRequestHandler<ClusterComputeRequest> {
         @Override
         public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
-            ChannelActionListener<ClusterComputeResponse> listener = new ChannelActionListener<>(channel);
+            ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             if (request.plan() instanceof ExchangeSinkExec == false) {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
                 return;
@@ -681,7 +643,7 @@ public class ComputeService {
         ExchangeSinkExec plan,
         Set<String> concreteIndices,
         String[] originalIndices,
-        ActionListener<ClusterComputeResponse> listener
+        ActionListener<ComputeResponse> listener
     ) {
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
         parentTask.addListener(() -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException("request cancelled")));
@@ -698,7 +660,7 @@ public class ComputeService {
         );
         try (
             Releasable ignored = exchangeSource::decRef;
-            RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ClusterComputeResponse(collectedProfiles)))
+            RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))
         ) {
             exchangeSource.addCompletionListener(refs.acquire());
             exchangeSink.addCompletionListener(refs.acquire());
@@ -732,7 +694,7 @@ public class ComputeService {
                 () -> cancelOnFailure(parentTask, cancelled, refs.acquire()).map(r -> {
                     responseHeadersCollector.collect();
                     if (configuration.profile()) {
-                        collectedProfiles.addAll(r.profiles);
+                        collectedProfiles.addAll(r.getProfiles());
                     }
                     return null;
                 })

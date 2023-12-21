@@ -31,7 +31,7 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new BooleanArrayVector(values, values.length);
+        this.values = new BooleanArrayVector(values, values.length, blockFactory);
     }
 
     @Override

@@ -31,7 +31,7 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new DoubleBigArrayVector(values, (int) values.size());
+        this.values = new DoubleBigArrayVector(values, (int) values.size(), blockFactory);
     }
 
     @Override

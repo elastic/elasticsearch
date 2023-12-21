@@ -31,7 +31,7 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new BooleanBigArrayVector(values, (int) values.size());
+        this.values = new BooleanBigArrayVector(values, (int) values.size(), blockFactory);
     }
 
     @Override

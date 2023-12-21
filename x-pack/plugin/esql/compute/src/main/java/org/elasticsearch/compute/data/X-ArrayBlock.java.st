@@ -40,9 +40,9 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         $if(BytesRef)$
-        this.values = new BytesRefArrayVector(values, (int) values.size());
+        this.values = new BytesRefArrayVector(values, (int) values.size(), blockFactory);
         $else$
-        this.values = new $Type$ArrayVector(values, values.length);
+        this.values = new $Type$ArrayVector(values, values.length, blockFactory);
         $endif$
     }
 

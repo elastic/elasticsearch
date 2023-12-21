@@ -33,7 +33,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new BytesRefArrayVector(values, (int) values.size());
+        this.values = new BytesRefArrayVector(values, (int) values.size(), blockFactory);
     }
 
     @Override

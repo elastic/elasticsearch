@@ -31,7 +31,7 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new LongArrayVector(values, values.length);
+        this.values = new LongArrayVector(values, values.length, blockFactory);
     }
 
     @Override

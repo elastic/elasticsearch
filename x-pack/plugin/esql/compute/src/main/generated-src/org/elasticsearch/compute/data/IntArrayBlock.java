@@ -31,7 +31,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new IntArrayVector(values, values.length);
+        this.values = new IntArrayVector(values, values.length, blockFactory);
     }
 
     @Override

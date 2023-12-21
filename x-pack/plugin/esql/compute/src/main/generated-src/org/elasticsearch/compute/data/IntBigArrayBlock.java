@@ -31,7 +31,7 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new IntBigArrayVector(values, (int) values.size());
+        this.values = new IntBigArrayVector(values, (int) values.size(), blockFactory);
     }
 
     @Override

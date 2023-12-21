@@ -31,7 +31,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new DoubleArrayVector(values, values.length);
+        this.values = new DoubleArrayVector(values, values.length, blockFactory);
     }
 
     @Override

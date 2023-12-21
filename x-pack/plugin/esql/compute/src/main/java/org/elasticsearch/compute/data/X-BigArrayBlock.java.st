@@ -31,7 +31,7 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = new $Type$BigArrayVector(values, (int) values.size());
+        this.values = new $Type$BigArrayVector(values, (int) values.size(), blockFactory);
     }
 
     @Override

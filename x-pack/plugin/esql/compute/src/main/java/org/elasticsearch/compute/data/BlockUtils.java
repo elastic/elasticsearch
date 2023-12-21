@@ -216,7 +216,7 @@ public final class BlockUtils {
 
     public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
         if (val == null) {
-            return Block.constantNullBlock(size);
+            return blockFactory.newConstantNullBlock(size);
         }
         return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
     }
@@ -224,7 +224,7 @@ public final class BlockUtils {
     // TODO: allow null values
     private static Block constantBlock(BlockFactory blockFactory, ElementType type, Object val, int size) {
         return switch (type) {
-            case NULL -> Block.constantNullBlock(size);
+            case NULL -> blockFactory.newConstantNullBlock(size);
             case LONG -> LongBlock.newConstantBlockWith((long) val, size, blockFactory);
             case INT -> IntBlock.newConstantBlockWith((int) val, size, blockFactory);
             case BYTES_REF -> BytesRefBlock.newConstantBlockWith(toBytesRef(val), size, blockFactory);

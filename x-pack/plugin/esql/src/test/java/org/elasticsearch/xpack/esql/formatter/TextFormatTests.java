@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +36,8 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class TextFormatTests extends ESTestCase {
+
+    static final BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
 
     public void testCsvContentType() {
         assertEquals("text/csv; charset=utf-8; header=present", CSV.contentType(req()));
@@ -250,7 +251,7 @@ public class TextFormatTests extends ESTestCase {
         // values
         List<Page> values = List.of(
             new Page(
-                BytesRefBlock.newBlockBuilder(2)
+                blockFactory.newBytesRefBlockBuilder(2)
                     .appendBytesRef(new BytesRef("Along The River Bank"))
                     .appendBytesRef(new BytesRef("Mind Train"))
                     .build(),
@@ -269,8 +270,11 @@ public class TextFormatTests extends ESTestCase {
         // values
         List<Page> values = List.of(
             new Page(
-                BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("normal")).appendBytesRef(new BytesRef("commas")).build(),
-                BytesRefBlock.newBlockBuilder(2)
+                blockFactory.newBytesRefBlockBuilder(2)
+                    .appendBytesRef(new BytesRef("normal"))
+                    .appendBytesRef(new BytesRef("commas"))
+                    .build(),
+                blockFactory.newBytesRefBlockBuilder(2)
                     .appendBytesRef(new BytesRef("\"quo\"ted\",\n"))
                     .appendBytesRef(new BytesRef("a,b,c,\n,d,e,\t\n"))
                     .build()

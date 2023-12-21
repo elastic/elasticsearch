@@ -86,9 +86,7 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (MlStrings.isValidId(this.modelId) == false) {
-                validationException.addSuppressed(
-                    new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, "model_id", this.modelId))
-                );
+                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, "model_id", this.modelId));
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

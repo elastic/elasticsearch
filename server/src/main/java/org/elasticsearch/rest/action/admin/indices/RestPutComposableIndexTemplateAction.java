@@ -44,7 +44,7 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
         try (var parser = request.contentParser()) {
-            putRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+            putRequest.indexTemplate(ComposableIndexTemplate.parseUserInput(parser));
         }
 
         return channel -> client.execute(PutComposableIndexTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));

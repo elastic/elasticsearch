@@ -18,7 +18,7 @@ public class DataStreamTemplateTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected DataStreamTemplate doParseInstance(XContentParser parser) throws IOException {
-        return DataStreamTemplate.PARSER.parse(parser, null);
+        return DataStreamTemplate.INTERNAL_PARSER.parse(parser, null);
     }
 
     @Override
@@ -47,5 +47,4 @@ public class DataStreamTemplateTests extends AbstractXContentSerializingTestCase
     public static DataStreamTemplate randomInstance() {
         return new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean(), randomBoolean());
     }
-
 }

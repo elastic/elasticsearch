@@ -49,7 +49,25 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     private static final ParseField DEPRECATED = new ParseField("deprecated");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> INTERNAL_PARSER = new ConstructingObjectParser<>(
+        "index_template",
+        false,
+        a -> new ComposableIndexTemplate(
+            (List<String>) a[0],
+            (Template) a[1],
+            (List<String>) a[2],
+            (Long) a[3],
+            (Long) a[4],
+            (Map<String, Object>) a[5],
+            (DataStreamTemplate) a[6],
+            (Boolean) a[7],
+            (List<String>) a[8],
+            (Boolean) a[9]
+        )
+    );
+
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> USER_INPUT_PARSER = new ConstructingObjectParser<>(
         "index_template",
         false,
         a -> new ComposableIndexTemplate(
@@ -67,16 +85,30 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     );
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX_PATTERNS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Template.PARSER, TEMPLATE);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), COMPOSED_OF);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PRIORITY);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), DataStreamTemplate.PARSER, DATA_STREAM);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_AUTO_CREATE);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), IGNORE_MISSING_COMPONENT_TEMPLATES);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
+        INTERNAL_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX_PATTERNS);
+        INTERNAL_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Template.PARSER, TEMPLATE);
+        INTERNAL_PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), COMPOSED_OF);
+        INTERNAL_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PRIORITY);
+        INTERNAL_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION);
+        INTERNAL_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
+        INTERNAL_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), DataStreamTemplate.INTERNAL_PARSER, DATA_STREAM);
+        INTERNAL_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_AUTO_CREATE);
+        INTERNAL_PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), IGNORE_MISSING_COMPONENT_TEMPLATES);
+        INTERNAL_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
+        USER_INPUT_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX_PATTERNS);
+        USER_INPUT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Template.PARSER, TEMPLATE);
+        USER_INPUT_PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), COMPOSED_OF);
+        USER_INPUT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PRIORITY);
+        USER_INPUT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION);
+        USER_INPUT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
+        USER_INPUT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            DataStreamTemplate.USER_INPUT_PARSER,
+            DATA_STREAM
+        );
+        USER_INPUT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_AUTO_CREATE);
+        USER_INPUT_PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), IGNORE_MISSING_COMPONENT_TEMPLATES);
+        USER_INPUT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
     }
 
     private final List<String> indexPatterns;
@@ -104,7 +136,16 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return INTERNAL_PARSER.parse(parser, null);
+    }
+
+    /**
+     * This parsing method should be used to parse user input to composable index templates because it respects the
+     * failure store feature flag. This is a temporary replacement of the {@link ComposableIndexTemplate#parse(XContentParser)}
+     * method until the feature flag is removed.
+     */
+    public static ComposableIndexTemplate parseUserInput(XContentParser parser) throws IOException {
+        return USER_INPUT_PARSER.parse(parser, null);
     }
 
     public static Builder builder() {
@@ -366,7 +407,16 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
         private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
-        public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<DataStreamTemplate, Void> INTERNAL_PARSER = new ConstructingObjectParser<>(
+            "data_stream_template",
+            false,
+            args -> new DataStreamTemplate(
+                args[0] != null && (boolean) args[0],
+                args[1] != null && (boolean) args[1],
+                DataStream.isFailureStoreEnabled() && args[2] != null && (boolean) args[2]
+            )
+        );
+        public static final ConstructingObjectParser<DataStreamTemplate, Void> USER_INPUT_PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
             args -> new DataStreamTemplate(
@@ -377,10 +427,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         );
 
         static {
-            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
-            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+            INTERNAL_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
+            INTERNAL_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+            INTERNAL_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
+            USER_INPUT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
+            USER_INPUT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
             if (DataStream.isFailureStoreEnabled()) {
-                PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
+                USER_INPUT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
             }
         }
 

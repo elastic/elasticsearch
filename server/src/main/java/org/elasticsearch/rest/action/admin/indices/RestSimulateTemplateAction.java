@@ -45,7 +45,7 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
                 "simulating_template"
             );
             try (var parser = request.contentParser()) {
-                indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+                indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parseUserInput(parser));
             }
             indexTemplateRequest.create(request.paramAsBoolean("create", false));
             indexTemplateRequest.cause(request.param("cause", "api"));

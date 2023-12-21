@@ -75,7 +75,6 @@ public class LuceneDocument implements Iterable<IndexableField> {
 
     public void add(IndexableField field) {
         assert assertLegalFieldName(field);
-        // field.name(); Here we can update the heap data structure
         fields.add(field);
     }
 

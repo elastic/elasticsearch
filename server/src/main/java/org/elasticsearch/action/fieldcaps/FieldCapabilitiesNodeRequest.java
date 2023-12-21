@@ -155,13 +155,13 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     }
 
     @Override
-    public String getDescription() { // TODO-MP: needs ignoreHasValue to be added to description?
+    public String getDescription() { // TODO-MP: needs includeFieldsWithNoValue to be added to description?
         final StringBuilder stringBuilder = new StringBuilder("shards[");
         Strings.collectionToDelimitedStringWithLimit(shardIds, ",", "", "", 1024, stringBuilder);
         return completeDescription(stringBuilder, fields, filters, allowedTypes);
     }
 
-    // TODO-MP: needs ignoreHasValue to be added to complete description?
+    // TODO-MP: needs includeFieldsWithNoValue to be added to complete description?
     static String completeDescription(StringBuilder stringBuilder, String[] fields, String[] filters, String[] allowedTypes) {
         stringBuilder.append("], fields[");
         Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);

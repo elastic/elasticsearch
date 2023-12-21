@@ -145,7 +145,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private final AsyncGlobalCheckpointTask globalCheckpointTask;
     private final AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
-    // private final HashMap<String, Boolean> fieldHasValue;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -551,7 +550,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
-            // TODO-MP maybe here, but engine not started yet.
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
             success = true;
             return indexShard;

@@ -316,7 +316,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
-
                 innerMerge(subIndices, responseMapBuilder, request, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }

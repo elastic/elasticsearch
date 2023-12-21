@@ -94,11 +94,11 @@ final class CompositeIndexEventListener implements IndexEventListener {
                         indexShard.setFieldHasValue(fieldInfo.getName());
                     }
                 } catch (IOException e) {
-                    throw new RuntimeException("Another exception here?! WTF...");
+                    throw new RuntimeException("I/O exception"); // TODO-MP handle exception
                 }
             }
         } else {
-            throw new RuntimeException("Engine not yet started, aborting...");
+            throw new RuntimeException("Engine not yet started, aborting..."); // TODO-MP handle exception
         }
     }
 

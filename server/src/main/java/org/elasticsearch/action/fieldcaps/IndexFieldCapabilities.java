@@ -46,7 +46,6 @@ public record IndexFieldCapabilities(
         boolean isMetadatafield = in.readBoolean();
         boolean isSearchable = in.readBoolean();
         boolean isAggregatable = in.readBoolean();
-        boolean hasValue = false;
         boolean isDimension;
         TimeSeriesParams.MetricType metricType;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
@@ -80,7 +79,6 @@ public record IndexFieldCapabilities(
             out.writeOptionalEnum(metricType);
         }
         out.writeMap(meta, StreamOutput::writeString);
-        // instead of the map return just the has_value fields if queryParam == true
     }
 
 }

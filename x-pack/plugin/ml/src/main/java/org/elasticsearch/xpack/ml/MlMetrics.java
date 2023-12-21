@@ -53,7 +53,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_
  * <p>
  * The job/model metrics are cluster-wide because a key problem we want to be able to detect is when there are
  * jobs or models that are not assigned to any node. The consumer of the data needs to account for the fact that
- * multiple master-eligible nodes are reporting the same information. The is_master attribute in the records
+ * multiple master-eligible nodes are reporting the same information. The es.ml.is_master attribute in the records
  * indicates which one was actually master, so can be used to deduplicate.
  */
 public class MlMetrics extends AbstractLifecycleComponent implements ClusterStateListener {
@@ -68,8 +68,8 @@ public class MlMetrics extends AbstractLifecycleComponent implements ClusterStat
     private final boolean hasMlRole;
     private final List<AutoCloseable> metrics = new ArrayList<>();
 
-    private static final Map<String, Object> MASTER_TRUE_MAP = Map.of("is_master", Boolean.TRUE);
-    private static final Map<String, Object> MASTER_FALSE_MAP = Map.of("is_master", Boolean.FALSE);
+    private static final Map<String, Object> MASTER_TRUE_MAP = Map.of("es.ml.is_master", Boolean.TRUE);
+    private static final Map<String, Object> MASTER_FALSE_MAP = Map.of("es.ml.is_master", Boolean.FALSE);
     private volatile Map<String, Object> isMasterMap = MASTER_FALSE_MAP;
     private volatile boolean firstTime = true;
 

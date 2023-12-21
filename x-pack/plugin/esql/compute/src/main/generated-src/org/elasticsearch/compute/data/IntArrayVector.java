@@ -21,17 +21,14 @@ final class IntArrayVector extends AbstractVector implements IntVector {
 
     private final int[] values;
 
-    private final IntBlock block;
-
     IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return block;
+        return new IntVectorBlock(this);
     }
 
     @Override

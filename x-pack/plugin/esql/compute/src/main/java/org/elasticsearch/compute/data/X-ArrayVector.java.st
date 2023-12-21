@@ -34,17 +34,14 @@ $else$
     private final $type$[] values;
 $endif$
 
-    private final $Type$Block block;
-
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return block;
+        return new $Type$VectorBlock(this);
     }
 
 $if(BytesRef)$
@@ -120,11 +117,7 @@ $endif$
 
 $if(BytesRef)$
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }

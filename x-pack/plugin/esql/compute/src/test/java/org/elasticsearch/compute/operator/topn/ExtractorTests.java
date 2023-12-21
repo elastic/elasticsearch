@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,6 +33,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class ExtractorTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
         List<Object[]> cases = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
             switch (e) {
@@ -79,9 +79,9 @@ public class ExtractorTests extends ESTestCase {
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
                             () -> new DocVector(
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 randomBoolean() ? null : randomBoolean()
                             ).asBlock()
                         ) }

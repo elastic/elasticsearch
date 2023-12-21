@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
@@ -44,15 +42,15 @@ public class TextFormatterTests extends ESTestCase {
         columns,
         List.of(
             new Page(
-                BytesRefBlock.newBlockBuilder(2)
+                blockFactory.newBytesRefBlockBuilder(2)
                     .appendBytesRef(new BytesRef("15charwidedata!"))
                     .appendBytesRef(new BytesRef("dog"))
                     .build(),
                 blockFactory.newLongArrayVector(new long[] { 1, 2 }, 2).asBlock(),
                 blockFactory.newDoubleArrayVector(new double[] { 6.888, 123124.888 }, 2).asBlock(),
-                Block.constantNullBlock(2),
+                blockFactory.newConstantNullBlock(2),
                 blockFactory.newDoubleArrayVector(new double[] { 12, 9912 }, 2).asBlock(),
-                BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("rabbit")).appendBytesRef(new BytesRef("goat")).build(),
+                blockFactory.newBytesRefBlockBuilder(2).appendBytesRef(new BytesRef("rabbit")).appendBytesRef(new BytesRef("goat")).build(),
                 blockFactory.newLongArrayVector(
                     new long[] {
                         UTC_DATE_TIME_FORMATTER.parseMillis("1953-09-02T00:00:00.000Z"),
@@ -60,7 +58,7 @@ public class TextFormatterTests extends ESTestCase {
                     2
                 ).asBlock(),
                 blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                Block.constantNullBlock(2)
+                blockFactory.newConstantNullBlock(2)
             )
         ),
         null,
@@ -111,12 +109,18 @@ public class TextFormatterTests extends ESTestCase {
             columns,
             List.of(
                 new Page(
-                    BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("doggie")).appendBytesRef(new BytesRef("dog")).build(),
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef("doggie"))
+                        .appendBytesRef(new BytesRef("dog"))
+                        .build(),
                     blockFactory.newLongArrayVector(new long[] { 4, 2 }, 2).asBlock(),
                     blockFactory.newDoubleArrayVector(new double[] { 1, 123124.888 }, 2).asBlock(),
-                    Block.constantNullBlock(2),
+                    blockFactory.newConstantNullBlock(2),
                     blockFactory.newDoubleArrayVector(new double[] { 77.0, 9912.0 }, 2).asBlock(),
-                    BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("wombat")).appendBytesRef(new BytesRef("goat")).build(),
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef("wombat"))
+                        .appendBytesRef(new BytesRef("goat"))
+                        .build(),
                     blockFactory.newLongArrayVector(
                         new long[] {
                             UTC_DATE_TIME_FORMATTER.parseMillis("1955-01-21T01:02:03.342Z"),
@@ -124,7 +128,7 @@ public class TextFormatterTests extends ESTestCase {
                         2
                     ).asBlock(),
                     blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                    Block.constantNullBlock(2)
+                    blockFactory.newConstantNullBlock(2)
                 )
             ),
             null,
@@ -161,7 +165,7 @@ public class TextFormatterTests extends ESTestCase {
                         List.of(new ColumnInfo("foo", "keyword")),
                         List.of(
                             new Page(
-                                BytesRefBlock.newBlockBuilder(2)
+                                blockFactory.newBytesRefBlockBuilder(2)
                                     .appendBytesRef(new BytesRef(smallFieldContent))
                                     .appendBytesRef(new BytesRef(largeFieldContent))
                                     .build()

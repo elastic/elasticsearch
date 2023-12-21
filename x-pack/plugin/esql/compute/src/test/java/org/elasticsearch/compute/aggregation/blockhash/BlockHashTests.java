@@ -498,12 +498,12 @@ public class BlockHashTests extends ESTestCase {
                 assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
                 assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
                 assertKeys(ordsAndKeys.keys, true);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(BlockFactory.getNonBreakingInstance().newConstantIntVector(0, 1)));
             } else {
                 assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=false, seenTrue=true, seenNull=false}"));
                 assertOrds(ordsAndKeys.ords, 2, 2, 2, 2);
                 assertKeys(ordsAndKeys.keys, true);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(2).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(BlockFactory.getNonBreakingInstance().newConstantIntVector(2, 1)));
             }
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
     }
@@ -514,11 +514,11 @@ public class BlockHashTests extends ESTestCase {
             if (forcePackedHash) {
                 assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
                 assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(BlockFactory.getNonBreakingInstance().newConstantIntVector(0, 1)));
             } else {
                 assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=false, seenNull=false}"));
                 assertOrds(ordsAndKeys.ords, 1, 1, 1, 1);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(1).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(BlockFactory.getNonBreakingInstance().newConstantIntVector(1, 1)));
             }
             assertKeys(ordsAndKeys.keys, false);
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());

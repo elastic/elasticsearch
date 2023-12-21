@@ -21,10 +21,10 @@ public class BooleanBlockEqualityTests extends ESTestCase {
         List<BooleanVector> vectors = List.of(
             blockFactory.newBooleanArrayVector(new boolean[] {}, 0),
             blockFactory.newBooleanArrayVector(new boolean[] { randomBoolean() }, 0),
-            BooleanBlock.newConstantBlockWith(randomBoolean(), 0).asVector(),
-            BooleanBlock.newConstantBlockWith(randomBoolean(), 0).filter().asVector(),
-            BooleanBlock.newBlockBuilder(0).build().asVector(),
-            BooleanBlock.newBlockBuilder(0).appendBoolean(randomBoolean()).build().asVector().filter()
+            blockFactory.newConstantBooleanBlockWith(randomBoolean(), 0).asVector(),
+            blockFactory.newConstantBooleanBlockWith(randomBoolean(), 0).filter().asVector(),
+            blockFactory.newBooleanBlockBuilder(0).build().asVector(),
+            blockFactory.newBooleanBlockBuilder(0).appendBoolean(randomBoolean()).build().asVector().filter()
         );
         assertAllEquals(vectors);
     }
@@ -48,10 +48,10 @@ public class BooleanBlockEqualityTests extends ESTestCase {
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
             ),
-            BooleanBlock.newConstantBlockWith(randomBoolean(), 0),
-            BooleanBlock.newBlockBuilder(0).build(),
-            BooleanBlock.newBlockBuilder(0).appendBoolean(randomBoolean()).build().filter(),
-            BooleanBlock.newBlockBuilder(0).appendNull().build().filter()
+            blockFactory.newConstantBooleanBlockWith(randomBoolean(), 0),
+            blockFactory.newBooleanBlockBuilder(0).build(),
+            blockFactory.newBooleanBlockBuilder(0).appendBoolean(randomBoolean()).build().filter(),
+            blockFactory.newBooleanBlockBuilder(0).appendNull().build().filter()
         );
         assertAllEquals(blocks);
     }
@@ -66,9 +66,9 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, false }, 4).filter(0, 1, 2),
             blockFactory.newBooleanArrayVector(new boolean[] { false, true, false, true }, 4).filter(1, 2, 3),
             blockFactory.newBooleanArrayVector(new boolean[] { true, true, false, true }, 4).filter(0, 2, 3),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build().asVector(),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build().asVector().filter(0, 1, 2),
-            BooleanBlock.newBlockBuilder(3)
+            blockFactory.newBooleanVectorBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build(),
+            blockFactory.newBooleanVectorBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build().filter(0, 1, 2),
+            blockFactory.newBooleanBlockBuilder(3)
                 .appendBoolean(true)
                 .appendBoolean(true)
                 .appendBoolean(false)
@@ -76,7 +76,7 @@ public class BooleanBlockEqualityTests extends ESTestCase {
                 .build()
                 .filter(0, 2, 3)
                 .asVector(),
-            BooleanBlock.newBlockBuilder(3)
+            blockFactory.newBooleanBlockBuilder(3)
                 .appendBoolean(true)
                 .appendBoolean(true)
                 .appendBoolean(false)
@@ -96,10 +96,16 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             blockFactory.newBooleanArrayVector(new boolean[] { true, true, true, false }, 4).filter(0, 1, 2),
             blockFactory.newBooleanArrayVector(new boolean[] { false, true, true, true }, 4).filter(1, 2, 3),
             blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, true }, 4).filter(0, 2, 3),
-            BooleanBlock.newConstantBlockWith(true, 3).asVector(),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(true).appendBoolean(true).build().asVector(),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(true).appendBoolean(true).build().asVector().filter(0, 1, 2),
-            BooleanBlock.newBlockBuilder(3)
+            blockFactory.newConstantBooleanBlockWith(true, 3).asVector(),
+            blockFactory.newBooleanBlockBuilder(3).appendBoolean(true).appendBoolean(true).appendBoolean(true).build().asVector(),
+            blockFactory.newBooleanBlockBuilder(3)
+                .appendBoolean(true)
+                .appendBoolean(true)
+                .appendBoolean(true)
+                .build()
+                .asVector()
+                .filter(0, 1, 2),
+            blockFactory.newBooleanBlockBuilder(3)
                 .appendBoolean(true)
                 .appendBoolean(false)
                 .appendBoolean(true)
@@ -107,7 +113,7 @@ public class BooleanBlockEqualityTests extends ESTestCase {
                 .build()
                 .filter(0, 2, 3)
                 .asVector(),
-            BooleanBlock.newBlockBuilder(3)
+            blockFactory.newBooleanBlockBuilder(3)
                 .appendBoolean(true)
                 .appendBoolean(false)
                 .appendBoolean(true)
@@ -143,16 +149,16 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, false }, 3).filter(0, 1, 2).asBlock(),
             blockFactory.newBooleanArrayVector(new boolean[] { true, false, true, false }, 4).filter(0, 1, 2).asBlock(),
             blockFactory.newBooleanArrayVector(new boolean[] { true, false, false, true }, 4).filter(0, 1, 3).asBlock(),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build(),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build().filter(0, 1, 2),
-            BooleanBlock.newBlockBuilder(3)
+            blockFactory.newBooleanBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build(),
+            blockFactory.newBooleanBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(true).build().filter(0, 1, 2),
+            blockFactory.newBooleanBlockBuilder(3)
                 .appendBoolean(true)
                 .appendBoolean(true)
                 .appendBoolean(false)
                 .appendBoolean(true)
                 .build()
                 .filter(0, 2, 3),
-            BooleanBlock.newBlockBuilder(3)
+            blockFactory.newBooleanBlockBuilder(3)
                 .appendBoolean(true)
                 .appendNull()
                 .appendBoolean(false)
@@ -185,11 +191,11 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             blockFactory.newBooleanArrayVector(new boolean[] { true, true, false }, 2).filter(0, 1).asBlock(),
             blockFactory.newBooleanArrayVector(new boolean[] { true, true, false }, 3).filter(0, 1).asBlock(),
             blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3).filter(0, 2).asBlock(),
-            BooleanBlock.newConstantBlockWith(true, 2),
-            BooleanBlock.newBlockBuilder(2).appendBoolean(true).appendBoolean(true).build(),
-            BooleanBlock.newBlockBuilder(2).appendBoolean(true).appendBoolean(true).build().filter(0, 1),
-            BooleanBlock.newBlockBuilder(2).appendBoolean(true).appendBoolean(true).appendBoolean(true).build().filter(0, 2),
-            BooleanBlock.newBlockBuilder(2).appendBoolean(true).appendNull().appendBoolean(true).build().filter(0, 2)
+            blockFactory.newConstantBooleanBlockWith(true, 2),
+            blockFactory.newBooleanBlockBuilder(2).appendBoolean(true).appendBoolean(true).build(),
+            blockFactory.newBooleanBlockBuilder(2).appendBoolean(true).appendBoolean(true).build().filter(0, 1),
+            blockFactory.newBooleanBlockBuilder(2).appendBoolean(true).appendBoolean(true).appendBoolean(true).build().filter(0, 2),
+            blockFactory.newBooleanBlockBuilder(2).appendBoolean(true).appendNull().appendBoolean(true).build().filter(0, 2)
         );
         assertAllEquals(moreBlocks);
     }
@@ -202,10 +208,10 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             blockFactory.newBooleanArrayVector(new boolean[] { true, false }, 2),
             blockFactory.newBooleanArrayVector(new boolean[] { true, false, true }, 3),
             blockFactory.newBooleanArrayVector(new boolean[] { false, true, false }, 3),
-            BooleanBlock.newConstantBlockWith(true, 2).asVector(),
-            BooleanBlock.newBlockBuilder(2).appendBoolean(false).appendBoolean(true).build().asVector(),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(false).appendBoolean(false).appendBoolean(true).build().asVector(),
-            BooleanBlock.newBlockBuilder(1)
+            blockFactory.newConstantBooleanBlockWith(true, 2).asVector(),
+            blockFactory.newBooleanBlockBuilder(2).appendBoolean(false).appendBoolean(true).build().asVector(),
+            blockFactory.newBooleanBlockBuilder(3).appendBoolean(false).appendBoolean(false).appendBoolean(true).build().asVector(),
+            blockFactory.newBooleanBlockBuilder(1)
                 .appendBoolean(false)
                 .appendBoolean(false)
                 .appendBoolean(false)
@@ -224,13 +230,23 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             blockFactory.newBooleanArrayVector(new boolean[] { false, true }, 2).asBlock(),
             blockFactory.newBooleanArrayVector(new boolean[] { false, true, false }, 3).asBlock(),
             blockFactory.newBooleanArrayVector(new boolean[] { false, false, true }, 3).asBlock(),
-            BooleanBlock.newConstantBlockWith(true, 2),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(false).build(),
-            BooleanBlock.newBlockBuilder(1).appendBoolean(true).appendBoolean(false).appendBoolean(true).appendBoolean(false).build(),
-            BooleanBlock.newBlockBuilder(1).appendBoolean(true).appendNull().build(),
-            BooleanBlock.newBlockBuilder(1).appendBoolean(true).appendNull().appendBoolean(false).build(),
-            BooleanBlock.newBlockBuilder(1).appendBoolean(true).appendBoolean(false).build(),
-            BooleanBlock.newBlockBuilder(3).appendBoolean(true).beginPositionEntry().appendBoolean(false).appendBoolean(false).build()
+            blockFactory.newConstantBooleanBlockWith(true, 2),
+            blockFactory.newBooleanBlockBuilder(3).appendBoolean(true).appendBoolean(false).appendBoolean(false).build(),
+            blockFactory.newBooleanBlockBuilder(1)
+                .appendBoolean(true)
+                .appendBoolean(false)
+                .appendBoolean(true)
+                .appendBoolean(false)
+                .build(),
+            blockFactory.newBooleanBlockBuilder(1).appendBoolean(true).appendNull().build(),
+            blockFactory.newBooleanBlockBuilder(1).appendBoolean(true).appendNull().appendBoolean(false).build(),
+            blockFactory.newBooleanBlockBuilder(1).appendBoolean(true).appendBoolean(false).build(),
+            blockFactory.newBooleanBlockBuilder(3)
+                .appendBoolean(true)
+                .beginPositionEntry()
+                .appendBoolean(false)
+                .appendBoolean(false)
+                .build()
         );
         assertAllNotEquals(notEqualBlocks);
     }

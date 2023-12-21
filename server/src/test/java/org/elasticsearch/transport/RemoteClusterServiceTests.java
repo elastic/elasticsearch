@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class RemoteClusterServiceTests extends ESTestCase {
 
@@ -1426,7 +1427,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testCredentialsChangeRebuildsConnectionWithCorrectProfile() throws IOException, InterruptedException {
+    public void testUpdateRemoteClusterCredentialsRebuildsConnectionWithCorrectProfile() throws IOException, InterruptedException {
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
             MockTransportService c = startTransport(
@@ -1456,17 +1457,17 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
                     service.initializeRemoteClusters();
 
-                    final CountDownLatch firstLatch = new CountDownLatch(1);
-                    final Settings.Builder firstRemoteClusterSettingsBuilder = Settings.builder();
-                    final boolean firstRemoteClusterProxyMode = randomBoolean();
-                    if (firstRemoteClusterProxyMode) {
-                        firstRemoteClusterSettingsBuilder.put("cluster.remote.cluster_1.mode", "proxy")
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    final Settings.Builder remoteClusterSettings = Settings.builder();
+                    final boolean proxyMode = randomBoolean();
+                    if (proxyMode) {
+                        remoteClusterSettings.put("cluster.remote.cluster_1.mode", "proxy")
                             .put("cluster.remote.cluster_1.proxy_address", discoNode.getAddress().toString());
                     } else {
-                        firstRemoteClusterSettingsBuilder.put("cluster.remote.cluster_1.seeds", discoNode.getAddress().toString());
+                        remoteClusterSettings.put("cluster.remote.cluster_1.seeds", discoNode.getAddress().toString());
                     }
-                    service.updateRemoteCluster("cluster_1", firstRemoteClusterSettingsBuilder.build(), connectionListener(firstLatch));
-                    firstLatch.await();
+                    service.updateRemoteCluster("cluster_1", remoteClusterSettings.build(), connectionListener(latch));
+                    latch.await();
 
                     assertThat(
                         service.getRemoteClusterConnection("cluster_1").getConnectionManager().getConnectionProfile().getTransportProfile(),
@@ -1478,7 +1479,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
                         service.updateRemoteClusterCredentials(
-                            Settings.builder().put(firstRemoteClusterSettingsBuilder.build()).setSecureSettings(secureSettings).build(),
+                            Settings.builder().put(remoteClusterSettings.build()).setSecureSettings(secureSettings).build(),
                             listener
                         );
                         listener.actionGet(10, TimeUnit.SECONDS);
@@ -1493,7 +1494,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
                         service.updateRemoteClusterCredentials(
                             // Settings without credentials constitute credentials removal
-                            firstRemoteClusterSettingsBuilder.build(),
+                            remoteClusterSettings.build(),
                             listener
                         );
                         listener.actionGet(10, TimeUnit.SECONDS);
@@ -1503,9 +1504,132 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         service.getRemoteClusterConnection("cluster_1").getConnectionManager().getConnectionProfile().getTransportProfile(),
                         equalTo("default")
                     );
+                }
+            }
+        }
+    }
 
-                    // No local node connection
-                    assertEquals(0, transportService.getConnectionManager().size());
+    public void testUpdateRemoteClusterCredentialsRebuildsConnectionDespiteFailures() throws IOException, InterruptedException {
+        final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+            MockTransportService c1 = startTransport(
+                "cluster_1",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                Settings.builder()
+                    .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+                    .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+                    .build()
+            );
+            MockTransportService c2 = startTransport(
+                "cluster_2",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                Settings.builder()
+                    .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+                    .put(RemoteClusterPortSettings.PORT.getKey(), "0")
+                    .build()
+            )
+        ) {
+            final DiscoveryNode c1DiscoNode = c1.getLocalDiscoNode().withTransportAddress(c1.boundRemoteAccessAddress().publishAddress());
+            final DiscoveryNode c2DiscoNode = c2.getLocalDiscoNode().withTransportAddress(c2.boundRemoteAccessAddress().publishAddress());
+            try (
+                MockTransportService transportService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
+                    threadPool,
+                    null
+                )
+            ) {
+                // fail on connection attempt
+                transportService.addConnectBehavior(c2DiscoNode.getAddress(), (transport, discoveryNode, profile, listener) -> {
+                    throw new RuntimeException("connection failed");
+                });
+
+                transportService.start();
+                transportService.acceptIncomingRequests();
+
+                try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
+                    service.initializeRemoteClusters();
+
+                    final Settings.Builder remoteCluster1Settings = Settings.builder();
+                    {
+                        final CountDownLatch latch = new CountDownLatch(1);
+                        final boolean proxyMode = randomBoolean();
+                        if (proxyMode) {
+                            remoteCluster1Settings.put("cluster.remote." + "cluster_1" + ".mode", "proxy")
+                                .put("cluster.remote." + "cluster_1" + ".proxy_address", c1DiscoNode.getAddress().toString());
+                        } else {
+                            remoteCluster1Settings.put("cluster.remote." + "cluster_1" + ".seeds", c1DiscoNode.getAddress().toString());
+                        }
+                        service.updateRemoteCluster("cluster_1", remoteCluster1Settings.build(), connectionListener(latch));
+                        latch.await();
+                    }
+
+                    final Settings.Builder remoteCluster2Settings = Settings.builder();
+                    {
+                        final boolean proxyMode = randomBoolean();
+                        if (proxyMode) {
+                            remoteCluster2Settings.put("cluster.remote.cluster_2.mode", "proxy")
+                                .put("cluster.remote.cluster_2.proxy_address", c2DiscoNode.getAddress().toString());
+                        } else {
+                            remoteCluster2Settings.put("cluster.remote.cluster_2.seeds", c2DiscoNode.getAddress().toString());
+                        }
+                        final PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus> future = new PlainActionFuture<>();
+                        service.updateRemoteCluster("cluster_2", remoteCluster2Settings.build(), future);
+                        Exception ex = null;
+                        try {
+                            future.actionGet(10, TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            // we're expecting a connection failure
+                            ex = e;
+                        }
+                        assertThat(ex, notNullValue());
+                    }
+
+                    assertThat(
+                        service.getRemoteClusterConnection("cluster_1").getConnectionManager().getConnectionProfile().getTransportProfile(),
+                        equalTo("default")
+                    );
+
+                    {
+                        final MockSecureSettings secureSettings = new MockSecureSettings();
+                        secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
+                        secureSettings.setString("cluster.remote.cluster_2.credentials", randomAlphaOfLength(10));
+                        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                        service.updateRemoteClusterCredentials(
+                            Settings.builder()
+                                .put(remoteCluster1Settings.build())
+                                .put(remoteCluster2Settings.build())
+                                .setSecureSettings(secureSettings)
+                                .build(),
+                            listener
+                        );
+                        listener.actionGet(10, TimeUnit.SECONDS);
+                    }
+
+                    assertThat(
+                        service.getRemoteClusterConnection("cluster_1").getConnectionManager().getConnectionProfile().getTransportProfile(),
+                        equalTo(RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE)
+                    );
+
+                    {
+                        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                        service.updateRemoteClusterCredentials(
+                            // Settings without credentials constitute credentials removal
+                            remoteCluster1Settings.build(),
+                            listener
+                        );
+                        listener.actionGet(10, TimeUnit.SECONDS);
+                    }
+
+                    assertThat(
+                        service.getRemoteClusterConnection("cluster_1").getConnectionManager().getConnectionProfile().getTransportProfile(),
+                        equalTo("default")
+                    );
                 }
             }
         }

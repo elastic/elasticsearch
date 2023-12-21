@@ -33,7 +33,15 @@ public class DataStreamTemplateTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected DataStreamTemplate mutateInstance(DataStreamTemplate instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        var hidden = instance.isHidden();
+        var allowCustomRouting = instance.isAllowCustomRouting();
+        var failureStore = instance.hasFailureStore();
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> hidden = hidden == false;
+            case 1 -> allowCustomRouting = allowCustomRouting == false;
+            default -> failureStore = failureStore == false;
+        }
+        return new DataStreamTemplate(hidden, allowCustomRouting, failureStore);
     }
 
     public static DataStreamTemplate randomInstance() {

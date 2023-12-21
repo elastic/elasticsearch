@@ -29,8 +29,8 @@ public class PassthroughObjectMapper extends ObjectMapper {
 
         protected Explicit<Boolean> containsDimensions = Explicit.IMPLICIT_FALSE;
 
-        public Builder(String name, Explicit<Boolean> subobjects) {
-            super(name, subobjects);
+        public Builder(String name) {
+            super(name, Explicit.IMPLICIT_FALSE);
         }
 
         @Override
@@ -71,7 +71,7 @@ public class PassthroughObjectMapper extends ObjectMapper {
 
     @Override
     public PassthroughObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        PassthroughObjectMapper.Builder builder = new PassthroughObjectMapper.Builder(name(), subobjects);
+        PassthroughObjectMapper.Builder builder = new PassthroughObjectMapper.Builder(name());
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
@@ -117,8 +117,7 @@ public class PassthroughObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            Explicit<Boolean> subobjects = parseSubobjects(node);
-            PassthroughObjectMapper.Builder builder = new Builder(name, subobjects);
+            PassthroughObjectMapper.Builder builder = new Builder(name);
 
             parsePassthrough(name, node, builder);
             parseObjectFields(node, parserContext, builder);

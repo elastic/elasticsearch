@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.inference.action;
+package org.elasticsearch.action.inference;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersions;
@@ -13,6 +13,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.inference.results.LegacyTextEmbeddingResults;
+import org.elasticsearch.action.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.action.inference.results.TextExpansionResults;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
@@ -24,9 +27,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;

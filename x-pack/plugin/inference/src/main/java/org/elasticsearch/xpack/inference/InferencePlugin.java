@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;

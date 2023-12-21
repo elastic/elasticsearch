@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResul
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.action.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenization;

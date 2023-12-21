@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.action.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.action.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;

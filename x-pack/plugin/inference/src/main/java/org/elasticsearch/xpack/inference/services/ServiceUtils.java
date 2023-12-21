@@ -16,7 +16,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.action.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.net.URI;

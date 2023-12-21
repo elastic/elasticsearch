@@ -691,9 +691,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
 
-                executeBulkShardRequest(bulkShardRequest, requests, counter);
+                IndexMetadata indexMetadata = clusterState.metadata().index(shardId.getIndex());
+                if (indexMetadata.getFieldsForModels().isEmpty()) {
+                    executeBulkShardRequest(bulkShardRequest, requests, counter);
+                } else {
+                    performInference(bulkShardRequest, requests, clusterState);
+                }
+
+
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
+        }
+
+        private void performInference(BulkShardRequest bulkShardRequest, List<BulkItemRequest> requests, ClusterState clusterState) {
+
         }
 
         private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, List<BulkItemRequest> requests, AtomicInteger counter) {

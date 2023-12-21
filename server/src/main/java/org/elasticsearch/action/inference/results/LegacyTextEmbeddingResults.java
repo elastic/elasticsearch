@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.inference.results;
+package org.elasticsearch.action.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

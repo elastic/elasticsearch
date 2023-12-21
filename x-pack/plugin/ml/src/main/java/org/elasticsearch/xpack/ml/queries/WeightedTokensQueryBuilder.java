@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
+import org.elasticsearch.action.inference.results.TextExpansionResults.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;

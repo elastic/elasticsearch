@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.response.huggingface;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.action.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 

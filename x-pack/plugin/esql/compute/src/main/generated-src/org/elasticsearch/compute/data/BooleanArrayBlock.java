@@ -96,7 +96,7 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
         }
     }
 
-    public long ramBytesUsedOnlyBlock() {
+    private long ramBytesUsedOnlyBlock() {
         return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
@@ -128,6 +128,12 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
             + ", vector="
             + vector
             + ']';
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        vector.allowPassingToDifferentDriver();
     }
 
     @Override

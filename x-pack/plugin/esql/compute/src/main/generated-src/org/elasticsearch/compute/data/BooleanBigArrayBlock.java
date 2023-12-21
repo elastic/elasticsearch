@@ -96,10 +96,13 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
         }
     }
 
+    private long ramBytesUsedOnlyBlock() {
+        return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    }
+
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+        return ramBytesUsedOnlyBlock() + RamUsageEstimator.sizeOf(vector);
     }
 
     @Override
@@ -128,8 +131,14 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
     }
 
     @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed() + RamUsageEstimator.sizeOf(vector), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
         Releasables.closeExpectNoException(vector);
     }
 }

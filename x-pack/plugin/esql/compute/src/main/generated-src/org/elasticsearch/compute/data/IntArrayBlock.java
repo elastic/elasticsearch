@@ -96,7 +96,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
         }
     }
 
-    public long ramBytesUsedOnlyBlock() {
+    private long ramBytesUsedOnlyBlock() {
         return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
@@ -128,6 +128,12 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
             + ", vector="
             + vector
             + ']';
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        vector.allowPassingToDifferentDriver();
     }
 
     @Override

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.core.Strings;
+
 import java.util.Locale;
 import java.util.Optional;
 import java.util.ServiceLoader;
@@ -32,16 +34,18 @@ public class ExtensionLoader {
      * @param <T> the SPI extension type
      */
     public static <T> Optional<T> loadSingleton(ServiceLoader<T> loader) {
-        var extensions = loader.stream().toList();
-        if (extensions.size() > 1) {
+        var extensions = loader.iterator();
+        if (extensions.hasNext() == false) {
+            return Optional.empty();
+        }
+        var ext = extensions.next();
+        if (extensions.hasNext()) {
             // It would be really nice to give the actual extension class here directly, but that would require passing it
             // in effectively twice in the call site, once to ServiceLoader, and then to this method directly as well.
             // It's annoying that ServiceLoader hangs onto the service class, but does not expose it. It does at least
             // print the service class from its toString, which is better tha nothing
-            throw new IllegalStateException(String.format(Locale.ROOT, "More than one extension found for %s", loader));
-        } else if (extensions.isEmpty()) {
-            return Optional.empty();
+            throw new IllegalStateException(Strings.format("More than one extension found for %s", loader));
         }
-        return Optional.of(extensions.get(0).get());
+        return Optional.of(ext);
     }
 }

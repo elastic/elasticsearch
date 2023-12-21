@@ -11,7 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasables;
@@ -1035,6 +1039,13 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(breaker.getUsed(), is(0L));
     }
 
+    public void testRefCountingBigArrayBlock() {
+        Block block = randomBigArrayBlock();
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(block);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
     public void testRefCountingConstantNullBlock() {
         Block block = blockFactory.newConstantNullBlock(10);
         assertThat(breaker.getUsed(), greaterThan(0L));
@@ -1145,6 +1156,69 @@ public class BasicBlockTests extends ESTestCase {
                 Arrays.fill(values, 1L);
 
                 yield blockFactory.newLongArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+            }
+        };
+    }
+
+    private Block randomBigArrayBlock() {
+        int positionCount = randomIntBetween(0, 10000);
+        int arrayType = randomIntBetween(0, 3);
+
+        return switch (arrayType) {
+            case 0 -> {
+                BitArray values = new BitArray(positionCount, blockFactory.bigArrays());
+                for (int i = 0; i < positionCount; i++) {
+                    if (randomBoolean()) {
+                        values.set(positionCount);
+                    }
+                }
+
+                yield new BooleanBigArrayBlock(values, positionCount, null, new BitSet(), Block.MvOrdering.UNORDERED, blockFactory);
+            }
+            case 1 -> {
+                DoubleArray values = blockFactory.bigArrays().newDoubleArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomDouble());
+                }
+
+                yield new DoubleBigArrayBlock(
+                    values,
+                    positionCount,
+                    null,
+                    new BitSet(),
+                    Block.MvOrdering.UNORDERED,
+                    BlockFactory.getNonBreakingInstance()
+                );
+            }
+            case 2 -> {
+                IntArray values = blockFactory.bigArrays().newIntArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomInt());
+                }
+
+                yield new IntBigArrayBlock(
+                    values,
+                    positionCount,
+                    null,
+                    new BitSet(),
+                    Block.MvOrdering.UNORDERED,
+                    BlockFactory.getNonBreakingInstance()
+                );
+            }
+            default -> {
+                LongArray values = blockFactory.bigArrays().newLongArray(positionCount, false);
+                for (int i = 0; i < positionCount; i++) {
+                    values.set(i, randomLong());
+                }
+
+                yield new LongBigArrayBlock(
+                    values,
+                    positionCount,
+                    null,
+                    new BitSet(),
+                    Block.MvOrdering.UNORDERED,
+                    BlockFactory.getNonBreakingInstance()
+                );
             }
         };
     }

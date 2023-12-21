@@ -6,13 +6,6 @@
  * Side Public License, v 1.
  */
 
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
- */
-
 package org.elasticsearch.action.inference.results;
 
 import org.elasticsearch.common.Strings;
@@ -26,23 +19,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-abstract class NlpInferenceResults implements InferenceResults {
+public abstract class NlpInferenceResults implements InferenceResults {
 
     protected final boolean isTruncated;
 
-    NlpInferenceResults(boolean isTruncated) {
+    public NlpInferenceResults(boolean isTruncated) {
         this.isTruncated = isTruncated;
     }
 
-    NlpInferenceResults(StreamInput in) throws IOException {
+    public NlpInferenceResults(StreamInput in) throws IOException {
         this.isTruncated = in.readBoolean();
     }
 
-    abstract void doXContentBody(XContentBuilder builder, Params params) throws IOException;
+    protected abstract void doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
-    abstract void doWriteTo(StreamOutput out) throws IOException;
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-    abstract void addMapFields(Map<String, Object> map);
+    protected abstract void addMapFields(Map<String, Object> map);
 
     public boolean isTruncated() {
         return isTruncated;

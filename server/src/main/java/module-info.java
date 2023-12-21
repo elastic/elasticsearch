@@ -135,6 +135,9 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.get;
     exports org.elasticsearch.action.index;
     exports org.elasticsearch.action.ingest;
+    exports org.elasticsearch.action.inference;
+    exports org.elasticsearch.action.inference.results;
+    exports org.elasticsearch.action.ml.inference.results;
     exports org.elasticsearch.action.resync;
     exports org.elasticsearch.action.search;
     exports org.elasticsearch.action.support;

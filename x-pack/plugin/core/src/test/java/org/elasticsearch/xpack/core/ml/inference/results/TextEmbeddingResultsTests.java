@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.results;
 
+import org.elasticsearch.action.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 
@@ -46,10 +47,10 @@ public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbe
     public void testAsMap() {
         TextEmbeddingResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
-        int size = testInstance.isTruncated ? 2 : 1;
+        int size = testInstance.isTruncated() ? 2 : 1;
         assertThat(asMap.keySet(), hasSize(size));
         assertArrayEquals(testInstance.getInference(), (double[]) asMap.get(DEFAULT_RESULTS_FIELD), 1e-10);
-        if (testInstance.isTruncated) {
+        if (testInstance.isTruncated()) {
             assertThat(asMap.get("is_truncated"), is(true));
         }
     }

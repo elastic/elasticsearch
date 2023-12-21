@@ -35,7 +35,7 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(resultsField);
         out.writeDouble(score);
     }
@@ -65,7 +65,7 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    void addMapFields(Map<String, Object> map) {
+    protected void addMapFields(Map<String, Object> map) {
         map.put(resultsField, score);
     }
 
@@ -82,7 +82,7 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, score);
     }
 

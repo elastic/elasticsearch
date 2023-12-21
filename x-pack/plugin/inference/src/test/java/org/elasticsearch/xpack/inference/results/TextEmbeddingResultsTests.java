@@ -109,12 +109,12 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             results,
             is(
                 List.of(
-                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
+                    new org.elasticsearch.action.ml.inference.results.TextEmbeddingResults(
                         TextEmbeddingResults.TEXT_EMBEDDING,
                         new double[] { 0.1F, 0.2F },
                         false
                     ),
-                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
+                    new org.elasticsearch.action.ml.inference.results.TextEmbeddingResults(
                         TextEmbeddingResults.TEXT_EMBEDDING,
                         new double[] { 0.3F, 0.4F },
                         false

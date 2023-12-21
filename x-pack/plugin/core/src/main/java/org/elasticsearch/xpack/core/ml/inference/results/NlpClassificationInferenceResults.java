@@ -60,7 +60,7 @@ public class NlpClassificationInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(classificationLabel);
         out.writeCollection(topClasses);
         out.writeString(resultsField);
@@ -99,7 +99,7 @@ public class NlpClassificationInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    void addMapFields(Map<String, Object> map) {
+    protected void addMapFields(Map<String, Object> map) {
         map.put(resultsField, classificationLabel);
         if (topClasses.isEmpty() == false) {
             map.put(
@@ -118,7 +118,7 @@ public class NlpClassificationInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, classificationLabel);
         if (topClasses.size() > 0) {
             builder.field(NlpConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD, topClasses);

@@ -77,7 +77,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(answer);
         out.writeVInt(startOffset);
         out.writeVInt(endOffset);
@@ -120,7 +120,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    void addMapFields(Map<String, Object> map) {
+    protected void addMapFields(Map<String, Object> map) {
         map.put(resultsField, answer);
         addSupportingFieldsToMap(map);
     }
@@ -151,7 +151,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
     }
 
     @Override
-    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, answer);
         builder.field(START_OFFSET.getPreferredName(), startOffset);
         builder.field(END_OFFSET.getPreferredName(), endOffset);

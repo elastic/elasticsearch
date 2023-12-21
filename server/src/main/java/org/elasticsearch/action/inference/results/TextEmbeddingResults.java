@@ -15,7 +15,6 @@
 
 package org.elasticsearch.action.inference.results;
 
-import org.elasticsearch.action.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -91,7 +90,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
             .map(embedding -> embedding.values.stream().mapToDouble(value -> value).toArray())
-            .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING, values, false))
+            .map(values -> new org.elasticsearch.action.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING, values, false))
             .toList();
     }
 

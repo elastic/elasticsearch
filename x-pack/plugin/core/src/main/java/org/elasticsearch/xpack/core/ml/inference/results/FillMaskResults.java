@@ -40,7 +40,7 @@ public class FillMaskResults extends NlpClassificationInferenceResults {
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
         out.writeString(predictedSequence);
     }
@@ -50,7 +50,7 @@ public class FillMaskResults extends NlpClassificationInferenceResults {
     }
 
     @Override
-    void addMapFields(Map<String, Object> map) {
+    protected void addMapFields(Map<String, Object> map) {
         super.addMapFields(map);
         map.put(resultsField + "_sequence", predictedSequence);
     }
@@ -68,7 +68,7 @@ public class FillMaskResults extends NlpClassificationInferenceResults {
     }
 
     @Override
-    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         super.doXContentBody(builder, params);
         builder.field(resultsField + "_sequence", predictedSequence);
     }

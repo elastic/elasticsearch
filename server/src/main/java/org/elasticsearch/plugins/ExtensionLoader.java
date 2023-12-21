@@ -10,7 +10,6 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.Strings;
 
-import java.util.Locale;
 import java.util.Optional;
 import java.util.ServiceLoader;
 

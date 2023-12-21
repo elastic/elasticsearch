@@ -38,9 +38,11 @@ public final class BulkShardOperationsResponse extends ReplicationResponse imple
     }
 
     private long docCount;
+
     public long getDocCount() {
         return docCount;
     }
+
     public void setDocCount(final long docCount) {
         this.docCount = docCount;
     }

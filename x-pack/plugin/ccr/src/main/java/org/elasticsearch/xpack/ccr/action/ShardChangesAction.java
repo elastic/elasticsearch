@@ -266,6 +266,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         }
 
         private final long docsCount;
+
         public long getDocsCount() {
             return docsCount;
         }

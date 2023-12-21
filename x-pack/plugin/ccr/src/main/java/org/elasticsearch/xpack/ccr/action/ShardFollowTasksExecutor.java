@@ -579,8 +579,14 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         logger.info("{} Starting to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
 
-        FollowerStatsInfoHandler handler = (followerHistoryUUID, followerGCP, maxSeqNo, docsCount) ->
-            shardFollowNodeTask.start(followerHistoryUUID, followerGCP, maxSeqNo, followerGCP, maxSeqNo, docsCount);
+        FollowerStatsInfoHandler handler = (followerHistoryUUID, followerGCP, maxSeqNo, docsCount) -> shardFollowNodeTask.start(
+            followerHistoryUUID,
+            followerGCP,
+            maxSeqNo,
+            followerGCP,
+            maxSeqNo,
+            docsCount
+        );
 
         Consumer<Exception> errorHandler = e -> {
             if (shardFollowNodeTask.isStopped()) {

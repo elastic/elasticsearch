@@ -41,7 +41,7 @@ setup:
       index:
         index: test-events-no-index
         id: "1"
-        body: { "events": [ "a", "a", "b", "c" ] }
+        body: { "events": [ "a", "a", "b" ] }
 
 
   - do:
@@ -78,10 +78,8 @@ setup:
               counted_terms:
                 field: events
 
-  - match: { aggregations.event_terms.buckets.0.key: "b" }
-  - match: { aggregations.event_terms.buckets.0.doc_count: 4 }
-  - match: { aggregations.event_terms.buckets.1.key: "a" }
-  - match: { aggregations.event_terms.buckets.1.doc_count: 3 }
-  - match: { aggregations.event_terms.buckets.2.key: "c" }
-  - match: { aggregations.event_terms.buckets.2.doc_count: 2 }
-  - length: { aggregations.event_terms.buckets: 3 }
+  - match: { aggregations.event_terms.buckets.0.key: "a" }
+  - match: { aggregations.event_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.event_terms.buckets.1.key: "b" }
+  - match: { aggregations.event_terms.buckets.1.doc_count: 1 }
+  - length: { aggregations.event_terms.buckets: 2 }

@@ -20,6 +20,7 @@ public class BinaryComparisonProcessor extends FunctionalEnumBinaryProcessor<Obj
     public enum BinaryComparisonOperation implements PredicateBiFunction<Object, Object, Boolean> {
 
         EQ(Comparisons::eq, "=="),
+        EQ_IGNORE_CASE(Comparisons::eqIgnoreCase, "=~"),
         NULLEQ(Comparisons::nulleq, "<=>"),
         NEQ(Comparisons::neq, "!="),
         GT(Comparisons::gt, ">"),

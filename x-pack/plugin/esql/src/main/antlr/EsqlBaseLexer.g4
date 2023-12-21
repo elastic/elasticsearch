@@ -130,6 +130,7 @@ RP : ')';
 TRUE : 'true';
 
 EQ  : '==';
+EQ_IGNORE_CASE  : '=~';
 NEQ : '!=';
 LT  : '<';
 LTE : '<=';

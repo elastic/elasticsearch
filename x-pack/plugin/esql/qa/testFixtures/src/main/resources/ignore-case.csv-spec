@@ -1,0 +1,37 @@
+
+simpleFilter#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "mary" | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+simpleFilter#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "mar" | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+;
+
+mixedConditionsAnd#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "mary" AND emp_no == 10011 | keep emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10011          | Mary               | Sluis
+;
+
+
+mixedConditionsOr#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where first_name =~ "mary" OR emp_no == 10001 | keep emp_no, first_name, last_name |sort emp_no;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | Georgi             | Facello
+10011          | Mary               | Sluis
+;
+
+
+evalEquals#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
+from employees | where emp_no == 10001 | eval x = first_name =~ "georgi", y = first_name == "georgi" | keep emp_no, first_name, x, y;
+
+emp_no:integer | first_name:keyword | x:boolean | y:boolean 
+10001          | Georgi             | true      | false
+;

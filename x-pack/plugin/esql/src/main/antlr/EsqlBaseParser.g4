@@ -229,7 +229,7 @@ string
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | EQ_IGNORE_CASE | NEQ | LT | LTE | GT | GTE
     ;
 
 explainCommand

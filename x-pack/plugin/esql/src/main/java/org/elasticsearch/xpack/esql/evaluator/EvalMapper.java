@@ -41,6 +41,7 @@ public final class EvalMapper {
 
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
         ComparisonMapper.EQUALS,
+        ComparisonMapper.EQUALS_IGNORE_CASE,
         ComparisonMapper.NOT_EQUALS,
         ComparisonMapper.GREATER_THAN,
         ComparisonMapper.GREATER_THAN_OR_EQUAL,

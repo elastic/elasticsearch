@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCase;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
@@ -283,6 +284,7 @@ public final class PlanNamedTypes {
             of(NamedExpression.class, Alias.class, PlanNamedTypes::writeAlias, PlanNamedTypes::readAlias),
             // BinaryComparison
             of(BinaryComparison.class, Equals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            of(BinaryComparison.class, EqualsIgnoreCase.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, NullEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, NotEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, GreaterThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
@@ -1063,6 +1065,7 @@ public final class PlanNamedTypes {
         var zoneId = in.readOptionalZoneId();
         return switch (operation) {
             case EQ -> new Equals(source, left, right, zoneId);
+            case EQ_IGNORE_CASE -> new EqualsIgnoreCase(source, left, right, zoneId);
             case NULLEQ -> new NullEquals(source, left, right, zoneId);
             case NEQ -> new NotEquals(source, left, right, zoneId);
             case GT -> new GreaterThan(source, left, right, zoneId);

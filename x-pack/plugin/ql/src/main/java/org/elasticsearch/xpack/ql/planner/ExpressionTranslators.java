@@ -345,7 +345,7 @@ public final class ExpressionTranslators {
                     // dates equality uses a range query because it's the one that has a "format" parameter
                     query = new RangeQuery(source, name, value, true, value, true, format, zoneId);
                 } else {
-                    query = new TermQuery(source, name, value, bc instanceof EqualsIgnoreCase);
+                    query = new TermQuery(source, name, value, bc instanceof EqualsIgnoreCase && DataTypes.isString(attribute.dataType()));
                 }
                 if (bc instanceof NotEquals) {
                     query = new NotQuery(source, query);

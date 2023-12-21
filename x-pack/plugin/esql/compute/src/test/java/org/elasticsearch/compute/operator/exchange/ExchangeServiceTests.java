@@ -392,8 +392,8 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeService exchange1 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
-        final int maxSeqNo = randomIntBetween(10, 50);
-        final int disconnectOnSeqNo = randomIntBetween(10, 20);
+        final int maxSeqNo = randomIntBetween(1000, 5000);
+        final int disconnectOnSeqNo = randomIntBetween(100, 500);
         node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, new StubbableTransport.RequestHandlingBehavior<>() {
             @Override
             public void messageReceived(

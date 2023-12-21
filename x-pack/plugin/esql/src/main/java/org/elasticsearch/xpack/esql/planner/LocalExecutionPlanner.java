@@ -337,7 +337,7 @@ public class LocalExecutionPlanner {
                     for (int i = 0, s = output.size(); i < s; i++) {
                         var out = output.get(i);
                         if (out.dataType() == DataTypes.BOOLEAN) {
-                            blocks.add(i, BlockFactory.getNonBreakingInstance().newConstantBooleanBlockWith(true, 1));
+                            blocks.add(i, PlannerUtils.NON_BREAKING_BLOCK_FACTORY.newConstantBooleanBlockWith(true, 1));
                         }
                     }
                 }

@@ -1947,11 +1947,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder putMapping(MappingMetadata mappingMd) {
             mapping = mappingMd;
-            Map<String, Set<String>> fieldsForModels = mappingMd.getFieldsForModels();
-            // TODO: Need to clear fieldsForModels if the version from MappingMetadata is null?
-            if (fieldsForModels != null) {
-                this.fieldsForModels = fieldsForModels;
-            }
             return this;
         }
 
@@ -2429,7 +2424,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             // TODO: Need null check?
             Map<String, Set<String>> fieldsForModels = indexMetadata.getFieldsForModels();
-            if (fieldsForModels != null && !fieldsForModels.isEmpty()) {
+            if (fieldsForModels != null && fieldsForModels.isEmpty() == false) {
                 builder.field(KEY_FIELDS_FOR_MODELS, fieldsForModels);
             }
 

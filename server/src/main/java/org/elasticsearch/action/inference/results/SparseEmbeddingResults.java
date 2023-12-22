@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 public record SparseEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults {
 
     public static final String NAME = "sparse_embedding_results";

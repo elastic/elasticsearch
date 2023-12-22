@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.secrets.action;
+package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionType;
 

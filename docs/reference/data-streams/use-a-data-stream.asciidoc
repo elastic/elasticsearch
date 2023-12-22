@@ -133,7 +133,7 @@ POST /my-data-stream/_rollover/
 POST /my-data-stream/_rollover?lazy
 ----
 +
-We propose to use the second to avoid having empty backing indices in data streams
+Use the second to avoid having empty backing indices in data streams
 that do not get updated often.
 
 [discrete]

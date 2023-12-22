@@ -2149,6 +2149,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final boolean changeMetadata = randomBoolean();
         final boolean changeVersion = randomBoolean();
         final boolean changeCreator = randomBoolean();
+        final boolean changeExpiration = randomBoolean();
+
         final Set<RoleDescriptor> newUserRoles = changeUserRoles
             ? randomValueOtherThan(oldUserRoles, () -> randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor))
             : oldUserRoles;
@@ -2182,7 +2184,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     .build(false)
             )
             : oldAuthentication;
-        final TimeValue newExpiration = randomFrom(ApiKeyTests.randomFutureExpirationTime(), null);
+        final TimeValue newExpiration = changeExpiration ? randomFrom(ApiKeyTests.randomFutureExpirationTime()) : null;
         final String apiKeyId = randomAlphaOfLength(10);
         final BaseUpdateApiKeyRequest request = mock(BaseUpdateApiKeyRequest.class);
         when(request.getType()).thenReturn(type);
@@ -2202,7 +2204,12 @@ public class ApiKeyServiceTests extends ESTestCase {
             clock
         );
 
-        final boolean noop = (changeCreator || changeMetadata || changeKeyRoles || changeUserRoles || changeVersion) == false;
+        final boolean noop = (changeCreator
+            || changeMetadata
+            || changeKeyRoles
+            || changeUserRoles
+            || changeVersion
+            || changeExpiration) == false;
         if (noop) {
             assertNull(builder);
         } else {

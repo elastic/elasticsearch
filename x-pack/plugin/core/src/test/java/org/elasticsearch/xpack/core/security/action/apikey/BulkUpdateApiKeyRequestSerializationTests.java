@@ -60,9 +60,7 @@ public class BulkUpdateApiKeyRequestSerializationTests extends AbstractWireSeria
     @Override
     protected BulkUpdateApiKeyRequest mutateInstance(BulkUpdateApiKeyRequest instance) throws IOException {
         Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        long days = instance.getExpiration() == null
-            ? ApiKeyTests.randomFutureExpirationTime().getDays() + instance.getExpiration().getDays()
-            : ApiKeyTests.randomFutureExpirationTime().getDays();
+        long days = randomValueOtherThan(instance.getExpiration().days(), () -> ApiKeyTests.randomFutureExpirationTime().getDays());
         return new BulkUpdateApiKeyRequest(
             instance.getIds(),
             instance.getRoleDescriptors(),

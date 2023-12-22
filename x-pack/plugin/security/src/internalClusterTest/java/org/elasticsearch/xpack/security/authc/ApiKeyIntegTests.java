@@ -2562,7 +2562,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 apiKeyId,
                 null,
                 randomValueOtherThanMany(md -> md == null || md.equals(initialRequest.getMetadata()), ApiKeyTests::randomMetadata),
-                ApiKeyTests.randomFutureExpirationTime()
+                null
             )
         );
         assertNotNull(response);

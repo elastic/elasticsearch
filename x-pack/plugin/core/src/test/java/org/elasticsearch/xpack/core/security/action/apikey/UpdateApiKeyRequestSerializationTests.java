@@ -60,9 +60,7 @@ public class UpdateApiKeyRequestSerializationTests extends AbstractWireSerializi
     @Override
     protected UpdateApiKeyRequest mutateInstance(UpdateApiKeyRequest instance) throws IOException {
         Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        long days = instance.getExpiration() == null
-            ? ApiKeyTests.randomFutureExpirationTime().getDays() + instance.getExpiration().getDays()
-            : ApiKeyTests.randomFutureExpirationTime().getDays();
+        long days = randomValueOtherThan(instance.getExpiration().days(), () -> ApiKeyTests.randomFutureExpirationTime().getDays());
         return new UpdateApiKeyRequest(
             instance.getId(),
             instance.getRoleDescriptors(),

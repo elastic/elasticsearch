@@ -758,6 +758,12 @@ public class ApiKeyService {
             .field("creation_time", currentApiKeyDoc.creationTime)
             .field("api_key_invalidated", false);
 
+        if (request.getExpiration() != null) {
+            builder.field("expiration_time", getApiKeyExpiration(clock.instant(), request.getExpiration()).toEpochMilli());
+        } else {
+            builder.field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime);
+        }
+
         addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
         final List<RoleDescriptor> keyRoles = request.getRoleDescriptors();
@@ -791,12 +797,6 @@ public class ApiKeyService {
             );
         }
 
-        if (request.getExpiration() != null) {
-            builder.field("expiration_time", getApiKeyExpiration(clock.instant(), request.getExpiration()).toEpochMilli());
-        } else {
-            builder.field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime);
-        }
-
         addCreator(builder, authentication);
 
         return builder.endObject();
@@ -811,6 +811,11 @@ public class ApiKeyService {
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
         if (apiKeyDoc.version != targetDocVersion.id) {
+            return false;
+        }
+
+        if (request.getExpiration() != null) {
+            // Since expiration is relative current time, it's not likely that it matches the stored value to the ms, so assume update
             return false;
         }
 
@@ -854,11 +859,6 @@ public class ApiKeyService {
             if (newMetadata.equals(currentMetadata) == false) {
                 return false;
             }
-        }
-
-        if (request.getExpiration() != null) {
-            // Since expiration is relative current time, it's not likely that it matches the stored value to the ms, so assume update
-            return false;
         }
 
         final List<RoleDescriptor> newRoleDescriptors = request.getRoleDescriptors();
@@ -1291,7 +1291,7 @@ public class ApiKeyService {
         }));
     }
 
-    private static Instant getApiKeyExpiration(Instant now, TimeValue expiration) {
+    private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {
         if (expiration != null) {
             return now.plusSeconds(expiration.getSeconds());
         } else {

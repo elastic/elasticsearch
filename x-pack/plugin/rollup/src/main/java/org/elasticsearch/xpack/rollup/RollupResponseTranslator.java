@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.nio.charset.StandardCharsets;
@@ -340,20 +339,15 @@ public class RollupResponseTranslator {
             isTerminatedEarly = isTerminatedEarly && liveResponse.isTerminatedEarly();
             numReducePhases += liveResponse.getNumReducePhases();
         }
-
-        InternalSearchResponse combinedInternal = new InternalSearchResponse(
+        // Shard failures are ignored atm, so returning an empty array is fine
+        return new SearchResponse(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,
-            null,
             isTimedOut,
             isTerminatedEarly,
-            numReducePhases
-        );
-
-        // Shard failures are ignored atm, so returning an empty array is fine
-        return new SearchResponse(
-            combinedInternal,
+            null,
+            numReducePhases,
             null,
             totalShards,
             sucessfulShards,

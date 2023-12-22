@@ -16,17 +16,13 @@ import java.util.BitSet;
  * Block implementation that stores an array of double.
  * This class is generated. Do not edit it.
  */
-public final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
+final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class);
 
     private final double[] values;
 
-    public DoubleArrayBlock(double[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public DoubleArrayBlock(
+    DoubleArrayBlock(
         double[] values,
         int positionCount,
         int[] firstValueIndexes,

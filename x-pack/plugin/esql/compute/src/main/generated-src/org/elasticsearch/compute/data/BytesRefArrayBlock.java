@@ -18,17 +18,13 @@ import java.util.BitSet;
  * Block implementation that stores an array of BytesRef.
  * This class is generated. Do not edit it.
  */
-public final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
+final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 
     private final BytesRefArray values;
 
-    public BytesRefArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public BytesRefArrayBlock(
+    BytesRefArrayBlock(
         BytesRefArray values,
         int positionCount,
         int[] firstValueIndexes,

@@ -19,7 +19,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.function.Predicate;
 
-class TestFeatureService {
+public class TestFeatureService {
     private final Predicate<String> historicalFeaturesPredicate;
     private final Set<String> clusterStateFeatures;
 

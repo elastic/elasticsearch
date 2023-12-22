@@ -106,11 +106,14 @@ public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXC
         NamedXContentRegistry namedXContentRegistry,
         DeprecationHandler deprecationHandler
     ) throws IOException {
-        QueryBuilder query = null;
+        final QueryBuilder query;
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-        XContentParser sourceParser = XContentType.JSON.xContent()
-            .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput());
-        query = AbstractQueryBuilder.parseTopLevelQuery(sourceParser);
+        try (
+            XContentParser sourceParser = XContentType.JSON.xContent()
+                .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput())
+        ) {
+            query = AbstractQueryBuilder.parseTopLevelQuery(sourceParser);
+        }
 
         return query;
     }

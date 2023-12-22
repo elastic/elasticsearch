@@ -21,21 +21,14 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     private final LongArray values;
 
-    private final LongBlock block;
-
-    public LongBigArrayVector(LongArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
     public LongBigArrayVector(LongArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new LongVectorBlock(this);
     }
 
     @Override
     public LongBlock asBlock() {
-        return block;
+        return new LongVectorBlock(this);
     }
 
     @Override
@@ -69,11 +62,7 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         values.close();
     }
 

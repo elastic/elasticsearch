@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -97,7 +98,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(blockFactory, end));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
         try (
             Driver d = new Driver(
@@ -120,7 +121,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         List<Page> input = CannedSourceOperator.collectPages(
             new PositionMergingSourceOperator(simpleInput(driverContext.blockFactory(), end), blockFactory)
         );
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         assertSimpleOutput(origInput, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator(), driverContext));
     }
 
@@ -134,7 +135,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
                 blockFactory
             )
         );
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         assertSimpleOutput(origInput, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator(), driverContext));
     }
 

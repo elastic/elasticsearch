@@ -686,7 +686,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
 
             String nodeId = clusterService.localNode().getId();
-            try(RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(() -> sendResponse())) {
+            try(RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(() -> {
+                listener.onResponse(
+                    new BulkResponse(
+                        responses.toArray(new BulkItemResponse[responses.length()]),
+                        buildTookInMillis(startTimeNanos)
+                    )
+                );
+                // Allow memory for bulk shard request items to be reclaimed before all items have been completed
+                bulkRequest = null;
+            })) {
                 for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                     final ShardId shardId = entry.getKey();
                     final List<BulkItemRequest> requests = entry.getValue();
@@ -708,17 +717,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        private void sendResponse() {
-            listener.onResponse(
-                new BulkResponse(
-                    responses.toArray(new BulkItemResponse[responses.length()]),
-                    buildTookInMillis(startTimeNanos)
-                )
-            );
-            // Allow memory for bulk shard request items to be reclaimed before all items have been completed
-            bulkRequest = null;
-        }
-
         private void performInferenceAndExecute(
             BulkShardRequest bulkShardRequest,
             ClusterState clusterState,
@@ -732,7 +730,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 executeBulkShardRequest(bulkShardRequest, releaseOnFinish);
             }
 
-            AtomicArray<BulkItemRequest> newBulkItemsRequest = new AtomicArray<>(bulkShardRequest.items().length);
             // TODO Should we create a specific ThreadPool?
             try (var bulkItemReqRef = new RefCountingRunnable(() -> {
                 BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
@@ -744,112 +741,134 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             })) {
 
                 for (BulkItemRequest request : bulkShardRequest.items()) {
-                    DocWriteRequest<?> docWriteRequest = request.request();
-                    Map<String, Object> sourceMap = null;
-                    if (docWriteRequest instanceof IndexRequest indexRequest) {
-                        sourceMap = indexRequest.sourceAsMap();
-                    } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-                        sourceMap = updateRequest.doc().sourceAsMap();
+                    performInferenceOnBulkItemRequest(bulkShardRequest, request, fieldsForModels, bulkItemReqRef);
+                }
+            }
+        }
+
+        private void performInferenceOnBulkItemRequest(
+            BulkShardRequest bulkShardRequest,
+            BulkItemRequest request,
+            Map<String, Set<String>> fieldsForModels,
+            RefCountingRunnable bulkItemReqRef
+        ) {
+            DocWriteRequest<?> docWriteRequest = request.request();
+            Map<String, Object> sourceMap = null;
+            if (docWriteRequest instanceof IndexRequest indexRequest) {
+                sourceMap = indexRequest.sourceAsMap();
+            } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
+                sourceMap = updateRequest.docAsUpsert()
+                    ? updateRequest.upsertRequest().sourceAsMap()
+                    : updateRequest.doc().sourceAsMap();
+            }
+            if (sourceMap == null || sourceMap.isEmpty()) {
+                return;
+            }
+            bulkItemReqRef.acquire();
+            final Map<String, Object> docMap = new ConcurrentHashMap<>(sourceMap);
+
+            // When a document completes processing, update the source with the inference
+            try (var docRef = new RefCountingRunnable(() -> {
+                if (docWriteRequest instanceof IndexRequest indexRequest) {
+                    indexRequest.source(docMap);
+                } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
+                    if (updateRequest.docAsUpsert()) {
+                        updateRequest.upsertRequest().source(docMap);
+                    } else {
+                        updateRequest.doc().source(docMap);
                     }
-                    if (sourceMap == null || sourceMap.isEmpty()) {
+                }
+                bulkItemReqRef.close();
+            })) {
+
+                for (Map.Entry<String, Set<String>> fieldModelsEntrySet : fieldsForModels.entrySet()) {
+                    String modelId = fieldModelsEntrySet.getKey();
+
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> rootInferenceFieldMap = (Map<String, Object>) docMap.computeIfAbsent(
+                        ROOT_RESULT_FIELD,
+                        k -> new HashMap<String, Object>()
+                    );
+
+                    List<String> inferenceFieldNames = getFieldNamesForInference(fieldModelsEntrySet, docMap);
+
+                    if (inferenceFieldNames.isEmpty()) {
                         continue;
                     }
-                    bulkItemReqRef.acquire();
-                    final Map<String, Object> docMap = new ConcurrentHashMap<>(sourceMap);
 
-                    // When a document completes processing, update the source with the inference
-                    try (var docRef = new RefCountingRunnable(() -> {
-                        if (docWriteRequest instanceof IndexRequest indexRequest) {
-                            indexRequest.source(docMap);
-                        } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
-                            updateRequest.doc().source(docMap);
-                        }
-                        bulkItemReqRef.close();
-                    })) {
+                    docRef.acquire();
 
-                        for (Map.Entry<String, Set<String>> fieldModelsEntrySet : fieldsForModels.entrySet()) {
-                            String modelId = fieldModelsEntrySet.getKey();
+                    InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+                        TaskType.SPARSE_EMBEDDING, // TODO Change when task type doesn't need to be specified
+                        modelId,
+                        inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
+                        Map.of()
+                    );
 
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> rootInferenceFieldMap = (Map<String, Object>) docMap.computeIfAbsent(
-                                ROOT_RESULT_FIELD,
-                                k -> new HashMap<String, Object>()
-                            );
-
-                            List<String> inferenceFieldNames = new ArrayList<>();
-                            for (String inferenceField : fieldModelsEntrySet.getValue()) {
-                                Object fieldValue = docMap.get(inferenceField);
-
-                                // Perform inference on string, non-null values
-                                if (fieldValue instanceof String fieldStringValue) {
-
-                                    // Only do inference if the previous text value doesn't match the new one
-                                    String previousValue = findMapValue(docMap, ROOT_RESULT_FIELD, inferenceField, TEXT_FIELD);
-                                    if (fieldStringValue.equals(previousValue) == false) {
-                                        inferenceFieldNames.add(inferenceField);
-                                    }
-                                }
+                    client.execute(InferenceAction.INSTANCE, inferenceRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(InferenceAction.Response response) {
+                            // Transform into two subfields, one with the actual text and other with the inference
+                            InferenceServiceResults results = response.getResults();
+                            if (results == null) {
+                                throw new IllegalArgumentException(
+                                    "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
+                                );
                             }
 
-                            if (inferenceFieldNames.isEmpty()) {
-                                continue;
+                            int i = 0;
+                            for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
+                                String fieldName = inferenceFieldNames.get(i++);
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
+                                    fieldName,
+                                    k -> new HashMap<String, Object>()
+                                );
+
+                                inferenceFieldMap.put(INFERENCE_FIELD, inferenceResults.asMap("output").get("output"));
+                                inferenceFieldMap.put(TEXT_FIELD, docMap.get(fieldName));
                             }
 
-                            docRef.acquire();
-
-                            // TODO batch by model id, and multiple docs
-                            InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-                                TaskType.SPARSE_EMBEDDING, // TODO Change when task type doesn't need to be specified
-                                modelId,
-                                inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
-                                Map.of()
-                            );
-
-                            client.execute(InferenceAction.INSTANCE, inferenceRequest, new ActionListener<>() {
-                                @Override
-                                public void onResponse(InferenceAction.Response response) {
-                                    // Transform into two subfields, one with the actual text and other with the inference
-                                    InferenceServiceResults results = response.getResults();
-                                    if (results == null) {
-                                        throw new IllegalArgumentException(
-                                            "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
-                                        );
-                                    }
-
-                                    int i = 0;
-                                    for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
-                                        String fieldName = inferenceFieldNames.get(i++);
-                                        @SuppressWarnings("unchecked")
-                                        Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
-                                            fieldName,
-                                            k -> new HashMap<String, Object>()
-                                        );
-
-                                        inferenceFieldMap.put(INFERENCE_FIELD, inferenceResults.asMap("output").get("output"));
-                                        inferenceFieldMap.put(TEXT_FIELD, docMap.get(fieldName));
-                                    }
-
-                                    docRef.close();
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-
-                                    final String indexName = request.index();
-                                    DocWriteRequest<?> docWriteRequest = request.request();
-                                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(),
-                                        new IllegalArgumentException("Error performing inference: " + e.getMessage(), e));
-                                    responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
-                                    // make sure the request gets never processed again
-                                    bulkShardRequest.items()[request.id()] = null;
-
-                                    docRef.close();
-                                }
-                            });
+                            docRef.close();
                         }
+
+                        @Override
+                        public void onFailure(Exception e) {
+
+                            final String indexName = request.index();
+                            DocWriteRequest<?> docWriteRequest = request.request();
+                            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(),
+                                new IllegalArgumentException("Error performing inference: " + e.getMessage(), e));
+                            responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                            // make sure the request gets never processed again
+                            bulkShardRequest.items()[request.id()] = null;
+
+                            docRef.close();
+                        }
+                    });
+                }
+            }
+        }
+
+        private static List<String> getFieldNamesForInference(
+            Map.Entry<String, Set<String>> fieldModelsEntrySet,
+            Map<String, Object> docMap
+        ) {
+            List<String> inferenceFieldNames = new ArrayList<>();
+            for (String inferenceField : fieldModelsEntrySet.getValue()) {
+                Object fieldValue = docMap.get(inferenceField);
+
+                // Perform inference on string, non-null values
+                if (fieldValue instanceof String fieldStringValue) {
+
+                    // Only do inference if the previous text value doesn't match the new one
+                    String previousValue = findMapValue(docMap, ROOT_RESULT_FIELD, inferenceField, TEXT_FIELD);
+                    if (fieldStringValue.equals(previousValue) == false) {
+                        inferenceFieldNames.add(inferenceField);
                     }
                 }
             }
+            return inferenceFieldNames;
         }
 
         @SuppressWarnings("unchecked")

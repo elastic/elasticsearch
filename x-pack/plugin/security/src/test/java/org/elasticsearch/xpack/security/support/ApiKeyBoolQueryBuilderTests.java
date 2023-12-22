@@ -55,7 +55,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
     public void testBuildFromSimpleQuery() {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
         final QueryBuilder q1 = randomSimpleQuery("name");
-        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, authentication);
+        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication);
         assertCommonFilterQueries(apiKeyQb1, authentication);
         final List<QueryBuilder> mustQueries = apiKeyQb1.must();
         assertThat(mustQueries, hasSize(1));
@@ -67,7 +67,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
     public void testQueryForDomainAuthentication() {
         final Authentication authentication = AuthenticationTests.randomAuthentication(null, AuthenticationTests.randomRealmRef(true));
         final QueryBuilder query = randomSimpleQuery("name");
-        final ApiKeyBoolQueryBuilder apiKeysQuery = ApiKeyBoolQueryBuilder.build(query, authentication);
+        final ApiKeyBoolQueryBuilder apiKeysQuery = ApiKeyBoolQueryBuilder.build(query, ignored -> {}, authentication);
         assertThat(apiKeysQuery.filter().get(0), is(QueryBuilders.termQuery("doc_type", "api_key")));
         assertThat(
             apiKeysQuery.filter().get(1),
@@ -119,7 +119,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             bq1.minimumShouldMatch(randomIntBetween(1, 2));
         }
-        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(bq1, authentication);
+        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(bq1, ignored -> {}, authentication);
         assertCommonFilterQueries(apiKeyQb1, authentication);
 
         assertThat(apiKeyQb1.must(), hasSize(1));
@@ -141,31 +141,31 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         // metadata
         final String metadataKey = randomAlphaOfLengthBetween(3, 8);
         final TermQueryBuilder q1 = QueryBuilders.termQuery("metadata." + metadataKey, randomAlphaOfLengthBetween(3, 8));
-        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, authentication);
+        final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication);
         assertCommonFilterQueries(apiKeyQb1, authentication);
         assertThat(apiKeyQb1.must().get(0), equalTo(QueryBuilders.termQuery("metadata_flattened." + metadataKey, q1.value())));
 
         // username
         final PrefixQueryBuilder q2 = QueryBuilders.prefixQuery("username", randomAlphaOfLength(3));
-        final ApiKeyBoolQueryBuilder apiKeyQb2 = ApiKeyBoolQueryBuilder.build(q2, authentication);
+        final ApiKeyBoolQueryBuilder apiKeyQb2 = ApiKeyBoolQueryBuilder.build(q2, ignored -> {}, authentication);
         assertCommonFilterQueries(apiKeyQb2, authentication);
         assertThat(apiKeyQb2.must().get(0), equalTo(QueryBuilders.prefixQuery("creator.principal", q2.value())));
 
         // realm name
         final WildcardQueryBuilder q3 = QueryBuilders.wildcardQuery("realm_name", "*" + randomAlphaOfLength(3));
-        final ApiKeyBoolQueryBuilder apiKeyQb3 = ApiKeyBoolQueryBuilder.build(q3, authentication);
+        final ApiKeyBoolQueryBuilder apiKeyQb3 = ApiKeyBoolQueryBuilder.build(q3, ignored -> {}, authentication);
         assertCommonFilterQueries(apiKeyQb3, authentication);
         assertThat(apiKeyQb3.must().get(0), equalTo(QueryBuilders.wildcardQuery("creator.realm", q3.value())));
 
         // creation_time
         final TermQueryBuilder q4 = QueryBuilders.termQuery("creation", randomLongBetween(0, Long.MAX_VALUE));
-        final ApiKeyBoolQueryBuilder apiKeyQb4 = ApiKeyBoolQueryBuilder.build(q4, authentication);
+        final ApiKeyBoolQueryBuilder apiKeyQb4 = ApiKeyBoolQueryBuilder.build(q4, ignored -> {}, authentication);
         assertCommonFilterQueries(apiKeyQb4, authentication);
         assertThat(apiKeyQb4.must().get(0), equalTo(QueryBuilders.termQuery("creation_time", q4.value())));
 
         // expiration_time
         final TermQueryBuilder q5 = QueryBuilders.termQuery("expiration", randomLongBetween(0, Long.MAX_VALUE));
-        final ApiKeyBoolQueryBuilder apiKeyQb5 = ApiKeyBoolQueryBuilder.build(q5, authentication);
+        final ApiKeyBoolQueryBuilder apiKeyQb5 = ApiKeyBoolQueryBuilder.build(q5, ignored -> {}, authentication);
         assertCommonFilterQueries(apiKeyQb5, authentication);
         assertThat(apiKeyQb5.must().get(0), equalTo(QueryBuilders.termQuery("expiration_time", q5.value())));
     }
@@ -195,7 +195,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         );
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
-            () -> ApiKeyBoolQueryBuilder.build(q1, authentication)
+            () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
         );
 
         assertThat(e1.getMessage(), containsString("Field [" + fieldName + "] is not allowed for API Key query"));
@@ -206,7 +206,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final TermsQueryBuilder q1 = QueryBuilders.termsLookupQuery("name", new TermsLookup("lookup", "1", "names"));
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
-            () -> ApiKeyBoolQueryBuilder.build(q1, authentication)
+            () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
         );
         assertThat(e1.getMessage(), containsString("terms query with terms lookup is not supported for API Key query"));
     }
@@ -216,7 +216,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final RangeQueryBuilder q1 = QueryBuilders.rangeQuery("creation").relation("contains");
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
-            () -> ApiKeyBoolQueryBuilder.build(q1, authentication)
+            () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
         );
         assertThat(e1.getMessage(), containsString("range query with relation is not supported for API Key query"));
     }
@@ -264,7 +264,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
-            () -> ApiKeyBoolQueryBuilder.build(q1, authentication)
+            () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
         );
         assertThat(e1.getMessage(), containsString("Query type [" + q1.getName() + "] is not supported for API Key query"));
     }
@@ -272,6 +272,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
     public void testWillSetAllowedFields() throws IOException {
         final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(
             randomSimpleQuery("name"),
+            ignored -> {},
             randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null
         );
 
@@ -303,7 +304,11 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             new User(randomAlphaOfLengthBetween(5, 8)),
             apiKeyId
         );
-        final ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(randomFrom(randomSimpleQuery("name"), null), authentication);
+        final ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(
+            randomFrom(randomSimpleQuery("name"), null),
+            ignored -> {},
+            authentication
+        );
         assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.termQuery("doc_type", "api_key")));
         assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.idsQuery().addIds(apiKeyId)));
     }

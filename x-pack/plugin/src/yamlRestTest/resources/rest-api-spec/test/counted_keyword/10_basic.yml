@@ -15,17 +15,6 @@ setup:
 
 
   - do:
-      indices.create:
-        index: test-events-no-index
-        body:
-          mappings:
-            properties:
-              events:
-                type: counted_keyword
-                index: false
-
-
-  - do:
       index:
         index: test-events
         id: "1"
@@ -38,17 +27,21 @@ setup:
         body: { "events": [ "a", "b", "b", "b", "c" ] }
 
   - do:
-      index:
-        index: test-events-no-index
-        id: "1"
-        body: { "events": [ "a", "a", "b" ] }
-
-
-  - do:
       indices.refresh: { }
 
 ---
+"Counted keyword is searchable by default":
+  - do:
+      field_caps:
+        index: test-events
+        fields: [ events ]
+
+  - match: { fields.events.counted_keyword.searchable: true }
+  - match: { fields.events.counted_keyword.aggregatable: true }
+
+---
 "Counted Terms agg":
+
   - do:
       search:
         index: test-events
@@ -66,20 +59,3 @@ setup:
   - match: { aggregations.event_terms.buckets.2.key: "c" }
   - match: { aggregations.event_terms.buckets.2.doc_count: 2 }
   - length: { aggregations.event_terms.buckets: 3 }
-
-# although the field is not indexed, the counted_terms agg should still work
-  - do:
-      search:
-        index: test-events-no-index
-        body:
-          size: 0
-          aggs:
-            event_terms:
-              counted_terms:
-                field: events
-
-  - match: { aggregations.event_terms.buckets.0.key: "a" }
-  - match: { aggregations.event_terms.buckets.0.doc_count: 2 }
-  - match: { aggregations.event_terms.buckets.1.key: "b" }
-  - match: { aggregations.event_terms.buckets.1.doc_count: 1 }
-  - length: { aggregations.event_terms.buckets: 2 }

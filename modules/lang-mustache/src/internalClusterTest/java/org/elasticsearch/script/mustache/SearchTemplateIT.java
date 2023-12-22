@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -282,7 +281,6 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
-
         assertHitCount(
             new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest().indices("test"))
                 .setScript("1a")

@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -35,6 +36,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         Collection<String> names = lookup.getMatchingFieldNames("foo");
         assertNotNull(names);
         assertThat(names, hasSize(0));
+
+        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        assertNotNull(fieldsForModels);
+        assertTrue(fieldsForModels.isEmpty());
     }
 
     public void testAddNewField() {
@@ -42,6 +47,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
+
+        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        assertNotNull(fieldsForModels);
+        assertTrue(fieldsForModels.isEmpty());
     }
 
     public void testAddFieldAlias() {
@@ -419,6 +428,19 @@ public class FieldTypeLookupTests extends ESTestCase {
             );
             assertEquals("Found sub-fields with name not belonging to the parent field they are part of [multi.]", ise.getMessage());
         }
+    }
+
+    public void testInferenceModelFieldType() {
+        MockFieldMapper f = new MockFieldMapper(new MockInferenceModelFieldType("foo", "bar"));
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
+        assertEquals(f.fieldType(), lookup.get("foo"));
+        assertEquals(Collections.emptySet(), lookup.getFieldsForModel("baz"));
+        assertEquals(Collections.singleton("foo"), lookup.getFieldsForModel("bar"));
+
+        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        assertNotNull(fieldsForModels);
+        assertEquals(1, fieldsForModels.size());
+        assertEquals(Collections.singleton("foo"), fieldsForModels.get("bar"));
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {

@@ -17,8 +17,12 @@ import java.util.List;
 import java.util.function.Function;
 
 public class IsFinite extends RationalUnaryPredicate {
-    public IsFinite(Source source, Expression field) {
-        super(source, field);
+    @FunctionInfo(returnType = "boolean", description = "Returns a boolean that indicates whether its input is finite.")
+    public IsFinite(
+        Source source,
+        @Param(name = "value", type = { "double" }) Expression value
+    ) {
+        super(source, value);
     }
 
     @Override

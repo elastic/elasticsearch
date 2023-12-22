@@ -16,6 +16,8 @@ import java.util.List;
  * Function that emits pi.
  */
 public class Pi extends DoubleConstantFunction {
+
+    @FunctionInfo(returnType = "double", description = "The ratio of a circle’s circumference to its diameter.")
     public Pi(Source source) {
         super(source);
     }

@@ -32,7 +32,12 @@ public class EndsWith extends ScalarFunction implements EvaluatorMapper {
     private final Expression str;
     private final Expression suffix;
 
-    public EndsWith(Source source, Expression str, Expression suffix) {
+    @FunctionInfo(returnType = "boolean", description = "Returns a boolean that indicates whether a keyword string ends with another string")
+    public EndsWith(
+        Source source,
+        @Param(name = "str", type = { "text", "keyword" }) Expression str,
+        @Param(name = "suffix", type = { "text", "keyword" }) Expression suffix
+    ) {
         super(source, Arrays.asList(str, suffix));
         this.str = str;
         this.suffix = suffix;

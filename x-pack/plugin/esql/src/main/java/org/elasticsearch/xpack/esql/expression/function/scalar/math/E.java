@@ -16,6 +16,7 @@ import java.util.List;
  * Function that emits Euler's number.
  */
 public class E extends DoubleConstantFunction {
+    @FunctionInfo(returnType = "double", description = "Euler’s number.")
     public E(Source source) {
         super(source);
     }

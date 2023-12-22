@@ -32,7 +32,12 @@ public class StartsWith extends ScalarFunction implements EvaluatorMapper {
     private final Expression str;
     private final Expression prefix;
 
-    public StartsWith(Source source, Expression str, Expression prefix) {
+    @FunctionInfo(returnType = "boolean", description = "Returns a boolean that indicates whether a keyword string starts with another string")
+    public StartsWith(
+        Source source,
+        @Param(name = "str", type = { "text", "keyword" }) Expression str,
+        @Param(name = "suffix", type = { "text", "keyword" }) Expression suffix
+    ) {
         super(source, Arrays.asList(str, prefix));
         this.str = str;
         this.prefix = prefix;

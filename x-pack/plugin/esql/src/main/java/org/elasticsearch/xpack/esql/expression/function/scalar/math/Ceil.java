@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
  * </p>
  */
 public class Ceil extends UnaryScalarFunction implements EvaluatorMapper {
+    @FunctionInfo(returnType = "double", description = "Round a number up to the nearest integer.")
     public Ceil(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
         super(source, n);
     }

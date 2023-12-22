@@ -34,7 +34,7 @@ public class Atan2 extends ScalarFunction implements EvaluatorMapper {
     private final Expression y;
     private final Expression x;
 
-    @FunctionInfo(returnType = "double")
+    @FunctionInfo(returnType = "double", description = "The angle between the positive x-axis and the ray from the origin to the point (x , y) in the Cartesian plane.")
     public Atan2(
         Source source,
         @Param(name = "y", type = { "integer", "long", "double", "unsigned_long" }) Expression y,

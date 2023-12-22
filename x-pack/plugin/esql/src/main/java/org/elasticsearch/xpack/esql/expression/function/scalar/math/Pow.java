@@ -35,6 +35,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     private final Expression base, exponent;
     private final DataType dataType;
 
+    @FunctionInfo(returnType = "double", description = "Returns the value of a base (first argument) raised to the power of an exponent (second argument).")
     public Pow(
         Source source,
         @Param(name = "base", type = { "integer", "unsigned_long", "long", "double" }) Expression base,

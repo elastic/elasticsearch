@@ -38,7 +38,12 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
-    public Concat(Source source, Expression first, List<? extends Expression> rest) {
+    @FunctionInfo(returnType = "keyword", description = "Concatenates two or more strings.")
+    public Concat(
+        Source source,
+        @Param(name = "first", type = { "text", "keyword" }) Expression first,
+        @Param(name = "rest", type = { "text", "keyword" }) List<? extends Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 

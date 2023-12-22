@@ -18,6 +18,7 @@ import java.util.List;
 public class Tau extends DoubleConstantFunction {
     public static final double TAU = Math.PI * 2;
 
+    @FunctionInfo(returnType = "double", description = "The ratio of a circle’s circumference to its radius.")
     public Tau(Source source) {
         super(source);
     }

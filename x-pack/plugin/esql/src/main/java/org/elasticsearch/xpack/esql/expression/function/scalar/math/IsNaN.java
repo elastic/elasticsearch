@@ -17,8 +17,12 @@ import java.util.List;
 import java.util.function.Function;
 
 public class IsNaN extends RationalUnaryPredicate {
-    public IsNaN(Source source, Expression field) {
-        super(source, field);
+    @FunctionInfo(returnType = "boolean", description = "Returns a boolean that indicates whether its input is not a number.")
+    public IsNaN(
+        Source source,
+        @Param(name = "value", type = { "double" }) Expression value
+    ) {
+        super(source, value);
     }
 
     @Override

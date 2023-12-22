@@ -21,7 +21,7 @@ import java.util.List;
  * Inverse cosine trigonometric function.
  */
 public class Acos extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double")
+    @FunctionInfo(returnType = "double", description = "The arccosine of an angle, expressed in radians.")
     public Acos(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
         super(source, n);
     }

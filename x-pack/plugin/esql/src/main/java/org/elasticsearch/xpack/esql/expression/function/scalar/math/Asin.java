@@ -21,7 +21,7 @@ import java.util.List;
  * Inverse cosine trigonometric function.
  */
 public class Asin extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double")
+    @FunctionInfo(returnType = "double", description = "Inverse sine trigonometric function.")
     public Asin(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
         super(source, n);
     }

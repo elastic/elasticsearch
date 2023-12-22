@@ -17,8 +17,12 @@ import java.util.List;
 import java.util.function.Function;
 
 public class IsInfinite extends RationalUnaryPredicate {
-    public IsInfinite(Source source, Expression field) {
-        super(source, field);
+    @FunctionInfo(returnType = "boolean", description = "Returns a boolean that indicates whether its input is infinite.")
+    public IsInfinite(
+        Source source,
+        @Param(name = "value", type = { "double" }) Expression value
+    ) {
+        super(source, value);
     }
 
     @Override

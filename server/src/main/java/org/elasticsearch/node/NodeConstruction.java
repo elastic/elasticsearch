@@ -58,6 +58,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
@@ -1290,6 +1291,11 @@ class NodeConstruction {
         };
         resourcesToClose.add(circuitBreakerService);
         modules.bindToInstance(CircuitBreakerService.class, circuitBreakerService);
+
+        pluginBreakers.forEach(t -> {
+            final CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(t.v2().getName());
+            t.v1().setCircuitBreaker(circuitBreaker);
+        });
 
         return circuitBreakerService;
     }

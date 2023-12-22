@@ -269,13 +269,7 @@ public final class EvalMapper {
                     if (fieldBlock.asVector() != null) {
                         return BooleanBlock.newConstantBlockWith(false, page.getPositionCount(), driverContext.blockFactory());
                     }
-                    try (
-                        var builder = driverContext.blockFactory()
-                            .newBooleanVectorFixedBuilder(
-                                page.getPositionCount()
-
-                            )
-                    ) {
+                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
                             builder.appendBoolean(fieldBlock.isNull(p));
                         }

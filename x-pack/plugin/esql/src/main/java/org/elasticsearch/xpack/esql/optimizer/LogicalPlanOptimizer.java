@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
@@ -653,7 +652,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         private static List<Block> aggsFromEmpty(List<? extends NamedExpression> aggs) {
             // TODO: Should we introduce skip operator that just never queries the source
             List<Block> blocks = new ArrayList<>();
-            var blockFactory = BlockFactory.getNonBreakingInstance();
             int i = 0;
             for (var agg : aggs) {
                 // there needs to be an alias
@@ -664,7 +662,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         // fill the boolean block later in LocalExecutionPlanner
                         if (dataType != DataTypes.BOOLEAN) {
                             // look for count(literal) with literal != null
-                            var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(dataType), 1);
+                            var wrapper = BlockUtils.wrapperFor(
+                                PlannerUtils.NON_BREAKING_BLOCK_FACTORY,
+                                PlannerUtils.toElementType(dataType),
+                                1
+                            );
                             if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
                                 wrapper.accept(0L);
                             } else {

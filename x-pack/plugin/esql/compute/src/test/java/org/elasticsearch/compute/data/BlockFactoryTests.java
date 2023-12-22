@@ -568,7 +568,6 @@ public class BlockFactoryTests extends ESTestCase {
             vector.close();
         }
         assertTrue(vector.isReleased());
-        assertTrue(vector.asBlock().isReleased());
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

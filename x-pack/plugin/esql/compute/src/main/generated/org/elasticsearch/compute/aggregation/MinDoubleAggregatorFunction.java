@@ -119,7 +119,7 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
       blocks[offset] = Block.constantNullBlock(1, driverContext.blockFactory());
       return;
     }
-    blocks[offset] = DoubleBlock.newConstantBlockWith(state.doubleValue(), 1, driverContext.blockFactory());
+    blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(state.doubleValue(), 1);
   }
 
   @Override

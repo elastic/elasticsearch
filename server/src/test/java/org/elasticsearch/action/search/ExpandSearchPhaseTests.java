@@ -20,7 +20,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -92,16 +91,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
                         List<MultiSearchResponse.Item> mSearchResponses = new ArrayList<>(numInnerHits);
                         for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
-                            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-                                collapsedHits.get(innerHitNum),
-                                null,
-                                null,
-                                null,
-                                false,
-                                null,
-                                1
+                            mockSearchPhaseContext.sendSearchResponse(
+                                new SearchResponseSections(collapsedHits.get(innerHitNum), null, null, false, null, null, 1),
+                                null
                             );
-                            mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
                             mSearchResponses.add(new MultiSearchResponse.Item(mockSearchPhaseContext.searchResponse.get(), null));
                             // transferring ownership to the multi-search response so no need to release here
                             mockSearchPhaseContext.searchResponse.set(null);
@@ -117,17 +110,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 SearchHit hit = new SearchHit(1, "ID");
                 hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
                 SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-                ExpandSearchPhase phase = new ExpandSearchPhase(
-                    mockSearchPhaseContext,
-                    internalSearchResponse,
-                    () -> new SearchPhase("test") {
-                        @Override
-                        public void run() {
-                            mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
-                        }
+                ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
                     }
-                );
+                });
 
                 phase.run();
                 mockSearchPhaseContext.assertNoFailure();
@@ -148,6 +136,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 if (resp != null) {
                     resp.decRef();
                 }
+
             }
         }
     }
@@ -172,9 +161,14 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 assertTrue(executedMultiSearch.compareAndSet(false, true));
-                InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits, null, null, null, false, null, 1);
                 SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                    collapsedHits,
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
                     null,
                     1,
                     1,
@@ -200,11 +194,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         SearchHit hit2 = new SearchHit(2, "ID2");
         hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
             @Override
             public void run() {
-                mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+                mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
             }
         });
         phase.run();
@@ -229,11 +222,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             SearchHit hit2 = new SearchHit(2, "ID2");
             hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
             SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
-            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
                 @Override
                 public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+                    mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
                 }
             });
             phase.run();
@@ -264,11 +256,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 );
 
             SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
                 @Override
                 public void run() {
-                    mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+                    mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
                 }
             });
             phase.run();
@@ -314,11 +305,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .routing("baz");
 
             SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, () -> new SearchPhase("test") {
+            ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 1), null);
                 }
             });
             phase.run();

@@ -172,10 +172,9 @@ public class ComputeService {
             concreteIndices,
             originalIndices,
             listener.delegateFailureAndWrap((delegate, targetNodes) -> {
-                final ExchangeSourceHandler exchangeSource = exchangeService.createSourceHandler(
-                    sessionId,
+                final ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(
                     queryPragmas.exchangeBufferSize(),
-                    ESQL_THREAD_POOL_NAME
+                    transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
                 );
                 final List<DriverProfile> collectedProfiles = configuration.profile()
                     ? Collections.synchronizedList(new ArrayList<>())

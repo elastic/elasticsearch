@@ -1,6 +1,0 @@
-pr: 103135
-summary: Use deduced mappings for determining proper fields' format even if `deduce_mappings==false`
-area: Transform
-type: bug
-issues:
- - 103115

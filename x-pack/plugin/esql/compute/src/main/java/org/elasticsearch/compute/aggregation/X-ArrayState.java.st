@@ -73,7 +73,7 @@ $endif$
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try ($Type$Vector.Builder builder = $Type$Vector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            try ($Type$Vector.Builder builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     builder.append$Type$(values.get(selected.getInt(i)));
                 }

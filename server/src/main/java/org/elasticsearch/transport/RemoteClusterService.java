@@ -343,7 +343,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         GroupedActionListener<Void> groupedListener
     ) {
         if (false == remoteClusters.containsKey(clusterAlias)) {
-            // A credential was added before a remote connection was configured.
+            // A credential was added or removed before a remote connection was configured.
             // Without an existing connection, there is nothing to rebuild.
             logger.info("no connection rebuild required for remote cluster [{}] after credentials change", clusterAlias);
             groupedListener.onResponse(null);

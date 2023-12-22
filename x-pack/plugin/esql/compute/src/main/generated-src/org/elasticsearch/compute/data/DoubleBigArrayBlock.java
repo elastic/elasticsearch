@@ -32,7 +32,8 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.vector = new DoubleBigArrayVector(values, (int) values.size(), blockFactory);
+        int vectorLength = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
+        this.vector = new DoubleBigArrayVector(values, vectorLength, blockFactory);
     }
 
     @Override
@@ -79,6 +80,10 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
         if (firstValueIndexes == null) {
             incRef();
             return this;
+        }
+        if (nullsMask == null) {
+            vector.incRef();
+            return vector.asBlock();
         }
         // TODO use reference counting to share the vector
         try (var builder = blockFactory().newDoubleBlockBuilder(firstValueIndexes[getPositionCount()])) {

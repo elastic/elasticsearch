@@ -34,7 +34,8 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.vector = new BytesRefArrayVector(values, (int) values.size(), blockFactory);
+        int vectorLength = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
+        this.vector = new BytesRefArrayVector(values, vectorLength, blockFactory);
     }
 
     @Override
@@ -82,6 +83,10 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
         if (firstValueIndexes == null) {
             incRef();
             return this;
+        }
+        if (nullsMask == null) {
+            vector.incRef();
+            return vector.asBlock();
         }
         // TODO use reference counting to share the vector
         final BytesRef scratch = new BytesRef();

@@ -31,7 +31,8 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.vector = new IntArrayVector(values, values.length, blockFactory);
+        int vectorLength = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
+        this.vector = new IntArrayVector(values, vectorLength, blockFactory);
     }
 
     @Override
@@ -78,6 +79,10 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
         if (firstValueIndexes == null) {
             incRef();
             return this;
+        }
+        if (nullsMask == null) {
+            vector.incRef();
+            return vector.asBlock();
         }
         // TODO use reference counting to share the vector
         try (var builder = blockFactory().newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {

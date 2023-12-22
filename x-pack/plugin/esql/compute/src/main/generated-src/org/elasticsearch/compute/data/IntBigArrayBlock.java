@@ -32,7 +32,8 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.vector = new IntBigArrayVector(values, (int) values.size(), blockFactory);
+        int vectorLength = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
+        this.vector = new IntBigArrayVector(values, vectorLength, blockFactory);
     }
 
     @Override
@@ -79,6 +80,10 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
         if (firstValueIndexes == null) {
             incRef();
             return this;
+        }
+        if (nullsMask == null) {
+            vector.incRef();
+            return vector.asBlock();
         }
         // TODO use reference counting to share the vector
         try (var builder = blockFactory().newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {

@@ -390,7 +390,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -1983,7 +1982,7 @@ public class Security extends Plugin
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
             future
         );
-        future.actionGet(10, TimeUnit.SECONDS);
+        future.actionGet();
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

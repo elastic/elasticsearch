@@ -342,21 +342,25 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         Settings settings,
         GroupedActionListener<Void> groupedListener
     ) {
-        if (remoteClusters.containsKey(clusterAlias)) {
-            updateRemoteCluster(clusterAlias, settings, true, ActionListener.wrap(status -> {
-                logger.info("remote cluster connection [{}] updated after credentials change: [{}]", clusterAlias, status);
-                groupedListener.onResponse(null);
-            }, e -> {
-                logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "] after credentials change", e);
-                // We don't want to return an error to the upstream listener since a connection rebuild failure does not count as
-                // a failed credential reload; same as for remote cluster settings updates, we "handle" the failure by logging a WARN
-                // message
-                groupedListener.onResponse(null);
-            }));
-        } else {
+        if (false == remoteClusters.containsKey(clusterAlias)) {
             // A credential was added before a remote connection was configured.
             // Without an existing connection, there is nothing to rebuild.
             logger.info("no connection rebuild required for remote cluster [{}] after credentials change", clusterAlias);
+            groupedListener.onResponse(null);
+            return;
+        }
+
+        try {
+            final PlainActionFuture<RemoteClusterConnectionStatus> future = new PlainActionFuture<>();
+            updateRemoteCluster(clusterAlias, settings, true, future);
+            final RemoteClusterConnectionStatus status = future.actionGet(10, TimeUnit.SECONDS);
+            logger.info("remote cluster connection [{}] updated after credentials change: [{}]", clusterAlias, status);
+        } catch (Exception e) {
+            // We don't want to return an error to the upstream listener since a connection rebuild failure does not count as
+            // a failed credential reload; same as for remote cluster settings updates, we "handle" the failure by logging a WARN
+            // message
+            logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "] after credentials change", e);
+        } finally {
             groupedListener.onResponse(null);
         }
     }

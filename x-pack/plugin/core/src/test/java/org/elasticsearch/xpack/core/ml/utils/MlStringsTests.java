@@ -4,10 +4,9 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.ml.utils;
+package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,6 +20,37 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MlStringsTests extends ESTestCase {
+
+    public static final String[] SOME_INVALID_CHARS = {
+        "%",
+        " ",
+        "!",
+        "@",
+        "#",
+        "$",
+        "^",
+        "&",
+        "*",
+        "(",
+        ")",
+        "+",
+        "=",
+        "{",
+        "}",
+        "[",
+        "]",
+        "|",
+        "\\",
+        ":",
+        ";",
+        "\"",
+        "'",
+        "<",
+        ">",
+        ",",
+        "?",
+        "/",
+        "~" };
 
     public void testDoubleQuoteIfNotAlphaNumeric() {
         assertEquals("foo2", MlStrings.doubleQuoteIfNotAlphaNumeric("foo2"));

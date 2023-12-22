@@ -55,6 +55,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
@@ -815,7 +816,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ) throws Exception {
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
-            final long startTime = threadPool.relativeTimeInMillis();
+            final long startTime = threadPool.relativeTimeInNanos();
             RangeMissingHandler writerInstrumentationDecorator = (
                 SharedBytes.IO channel,
                 int channelPos,
@@ -823,7 +824,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 int length,
                 IntConsumer progressUpdater) -> {
                 writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
-                var elapsedTime = threadPool.relativeTimeInMillis() - startTime;
+                var elapsedTime = TimeUnit.NANOSECONDS.toMicros(threadPool.relativeTimeInNanos() - startTime);
                 SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
                 SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
             };

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.secrets;
+package org.elasticsearch.xpack.application.connector.secrets;
 
 import org.elasticsearch.common.util.FeatureFlag;
 
@@ -17,8 +17,8 @@ public class SecretsFeature {
     private static final FeatureFlag SECRETS_FEATURE_FLAG = new FeatureFlag("search_secrets");
 
     /**
-     * Enables the Connectors API feature by default for the tech preview phase.
-     * As documented, the Connectors API is currently a tech preview feature,
+     * Enables the Connectors Secrets feature by default for the tech preview phase.
+     * As documented, the Connectors Secrets is currently a tech preview feature,
      * and customers should be aware that no SLAs or support are guaranteed during
      * its pre-General Availability (GA) stage.
      *

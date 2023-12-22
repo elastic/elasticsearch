@@ -88,8 +88,8 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorNativ
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipelineAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
-import org.elasticsearch.xpack.application.secrets.SecretsFeature;
-import org.elasticsearch.xpack.application.secrets.SecretsIndexService;
+import org.elasticsearch.xpack.application.connector.secrets.SecretsFeature;
+import org.elasticsearch.xpack.application.connector.secrets.SecretsIndexService;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
@@ -148,9 +148,9 @@ import org.elasticsearch.xpack.application.search.action.TransportListSearchAppl
 import org.elasticsearch.xpack.application.search.action.TransportPutSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportQuerySearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportRenderSearchApplicationQueryAction;
-import org.elasticsearch.xpack.application.secrets.action.GetSecretAction;
-import org.elasticsearch.xpack.application.secrets.action.RestGetSecretAction;
-import org.elasticsearch.xpack.application.secrets.action.TransportGetSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.GetSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.RestGetSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetSecretAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -269,8 +269,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             actionHandlers.addAll(
                 List.of(
                     new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class)
-//                    new ActionHandler<>(PostSecretAction.INSTANCE, TransportPostSecretAction.class),
-//                    new ActionHandler<>(DeleteSecretAction.INSTANCE, TransportDeleteSecretAction.class)
                 )
             );
         }

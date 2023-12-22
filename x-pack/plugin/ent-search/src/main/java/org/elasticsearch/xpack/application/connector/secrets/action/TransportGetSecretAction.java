@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.secrets.action;
+package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -18,8 +18,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.xpack.application.secrets.SecretsIndexService.SEARCH_SECRETS_INDEX_NAME;
-import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.application.connector.secrets.SecretsIndexService.CONNECTOR_SECRETS_INDEX_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 public class TransportGetSecretAction extends HandledTransportAction<GetSecretRequest, GetSecretResponse> {
     private final Client client;
@@ -28,11 +28,11 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
     @Inject
     public TransportGetSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(GetSecretAction.NAME, transportService, actionFilters, GetSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.client = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
+        this.client = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 
     protected void doExecute(Task task, GetSecretRequest request, ActionListener<GetSecretResponse> listener) {
-        client.prepareGet(SEARCH_SECRETS_INDEX_NAME, request.id()).execute(listener.delegateFailureAndWrap((delegate, getResponse) -> {
+        client.prepareGet(CONNECTOR_SECRETS_INDEX_NAME, request.id()).execute(listener.delegateFailureAndWrap((delegate, getResponse) -> {
             if (getResponse.isSourceEmpty()) {
                 delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
                 return;

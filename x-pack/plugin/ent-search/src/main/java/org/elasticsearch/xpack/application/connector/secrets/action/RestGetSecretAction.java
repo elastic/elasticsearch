@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.application.secrets.action;
+package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -22,12 +22,12 @@ public class RestGetSecretAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "fleet_get_secret";
+        return "connector_get_secret";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_fleet/secret/{id}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_connector/secret/{id}"));
     }
 
     @Override

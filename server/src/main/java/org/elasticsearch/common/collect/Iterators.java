@@ -223,11 +223,6 @@ public class Iterators {
             }
             return value;
         }
-
-        @Override
-        public void forEachRemaining(Consumer<? super U> action) {
-            Iterator.super.forEachRemaining(action);
-        }
     }
 
     public static <T> boolean equals(Iterator<? extends T> iterator1, Iterator<? extends T> iterator2, BiPredicate<T, T> itemComparer) {

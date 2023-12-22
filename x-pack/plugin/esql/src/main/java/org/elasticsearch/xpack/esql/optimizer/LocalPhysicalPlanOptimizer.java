@@ -67,7 +67,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -104,9 +104,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         esSourceRules.add(new ReplaceAttributeSourceWithDocId());
 
         if (optimizeForEsSource) {
-            esSourceRules.add(new PushTopNToSource(context()));
+            esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
-            esSourceRules.add(new PushFiltersToSource(context()));
+            esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushStatsToSource());
         }
 
@@ -198,22 +198,18 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
-    public static class PushFiltersToSource extends OptimizerRule<FilterExec> {
-
-        private final SearchStats searchStats;
-
-        public PushFiltersToSource(LocalPhysicalOptimizerContext context) {
-            this.searchStats = context.searchStats();
-        }
+    public static class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        FilterExec,
+        LocalPhysicalOptimizerContext> {
 
         @Override
-        protected PhysicalPlan rule(FilterExec filterExec) {
+        protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = filterExec;
             if (filterExec.child() instanceof EsQueryExec queryExec) {
                 List<Expression> pushable = new ArrayList<>();
                 List<Expression> nonPushable = new ArrayList<>();
                 for (Expression exp : splitAnd(filterExec.condition())) {
-                    (canPushToSource(exp, x -> hasIdenticalDelegate(x, searchStats)) ? pushable : nonPushable).add(exp);
+                    (canPushToSource(exp, x -> hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     QueryBuilder planQuery = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable)).asBuilder();
@@ -238,7 +234,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        public static boolean canPushToSource(Expression exp, Function<FieldAttribute, Boolean> hasIdenticalDelegate) {
+        public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
             if (exp instanceof BinaryComparison bc) {
                 return isBooleanExpressionPushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
@@ -256,7 +252,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         private static boolean isBooleanExpressionPushable(
             Expression expression,
             ScalarFunction operation,
-            Function<FieldAttribute, Boolean> hasIdenticalDelegate
+            Predicate<FieldAttribute> hasIdenticalDelegate
         ) {
             if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
                 return true;
@@ -295,21 +291,17 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
-    private static class PushTopNToSource extends OptimizerRule<TopNExec> {
-        private SearchStats stats;
-
-        PushTopNToSource(LocalPhysicalOptimizerContext context) {
-            this.stats = context.searchStats();
-        }
-
+    private static class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        TopNExec,
+        LocalPhysicalOptimizerContext> {
         @Override
-        protected PhysicalPlan rule(TopNExec topNExec) {
+        protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = topNExec;
             PhysicalPlan child = topNExec.child();
 
             boolean canPushDownTopN = child instanceof EsQueryExec
                 || (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec);
-            if (canPushDownTopN && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, stats))) {
+            if (canPushDownTopN && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 
@@ -322,7 +314,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        private boolean canPushDownOrders(List<Order> orders, Function<FieldAttribute, Boolean> hasIdenticalDelegate) {
+        private boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
             // allow only exact FieldAttributes (no expressions) for sorting
             return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
         }
@@ -446,9 +438,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         return stats.hasIdenticalDelegate(attr.name());
     }
 
-    public static boolean isPushableFieldAttribute(Expression exp, Function<FieldAttribute, Boolean> hasIdenticalDelegate) {
+    public static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa)) {
-            return fa.dataType().equals(DataTypes.TEXT) ? hasIdenticalDelegate.apply(fa) : true;
+            return fa.dataType() != DataTypes.TEXT || hasIdenticalDelegate.test(fa);
         }
         return false;
     }

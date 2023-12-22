@@ -937,7 +937,7 @@ public final class TextFieldMapper extends FieldMapper {
             return fielddata;
         }
 
-        public boolean isSyntheticSourceDelegateIdentical() {
+        public boolean canUseSyntheticSourceDelegate() {
             return syntheticSourceDelegate != null
                 && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
                 && syntheticSourceDelegate.hasNormalizer() == false;
@@ -945,7 +945,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (isSyntheticSourceDelegateIdentical()) {
+            if (canUseSyntheticSourceDelegate()) {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
                     @Override
                     protected String delegatingTo() {

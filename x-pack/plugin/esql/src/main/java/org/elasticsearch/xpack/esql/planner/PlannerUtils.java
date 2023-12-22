@@ -44,7 +44,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
@@ -138,11 +138,11 @@ public class PlannerUtils {
      *                             a synthetic source delegate with the exact same value
      * @return
      */
-    public static QueryBuilder requestFilter(PhysicalPlan plan, Function<FieldAttribute, Boolean> hasIdenticalDelegate) {
+    public static QueryBuilder requestFilter(PhysicalPlan plan, Predicate<FieldAttribute> hasIdenticalDelegate) {
         return detectFilter(plan, "@timestamp", hasIdenticalDelegate);
     }
 
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Function<FieldAttribute, Boolean> hasIdenticalDelegate) {
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Predicate<FieldAttribute> hasIdenticalDelegate) {
         // first position is the REST filter, the second the query filter
         var requestFilter = new QueryBuilder[] { null, null };
 

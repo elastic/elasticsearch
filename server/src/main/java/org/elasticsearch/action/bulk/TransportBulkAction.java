@@ -685,49 +685,62 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return;
             }
 
-            final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
             String nodeId = clusterService.localNode().getId();
-            for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
-                final ShardId shardId = entry.getKey();
-                final List<BulkItemRequest> requests = entry.getValue();
+            try(RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(() -> sendResponse())) {
+                for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+                    final ShardId shardId = entry.getKey();
+                    final List<BulkItemRequest> requests = entry.getValue();
 
-                BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                    shardId,
-                    bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0])
-                );
-                bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                bulkShardRequest.timeout(bulkRequest.timeout());
-                bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                if (task != null) {
-                    bulkShardRequest.setParentTask(nodeId, task.getId());
-                }
-
-                IndexMetadata indexMetadata = clusterState.metadata().index(shardId.getIndex());
-                if (indexMetadata.getFieldsForModels().isEmpty() == false) {
-                    performInference(
-                        bulkShardRequest,
-                        indexMetadata.getFieldsForModels(),
-                        () -> {
-                            BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
-                                shardId,
-                                bulkRequest.getRefreshPolicy(),
-                                Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
-                            );
-                            executeBulkShardRequest(errorsFilteredShardRequest, requests, counter);
-                        }
+                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                        shardId,
+                        bulkRequest.getRefreshPolicy(),
+                        requests.toArray(new BulkItemRequest[0])
                     );
-                } else {
-                    executeBulkShardRequest(bulkShardRequest, requests, counter);
+                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+                    bulkShardRequest.timeout(bulkRequest.timeout());
+                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+                    if (task != null) {
+                        bulkShardRequest.setParentTask(nodeId, task.getId());
+                    }
+
+                    performInferenceAndExecute(bulkShardRequest, clusterState, bulkItemRequestCompleteRefCount.acquire());
                 }
             }
         }
 
-        private void performInference(BulkShardRequest bulkShardRequest, Map<String, Set<String>> fieldsForModels, Runnable onCompletion) {
+        private void sendResponse() {
+            listener.onResponse(
+                new BulkResponse(
+                    responses.toArray(new BulkItemResponse[responses.length()]),
+                    buildTookInMillis(startTimeNanos)
+                )
+            );
+            // Allow memory for bulk shard request items to be reclaimed before all items have been completed
+            bulkRequest = null;
+        }
 
+        private void performInferenceAndExecute(
+            BulkShardRequest bulkShardRequest,
+            ClusterState clusterState,
+            Releasable releaseOnFinish
+        ) {
+
+            Map<String, Set<String>> fieldsForModels = clusterState.metadata()
+                .index(bulkShardRequest.shardId().getIndex())
+                .getFieldsForModels();
+            if (fieldsForModels.isEmpty()) {
+                executeBulkShardRequest(bulkShardRequest, releaseOnFinish);
+            }
+
+            AtomicArray<BulkItemRequest> newBulkItemsRequest = new AtomicArray<>(bulkShardRequest.items().length);
             // TODO Should we create a specific ThreadPool?
             try (var bulkItemReqRef = new RefCountingRunnable(() -> {
-                onCompletion.run();
+                BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
+                    bulkShardRequest.shardId(),
+                    bulkRequest.getRefreshPolicy(),
+                    Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
+                );
+                executeBulkShardRequest(errorsFilteredShardRequest, releaseOnFinish);
             })) {
 
                 for (BulkItemRequest request : bulkShardRequest.items()) {
@@ -859,7 +872,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return (finalValue instanceof String) ? (String) finalValue : null;
         }
 
-        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, List<BulkItemRequest> requests, AtomicInteger counter) {
+        private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
             if (bulkShardRequest.items().length == 0) {
                 // No requests to execute due to previous errors, terminate early
                 listener.onResponse(
@@ -868,8 +881,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         buildTookInMillis(startTimeNanos)
                     )
                 );
+                releaseOnFinish.close();
                 return;
             }
+
             client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
@@ -880,32 +895,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                         responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
-                    maybeFinishHim();
+                    releaseOnFinish.close();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     // create failures for all relevant requests
-                    for (BulkItemRequest request : requests) {
+                    for (BulkItemRequest request : bulkShardRequest.items()) {
                         final String indexName = request.index();
                         DocWriteRequest<?> docWriteRequest = request.request();
                         BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                         responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
                     }
-                    maybeFinishHim();
-                }
-
-                private void maybeFinishHim() {
-                    if (counter.decrementAndGet() == 0) {
-                        listener.onResponse(
-                            new BulkResponse(
-                                responses.toArray(new BulkItemResponse[responses.length()]),
-                                buildTookInMillis(startTimeNanos)
-                            )
-                        );
-                        // Allow memory for bulk shard request items to be reclaimed before all items have been completed
-                        bulkRequest = null;
-                    }
+                    releaseOnFinish.close();
                 }
             });
         }

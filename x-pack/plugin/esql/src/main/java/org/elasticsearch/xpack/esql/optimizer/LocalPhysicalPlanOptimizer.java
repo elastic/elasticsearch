@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -29,9 +28,9 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -44,7 +43,6 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
@@ -54,8 +52,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
@@ -71,7 +67,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -418,25 +413,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             }
 
             return tuple;
-        }
-    }
-
-    private static final class EsqlTranslatorHandler extends QlTranslatorHandler {
-        @Override
-        public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
-            if (field instanceof FieldAttribute fa) {
-                if (fa.getExactInfo().hasExact()) {
-                    var exact = fa.exactAttribute();
-                    if (exact != fa) {
-                        fa = exact;
-                    }
-                }
-                return ExpressionTranslator.wrapIfNested(new SingleValueQuery(querySupplier.get(), fa.name()), field);
-            }
-            if (field instanceof MetadataAttribute) {
-                return querySupplier.get(); // MetadataAttributes are always single valued
-            }
-            throw new EsqlIllegalArgumentException("Expected a FieldAttribute or MetadataAttribute but received [" + field + "]");
         }
     }
 

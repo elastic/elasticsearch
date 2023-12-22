@@ -18,6 +18,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -43,10 +44,12 @@ public class SearchStats {
 
     private static class FieldStat {
         private Long count;
-        private Boolean exists;
         private Object min, max;
+        // TODO: use a multi-bitset instead
+        private Boolean exists;
         private Boolean singleValue;
         private Boolean indexed;
+        private Boolean runtime;
     }
 
     private static final int CACHE_SIZE = 32;
@@ -186,21 +189,41 @@ public class SearchStats {
         return stat.singleValue;
     }
 
+    public boolean isRuntimeField(String field) {
+        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        if (stat.runtime == null) {
+            stat.runtime = false;
+            if (exists(field)) {
+                for (SearchContext context : contexts) {
+                    var sec = context.getSearchExecutionContext();
+                    if (sec.isFieldMapped(field)) {
+                        if (sec.getFieldType(field) instanceof AbstractScriptFieldType<?>) {
+                            stat.runtime = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return stat.runtime;
+    }
+
     public boolean isIndexed(String field) {
         var stat = cache.computeIfAbsent(field, s -> new FieldStat());
         if (stat.indexed == null) {
             stat.indexed = false;
             if (exists(field)) {
+                boolean indexed = true;
                 for (SearchContext context : contexts) {
                     var sec = context.getSearchExecutionContext();
                     if (sec.isFieldMapped(field)) {
                         if (sec.getFieldType(field).isIndexed() == false) {
-                            stat.indexed = false;
+                            indexed = false;
                             break;
                         }
                     }
                 }
-                stat.indexed = true;
+                stat.indexed = indexed;
             }
         }
         return stat.indexed;

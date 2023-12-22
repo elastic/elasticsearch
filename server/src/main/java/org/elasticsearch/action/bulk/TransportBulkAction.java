@@ -26,9 +26,11 @@ import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -60,6 +62,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -76,6 +80,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
@@ -105,6 +110,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
+
+    public static final String ROOT_RESULT_FIELD = "_ml._inference";
+    public static final String INFERENCE_FIELD = "result";
+    public static final String TEXT_FIELD = "text";
 
     @Inject
     public TransportBulkAction(
@@ -679,6 +688,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
+
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
@@ -692,19 +702,101 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
 
                 IndexMetadata indexMetadata = clusterState.metadata().index(shardId.getIndex());
-                if (indexMetadata.getFieldsForModels().isEmpty()) {
-                    executeBulkShardRequest(bulkShardRequest, requests, counter);
+                if (indexMetadata.getFieldsForModels().isEmpty() == false) {
+                    performInference(requests, indexMetadata.getModelsForFields(), () -> executeBulkShardRequest(bulkShardRequest, requests, counter));
                 } else {
-                    performInference(bulkShardRequest, requests, clusterState);
+                    executeBulkShardRequest(bulkShardRequest, requests, counter);
                 }
-
 
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
 
-        private void performInference(BulkShardRequest bulkShardRequest, List<BulkItemRequest> requests, ClusterState clusterState) {
+        private void performInference(List<BulkItemRequest> requests, Map<String, String> modelsForFields, Runnable onCompletion) {
 
+            // TODO Should we create a specific ThreadPool?
+            try (var bulkItemReqRef = new RefCountingRunnable(() -> {
+                onCompletion.run();
+            })) {
+
+                for (BulkItemRequest request : requests) {
+                    DocWriteRequest<?> docWriteRequest = request.request();
+                    Map<String, Object> sourceMap = null;
+                    if (docWriteRequest instanceof IndexRequest indexRequest) {
+                        sourceMap = indexRequest.sourceAsMap();
+                    } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
+                        sourceMap = updateRequest.doc().sourceAsMap();
+                    }
+                    if (sourceMap == null || sourceMap.isEmpty()) {
+                        continue;
+                    }
+                    bulkItemReqRef.acquire();
+                    final Map<String, Object> docMap = new ConcurrentHashMap<>(sourceMap);
+
+                    Set<String> inferenceFields = new HashSet<>(sourceMap.keySet());
+                    inferenceFields.retainAll(modelsForFields.keySet());
+
+                    // When a document completes processing, update the source with the inference
+                    try (var docRef = new RefCountingRunnable(() -> {
+                        if (docWriteRequest instanceof IndexRequest indexRequest) {
+                            indexRequest.source(docMap);
+                        } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
+                            updateRequest.doc().source(docMap);
+                        }
+                    })) {
+
+                        for (String inferenceField : inferenceFields) {
+                            Object fieldValue = sourceMap.get(inferenceField);
+                            if (fieldValue instanceof String == false) {
+                                continue;
+                            }
+
+                            docRef.acquire();
+
+                            // TODO batch by model id, and multiple docs
+                            InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+                                TaskType.SPARSE_EMBEDDING, // TODO Change when task type doesn't need to be specified
+                                modelsForFields.get(inferenceField),
+                                List.of((String) fieldValue),
+                                Map.of()
+                            );
+
+                            client.execute(InferenceAction.INSTANCE, inferenceRequest, new ActionListener<>() {
+                                @Override
+                                public void onResponse(InferenceAction.Response response) {
+                                    // Transform into two subfields, one with the actual text and other with the inference
+                                    InferenceServiceResults results = response.getResults();
+                                    if (results == null) {
+                                        throw new IllegalArgumentException(
+                                            "No inference retrieved for field " + inferenceField + " in document " + docWriteRequest.id()
+                                        );
+                                    }
+
+                                    Object inferenceResult = results.transformToLegacyFormat().get(0).predictedValue();
+
+                                    docMap.put(ROOT_RESULT_FIELD + "." + inferenceField + "." + INFERENCE_FIELD, inferenceResult);
+                                    docMap.put(ROOT_RESULT_FIELD + "." + inferenceField + "." + TEXT_FIELD, fieldValue);
+
+                                    docRef.close();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+
+                                    final String indexName = request.index();
+                                    DocWriteRequest<?> docWriteRequest = request.request();
+                                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+                                    responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
+                                    // make sure the request gets never processed again
+                                    bulkRequest.requests.set(request.id(), null);
+
+                                    docRef.close();
+                                }
+                            });
+                        }
+                    }
+                }
+            }
         }
 
         private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, List<BulkItemRequest> requests, AtomicInteger counter) {

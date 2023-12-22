@@ -11,7 +11,11 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.CacheHelper;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -89,6 +93,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -637,9 +642,35 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
+        final IndexEventListener afterIndexShardStarted = new IndexEventListener() {
+            @Override
+            public void afterIndexShardStarted(IndexShard indexShard) {
+                Engine engine = indexShard.getEngineOrNull();
+                if (engine != null) {
+                    try {
+                        Engine.Searcher hasValueSearcher = engine.acquireSearcher("find_field_has_value");
+                        IndexReader hasValueReader = hasValueSearcher.getIndexReader();
+                        for (LeafReaderContext leaf : hasValueReader.leaves()) {
+                            LeafReader leafReader = leaf.reader();
+                            for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
+                                indexShard.setFieldHasValue(fieldInfo.getName());
+                            }
+                            IOUtils.close(leafReader);
+                        }
+                        IOUtils.close(hasValueSearcher);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                } else {
+                    throw new RuntimeException("Engine not yet started, aborting..."); // TODO-MP handle exception
+                }
+            }
+        };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         finalListeners.add(beforeIndexShardRecovery);
+        finalListeners.add(afterIndexShardStarted);
         IndexService indexService;
         try (var ignored = threadPool.getThreadContext().newStoredContext()) {
             indexService = createIndexService(

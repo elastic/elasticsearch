@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
@@ -110,7 +111,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         }
     }
 
-    public void testAsyncCancellation() {
+    public void testAsyncCancellation() throws Exception {
         try (var initialResponse = sendAsyncQuery()) {
             assertThat(initialResponse.asyncExecutionId(), isPresent());
             assertThat(initialResponse.isRunning(), is(true));
@@ -118,10 +119,17 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
             DeleteAsyncResultRequest request = new DeleteAsyncResultRequest(id);
             var future = client().execute(DeleteAsyncResultAction.INSTANCE, request);
-            // release the permits to allow the query to proceed fail.
-            scriptPermits.release(numberOfDocs());
+
+            // there should be just one task
+            List<TaskInfo> tasks = getEsqlQueryTasks();
+            assertThat(tasks.size(), is(1));
+
             var deleteResponse = future.actionGet(timeValueSeconds(60));
             assertThat(deleteResponse.isAcknowledged(), equalTo(true));
+
+            // there should be no tasks after delete
+            tasks = getEsqlQueryTasks();
+            assertThat(tasks.size(), is(0));
 
             // the stored response should no longer be retrievable
             var getResultsRequest = new GetAsyncResultRequest(id);
@@ -132,8 +140,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 () -> client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).actionGet()
             );
             assertThat(e.getMessage(), equalTo(id));
-
-            // TODO: tasks API to check there are no tasks running
         } finally {
             scriptPermits.drainPermits();
         }
@@ -185,6 +191,21 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         } finally {
             scriptPermits.drainPermits();
         }
+    }
+
+    private List<TaskInfo> getEsqlQueryTasks() throws Exception {
+        List<TaskInfo> foundTasks = new ArrayList<>();
+        assertBusy(() -> {
+            List<TaskInfo> tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(EsqlQueryAction.NAME + "[a]")
+                .setDetailed(true)
+                .get()
+                .getTasks();
+            foundTasks.addAll(tasks);
+        });
+        return foundTasks;
     }
 
     private EsqlQueryResponse sendAsyncQuery() {

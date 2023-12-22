@@ -143,16 +143,6 @@ $endif$
         }
     }
 
-    /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @deprecated use {@link BlockFactory#new$Type$VectorBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize) {
-        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
 $if(BytesRef)$
     /**
      * Creates a builder that grows as needed.

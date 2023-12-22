@@ -381,6 +381,28 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(localSource.output()), contains("count", "seen"));
     }
 
+    public void testIsNotNullPushdownFilter() {
+        var plan = plan("from test | where emp_no is not null");
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var query = as(exchange.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(500));
+        var expected = QueryBuilders.existsQuery("emp_no");
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    public void testIsNullPushdownFilter() {
+        var plan = plan("from test | where emp_no is null");
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var query = as(exchange.child(), EsQueryExec.class);
+        assertThat(query.limit().fold(), is(500));
+        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
     private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(inner, fieldName, source);
     }

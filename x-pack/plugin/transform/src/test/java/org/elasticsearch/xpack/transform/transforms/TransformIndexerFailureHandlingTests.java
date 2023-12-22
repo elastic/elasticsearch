@@ -30,7 +30,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
@@ -224,16 +223,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
             responseListener.onResponse(
                 new SearchResponse(
-                    new InternalSearchResponse(
-                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                        // Simulate completely null aggs
-                        null,
-                        new Suggest(Collections.emptyList()),
-                        new SearchProfileResults(Collections.emptyMap()),
-                        false,
-                        false,
-                        1
-                    ),
+                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                    // Simulate completely null aggs
+                    null,
+                    new Suggest(Collections.emptyList()),
+                    false,
+                    false,
+                    new SearchProfileResults(Collections.emptyMap()),
+                    1,
                     "",
                     1,
                     1,
@@ -375,16 +372,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
         SearchResponse searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                // Simulate completely null aggs
-                null,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
+            new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
             "",
             1,
             1,
@@ -513,16 +508,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         final SearchResponse searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                // Simulate completely null aggs
-                null,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
+            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
             "",
             1,
             1,
@@ -605,16 +598,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         final SearchResponse searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                // Simulate completely null aggs
-                null,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
+            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
             "",
             1,
             1,
@@ -700,16 +691,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         final SearchResponse searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                // Simulate completely null aggs
-                null,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
+            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
             "",
             1,
             1,

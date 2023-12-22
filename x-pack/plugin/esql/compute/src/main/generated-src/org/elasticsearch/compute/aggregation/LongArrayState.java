@@ -66,7 +66,7 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try (LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            try (LongVector.Builder builder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     builder.appendLong(values.get(selected.getInt(i)));
                 }

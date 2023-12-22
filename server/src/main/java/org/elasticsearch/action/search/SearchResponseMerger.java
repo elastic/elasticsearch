@@ -411,9 +411,7 @@ final class SearchResponseMerger implements Releasable {
      * need to look at the cluster alias and make sure to assign a different shardIndex based on that.
      */
     private record ShardIdAndClusterAlias(ShardId shardId, String clusterAlias) implements Comparable<ShardIdAndClusterAlias> {
-        private ShardIdAndClusterAlias
-
-        {
+        private ShardIdAndClusterAlias {
             assert clusterAlias != null : "clusterAlias is null";
         }
 

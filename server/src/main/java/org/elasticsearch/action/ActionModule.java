@@ -1018,18 +1018,27 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpdateDesiredNodesAction());
         registerHandler.accept(new RestDeleteDesiredNodesAction());
 
+        record Parameters(
+            Settings settings,
+            RestController restController,
+            ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings,
+            SettingsFilter settingsFilter,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster
+        ) implements ActionPlugin.RestHandlerParameters {}
+        Parameters params = new Parameters(
+            settings,
+            restController,
+            clusterSettings,
+            indexScopedSettings,
+            settingsFilter,
+            indexNameExpressionResolver,
+            nodesInCluster
+        );
+
         for (ActionPlugin plugin : actionPlugins) {
-            for (RestHandler handler : plugin.getRestHandlers(
-                settings,
-                restController,
-                clusterSettings,
-                indexScopedSettings,
-                settingsFilter,
-                indexNameExpressionResolver,
-                nodesInCluster
-            )) {
-                registerHandler.accept(handler);
-            }
+            plugin.getRestHandlers(params).forEach(registerHandler);
         }
         registerHandler.accept(new RestCatAction(catActions));
 

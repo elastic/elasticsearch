@@ -10,18 +10,11 @@ package org.elasticsearch.plugin.freeze;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -29,7 +22,6 @@ import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -40,15 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class FreezeIndexPlugin extends Plugin implements ActionPlugin {
 
     @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
+    public List<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
         return List.of(new FreezeIndexRestEndpoint());
     }
 

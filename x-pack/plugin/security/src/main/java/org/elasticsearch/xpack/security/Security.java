@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -38,11 +37,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -82,7 +79,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
@@ -1382,79 +1378,71 @@ public class Security extends Plugin
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
+    public List<RestHandler> getRestHandlers(RestHandlerParameters parameters) {
         if (enabled == false) {
             return emptyList();
         }
         return Stream.<RestHandler>of(
-            new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
-            new RestClearRealmCacheAction(settings, getLicenseState()),
-            new RestClearRolesCacheAction(settings, getLicenseState()),
-            new RestClearPrivilegesCacheAction(settings, getLicenseState()),
-            new RestClearApiKeyCacheAction(settings, getLicenseState()),
-            new RestClearServiceAccountTokenStoreCacheAction(settings, getLicenseState()),
-            new RestGetUsersAction(settings, getLicenseState()),
-            new RestPutUserAction(settings, getLicenseState()),
-            new RestDeleteUserAction(settings, getLicenseState()),
-            new RestGetRolesAction(settings, getLicenseState()),
-            new RestPutRoleAction(settings, getLicenseState()),
-            new RestDeleteRoleAction(settings, getLicenseState()),
-            new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),
-            new RestSetEnabledAction(settings, getLicenseState()),
-            new RestHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-            new RestGetUserPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-            new RestGetRoleMappingsAction(settings, getLicenseState()),
-            new RestPutRoleMappingAction(settings, getLicenseState()),
-            new RestDeleteRoleMappingAction(settings, getLicenseState()),
-            new RestGetTokenAction(settings, getLicenseState()),
-            new RestInvalidateTokenAction(settings, getLicenseState()),
+            new RestAuthenticateAction(parameters.settings(), securityContext.get(), getLicenseState()),
+            new RestClearRealmCacheAction(parameters.settings(), getLicenseState()),
+            new RestClearRolesCacheAction(parameters.settings(), getLicenseState()),
+            new RestClearPrivilegesCacheAction(parameters.settings(), getLicenseState()),
+            new RestClearApiKeyCacheAction(parameters.settings(), getLicenseState()),
+            new RestClearServiceAccountTokenStoreCacheAction(parameters.settings(), getLicenseState()),
+            new RestGetUsersAction(parameters.settings(), getLicenseState()),
+            new RestPutUserAction(parameters.settings(), getLicenseState()),
+            new RestDeleteUserAction(parameters.settings(), getLicenseState()),
+            new RestGetRolesAction(parameters.settings(), getLicenseState()),
+            new RestPutRoleAction(parameters.settings(), getLicenseState()),
+            new RestDeleteRoleAction(parameters.settings(), getLicenseState()),
+            new RestChangePasswordAction(parameters.settings(), securityContext.get(), getLicenseState()),
+            new RestSetEnabledAction(parameters.settings(), getLicenseState()),
+            new RestHasPrivilegesAction(parameters.settings(), securityContext.get(), getLicenseState()),
+            new RestGetUserPrivilegesAction(parameters.settings(), securityContext.get(), getLicenseState()),
+            new RestGetRoleMappingsAction(parameters.settings(), getLicenseState()),
+            new RestPutRoleMappingAction(parameters.settings(), getLicenseState()),
+            new RestDeleteRoleMappingAction(parameters.settings(), getLicenseState()),
+            new RestGetTokenAction(parameters.settings(), getLicenseState()),
+            new RestInvalidateTokenAction(parameters.settings(), getLicenseState()),
             new RestGetCertificateInfoAction(),
-            new RestSamlPrepareAuthenticationAction(settings, getLicenseState()),
-            new RestSamlAuthenticateAction(settings, getLicenseState()),
-            new RestSamlLogoutAction(settings, getLicenseState()),
-            new RestSamlInvalidateSessionAction(settings, getLicenseState()),
-            new RestSamlCompleteLogoutAction(settings, getLicenseState()),
-            new RestSamlSpMetadataAction(settings, getLicenseState()),
-            new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
-            new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
-            new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
-            new RestGetBuiltinPrivilegesAction(settings, getLicenseState()),
-            new RestGetPrivilegesAction(settings, getLicenseState()),
-            new RestPutPrivilegesAction(settings, getLicenseState()),
-            new RestDeletePrivilegesAction(settings, getLicenseState()),
-            new RestCreateApiKeyAction(settings, getLicenseState()),
-            new RestCreateCrossClusterApiKeyAction(settings, getLicenseState()),
-            new RestUpdateApiKeyAction(settings, getLicenseState()),
-            new RestBulkUpdateApiKeyAction(settings, getLicenseState()),
-            new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
-            new RestGrantApiKeyAction(settings, getLicenseState()),
-            new RestInvalidateApiKeyAction(settings, getLicenseState()),
-            new RestGetApiKeyAction(settings, getLicenseState()),
-            new RestQueryApiKeyAction(settings, getLicenseState()),
-            new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
-            new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
-            new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
-            new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
-            new RestGetServiceAccountAction(settings, getLicenseState()),
-            new RestKibanaEnrollAction(settings, getLicenseState()),
-            new RestNodeEnrollmentAction(settings, getLicenseState()),
-            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
-            new RestGetProfilesAction(settings, getLicenseState()),
-            new RestActivateProfileAction(settings, getLicenseState()),
-            new RestUpdateProfileDataAction(settings, getLicenseState()),
-            new RestSuggestProfilesAction(settings, getLicenseState()),
-            new RestEnableProfileAction(settings, getLicenseState()),
-            new RestDisableProfileAction(settings, getLicenseState()),
-            new RestGetSecuritySettingsAction(settings, getLicenseState()),
-            new RestUpdateSecuritySettingsAction(settings, getLicenseState())
+            new RestSamlPrepareAuthenticationAction(parameters.settings(), getLicenseState()),
+            new RestSamlAuthenticateAction(parameters.settings(), getLicenseState()),
+            new RestSamlLogoutAction(parameters.settings(), getLicenseState()),
+            new RestSamlInvalidateSessionAction(parameters.settings(), getLicenseState()),
+            new RestSamlCompleteLogoutAction(parameters.settings(), getLicenseState()),
+            new RestSamlSpMetadataAction(parameters.settings(), getLicenseState()),
+            new RestOpenIdConnectPrepareAuthenticationAction(parameters.settings(), getLicenseState()),
+            new RestOpenIdConnectAuthenticateAction(parameters.settings(), getLicenseState()),
+            new RestOpenIdConnectLogoutAction(parameters.settings(), getLicenseState()),
+            new RestGetBuiltinPrivilegesAction(parameters.settings(), getLicenseState()),
+            new RestGetPrivilegesAction(parameters.settings(), getLicenseState()),
+            new RestPutPrivilegesAction(parameters.settings(), getLicenseState()),
+            new RestDeletePrivilegesAction(parameters.settings(), getLicenseState()),
+            new RestCreateApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestCreateCrossClusterApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestUpdateApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestBulkUpdateApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestUpdateCrossClusterApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestGrantApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestInvalidateApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestGetApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestQueryApiKeyAction(parameters.settings(), getLicenseState()),
+            new RestDelegatePkiAuthenticationAction(parameters.settings(), getLicenseState()),
+            new RestCreateServiceAccountTokenAction(parameters.settings(), getLicenseState()),
+            new RestDeleteServiceAccountTokenAction(parameters.settings(), getLicenseState()),
+            new RestGetServiceAccountCredentialsAction(parameters.settings(), getLicenseState()),
+            new RestGetServiceAccountAction(parameters.settings(), getLicenseState()),
+            new RestKibanaEnrollAction(parameters.settings(), getLicenseState()),
+            new RestNodeEnrollmentAction(parameters.settings(), getLicenseState()),
+            new RestProfileHasPrivilegesAction(parameters.settings(), securityContext.get(), getLicenseState()),
+            new RestGetProfilesAction(parameters.settings(), getLicenseState()),
+            new RestActivateProfileAction(parameters.settings(), getLicenseState()),
+            new RestUpdateProfileDataAction(parameters.settings(), getLicenseState()),
+            new RestSuggestProfilesAction(parameters.settings(), getLicenseState()),
+            new RestEnableProfileAction(parameters.settings(), getLicenseState()),
+            new RestDisableProfileAction(parameters.settings(), getLicenseState()),
+            new RestGetSecuritySettingsAction(parameters.settings(), getLicenseState()),
+            new RestUpdateSecuritySettingsAction(parameters.settings(), getLicenseState())
         ).filter(Objects::nonNull).toList();
     }
 

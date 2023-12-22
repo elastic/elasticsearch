@@ -27,7 +27,7 @@ setup:
 ---
 "Test Status":
   - do:
-      profiling.status:
+      profiling.status: {}
 
   - match: {profiling.enabled: true}
   - match: {resource_management.enabled: true}

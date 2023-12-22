@@ -69,6 +69,10 @@ public class PassthroughObjectMapper extends ObjectMapper {
         this.containsDimensions = containsDimensions;
     }
 
+    public boolean containsDimensions() {
+        return containsDimensions.value();
+    }
+
     @Override
     public PassthroughObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
         PassthroughObjectMapper.Builder builder = new PassthroughObjectMapper.Builder(name());

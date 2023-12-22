@@ -292,19 +292,33 @@ final class DynamicFieldsBuilder {
         }
 
         void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
+            createDynamicField(builder, context, context.createDynamicMapperBuilderContext());
+        }
+
+        void createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
+            throws IOException {
+            Mapper mapper = builder.build(mapperBuilderContext);
             context.addDynamicMapper(mapper.name(), builder);
             parseField.accept(context, mapper);
         }
 
         @Override
         public void newDynamicStringField(DocumentParserContext context, String name) throws IOException {
-            createDynamicField(
-                new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
-                ),
-                context
-            );
+            MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
+            if (mapperBuilderContext.contaisDimensions()) {
+                createDynamicField(
+                    new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
+                    context,
+                    mapperBuilderContext
+                );
+            } else {
+                createDynamicField(
+                    new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
+                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
+                    ),
+                    context
+                );
+            }
         }
 
         @Override

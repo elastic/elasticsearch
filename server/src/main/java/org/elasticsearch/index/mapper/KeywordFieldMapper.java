@@ -210,7 +210,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             + "] are true"
                     );
                 }
-            }).precludesParameters(normalizer, ignoreAbove);
+            }).precludesParameters(normalizer);
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
@@ -298,6 +298,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
+            }
+            if (context.contaisDimensions()) {
+                dimension(true);
             }
             return new KeywordFieldType(
                 context.buildFullName(name),

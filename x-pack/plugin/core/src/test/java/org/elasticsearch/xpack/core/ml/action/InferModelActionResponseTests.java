@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.inference.results.TextExpansionResults;
+import org.elasticsearch.action.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,9 +27,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInfere
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResultsTests;
-import org.elasticsearch.action.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResultsTests;
-import org.elasticsearch.action.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResultsTests;

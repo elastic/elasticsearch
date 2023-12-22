@@ -26,7 +26,7 @@ final class ElasticServiceAccounts {
         "enterprise-search-server",
         new RoleDescriptor(
             NAMESPACE + "/enterprise-search-server",
-            new String[] { "manage", "manage_security", "read_search_secrets" },
+            new String[] { "manage", "manage_security", "read_connector_secrets" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(

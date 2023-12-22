@@ -45,9 +45,12 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
@@ -79,7 +82,7 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAn
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
-    public static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
+    public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = new PhysicalVerifier();
 
@@ -212,7 +215,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     (canPushToSource(exp, x -> hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(exp);
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
-                    QueryBuilder planQuery = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable)).asBuilder();
+                    Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
+                    QueryBuilder planQuery = queryDSL.asBuilder();
                     var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
                     queryExec = new EsQueryExec(
                         queryExec.source(),
@@ -236,22 +240,24 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
             if (exp instanceof BinaryComparison bc) {
-                return isBooleanExpressionPushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+                return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
-            } else if (exp instanceof RegexMatch<?> rm) {
-                return isBooleanExpressionPushable(rm.field(), rm, hasIdenticalDelegate);
             } else if (exp instanceof In in) {
-                return isBooleanExpressionPushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
+                return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
                 return canPushToSource(not.field(), hasIdenticalDelegate);
+            } else if (exp instanceof UnaryScalarFunction usf) {
+                if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
+                    return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
+                }
             }
             return false;
         }
 
-        private static boolean isBooleanExpressionPushable(
+        private static boolean isAttributePushable(
             Expression expression,
-            ScalarFunction operation,
+            Expression operation,
             Predicate<FieldAttribute> hasIdenticalDelegate
         ) {
             if (isPushableFieldAttribute(expression, hasIdenticalDelegate)) {

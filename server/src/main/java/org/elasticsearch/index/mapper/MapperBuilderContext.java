@@ -48,16 +48,6 @@ public class MapperBuilderContext {
     }
 
     /**
-     * Creates a new MapperBuilderContext that is a child of this context,
-     * indicating that all field mappers to be created are dimensions.
-     * @param name the name of the child context
-     * @return a new MapperBuilderContext with this context as its parent
-     */
-    public MapperBuilderContext createChildContextForDimensions(String name) {
-        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream, true);
-    }
-
-    /**
      * Builds the full name of the field, taking into account parent objects
      */
     public String buildFullName(String name) {

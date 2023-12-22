@@ -195,7 +195,7 @@ public class BlockBenchmark {
                                 null,
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
-                                BlockFactory.getNonBreakingInstance()
+                                blockFactory
                             );
                         }
                         case "big-array-multivalue-null" -> {
@@ -337,9 +337,7 @@ public class BlockBenchmark {
                             );
                         }
                         case "big-array" -> {
-                            DoubleArray valuesBigArray = BlockFactory.getNonBreakingInstance()
-                                .bigArrays()
-                                .newDoubleArray(totalPositions, false);
+                            DoubleArray valuesBigArray = blockFactory.bigArrays().newDoubleArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
                             }
@@ -350,7 +348,7 @@ public class BlockBenchmark {
                                 null,
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
-                                BlockFactory.getNonBreakingInstance()
+                                blockFactory
                             );
                         }
                         case "big-array-multivalue-null" -> {
@@ -431,7 +429,7 @@ public class BlockBenchmark {
                             );
                         }
                         case "big-array" -> {
-                            IntArray valuesBigArray = BlockFactory.getNonBreakingInstance().bigArrays().newIntArray(totalPositions, false);
+                            IntArray valuesBigArray = blockFactory.bigArrays().newIntArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
                             }
@@ -442,7 +440,7 @@ public class BlockBenchmark {
                                 null,
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
-                                BlockFactory.getNonBreakingInstance()
+                                blockFactory
                             );
                         }
                         case "big-array-multivalue-null" -> {
@@ -523,9 +521,7 @@ public class BlockBenchmark {
                             );
                         }
                         case "big-array" -> {
-                            LongArray valuesBigArray = BlockFactory.getNonBreakingInstance()
-                                .bigArrays()
-                                .newLongArray(totalPositions, false);
+                            LongArray valuesBigArray = blockFactory.bigArrays().newLongArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
                                 valuesBigArray.set(i, values[i]);
                             }
@@ -536,7 +532,7 @@ public class BlockBenchmark {
                                 null,
                                 null,
                                 Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
-                                BlockFactory.getNonBreakingInstance()
+                                blockFactory
                             );
                         }
                         case "big-array-multivalue-null" -> {

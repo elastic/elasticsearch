@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -222,4 +225,14 @@ public class PlannerUtils {
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
+
+    /**
+     * A non-breaking block factory used to create small pages during the planning
+     * TODO: Remove this
+     */
+    @Deprecated(forRemoval = true)
+    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop-esql-breaker"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
 }

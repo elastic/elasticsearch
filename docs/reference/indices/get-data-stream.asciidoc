@@ -266,7 +266,7 @@ param `include_defaults` is set to `true`. The contents of this field are subjec
 `rollover_on_write`::
 (Boolean)
 If `true`, the next write to this data stream will trigger a rollover first and the document will be
-indexed in the new backing index.
+indexed in the new backing index. If the rollover fails the indexing request will fail too.
 ====
 
 [[get-data-stream-api-example]]

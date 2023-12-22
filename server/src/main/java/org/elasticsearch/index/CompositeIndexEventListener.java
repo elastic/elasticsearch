@@ -90,19 +90,16 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
         Engine engine = indexShard.getEngineOrNull();
         if (engine != null) {
-            Engine.Searcher hasValueSearcher = engine.acquireSearcher("find_field_has_value");
-            IndexReader hasValueReader = hasValueSearcher.getIndexReader();
-            for (LeafReaderContext leaf : hasValueReader.leaves()) {
-                try (LeafReader leafReader = leaf.reader()) {
+            try {
+                Engine.Searcher hasValueSearcher = engine.acquireSearcher("find_field_has_value");
+                IndexReader hasValueReader = hasValueSearcher.getIndexReader();
+                for (LeafReaderContext leaf : hasValueReader.leaves()) {
+                    LeafReader leafReader = leaf.reader();
                     for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
                         indexShard.setFieldHasValue(fieldInfo.getName());
                     }
                     IOUtils.close(leafReader);
-                } catch (IOException e) {
-                    throw new RuntimeException("I/O exception"); // TODO-MP handle exception
                 }
-            }
-            try {
                 IOUtils.close(hasValueReader, hasValueSearcher);
             } catch (IOException e) {
                 throw new RuntimeException(e);

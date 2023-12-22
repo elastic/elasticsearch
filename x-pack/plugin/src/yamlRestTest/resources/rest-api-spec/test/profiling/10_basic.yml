@@ -33,8 +33,9 @@ setup:
   - match: {resource_management.enabled: true}
   - match: {resources.created: true}
   - match: {resources.pre_8_9_1_data: false}
-    # The assertion is intentionally wrong as we want to provoke a test failure
-  - match: {resources.has_data: true}
+  - match: {resources.has_data: false}
+
+# TODO: Add tests for stacktraces and flamegraph API (after adding them to REST spec)
 
 ---
 # TODO: Delete data?

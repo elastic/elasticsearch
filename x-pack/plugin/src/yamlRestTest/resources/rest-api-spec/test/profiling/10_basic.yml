@@ -1,0 +1,46 @@
+---
+setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: "Universal Profiling test infrastructure is available in 8.12+"
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.profiling.templates.enabled: true
+
+  - do:
+      profiling.status:
+        wait_for_resources_created: true
+
+# TODO: Bulk index all data
+#  - do:
+#      bulk:
+#        index: "profiling-events-all"
+#        refresh: true
+#        body:
+#          - { "index": { } }
+#          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275187, "color": "red" }
+
+
+---
+"Test Status":
+  - do:
+      profiling.status:
+
+  - match: {profiling.enabled: true}
+  - match: {resource_management.enabled: true}
+  - match: {resources.created: true}
+  - match: {resources.pre_8_9_1_data: false}
+    # The assertion is intentionally wrong as we want to provoke a test failure
+  - match: {resources.has_data: true}
+
+---
+# TODO: Delete data?
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.profiling.templates.enabled: false

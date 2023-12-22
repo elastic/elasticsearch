@@ -37,12 +37,12 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToGeoPoint" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_POINT, l -> l, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_POINT, GEO::pointAsWKB, List.of());
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("FromLong"),
             EsqlDataTypes.GEO_POINT,
-            GEO::longAsPoint,
+            GEO::longAsWKB,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
             List.of()
@@ -73,7 +73,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
                 )
             ),
             EsqlDataTypes.GEO_POINT,
-            bytesRef -> GEO.stringAsPoint(((BytesRef) bytesRef).utf8ToString()),
+            bytesRef -> GEO.stringAsWKB(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
 

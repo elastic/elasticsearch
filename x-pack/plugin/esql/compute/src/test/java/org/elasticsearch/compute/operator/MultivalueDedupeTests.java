@@ -60,7 +60,6 @@ public class MultivalueDedupeTests extends ESTestCase {
     public static List<ElementType> supportedTypes() {
         List<ElementType> supported = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
-            // TODO: get working for POINT (also BlockHashRandomizedTests)
             if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC)) {
                 continue;
             }
@@ -82,7 +81,6 @@ public class MultivalueDedupeTests extends ESTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : supportedTypes()) {
-            // TODO: get working for POINT (also BlockHashRandomizedTests)
             if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC)) {
                 continue;
             }
@@ -197,6 +195,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 assertBooleanHash(previousValues, b);
             }
             case BYTES_REF -> {
+                // TODO: Also test spatial WKB
                 int prevSize = between(1, 10000);
                 Set<BytesRef> previousValues = new HashSet<>(prevSize);
                 while (previousValues.size() < prevSize) {
@@ -458,19 +457,6 @@ public class MultivalueDedupeTests extends ESTestCase {
             var c = (Comparable<Object>) o;
             return c;
         })); // Sort for easier visual comparison of errors
-        // TODO: Remove this once fully debugged
-        // if (false == equalTo(expected).matches(actual)) {
-        // if (expected.size() != actual.size()) {
-        // System.out.println("Different sizes: " + expected.size() + " != " + actual.size());
-        // } else {
-        // for (int i = 0; i < actual.size(); i++) {
-        // System.out.println(i);
-        // System.out.println("Expected: " + expected.get(i));
-        // System.out.println("Actual: " + actual.get(i));
-        // System.out.println("Equal: " + expected.get(i).equals(actual.get(i)));
-        // }
-        // }
-        // }
         assertThat(actual, equalTo(expected));
         return valueOffset;
     }

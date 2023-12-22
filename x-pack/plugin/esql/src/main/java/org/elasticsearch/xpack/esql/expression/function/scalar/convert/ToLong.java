@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -119,12 +118,12 @@ public class ToLong extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromGeoPoint")
-    static long fromGeoPoint(SpatialPoint point) {
-        return GEO.pointAsLong(point);
+    static long fromGeoPoint(BytesRef wkb) {
+        return GEO.wkbAsLong(wkb);
     }
 
     @ConvertEvaluator(extraName = "FromCartesianPoint")
-    static long fromCartesianPoint(SpatialPoint point) {
-        return CARTESIAN.pointAsLong(point);
+    static long fromCartesianPoint(BytesRef wkb) {
+        return CARTESIAN.wkbAsLong(wkb);
     }
 }

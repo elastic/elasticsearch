@@ -11,7 +11,6 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -389,8 +388,11 @@ public final class CsvTestUtils {
             Long.class
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
-        GEO_POINT(x -> x == null ? null : GEO.stringAsPoint(x), SpatialPoint.class),
-        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.stringAsPoint(x), SpatialPoint.class);
+        // TODO: support all conversions to LONG, POINT and BYTES_REF for spatial types
+        // GEO_POINT(x -> x == null ? null : GEO.stringAsPoint(x), SpatialPoint.class),
+        // CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.stringAsPoint(x), SpatialPoint.class),
+        GEO_POINT(x -> x == null ? null : GEO.stringAsWKB(x), BytesRef.class),
+        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.stringAsWKB(x), BytesRef.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -447,11 +449,23 @@ public final class CsvTestUtils {
                 case LONG -> LONG;
                 case DOUBLE -> DOUBLE;
                 case NULL -> NULL;
-                case BYTES_REF -> KEYWORD;
+                case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
                 case POINT -> pointBlockType(actualType);
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
+            };
+        }
+
+        private static Type bytesRefBlockType(Type actualType) {
+            return switch (actualType) {
+                case KEYWORD -> KEYWORD;
+                case VERSION -> KEYWORD;
+                case IP -> KEYWORD;
+                case TEXT -> KEYWORD;
+                case GEO_POINT -> GEO_POINT;
+                case CARTESIAN_POINT -> CARTESIAN_POINT;
+                default -> throw new IllegalArgumentException("Unsupported bytes-ref type: " + actualType);
             };
         }
 

@@ -355,6 +355,11 @@ public interface BlockLoader {
         PointBuilder points(int expectedCount);
 
         /**
+         * Build a builder to load {@link SpatialPoint}s backed by WKB in BytesRefBlock.
+         */
+        BytesRefBuilder geometries(int expectedCount);
+
+        /**
          * Build a builder to load doubles as loaded from doc values.
          * Doc values load doubles deduplicated and in sorted order.
          */

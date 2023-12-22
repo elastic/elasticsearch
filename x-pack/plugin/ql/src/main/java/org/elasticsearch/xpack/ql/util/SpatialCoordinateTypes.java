@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.ql.util;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.XYEncodingUtils;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
+
+import java.nio.ByteOrder;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
@@ -93,5 +97,45 @@ public enum SpatialCoordinateTypes {
      */
     public SpatialPoint pointAsPoint(SpatialPoint point) {
         return point;
+    }
+
+    public BytesRef stringAsWKB(String string) {
+        try {
+            Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, string);
+            return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
+        }
+    }
+
+    public BytesRef pointAsWKB(SpatialPoint point) {
+        return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
+    }
+
+    public BytesRef longAsWKB(long encoded) {
+        return pointAsWKB(longAsPoint(encoded));
+    }
+
+    public long wkbAsLong(BytesRef wkb) {
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+        if (geometry instanceof Point point) {
+            return pointAsLong(point.getX(), point.getY());
+        } else {
+            throw new IllegalArgumentException("Unsupported geometry: " + geometry.type());
+        }
+    }
+
+    public String wkbAsString(BytesRef wkb) {
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    public SpatialPoint wkbAsPoint(BytesRef wkb) {
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+        if (geometry instanceof Point point) {
+            return pointAsPoint(point);
+        } else {
+            throw new IllegalArgumentException("Unsupported geometry: " + geometry.type());
+        }
     }
 }

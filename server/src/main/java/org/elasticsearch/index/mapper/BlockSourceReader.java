@@ -16,10 +16,12 @@ import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -154,6 +156,24 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
+    public static class GeometriesBlockLoader extends SourceBlockLoader {
+        private final ValueFetcher fetcher;
+
+        public GeometriesBlockLoader(ValueFetcher fetcher) {
+            this.fetcher = fetcher;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.geometries(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
+            return new Geometries(fetcher);
+        }
+    }
+
     private static class BytesRefs extends BlockSourceReader {
         BytesRef scratch = new BytesRef();
 
@@ -203,6 +223,41 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         public String toString() {
             return "BlockSourceReader.Points";
+        }
+    }
+
+    private static class Geometries extends BlockSourceReader {
+
+        Geometries(ValueFetcher fetcher) {
+            super(fetcher);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            if (v instanceof SpatialPoint point) {
+                BytesRef wkb = new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
+                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(wkb);
+            } else if (v instanceof String wkt) {
+                try {
+                    // TODO: figure out why this is not already happening in the GeoPointFieldMapper
+                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+                    if (geometry instanceof Point point) {
+                        BytesRef wkb = new BytesRef(WellKnownBinary.toWKB(point, ByteOrder.LITTLE_ENDIAN));
+                        ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(wkb);
+                    } else {
+                        throw new IllegalArgumentException("Cannot convert geometry into point:: " + geometry.type());
+                    }
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Failed to parse point geometry: " + e.getMessage(), e);
+                }
+            } else {
+                throw new IllegalArgumentException("Unsupported source type for point: " + v.getClass().getSimpleName());
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BlockSourceReader.Geometries";
         }
     }
 

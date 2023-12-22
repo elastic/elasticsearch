@@ -30,6 +30,8 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -371,12 +373,12 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
-    public void testBytesRefBlock() {
+    private void testBytesRefBlock(Supplier<BytesRef> byteArraySupplier, boolean chomp, org.mockito.ThrowingConsumer<BytesRef> assertions) {
         int positionCount = randomIntBetween(1, 16 * 1024);
         BytesRef[] values = new BytesRef[positionCount];
         for (int i = 0; i < positionCount; i++) {
-            BytesRef bytesRef = new BytesRef(randomByteArrayOfLength(between(1, 20)));
-            if (bytesRef.length > 0 && randomBoolean()) {
+            BytesRef bytesRef = byteArraySupplier.get();
+            if (chomp && bytesRef.length > 0 && randomBoolean()) {
                 bytesRef.offset = randomIntBetween(0, bytesRef.length - 1);
                 bytesRef.length = randomIntBetween(0, bytesRef.length - bytesRef.offset);
             }
@@ -402,6 +404,7 @@ public class BasicBlockTests extends ESTestCase {
             int pos = randomIntBetween(0, positionCount - 1);
             bytes = block.getBytesRef(pos, bytes);
             assertThat(bytes, equalTo(values[pos]));
+            assertions.accept(bytes);
         }
         assertSingleValueDenseBlock(block);
 
@@ -435,6 +438,18 @@ public class BasicBlockTests extends ESTestCase {
             assertSingleValueDenseBlock(vector.asBlock());
             releaseAndAssertBreaker(vector.asBlock());
         }
+    }
+
+    public void testBytesRefBlock() {
+        testBytesRefBlock(() -> new BytesRef(randomByteArrayOfLength(between(1, 20))), true, b -> {});
+    }
+
+    public void testBytesRefBlockOnGeoPoints() {
+        testBytesRefBlock(() -> GEO.pointAsWKB(randomGeoPoint()), false, GEO::wkbAsPoint);
+    }
+
+    public void testBytesRefBlockOnCartesianPoints() {
+        testBytesRefBlock(() -> CARTESIAN.pointAsWKB(randomCartesianPoint()), false, CARTESIAN::wkbAsPoint);
     }
 
     public void testBytesRefBlockBuilderWithNulls() {
@@ -904,6 +919,7 @@ public class BasicBlockTests extends ESTestCase {
                             ((DoubleBlock.Builder) builder).appendDouble(d);
                         }
                         case BYTES_REF -> {
+                            // TODO: also test spatial types encoded to WKB
                             BytesRef b = new BytesRef(randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);

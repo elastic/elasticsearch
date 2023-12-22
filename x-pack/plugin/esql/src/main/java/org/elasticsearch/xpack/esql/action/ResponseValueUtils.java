@@ -103,8 +103,8 @@ public final class ResponseValueUtils {
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
-            case "geo_point" -> pointValueAt(GEO, dataType, block, offset);
-            case "cartesian_point" -> pointValueAt(CARTESIAN, dataType, block, offset);
+            case "geo_point" -> pointValueAt(GEO, dataType, block, offset, scratch);
+            case "cartesian_point" -> pointValueAt(CARTESIAN, dataType, block, offset, scratch);
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -121,9 +121,12 @@ public final class ResponseValueUtils {
         };
     }
 
-    private static SpatialPoint pointValueAt(SpatialCoordinateTypes spatial, String dataType, Block block, int offset) {
+    private static SpatialPoint pointValueAt(SpatialCoordinateTypes spatial, String dataType, Block block, int offset, BytesRef scratch) {
+        // TODO: Should we already return the WKT String here - if this is only used to display results?
         if (block instanceof LongBlock longBlock) {
             return spatial.longAsPoint(longBlock.getLong(offset));
+        } else if (block instanceof BytesRefBlock wkbBlock) {
+            return spatial.wkbAsPoint(wkbBlock.getBytesRef(offset, scratch));
         } else if (block instanceof PointBlock pointBlock) {
             return spatial.pointAsPoint(pointBlock.getPoint(offset));
         } else {
@@ -174,12 +177,14 @@ public final class ResponseValueUtils {
                         }
                     }
                     case "geo_point" -> {
-                        SpatialPoint pointVal = GEO.stringAsPoint(value.toString());
-                        ((PointBlock.Builder) builder).appendPoint(pointVal);
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = GEO.stringAsWKB(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     case "cartesian_point" -> {
-                        SpatialPoint pointVal = CARTESIAN.stringAsPoint(value.toString());
-                        ((PointBlock.Builder) builder).appendPoint(pointVal);
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = CARTESIAN.stringAsWKB(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

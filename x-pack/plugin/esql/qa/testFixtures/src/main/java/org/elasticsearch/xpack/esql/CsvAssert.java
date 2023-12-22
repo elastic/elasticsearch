@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
@@ -31,6 +29,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -155,15 +155,7 @@ public final class CsvAssert {
     }
 
     static void assertData(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertData(expected, actual.values(), ignoreOrder, logger, CsvAssert::pointNormalizer);
-    }
-
-    private static Object pointNormalizer(Object obj) {
-        if (obj instanceof GeoPoint geoPoint) {
-            // The block type for all points is SpatialPoint and knowledge of the CRS is lost
-            return new SpatialPoint(geoPoint);
-        }
-        return obj;
+        assertData(expected, actual.values(), ignoreOrder, logger, Function.identity());
     }
 
     public static void assertData(
@@ -210,9 +202,9 @@ public final class CsvAssert {
                         if (expectedType == Type.DATETIME) {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
                         } else if (expectedType == Type.GEO_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, SpatialPoint.class, x -> x);
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbAsPoint((BytesRef) x));
                         } else if (expectedType == Type.CARTESIAN_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, SpatialPoint.class, x -> x);
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbAsPoint((BytesRef) x));
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));

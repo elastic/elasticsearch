@@ -515,6 +515,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
+        public BlockLoader.BytesRefBuilder geometries(int expectedCount) {
+            return factory.newBytesRefBlockBuilder(expectedCount);
+        }
+
+        @Override
         public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
             return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }

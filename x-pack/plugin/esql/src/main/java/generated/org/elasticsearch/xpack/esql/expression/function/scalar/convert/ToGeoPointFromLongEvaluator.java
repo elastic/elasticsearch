@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.elasticsearch.common.geo.SpatialPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
-import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -38,16 +38,16 @@ public final class ToGeoPointFromLongEvaluator extends AbstractConvertFunction.A
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return driverContext.blockFactory().newConstantPointBlockWith(evalValue(vector, 0), positionCount);
+        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
       } catch (IllegalArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (PointBlock.Builder builder = driverContext.blockFactory().newPointBlockBuilder(positionCount)) {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         try {
-          builder.appendPoint(evalValue(vector, p));
+          builder.appendBytesRef(evalValue(vector, p));
         } catch (IllegalArgumentException  e) {
           registerException(e);
           builder.appendNull();
@@ -57,7 +57,7 @@ public final class ToGeoPointFromLongEvaluator extends AbstractConvertFunction.A
     }
   }
 
-  private static SpatialPoint evalValue(LongVector container, int index) {
+  private static BytesRef evalValue(LongVector container, int index) {
     long value = container.getLong(index);
     return ToGeoPoint.fromLong(value);
   }
@@ -66,7 +66,7 @@ public final class ToGeoPointFromLongEvaluator extends AbstractConvertFunction.A
   public Block evalBlock(Block b) {
     LongBlock block = (LongBlock) b;
     int positionCount = block.getPositionCount();
-    try (PointBlock.Builder builder = driverContext.blockFactory().newPointBlockBuilder(positionCount)) {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -75,12 +75,12 @@ public final class ToGeoPointFromLongEvaluator extends AbstractConvertFunction.A
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
           try {
-            SpatialPoint value = evalValue(block, i);
+            BytesRef value = evalValue(block, i);
             if (positionOpened == false && valueCount > 1) {
               builder.beginPositionEntry();
               positionOpened = true;
             }
-            builder.appendPoint(value);
+            builder.appendBytesRef(value);
             valuesAppended = true;
           } catch (IllegalArgumentException  e) {
             registerException(e);
@@ -96,7 +96,7 @@ public final class ToGeoPointFromLongEvaluator extends AbstractConvertFunction.A
     }
   }
 
-  private static SpatialPoint evalValue(LongBlock container, int index) {
+  private static BytesRef evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
     return ToGeoPoint.fromLong(value);
   }

@@ -71,6 +71,10 @@ public class ExtractorTests extends ESTestCase {
                             () -> randomList(2, 10, () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))))
                         )
                     );
+                    cases.add(valueTestCase("single point", e, TopNEncoder.WKB, TopNEncoderTests::randomPointAsWKB));
+                    cases.add(
+                        valueTestCase("many points", e, TopNEncoder.WKB, () -> randomList(2, 10, TopNEncoderTests::randomPointAsWKB))
+                    );
                 }
                 case DOC -> cases.add(
                     new Object[] {

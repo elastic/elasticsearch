@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -79,8 +78,8 @@ public class Equals extends org.elasticsearch.xpack.ql.expression.predicate.oper
         return lhs == rhs;
     }
 
-    @Evaluator(extraName = "Points")
-    static boolean processPoints(SpatialPoint lhs, SpatialPoint rhs) {
+    @Evaluator(extraName = "Geometries")
+    static boolean processGeometries(BytesRef lhs, BytesRef rhs) {
         return lhs.equals(rhs);
     }
 }

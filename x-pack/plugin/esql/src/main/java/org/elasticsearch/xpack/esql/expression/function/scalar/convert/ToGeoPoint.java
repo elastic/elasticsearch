@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -61,12 +60,12 @@ public class ToGeoPoint extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
-    static SpatialPoint fromKeyword(BytesRef in) {
-        return GEO.stringAsPoint(in.utf8ToString());
+    static BytesRef fromKeyword(BytesRef in) {
+        return GEO.stringAsWKB(in.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
-    static SpatialPoint fromLong(long encoded) {
-        return GEO.longAsPoint(encoded);
+    static BytesRef fromLong(long encoded) {
+        return GEO.longAsWKB(encoded);
     }
 }

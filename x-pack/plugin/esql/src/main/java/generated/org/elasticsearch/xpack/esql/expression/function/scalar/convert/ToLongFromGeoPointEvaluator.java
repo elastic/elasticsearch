@@ -6,11 +6,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import org.elasticsearch.common.geo.SpatialPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.PointBlock;
-import org.elasticsearch.compute.data.PointVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -33,29 +33,31 @@ public final class ToLongFromGeoPointEvaluator extends AbstractConvertFunction.A
 
   @Override
   public Block evalVector(Vector v) {
-    PointVector vector = (PointVector) v;
+    BytesRefVector vector = (BytesRefVector) v;
     int positionCount = v.getPositionCount();
+    BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
+      return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0, scratchPad), positionCount);
     }
     try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        builder.appendLong(evalValue(vector, p));
+        builder.appendLong(evalValue(vector, p, scratchPad));
       }
       return builder.build();
     }
   }
 
-  private static long evalValue(PointVector container, int index) {
-    SpatialPoint value = container.getPoint(index);
+  private static long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+    BytesRef value = container.getBytesRef(index, scratchPad);
     return ToLong.fromGeoPoint(value);
   }
 
   @Override
   public Block evalBlock(Block b) {
-    PointBlock block = (PointBlock) b;
+    BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
     try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -63,7 +65,7 @@ public final class ToLongFromGeoPointEvaluator extends AbstractConvertFunction.A
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          long value = evalValue(block, i);
+          long value = evalValue(block, i, scratchPad);
           if (positionOpened == false && valueCount > 1) {
             builder.beginPositionEntry();
             positionOpened = true;
@@ -81,8 +83,8 @@ public final class ToLongFromGeoPointEvaluator extends AbstractConvertFunction.A
     }
   }
 
-  private static long evalValue(PointBlock container, int index) {
-    SpatialPoint value = container.getPoint(index);
+  private static long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+    BytesRef value = container.getBytesRef(index, scratchPad);
     return ToLong.fromGeoPoint(value);
   }
 

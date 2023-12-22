@@ -144,10 +144,15 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             // TODO: If we have doc-values we have to use them, due to BlockSourceReader.columnAtATimeReader() returning null
             if (blContext.forStats() && hasDocValues()) {
+                // LongsBlock only works for points, we need something else for shapes
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
-            // TODO: Enhance BlockLoaderContext with knowledge about preferring to load from source (see EsPhysicalOperationProviders)
-            return new BlockSourceReader.PointsBlockLoader(
+            // TODO: See if there is value in using the optimized PointsBlock which uses less memory and does fewer conversions
+            // return new BlockSourceReader.PointsBlockLoader(
+            // valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
+            // );
+            // GeometriesBlockLoader currently only supports points, and needs more work for shapes
+            return new BlockSourceReader.GeometriesBlockLoader(
                 valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
             );
         }

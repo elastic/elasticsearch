@@ -12,7 +12,11 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -208,12 +212,23 @@ public final class BlockUtils {
         switch (type) {
             case LONG -> ((LongBlock.Builder) builder).appendLong((Long) val);
             case INT -> ((IntBlock.Builder) builder).appendInt((Integer) val);
-            case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
+            case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(spatialToBytesRef(val));
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             case POINT -> ((PointBlock.Builder) builder).appendPoint((SpatialPoint) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
+    }
+
+    private static BytesRef spatialToBytesRef(Object val) {
+        // TODO: if the cluster is running an older version that does not support this, should we throw and error here
+        if (val instanceof SpatialPoint point) {
+            return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
+        }
+        if (val instanceof Geometry geometry) {
+            return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+        }
+        return toBytesRef(val);
     }
 
     public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
@@ -229,7 +244,7 @@ public final class BlockUtils {
             case NULL -> Block.constantNullBlock(size);
             case LONG -> LongBlock.newConstantBlockWith((long) val, size, blockFactory);
             case INT -> IntBlock.newConstantBlockWith((int) val, size, blockFactory);
-            case BYTES_REF -> BytesRefBlock.newConstantBlockWith(toBytesRef(val), size, blockFactory);
+            case BYTES_REF -> BytesRefBlock.newConstantBlockWith(spatialToBytesRef(val), size, blockFactory);
             case DOUBLE -> DoubleBlock.newConstantBlockWith((double) val, size, blockFactory);
             case BOOLEAN -> BooleanBlock.newConstantBlockWith((boolean) val, size, blockFactory);
             case POINT -> PointBlock.newConstantBlockWith((SpatialPoint) val, size, blockFactory);

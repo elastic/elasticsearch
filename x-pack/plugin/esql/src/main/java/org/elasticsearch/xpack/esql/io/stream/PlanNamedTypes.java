@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -1592,7 +1592,7 @@ public final class PlanNamedTypes {
 
     static void writeLiteral(PlanStreamOutput out, Literal literal) throws IOException {
         out.writeNoSource();
-        out.writeGenericValue(mapFromLiteralValue(literal));
+        out.writeGenericValue(mapFromLiteralValue(literal.dataType(), literal.value()));
         out.writeString(literal.dataType().typeName());
     }
 
@@ -1602,14 +1602,22 @@ public final class PlanNamedTypes {
      * This only makes sense during the pre-GA version of ESQL. When we get near GA we want TransportVersion support.
      * TODO: Implement TransportVersion checks before GA (eg. by adding to StreamInput/StreamOutput directly)
      */
-    private static Object mapFromLiteralValue(Literal literal) {
-        if (literal.dataType() == GEO_POINT || literal.dataType() == CARTESIAN_POINT) {
-            if (literal.value() instanceof List<?> list) {
-                return list.stream().map(v -> pointAsWKB((SpatialPoint) v)).toList();
+    private static Object mapFromLiteralValue(DataType dataType, Object value) {
+        if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+            if (value instanceof List<?> list) {
+                return list.stream().map(v -> mapFromLiteralValue(dataType, v)).toList();
             }
-            return pointAsWKB((SpatialPoint) literal.value());
+            if (value instanceof BytesRef wkb) {
+                return wkb;
+            }
+            if (value instanceof SpatialPoint point) {
+                return pointAsWKB(point);
+            }
+            if (value instanceof Long encoded) {
+                return longAsWKB(dataType, encoded);
+            }
         }
-        return literal.value();
+        return value;
     }
 
     /**
@@ -1619,24 +1627,29 @@ public final class PlanNamedTypes {
      * TODO: Implement TransportVersion checks before GA (eg. by adding to StreamInput/StreamOutput directly)
      */
     private static Object mapToLiteralValue(DataType dataType, Object value) {
-        if (value instanceof List<?> list) {
-            return list.stream().map(v -> mapToLiteralValue(dataType, v)).toList();
-        }
-        if (value instanceof byte[] bytes) {
-            if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
-                return wkbAsPoint(dataType, bytes);
+        if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+            if (value instanceof List<?> list) {
+                return list.stream().map(v -> mapToLiteralValue(dataType, v)).toList();
+            }
+            if (value instanceof BytesRef wkb) {
+                return wkb;
+            }
+            if (value instanceof byte[] wkb) {
+                return new BytesRef(wkb);
+            }
+            if (value instanceof Long encoded) {
+                return longAsWKB(dataType, encoded);
             }
         }
         return value;
     }
 
-    private static byte[] pointAsWKB(SpatialPoint point) {
-        return WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN);
+    private static BytesRef pointAsWKB(SpatialPoint point) {
+        return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
     }
 
-    private static SpatialPoint wkbAsPoint(DataType dataType, byte[] bytes) {
-        Point point = (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, bytes);
-        return dataType == GEO_POINT ? GEO.pointAsPoint(point) : CARTESIAN.pointAsPoint(point);
+    private static BytesRef longAsWKB(DataType dataType, long encoded) {
+        return dataType == GEO_POINT ? GEO.longAsWKB(encoded) : CARTESIAN.longAsWKB(encoded);
     }
 
     static Order readOrder(PlanStreamInput in) throws IOException {

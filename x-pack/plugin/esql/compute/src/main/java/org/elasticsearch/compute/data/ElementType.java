@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geometry.Geometry;
 
 /**
  * The type of elements in {@link Block} and {@link Vector}
@@ -77,7 +78,11 @@ public enum ElementType {
         } else if (type == String.class || type == BytesRef.class) {
             elementType = BYTES_REF;
         } else if (SpatialPoint.class.isAssignableFrom(type)) {
-            elementType = POINT;
+            // TODO: Consider cases where we want to back this with POINT (for efficiency) or LONG (for doc-values)
+            // elementType = LONG;
+            elementType = BYTES_REF;
+        } else if (Geometry.class.isAssignableFrom(type)) {
+            elementType = BYTES_REF;
         } else if (type == Boolean.class) {
             elementType = BOOLEAN;
         } else if (type == null || type == Void.class) {

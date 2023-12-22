@@ -248,7 +248,7 @@ public class ValuesSourceReaderBenchmark {
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
-            BlockFactory.getNonBreakingInstance(),
+            blockFactory,
             fields(name),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                 throw new UnsupportedOperationException("can't load _source here");

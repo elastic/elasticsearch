@@ -14,7 +14,7 @@ import java.util.List;
 
 public class LongBlockEqualityTests extends ComputeTestCase {
 
-    static final BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+    static final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     public void testEmptyVector() {
         // all these "empty" vectors should be equivalent

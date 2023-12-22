@@ -22,7 +22,7 @@ import java.util.List;
 public class BytesRefBlockEqualityTests extends ComputeTestCase {
 
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
-    final BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+    final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     public void testEmptyVector() {
         // all these "empty" vectors should be equivalent

@@ -108,7 +108,7 @@ public class DocVectorTests extends ComputeTestCase {
 
     private void assertShardSegmentDocMap(int[][] data, int[][] expected) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(data.length, blockFactory)) {
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, data.length)) {
             for (int r = 0; r < data.length; r++) {
                 builder.appendShard(data[r][0]);
                 builder.appendSegment(data[r][1]);
@@ -173,6 +173,6 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {
-        return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance());
+        return IntVector.range(startInclusive, endExclusive, TestBlockFactory.getNonBreakingInstance());
     }
 }

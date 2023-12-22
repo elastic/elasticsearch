@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference;
+package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;

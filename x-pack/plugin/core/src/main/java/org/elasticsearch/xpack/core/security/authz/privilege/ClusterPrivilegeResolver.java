@@ -327,7 +327,7 @@ public class ClusterPrivilegeResolver {
     );
 
     public static final NamedClusterPrivilege READ_SEARCH_SECRETS = new ActionClusterPrivilege(
-        "read_search_secrets",
+        "read_connector_secrets",
         Set.of("cluster:admin/xpack/connector/secret/get")
     );
 

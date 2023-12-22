@@ -295,7 +295,6 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     prepareSearch(indexName).setTrackTotalHits(true).setQuery(matchQuery("foo", "bar")),
                     resp -> barHits.set(t, resp.getHits().getTotalHits())
                 );
-
             });
             threads[i].start();
         }

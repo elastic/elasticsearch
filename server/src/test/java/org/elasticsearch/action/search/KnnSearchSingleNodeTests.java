@@ -76,7 +76,6 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         );
         // Make sure we still have 20 docs
         assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true), 20);
-
     }
 
     public void testKnnWithQuery() throws IOException {

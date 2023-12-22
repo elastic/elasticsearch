@@ -1,5 +1,0 @@
-pr: 102880
-summary: Reading points from source to reduce precision loss
-area: ES|QL
-type: enhancement
-issues: []

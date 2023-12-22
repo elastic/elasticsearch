@@ -34,7 +34,6 @@ import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -173,7 +172,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CircuitBreaker.FIELDDATA,
             validateAndCreateBreaker(
                 metrics.getTripCount(),
-                CircuitBreaker.FIELDDATA.toLowerCase(Locale.ROOT),
                 new BreakerSettings(
                     CircuitBreaker.FIELDDATA,
                     FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -187,7 +185,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CircuitBreaker.IN_FLIGHT_REQUESTS,
             validateAndCreateBreaker(
                 metrics.getTripCount(),
-                CircuitBreaker.IN_FLIGHT_REQUESTS.toLowerCase(Locale.ROOT),
                 new BreakerSettings(
                     CircuitBreaker.IN_FLIGHT_REQUESTS,
                     IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -201,7 +198,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CircuitBreaker.REQUEST,
             validateAndCreateBreaker(
                 metrics.getTripCount(),
-                CircuitBreaker.REQUEST.toLowerCase(Locale.ROOT),
                 new BreakerSettings(
                     CircuitBreaker.REQUEST,
                     REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -219,10 +215,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         + "] exists. Circuit breaker names must be unique"
                 );
             }
-            childCircuitBreakers.put(
-                breakerSettings.getName(),
-                validateAndCreateBreaker(metrics.getTripCount(), breakerSettings.getName(), breakerSettings)
-            );
+            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(metrics.getTripCount(), breakerSettings));
         }
         this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
@@ -495,18 +488,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private CircuitBreaker validateAndCreateBreaker(
-        LongCounter trippedCountMeter,
-        String circuitBreakerType,
-        BreakerSettings breakerSettings
-    ) {
+    private CircuitBreaker validateAndCreateBreaker(LongCounter trippedCountMeter, BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] { breakerSettings });
         return breakerSettings.getType() == CircuitBreaker.Type.NOOP
             ? new NoopCircuitBreaker(breakerSettings.getName())
             : new ChildMemoryCircuitBreaker(
                 trippedCountMeter,
-                circuitBreakerType,
+                breakerSettings.getName(),
                 breakerSettings,
                 LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                 this,

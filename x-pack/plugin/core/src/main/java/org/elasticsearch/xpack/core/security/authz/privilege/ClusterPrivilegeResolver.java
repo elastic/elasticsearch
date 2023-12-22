@@ -328,12 +328,7 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege READ_SEARCH_SECRETS = new ActionClusterPrivilege(
         "read_search_secrets",
-        Set.of("cluster:admin/xpack/search_secrets/get")
-    );
-
-    public static final NamedClusterPrivilege WRITE_SEARCH_SECRETS = new ActionClusterPrivilege(
-        "write_search_secrets",
-        Set.of("cluster:admin/xpack/search_secrets/post", "cluster:admin/xpack/search_secrets/delete")
+        Set.of("cluster:admin/xpack/connector/secret/get")
     );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
@@ -391,8 +386,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_SEARCH_QUERY_RULES,
             CROSS_CLUSTER_SEARCH,
             CROSS_CLUSTER_REPLICATION,
-            READ_SEARCH_SECRETS,
-            WRITE_SEARCH_SECRETS
+            READ_SEARCH_SECRETS
         ).filter(Objects::nonNull).toList()
     );
 

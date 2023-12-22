@@ -15,23 +15,23 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.*;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 /**
- * A service that manages persistent Search Secrets.
+ * A service that manages persistent Connector Secrets.
  */
 public class SecretsIndexService {
 
     public static final String CONNECTOR_SECRETS_INDEX_NAME = ".connector-secrets";
 
     private static final int CURRENT_INDEX_VERSION = 1;
-    private static final String MAPPING_VERSION_VARIABLE = "search-secrets.version";
-    private static final String MAPPING_MANAGED_VERSION_VARIABLE = "search-secrets.managed.index.version";
+    private static final String MAPPING_VERSION_VARIABLE = "connector-secrets.version";
+    private static final String MAPPING_MANAGED_VERSION_VARIABLE = "connector-secrets.managed.index.version";
 
     /**
-     * Returns the {@link SystemIndexDescriptor} for the Search Secrets system index.
+     * Returns the {@link SystemIndexDescriptor} for the Connector Secrets system index.
      *
-     * @return The {@link SystemIndexDescriptor} for the Search Secrets system index.
+     * @return The {@link SystemIndexDescriptor} for the Connector Secrets system index.
      */
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
@@ -52,7 +52,7 @@ public class SecretsIndexService {
             .setSettings(request.settings())
             .setAliasName(CONNECTOR_SECRETS_INDEX_NAME)
             .setVersionMetaKey("version")
-            .setOrigin(ENT_SEARCH_ORIGIN)
+            .setOrigin(CONNECTORS_ORIGIN)
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
             .build();
     }

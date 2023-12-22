@@ -104,6 +104,7 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
             List<InternalExponentialHistogram.Bucket> buckets = result.getBuckets();
             assertEquals(maxBuckets, buckets.size());
             assertEquals(9, result.getCurrentScale());
+            assertEquals((long)6, (long)buckets.stream().map((b)->b.getCount()).reduce(0L, Long::sum));
         },  new AggTestConfig(aggBuilder, mapper.fieldType()));
     }
 

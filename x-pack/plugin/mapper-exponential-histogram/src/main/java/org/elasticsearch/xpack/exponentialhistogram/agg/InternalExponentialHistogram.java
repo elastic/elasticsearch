@@ -137,15 +137,17 @@ public class InternalExponentialHistogram extends InternalAggregation {
         final Long existing = counts.get(index);
         if (existing != null) {
             counts.put(index, existing+count);
+        } else if (counts.size() < maxBuckets) {
+            counts.put(index, count);
         } else {
             // NOTE(axw) maxBuckets is maintained independently for the positive and negative ranges
             // for simplicity. Having maxBuckets that applies to both ranges simultaneously is harder
             // to reason about when downsampling. e.g. consider what it would mean for a histogram with
             // maxBuckets that initially has only positive values, and then a negative value is recorded.
-            if (counts.size() == maxBuckets) {
-                downscale(getScaleReduction(index, counts));
-            }
-            counts.put(index, count);
+            downscale(getScaleReduction(index, counts));
+            counts = (value < 0) ? negative : positive;
+            final int newIndex = indexer.computeIndex(Math.abs(value));
+            counts.put(newIndex,counts.getOrDefault(newIndex, 0L) + count);
         }
         totalCount += count;
     }

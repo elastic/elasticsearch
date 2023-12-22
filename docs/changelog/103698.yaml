@@ -1,0 +1,5 @@
+pr: 103698
+summary: ESQL Support loading points from source into WKB blocks
+area: "ES|QL, Geo, ES|QL"
+type: enhancement
+issues: []

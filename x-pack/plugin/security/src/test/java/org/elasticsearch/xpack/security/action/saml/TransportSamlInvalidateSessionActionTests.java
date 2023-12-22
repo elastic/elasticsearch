@@ -28,7 +28,6 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -201,15 +200,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     ActionListener.respondAndRelease(
                         listener,
                         (Response) new SearchResponse(
-                            new SearchResponseSections(
-                                new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                                null,
-                                null,
-                                false,
-                                false,
-                                null,
-                                1
-                            ),
+                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            1,
                             "_scrollId1",
                             1,
                             1,
@@ -225,15 +222,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     ActionListener.respondAndRelease(
                         listener,
                         (Response) new SearchResponse(
-                            new SearchResponseSections(
-                                new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                                null,
-                                null,
-                                false,
-                                false,
-                                null,
-                                1
-                            ),
+                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            1,
                             "_scrollId1",
                             1,
                             1,

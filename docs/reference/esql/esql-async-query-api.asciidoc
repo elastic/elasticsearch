@@ -1,0 +1,82 @@
+[[esql-async-query-api]]
+== {esql} async query API
+++++
+<titleabbrev>{esql} async query API</titleabbrev>
+++++
+
+Runs an async {esql} search.
+
+The async query API lets you asynchronously execute a search request,
+monitor its progress, and retrieve results as they become available.
+
+Executing an <<esql,ES|QL ({es} query language)>> is commonly quite fast,
+however searches across large data sets or frozen data can take some time.
+To avoid long waits, run an async {esql} search.
+
+Searches initiated by this API may return search results or not. The
+`wait_for_completion_timeout` property determines how long to wait for
+the search results. The default value is 1 second. If the results are
+not available by this time, a search id is return which can be later
+used to retrieve the results.
+
+Initiates an async search for an <<esql,ES|QL ({es} query language)>>
+query. The API accepts the same parameters and request body as the
+<<esql-query-api,query API>>.
+
+[source,console]
+----
+POST /_query/async
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_TRUNC(1 YEARS, release_date)
+    | STATS MAX(page_count) BY year
+    | SORT year
+    | LIMIT 5
+  """,
+  "wait_for_completion_timeout": "2s"
+}
+----
+// TEST[setup:library]
+
+If the results are not available within the timeout period, 2 seconds in
+this case, the search returns no results but rather a response that
+includes:
+
+ * A search ID
+ * An `is_running` value of true, indicating the search is ongoing
+
+The query continues to run in the background without blocking other
+requests.
+
+[source,console-result]
+----
+{
+  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_running": true
+}
+----
+// TEST[skip: no access to search ID - may return response values]
+
+To check the progress of an async search, use the <<get-async-esql-query-api,get
+async ES|QL query API>> with the search ID. Specify how long you'd like for
+complete results in the `wait_for_completion_timeout` parameter.
+
+[source,console]
+----
+GET /_query/async/get/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=30s
+----
+// TEST[skip: no access to search ID - may return response values]
+
+If the response's `is_running` value is `false`, the async search has
+finished, and the results are returned.
+
+[source,console-result]
+----
+{
+  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_running": false,
+  "columns": ...
+}
+----
+// TEST[skip: no access to search ID - may return response values]

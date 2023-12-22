@@ -155,4 +155,29 @@ public class LazyRolloverDataStreamIT extends DisabledSecurityDataStreamTestCase
             assertThat(((List<Object>) dataStream.get("indices")).size(), is(2));
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public void testLazyRolloverWithConditions() throws Exception {
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/lazy-ds-template");
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": ["lazy-ds*"],
+              "data_stream": {}
+            }
+            """);
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        String dataStreamName = "lazy-ds";
+
+        Request createDocRequest = new Request("POST", "/" + dataStreamName + "/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2020-10-22\", \"a\": 1 }");
+
+        assertOK(client().performRequest(createDocRequest));
+
+        Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover?lazy");
+        rolloverRequest.setJsonEntity("{\"conditions\": {\"max_docs\": 1}}");
+        ResponseException responseError = expectThrows(ResponseException.class, () -> client().performRequest(rolloverRequest));
+        assertThat(responseError.getResponse().getStatusLine().getStatusCode(), is(400));
+        assertThat(responseError.getMessage(), containsString("only without any conditions"));
+    }
 }

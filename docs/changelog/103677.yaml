@@ -1,0 +1,6 @@
+pr: 103677
+summary: "Revert \"[Transform] Use deduced mappings for determining proper fields'\
+  \ format even if `deduce_mappings==false`\""
+area: Transform
+type: bug
+issues: []

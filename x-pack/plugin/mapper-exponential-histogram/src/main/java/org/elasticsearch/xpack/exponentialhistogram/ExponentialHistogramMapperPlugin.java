@@ -13,7 +13,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.exponentialhistogram.agg.ExponentialHistogramAggregationBuilder;
+import org.elasticsearch.xpack.exponentialhistogram.agg.ExponentialHistogramAggregatorFactory;
+import org.elasticsearch.xpack.exponentialhistogram.agg.ExponentialHistogramPercentilesAggregationBuilder;
+import org.elasticsearch.xpack.exponentialhistogram.agg.ExponentialHistogramPercentilesAggregatorFactory;
 import org.elasticsearch.xpack.exponentialhistogram.agg.InternalExponentialHistogram;
+import org.elasticsearch.xpack.exponentialhistogram.agg.InternalExponentialHistogramPercentiles;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,7 +57,15 @@ public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPl
                 ExponentialHistogramAggregationBuilder::new,
                 ExponentialHistogramAggregationBuilder.PARSER
             ).addResultReader(InternalExponentialHistogram::new)
-             .setAggregatorRegistrar(ExponentialHistogramAggregationBuilder::registerAggregators)
+             .setAggregatorRegistrar(ExponentialHistogramAggregatorFactory::registerAggregators)
+        );
+        specs.add(
+            new SearchPlugin.AggregationSpec(
+                ExponentialHistogramPercentilesAggregationBuilder.NAME,
+                ExponentialHistogramPercentilesAggregationBuilder::new,
+                ExponentialHistogramPercentilesAggregationBuilder.PARSER
+            ).addResultReader(InternalExponentialHistogramPercentiles::new)
+                .setAggregatorRegistrar(ExponentialHistogramPercentilesAggregatorFactory::registerAggregators)
         );
         return List.copyOf(specs);
     }

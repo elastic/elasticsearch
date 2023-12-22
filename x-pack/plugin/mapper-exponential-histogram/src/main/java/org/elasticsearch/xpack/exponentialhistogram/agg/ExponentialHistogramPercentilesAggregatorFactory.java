@@ -12,7 +12,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -20,61 +19,59 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramValuesSourceType;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-public class ExponentialHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class ExponentialHistogramPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
-            ExponentialHistogramAggregationBuilder.REGISTRY_KEY,
+            ExponentialHistogramPercentilesAggregationBuilder.REGISTRY_KEY,
             ExponentialHistogramValuesSourceType.HISTOGRAM,
-            ExponentialHistogramAggregator::new,
+            ExponentialHistogramPercentilesAggregator::new,
             true
         );
     }
 
-    private final ExponentialHistogramAggregatorSupplier aggregatorSupplier;
+    private final ExponentialHistogramPercentilesAggregatorSupplier aggregatorSupplier;
     private final int maxBuckets;
     private final int maxScale;
+    private final double[] percentiles;
 
-    ExponentialHistogramAggregatorFactory(
+    ExponentialHistogramPercentilesAggregatorFactory(
         String name,
         ValuesSourceConfig config,
         int maxBuckets,
         int maxScale,
+        double[] percentiles,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metadata,
-        ExponentialHistogramAggregatorSupplier aggregatorSupplier
+        ExponentialHistogramPercentilesAggregatorSupplier aggregatorSupplier
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
         this.maxBuckets = maxBuckets;
         this.maxScale = maxScale;
+        this.percentiles = percentiles;
     }
 
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        if (cardinality != CardinalityUpperBound.ONE) {
-            throw new IllegalArgumentException(
-                "["
-                    + ExponentialHistogramAggregationBuilder.NAME
-                    + "] cannot be nested inside an aggregation that collects more than a single bucket."
-            );
-        }
-        return aggregatorSupplier.build(name, factories, maxBuckets, maxScale, config, context, parent, metadata);
+        return aggregatorSupplier.build(
+            name, factories, maxBuckets, maxScale, percentiles, config, context, parent, metadata
+        );
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new ExponentialHistogramAggregator(
+        return new ExponentialHistogramPercentilesAggregator(
             name,
             factories,
             maxBuckets,
             maxScale,
+            percentiles,
             config,
             context,
             parent,

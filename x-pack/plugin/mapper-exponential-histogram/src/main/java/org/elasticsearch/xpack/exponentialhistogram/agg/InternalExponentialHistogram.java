@@ -27,12 +27,13 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 public class InternalExponentialHistogram extends InternalAggregation {
-    private final DocValueFormat format;
-    private final int maxBuckets;
-    private int currentScale;
+    final DocValueFormat format;
+    protected final int maxBuckets;
+    protected int currentScale;
     Base2ExponentialHistogramIndexer indexer;
     private SortedMap<Integer, Long> positive;
     private SortedMap<Integer, Long> negative;
+    private long totalCount;
 
     public InternalExponentialHistogram(
         String name,
@@ -48,6 +49,7 @@ public class InternalExponentialHistogram extends InternalAggregation {
         this.indexer = Base2ExponentialHistogramIndexer.get(currentScale);
         this.positive = null;
         this.negative = null;
+        this.totalCount = 0;
     }
 
     /**
@@ -61,6 +63,9 @@ public class InternalExponentialHistogram extends InternalAggregation {
         positive = readCounts(in);
         negative = readCounts(in);
         indexer = Base2ExponentialHistogramIndexer.get(currentScale);
+        totalCount =
+            (positive != null ? positive.values().stream().reduce(0L, Long::sum) : 0L) +
+            (negative != null ? negative.values().stream().reduce(0L, Long::sum) : 0L);
     }
 
     @Override
@@ -129,7 +134,6 @@ public class InternalExponentialHistogram extends InternalAggregation {
         }
 
         final int index = indexer.computeIndex(Math.abs(value));
-        System.out.println("index="+ index + ", value=" + value);
         final Long existing = counts.get(index);
         if (existing != null) {
             counts.put(index, existing+count);
@@ -143,6 +147,7 @@ public class InternalExponentialHistogram extends InternalAggregation {
             }
             counts.put(index, count);
         }
+        totalCount += count;
     }
 
     private void downscale(final int scaleReduction) {
@@ -173,21 +178,21 @@ public class InternalExponentialHistogram extends InternalAggregation {
     private int getScaleReduction(final int index, final SortedMap<Integer, Long> counts) {
         long newStart = Math.min(index, counts.firstKey());
         long newEnd = Math.max(index, counts.lastKey());
-        System.out.println("getScaleReduction: " + index + ", start/end=" + newStart + ", " + newEnd);
         return getScaleReduction(newStart, newEnd);
     }
 
     private int getScaleReduction(long newStart, long newEnd) {
         int scaleReduction = 0;
-        // TODO(axw) is this correct? The original code shifted both
-        // newStart and newEnd to the right, which ends up shifting
-        // negative values to zero.
-        long delta = newEnd - newStart + 1;
-        while (delta > maxBuckets) {
-            delta >>= 1;
+        while ((newEnd - newStart + 1) > maxBuckets) {
+            newStart >>= 1;
+            newEnd >>= 1;
             scaleReduction++;
         }
         return scaleReduction;
+    }
+
+    public long getTotalCount() {
+        return totalCount;
     }
 
     public List<Bucket> getBuckets() {

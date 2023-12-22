@@ -18,13 +18,16 @@ import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.exponentialhistogram.agg.ExponentialHistogramAggregationBuilder;
+import org.elasticsearch.xpack.exponentialhistogram.agg.ExponentialHistogramPercentilesAggregationBuilder;
 import org.elasticsearch.xpack.exponentialhistogram.agg.InternalExponentialHistogram;
+import org.elasticsearch.xpack.exponentialhistogram.agg.InternalExponentialHistogramPercentiles;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -104,7 +107,7 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
         },  new AggTestConfig(aggBuilder, mapper.fieldType()));
     }
 
-    public void testMaxBuckets2() throws Exception {
+    public void testPercentilesAggregation() throws Exception {
         ExponentialHistogramFieldMapper mapper = new ExponentialHistogramFieldMapper.Builder(FIELD_NAME).build(
             MapperBuilderContext.root(false, false)
         );
@@ -116,16 +119,17 @@ public class ExponentialHistogramAggregatorTests extends AggregatorTestCase {
                 List.of(1L, 2L, 3L, 4L),
                 List.of(1D, 10D, 100D, 1000D));
 
-        ExponentialHistogramAggregationBuilder aggBuilder =
-            new ExponentialHistogramAggregationBuilder("my_agg")
+        ExponentialHistogramPercentilesAggregationBuilder aggBuilder =
+            new ExponentialHistogramPercentilesAggregationBuilder("my_agg")
                 .field(FIELD_NAME);
 
         testCase(iw -> {
             iw.addDocument(doc(mapper, originalScale, null, positive));
-        }, (InternalExponentialHistogram result) -> {
-            List<InternalExponentialHistogram.Bucket> buckets = result.getBuckets();
-            assertEquals(4, buckets.size());
-            assertEquals(20, result.getCurrentScale());
+        }, (InternalExponentialHistogramPercentiles result) -> {
+            assertEquals(1000, result.value(75), 0.1);
+            assertEquals(100, result.value(50), 0.1);
+            assertEquals(10, result.value(30), 0.1);
+            assertEquals(1, result.value(5), 0.1);
         },  new AggTestConfig(aggBuilder, mapper.fieldType()));
     }
 

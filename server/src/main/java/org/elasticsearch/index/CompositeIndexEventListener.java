@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.ActionListener;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -88,14 +90,22 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
         Engine engine = indexShard.getEngineOrNull();
         if (engine != null) {
-            for (LeafReaderContext leaf : engine.acquireSearcher("find_field_has_value").getIndexReader().leaves()) {
-                try (LeafReader reader = leaf.reader()) {
-                    for (FieldInfo fieldInfo : reader.getFieldInfos()) {
+            Engine.Searcher hasValueSearcher = engine.acquireSearcher("find_field_has_value");
+            IndexReader hasValueReader = hasValueSearcher.getIndexReader();
+            for (LeafReaderContext leaf : hasValueReader.leaves()) {
+                try (LeafReader leafReader = leaf.reader()) {
+                    for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
                         indexShard.setFieldHasValue(fieldInfo.getName());
                     }
+                    IOUtils.close(leafReader);
                 } catch (IOException e) {
                     throw new RuntimeException("I/O exception"); // TODO-MP handle exception
                 }
+            }
+            try {
+                IOUtils.close(hasValueReader, hasValueSearcher);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         } else {
             throw new RuntimeException("Engine not yet started, aborting..."); // TODO-MP handle exception

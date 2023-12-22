@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -146,7 +147,13 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             this::doParseInstance,
             this::assertEqualInstances,
             assertToXContentEquivalence,
-            ToXContent.EMPTY_PARAMS
+            ToXContent.EMPTY_PARAMS,
+            RefCounted::decRef
         );
+    }
+
+    @Override
+    protected void dispose(MultiSearchTemplateResponse instance) {
+        instance.decRef();
     }
 }

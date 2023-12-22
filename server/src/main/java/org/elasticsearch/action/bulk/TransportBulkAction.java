@@ -720,11 +720,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Map<String, Set<String>> fieldsForModels = clusterState.metadata()
                 .index(bulkShardRequest.shardId().getIndex())
                 .getFieldsForModels();
+            // No inference fields? Just execute the request
             if (fieldsForModels.isEmpty()) {
                 executeBulkShardRequest(bulkShardRequest, releaseOnFinish);
             }
 
             Runnable onInferenceComplete = () -> {
+                // We need to remove items that have had an inference error, as the response will have been updated already
+                // and we don't need to process them further
                 BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
                     bulkShardRequest.shardId(),
                     bulkRequest.getRefreshPolicy(),

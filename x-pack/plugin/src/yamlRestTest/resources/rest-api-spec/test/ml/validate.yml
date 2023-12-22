@@ -56,7 +56,7 @@
 ---
 "Test job config that is invalid only because of the job ID":
   - do:
-      catch: /Invalid job_id; '_' can contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with lowercase alphanumeric/
+      catch: /Invalid job_id; '_' can contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
       ml.validate:
         body: >
           {

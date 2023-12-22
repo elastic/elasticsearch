@@ -25,7 +25,15 @@ import static org.hamcrest.Matchers.containsString;
 
 public class RestEsqlIT extends RestEsqlTestCase {
 
-    public void testBasicEsql() throws IOException {
+    public void testBasicEsqlSync() throws IOException {
+        testBasicEsql(false);
+    }
+
+    public void testBasicEsqlAsync() throws IOException {
+        testBasicEsql(true);
+    }
+
+    private void testBasicEsql(boolean async) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < 1000; i++) {
             b.append(String.format(Locale.ROOT, """
@@ -44,8 +52,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         if (Build.current().isSnapshot()) {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
-        builder.build();
-        Map<String, Object> result = runEsql(builder);
+        Map<String, Object> result = runEsql(builder, async);
         assertEquals(2, result.size());
         Map<String, String> colA = Map.of("name", "avg(value)", "type", "double");
         assertEquals(List.of(colA), result.get("columns"));
@@ -63,8 +70,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         RequestObjectBuilder builder = new RequestObjectBuilder().query("from test-index | limit 1 | keep f");
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
-        builder.build();
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder));
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder, false));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
     }
 
@@ -72,8 +78,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assumeFalse("pragma only disabled on release builds", Build.current().isSnapshot());
         RequestObjectBuilder builder = new RequestObjectBuilder().query("row a = 1, b = 2");
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
-        builder.build();
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder));
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder, false));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 }

@@ -31,9 +31,26 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
         MvOrdering mvOrdering,
         BlockFactory blockFactory
     ) {
+        this(
+            new IntBigArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering,
+            blockFactory
+        );
+    }
+
+    private IntBigArrayBlock(
+        IntBigArrayVector vector,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        int vectorLength = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
-        this.vector = new IntBigArrayVector(values, vectorLength, blockFactory);
+        this.vector = vector;
     }
 
     @Override
@@ -48,6 +65,7 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
 
     @Override
     public IntBlock filter(int... positions) {
+        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
@@ -81,25 +99,21 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
             incRef();
             return this;
         }
+        vector.incRef();
         if (nullsMask == null) {
-            vector.incRef();
             return vector.asBlock();
         }
-        // TODO use reference counting to share the vector
-        try (var builder = blockFactory().newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {
-            for (int pos = 0; pos < getPositionCount(); pos++) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = getFirstValueIndex(pos);
-                int end = first + getValueCount(pos);
-                for (int i = first; i < end; i++) {
-                    builder.appendInt(getInt(i));
-                }
-            }
-            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
-        }
+        IntBigArrayBlock expanded = new IntBigArrayBlock(
+            vector,
+            vector.getPositionCount(),
+            null,
+            // TODO: we probably need to adjust the breaker before computing the shifted null mask
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            blockFactory()
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        return expanded;
     }
 
     private long ramBytesUsedOnlyBlock() {

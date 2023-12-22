@@ -41,9 +41,26 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
         MvOrdering mvOrdering,
         BlockFactory blockFactory
     ) {
+        this(
+            new $Type$ArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering,
+            blockFactory
+        );
+    }
+
+    private $Type$ArrayBlock(
+        $Type$ArrayVector vector,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        int vectorLength = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
-        this.vector = new $Type$ArrayVector(values, vectorLength, blockFactory);
+        this.vector = vector;
     }
 
     @Override
@@ -63,6 +80,7 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
+        // TODO use reference counting to share the vector
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$
@@ -99,32 +117,20 @@ $endif$
             incRef();
             return this;
         }
+        vector.incRef();
         if (nullsMask == null) {
-            vector.incRef();
             return vector.asBlock();
         }
-        // TODO use reference counting to share the vector
-$if(BytesRef)$
-        final BytesRef scratch = new BytesRef();
-$endif$
-        try (var builder = blockFactory().new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
-            for (int pos = 0; pos < getPositionCount(); pos++) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = getFirstValueIndex(pos);
-                int end = first + getValueCount(pos);
-                for (int i = first; i < end; i++) {
-$if(BytesRef)$
-                    builder.append$Type$(get$Type$(i, scratch));
-$else$
-                    builder.append$Type$(get$Type$(i));
-$endif$
-                }
-            }
-            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
-        }
+        $Type$ArrayBlock expanded = new $Type$ArrayBlock(
+            vector,
+            vector.getPositionCount(),
+            null,
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            blockFactory()
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        return expanded;
     }
 
     private long ramBytesUsedOnlyBlock() {

@@ -30,9 +30,26 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
         MvOrdering mvOrdering,
         BlockFactory blockFactory
     ) {
+        this(
+            new BooleanArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering,
+            blockFactory
+        );
+    }
+
+    private BooleanArrayBlock(
+        BooleanArrayVector vector,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        int vectorLength = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
-        this.vector = new BooleanArrayVector(values, vectorLength, blockFactory);
+        this.vector = vector;
     }
 
     @Override
@@ -47,6 +64,7 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
 
     @Override
     public BooleanBlock filter(int... positions) {
+        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newBooleanBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
@@ -80,25 +98,20 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
             incRef();
             return this;
         }
+        vector.incRef();
         if (nullsMask == null) {
-            vector.incRef();
             return vector.asBlock();
         }
-        // TODO use reference counting to share the vector
-        try (var builder = blockFactory().newBooleanBlockBuilder(firstValueIndexes[getPositionCount()])) {
-            for (int pos = 0; pos < getPositionCount(); pos++) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = getFirstValueIndex(pos);
-                int end = first + getValueCount(pos);
-                for (int i = first; i < end; i++) {
-                    builder.appendBoolean(getBoolean(i));
-                }
-            }
-            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
-        }
+        BooleanArrayBlock expanded = new BooleanArrayBlock(
+            vector,
+            vector.getPositionCount(),
+            null,
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            blockFactory()
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        return expanded;
     }
 
     private long ramBytesUsedOnlyBlock() {

@@ -30,9 +30,26 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
         MvOrdering mvOrdering,
         BlockFactory blockFactory
     ) {
+        this(
+            new LongArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering,
+            blockFactory
+        );
+    }
+
+    private LongArrayBlock(
+        LongArrayVector vector,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        int vectorLength = firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount];
-        this.vector = new LongArrayVector(values, vectorLength, blockFactory);
+        this.vector = vector;
     }
 
     @Override
@@ -47,6 +64,7 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     @Override
     public LongBlock filter(int... positions) {
+        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newLongBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
@@ -80,25 +98,20 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
             incRef();
             return this;
         }
+        vector.incRef();
         if (nullsMask == null) {
-            vector.incRef();
             return vector.asBlock();
         }
-        // TODO use reference counting to share the vector
-        try (var builder = blockFactory().newLongBlockBuilder(firstValueIndexes[getPositionCount()])) {
-            for (int pos = 0; pos < getPositionCount(); pos++) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = getFirstValueIndex(pos);
-                int end = first + getValueCount(pos);
-                for (int i = first; i < end; i++) {
-                    builder.appendLong(getLong(i));
-                }
-            }
-            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
-        }
+        LongArrayBlock expanded = new LongArrayBlock(
+            vector,
+            vector.getPositionCount(),
+            null,
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            blockFactory()
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        return expanded;
     }
 
     private long ramBytesUsedOnlyBlock() {

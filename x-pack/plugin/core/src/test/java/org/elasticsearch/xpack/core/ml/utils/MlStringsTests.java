@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MlStringsTests extends ESTestCase {
 
-    public static final String[] someInvalidChars = {
+    public static final String[] SOME_INVALID_CHARS = {
         "%",
         " ",
         "!",

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -70,7 +69,8 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 var getResultsRequest = new GetAsyncResultRequest(id);
                 getResultsRequest.setWaitForCompletionTimeout(timeValueMillis(10));
                 getResultsRequest.setKeepAlive(randomKeepAlive());
-                try (var responseWithTimeout = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).get()) {
+                var future = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+                try (var responseWithTimeout = future.get()) {
                     assertThat(initialResponse.asyncExecutionId(), isPresent());
                     assertThat(responseWithTimeout.asyncExecutionId().get(), equalTo(id));
                     assertThat(responseWithTimeout.isRunning(), is(true));
@@ -81,7 +81,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             var getResultsRequest = new GetAsyncResultRequest(id);
             getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(60));
             getResultsRequest.setKeepAlive(randomKeepAlive());
-            ActionFuture<EsqlQueryResponse> future = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+            var future = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest);
 
             // release the permits to allow the query to proceed
             scriptPermits.release(numberOfDocs());
@@ -94,7 +94,8 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             }
 
             // Get the stored result (again)
-            try (var finalResponse = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).get()) {
+            var again = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+            try (var finalResponse = again.get()) {
                 assertThat(finalResponse, notNullValue());
                 assertThat(finalResponse.isRunning(), is(false));
                 assertThat(finalResponse.columns(), equalTo(List.of(new ColumnInfo("sum(pause_me)", "long"))));
@@ -123,6 +124,9 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             // there should be just one task
             List<TaskInfo> tasks = getEsqlQueryTasks();
             assertThat(tasks.size(), is(1));
+
+            // release the permits to allow the query to proceed
+            scriptPermits.release(numberOfDocs());
 
             var deleteResponse = future.actionGet(timeValueSeconds(60));
             assertThat(deleteResponse.isAcknowledged(), equalTo(true));
@@ -168,25 +172,25 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             .keepAlive(randomKeepAlive());
 
         try (var response = request.execute().actionGet(60, TimeUnit.SECONDS)) {
-            if (keepOnCompletion) {
-                assertThat(response.asyncExecutionId(), isPresent());
-            } else {
-                assertThat(response.asyncExecutionId(), isEmpty());
-            }
             assertThat(response.isRunning(), is(false));
             assertThat(response.columns(), equalTo(List.of(new ColumnInfo("sum(pause_me)", "long"))));
             assertThat(getValuesList(response).size(), equalTo(1));
 
             if (keepOnCompletion) {
+                assertThat(response.asyncExecutionId(), isPresent());
+                // we should be able to retrieve the response by id, since it has been kept
                 String id = response.asyncExecutionId().get();
                 var getResultsRequest = new GetAsyncResultRequest(id);
                 getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(60));
-                try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).actionGet(60, TimeUnit.SECONDS)) {
+                var future = client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+                try (var resp = future.actionGet(60, TimeUnit.SECONDS)) {
                     assertThat(resp.asyncExecutionId().get(), equalTo(id));
                     assertThat(resp.isRunning(), is(false));
                     assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("sum(pause_me)", "long"))));
                     assertThat(getValuesList(resp).size(), equalTo(1));
                 }
+            } else {
+                assertThat(response.asyncExecutionId(), isEmpty());
             }
         } finally {
             scriptPermits.drainPermits();

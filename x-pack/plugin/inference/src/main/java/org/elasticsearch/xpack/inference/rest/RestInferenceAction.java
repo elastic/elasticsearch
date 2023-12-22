@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.rest;
 
+import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.action.inference.InferenceAction;
 
 import java.io.IOException;
 import java.util.List;

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.action.inference.results.LegacyTextEmbeddingResults;
+import org.elasticsearch.action.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.action.inference.results.TextEmbeddingResults;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceResults;
@@ -14,9 +17,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.action.inference.results.LegacyTextEmbeddingResults;
-import org.elasticsearch.action.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.action.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;

@@ -32,7 +32,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final HierarchyCircuitBreakerService parent;
     private final String name;
     private final LongCounter trippedCountMeter;
-    private final String circuitBreakerType;
+
+    public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -40,14 +41,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * the given overheadConstant. Uses the given oldBreaker to initialize
      * the starting offset.
      * @param trippedCountMeter the counter used to report the tripped count metric
-     * @param circuitBreakerType the type of circuit breaker (request, in flight requests, ...)
      * @param settings settings to configure this breaker
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
      */
     public ChildMemoryCircuitBreaker(
         LongCounter trippedCountMeter,
-        String circuitBreakerType,
         BreakerSettings settings,
         Logger logger,
         HierarchyCircuitBreakerService parent,
@@ -62,7 +61,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         logger.trace(() -> format("creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
         this.trippedCountMeter = trippedCountMeter;
-        this.circuitBreakerType = circuitBreakerType;
     }
 
     /**
@@ -73,7 +71,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
-        this.trippedCountMeter.incrementBy(1L, Collections.singletonMap("type", this.circuitBreakerType));
+        this.trippedCountMeter.incrementBy(1L, Collections.singletonMap(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, this.name));
         final String message = "["
             + this.name
             + "] Data too large, data for ["

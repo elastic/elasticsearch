@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -82,7 +81,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
             CircuitBreakerMetrics.NOOP.getTripCount(),
-            CircuitBreaker.REQUEST.toLowerCase(Locale.ROOT),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -161,7 +159,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
             CircuitBreakerMetrics.NOOP.getTripCount(),
-            CircuitBreaker.REQUEST.toLowerCase(Locale.ROOT),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,

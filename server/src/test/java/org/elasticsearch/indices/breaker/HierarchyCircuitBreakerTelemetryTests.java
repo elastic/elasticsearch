@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING;
@@ -134,7 +135,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             final Measurement measurement = allMeasurements.get(0);
             assertThat(1L, Matchers.equalTo(measurement.getLong()));
             assertThat(1L, Matchers.equalTo(measurement.value()));
-            assertThat(Map.of("type", "inflight_requests"), Matchers.equalTo(measurement.attributes()));
+            assertThat(Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests"), Matchers.equalTo(measurement.attributes()));
             assertThat(true, Matchers.equalTo(measurement.isLong()));
             return;
         }

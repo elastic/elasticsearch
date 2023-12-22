@@ -495,7 +495,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             ? new NoopCircuitBreaker(breakerSettings.getName())
             : new ChildMemoryCircuitBreaker(
                 trippedCountMeter,
-                breakerSettings.getName(),
                 breakerSettings,
                 LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                 this,

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.application.connector.secrets;
 import org.elasticsearch.common.util.FeatureFlag;
 
 /**
- * Search Secrets feature flag. When the feature is complete, this flag will be removed.
+ * Connector Secrets feature flag. When the feature is complete, this flag will be removed.
  */
 public class SecretsFeature {
 

@@ -46,7 +46,7 @@ public class PutInferenceModelActionTests extends ESTestCase {
 
         var invalidRequest2 = new PutInferenceModelAction.Request(
             TASK_TYPE,
-            randomAlphaOfLengthBetween(1, 10) + randomFrom(MlStringsTests.someInvalidChars),
+            randomAlphaOfLengthBetween(1, 10) + randomFrom(MlStringsTests.SOME_INVALID_CHARS),
             BYTES,
             X_CONTENT_TYPE
         );

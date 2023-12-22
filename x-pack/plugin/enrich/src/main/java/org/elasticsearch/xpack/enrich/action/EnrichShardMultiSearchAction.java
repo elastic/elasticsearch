@@ -55,7 +55,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -305,7 +304,13 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
     private static SearchResponse createSearchResponse(TopDocs topDocs, SearchHit[] hits) {
         SearchHits searchHits = new SearchHits(hits, topDocs.totalHits, 0);
         return new SearchResponse(
-            new InternalSearchResponse(searchHits, null, null, null, false, null, 0),
+            searchHits,
+            null,
+            null,
+            false,
+            null,
+            null,
+            0,
             null,
             1,
             1,

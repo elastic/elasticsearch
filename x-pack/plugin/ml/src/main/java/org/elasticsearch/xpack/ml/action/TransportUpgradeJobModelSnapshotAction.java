@@ -223,6 +223,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             jobResultsProvider.getModelSnapshot(
                 request.getJobId(),
                 request.getSnapshotId(),
+                false,
                 getSnapshotHandler::onResponse,
                 getSnapshotHandler::onFailure
             );

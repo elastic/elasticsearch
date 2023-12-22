@@ -13,7 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.core.ml.utils.MlStringsTests;
 import org.junit.Before;
 
 import java.util.Locale;
@@ -46,7 +46,7 @@ public class PutInferenceModelActionTests extends ESTestCase {
 
         var invalidRequest2 = new PutInferenceModelAction.Request(
             TASK_TYPE,
-            randomAlphaOfLengthBetween(1, 10) + randomFrom(MlStrings.someInvalidChars),
+            randomAlphaOfLengthBetween(1, 10) + randomFrom(MlStringsTests.someInvalidChars),
             BYTES,
             X_CONTENT_TYPE
         );

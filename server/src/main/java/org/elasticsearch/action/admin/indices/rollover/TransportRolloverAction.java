@@ -153,6 +153,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         + " Please remove the query parameter 'lazy'.";
                 }
                 listener.onFailure(new IllegalArgumentException(message));
+                return;
             }
             if (rolloverRequest.isDryRun() == false) {
                 metadataDataStreamsService.setRolloverOnWrite(

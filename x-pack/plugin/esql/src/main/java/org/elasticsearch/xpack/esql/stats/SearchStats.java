@@ -46,6 +46,7 @@ public class SearchStats {
         private Boolean exists;
         private Object min, max;
         private Boolean singleValue;
+        private Boolean indexed;
     }
 
     private static final int CACHE_SIZE = 32;
@@ -106,6 +107,12 @@ public class SearchStats {
                     break;
                 }
             }
+
+            // populate additional properties to save on the lookups
+            if (stat.exists == false) {
+                stat.indexed = false;
+                stat.singleValue = true;
+            }
         }
         return stat.exists;
     }
@@ -163,7 +170,8 @@ public class SearchStats {
             } else {
                 var sv = new boolean[] { true };
                 for (SearchContext context : contexts) {
-                    MappedFieldType mappedType = context.getSearchExecutionContext().getFieldType(field);
+                    var sec = context.getSearchExecutionContext();
+                    MappedFieldType mappedType = sec.isFieldMapped(field) ? null : sec.getFieldType(field);
                     if (mappedType != null) {
                         doWithContexts(r -> {
                             sv[0] &= detectSingleValue(r, mappedType, field);
@@ -176,6 +184,26 @@ public class SearchStats {
             }
         }
         return stat.singleValue;
+    }
+
+    public boolean isIndexed(String field) {
+        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        if (stat.indexed == null) {
+            stat.indexed = false;
+            if (exists(field)) {
+                for (SearchContext context : contexts) {
+                    var sec = context.getSearchExecutionContext();
+                    if (sec.isFieldMapped(field)) {
+                        if (sec.getFieldType(field).isIndexed() == false) {
+                            stat.indexed = false;
+                            break;
+                        }
+                    }
+                }
+                stat.indexed = true;
+            }
+        }
+        return stat.indexed;
     }
 
     private boolean detectSingleValue(IndexReader r, MappedFieldType fieldType, String name) throws IOException {

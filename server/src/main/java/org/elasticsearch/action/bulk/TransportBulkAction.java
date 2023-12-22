@@ -62,6 +62,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.ingest.IngestService;
@@ -72,6 +73,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -111,7 +113,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
 
-    public static final String ROOT_RESULT_FIELD = "_ml._inference";
+    public static final String ROOT_RESULT_FIELD = "_ml_inference";
     public static final String INFERENCE_FIELD = "result";
     public static final String TEXT_FIELD = "text";
 
@@ -703,23 +705,32 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 IndexMetadata indexMetadata = clusterState.metadata().index(shardId.getIndex());
                 if (indexMetadata.getFieldsForModels().isEmpty() == false) {
-                    performInference(requests, indexMetadata.getModelsForFields(), () -> executeBulkShardRequest(bulkShardRequest, requests, counter));
+                    performInference(
+                        bulkShardRequest,
+                        indexMetadata.getFieldsForModels(),
+                        () -> {
+                            BulkShardRequest errorsFilteredShardRequest = new BulkShardRequest(
+                                shardId,
+                                bulkRequest.getRefreshPolicy(),
+                                Arrays.stream(bulkShardRequest.items()).filter(Objects::nonNull).toArray(BulkItemRequest[]::new)
+                            );
+                            executeBulkShardRequest(errorsFilteredShardRequest, requests, counter);
+                        }
+                    );
                 } else {
                     executeBulkShardRequest(bulkShardRequest, requests, counter);
                 }
-
             }
-            bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
 
-        private void performInference(List<BulkItemRequest> requests, Map<String, String> modelsForFields, Runnable onCompletion) {
+        private void performInference(BulkShardRequest bulkShardRequest, Map<String, Set<String>> fieldsForModels, Runnable onCompletion) {
 
             // TODO Should we create a specific ThreadPool?
             try (var bulkItemReqRef = new RefCountingRunnable(() -> {
                 onCompletion.run();
             })) {
 
-                for (BulkItemRequest request : requests) {
+                for (BulkItemRequest request : bulkShardRequest.items()) {
                     DocWriteRequest<?> docWriteRequest = request.request();
                     Map<String, Object> sourceMap = null;
                     if (docWriteRequest instanceof IndexRequest indexRequest) {
@@ -733,9 +744,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkItemReqRef.acquire();
                     final Map<String, Object> docMap = new ConcurrentHashMap<>(sourceMap);
 
-                    Set<String> inferenceFields = new HashSet<>(sourceMap.keySet());
-                    inferenceFields.retainAll(modelsForFields.keySet());
-
                     // When a document completes processing, update the source with the inference
                     try (var docRef = new RefCountingRunnable(() -> {
                         if (docWriteRequest instanceof IndexRequest indexRequest) {
@@ -743,11 +751,34 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
                             updateRequest.doc().source(docMap);
                         }
+                        bulkItemReqRef.close();
                     })) {
 
-                        for (String inferenceField : inferenceFields) {
-                            Object fieldValue = sourceMap.get(inferenceField);
-                            if (fieldValue instanceof String == false) {
+                        for (Map.Entry<String, Set<String>> fieldModelsEntrySet : fieldsForModels.entrySet()) {
+                            String modelId = fieldModelsEntrySet.getKey();
+
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> rootInferenceFieldMap = (Map<String, Object>) docMap.computeIfAbsent(
+                                ROOT_RESULT_FIELD,
+                                k -> new HashMap<String, Object>()
+                            );
+
+                            List<String> inferenceFieldNames = new ArrayList<>();
+                            for (String inferenceField : fieldModelsEntrySet.getValue()) {
+                                Object fieldValue = docMap.get(inferenceField);
+
+                                // Perform inference on string, non-null values
+                                if (fieldValue instanceof String fieldStringValue) {
+
+                                    // Only do inference if the previous text value doesn't match the new one
+                                    String previousValue = findMapValue(docMap, ROOT_RESULT_FIELD, inferenceField, TEXT_FIELD);
+                                    if (fieldStringValue.equals(previousValue) == false) {
+                                        inferenceFieldNames.add(inferenceField);
+                                    }
+                                }
+                            }
+
+                            if (inferenceFieldNames.isEmpty()) {
                                 continue;
                             }
 
@@ -756,8 +787,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             // TODO batch by model id, and multiple docs
                             InferenceAction.Request inferenceRequest = new InferenceAction.Request(
                                 TaskType.SPARSE_EMBEDDING, // TODO Change when task type doesn't need to be specified
-                                modelsForFields.get(inferenceField),
-                                List.of((String) fieldValue),
+                                modelId,
+                                inferenceFieldNames.stream().map(docMap::get).map(String::valueOf).collect(Collectors.toList()),
                                 Map.of()
                             );
 
@@ -768,14 +799,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                     InferenceServiceResults results = response.getResults();
                                     if (results == null) {
                                         throw new IllegalArgumentException(
-                                            "No inference retrieved for field " + inferenceField + " in document " + docWriteRequest.id()
+                                            "No inference retrieved for model ID " + modelId + " in document " + docWriteRequest.id()
                                         );
                                     }
 
-                                    Object inferenceResult = results.transformToLegacyFormat().get(0).predictedValue();
+                                    int i = 0;
+                                    for (InferenceResults inferenceResults : results.transformToLegacyFormat()) {
+                                        String fieldName = inferenceFieldNames.get(i++);
+                                        @SuppressWarnings("unchecked")
+                                        Map<String, Object> inferenceFieldMap = (Map<String, Object>) rootInferenceFieldMap.computeIfAbsent(
+                                            fieldName,
+                                            k -> new HashMap<String, Object>()
+                                        );
 
-                                    docMap.put(ROOT_RESULT_FIELD + "." + inferenceField + "." + INFERENCE_FIELD, inferenceResult);
-                                    docMap.put(ROOT_RESULT_FIELD + "." + inferenceField + "." + TEXT_FIELD, fieldValue);
+                                        inferenceFieldMap.put(INFERENCE_FIELD, inferenceResults.asMap("output").get("output"));
+                                        inferenceFieldMap.put(TEXT_FIELD, docMap.get(fieldName));
+                                    }
 
                                     docRef.close();
                                 }
@@ -785,10 +824,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                                     final String indexName = request.index();
                                     DocWriteRequest<?> docWriteRequest = request.request();
-                                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
+                                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(),
+                                        new IllegalArgumentException("Error performing inference: " + e.getMessage(), e));
                                     responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
                                     // make sure the request gets never processed again
-                                    bulkRequest.requests.set(request.id(), null);
+                                    bulkShardRequest.items()[request.id()] = null;
 
                                     docRef.close();
                                 }
@@ -799,7 +839,37 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
+        @SuppressWarnings("unchecked")
+        private static String findMapValue(Map<String, Object> map, String... path) {
+            Map<String, Object> currentMap = map;
+            for (int i = 0; i < path.length - 1; i++) {
+                Object value = currentMap.get(path[i]);
+
+                if (value instanceof Map) {
+                    currentMap = (Map<String, Object>) value;
+                } else {
+                    // Invalid path or non-Map value encountered
+                    return null;
+                }
+            }
+
+            // Retrieve the final value in the map, if it's a String
+            Object finalValue = currentMap.get(path[path.length - 1]);
+
+            return (finalValue instanceof String) ? (String) finalValue : null;
+        }
+
         private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, List<BulkItemRequest> requests, AtomicInteger counter) {
+            if (bulkShardRequest.items().length == 0) {
+                // No requests to execute due to previous errors, terminate early
+                listener.onResponse(
+                    new BulkResponse(
+                        responses.toArray(new BulkItemResponse[responses.length()]),
+                        buildTookInMillis(startTimeNanos)
+                    )
+                );
+                return;
+            }
             client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
@@ -833,6 +903,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 buildTookInMillis(startTimeNanos)
                             )
                         );
+                        // Allow memory for bulk shard request items to be reclaimed before all items have been completed
+                        bulkRequest = null;
                     }
                 }
             });

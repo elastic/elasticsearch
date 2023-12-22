@@ -18,8 +18,10 @@ import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
@@ -108,6 +110,24 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             final String translatedFieldName = ApiKeyFieldNameTranslators.translate(query.fieldName());
             return QueryBuilders.termQuery(translatedFieldName, query.value()).caseInsensitive(query.caseInsensitive());
         } else if (qb instanceof final MultiMatchQueryBuilder query) {
+            // this relies on the query fields map to be mutable
+            Map<String, Float> originalFields = new HashMap<>(query.fields());
+            query.fields().clear();
+            for (Map.Entry<String, Float> originalField : originalFields.entrySet()) {
+                query.fields().put(ApiKeyFieldNameTranslators.translate(originalField.getKey()), originalField.getValue());
+            }
+            assert query.fields().size() == originalFields.size();
+            return query;
+        } else if (qb instanceof final SimpleQueryStringBuilder query) {
+            // this relies on the query fields map to be mutable
+            Map<String, Float> originalFields = new HashMap<>(query.fields());
+            query.fields().clear();
+            for (Map.Entry<String, Float> originalField : originalFields.entrySet()) {
+                query.fields().put(ApiKeyFieldNameTranslators.translate(originalField.getKey()), originalField.getValue());
+            }
+            assert query.fields().size() == originalFields.size();
+            return query;
+        } else if (qb instanceof final QueryStringQueryBuilder query) {
             // this relies on the query fields map to be mutable
             Map<String, Float> originalFields = new HashMap<>(query.fields());
             query.fields().clear();

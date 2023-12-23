@@ -33,7 +33,7 @@ update.
 [[ilm-phase-transitions]]
 === Phase transitions
 
-{ilm-init} moves indices through the lifecycle according to their `age` (time since rollover fallback index creation).
+{ilm-init} moves indices through the lifecycle according to their `age` (time since rollover, falling back to index creation if it has not yet rolled over).
 To control the timing of these transitions, you set a _minimum age_ `min_age` for each phase. For an index to
 move to the next phase, all actions in the current phase must be complete and the index must be
 older than the minimum age of the next phase. Configured minimum ages must increase between

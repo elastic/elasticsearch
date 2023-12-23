@@ -105,7 +105,7 @@ public final class EvalMapper {
                  */
                 private Block eval(Block lhs, Block rhs) {
                     int positionCount = lhs.getPositionCount();
-                    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, lhs.blockFactory())) {
+                    try (BooleanBlock.Builder result = lhs.blockFactory().newBooleanBlockBuilder(positionCount)) {
                         for (int p = 0; p < positionCount; p++) {
                             if (lhs.getValueCount(p) > 1) {
                                 result.appendNull();
@@ -225,12 +225,12 @@ public final class EvalMapper {
         private static Block block(Literal lit, BlockFactory blockFactory, int positions) {
             var value = lit.value();
             if (value == null) {
-                return Block.constantNullBlock(positions, blockFactory);
+                return blockFactory.newConstantNullBlock(positions);
             }
 
             if (value instanceof List<?> multiValue) {
                 if (multiValue.isEmpty()) {
-                    return Block.constantNullBlock(positions, blockFactory);
+                    return blockFactory.newConstantNullBlock(positions);
                 }
                 var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
                 for (int i = 0; i < positions; i++) {

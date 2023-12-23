@@ -172,15 +172,6 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     }
 
     /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newBytesRefBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newBytesRefBlockBuilder(estimatedSize);
-    }
-
-    /**
      * Builder for {@link BytesRefBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.BytesRefBuilder permits BytesRefBlockBuilder {

@@ -190,7 +190,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 input.add(p);
             } else {
                 Block[] blocks = new Block[p.getBlockCount()];
-                blocks[0] = Block.constantNullBlock(p.getPositionCount(), blockFactory);
+                blocks[0] = blockFactory.newConstantNullBlock(p.getPositionCount());
                 for (int i = 1; i < blocks.length; i++) {
                     blocks[i] = p.getBlock(i);
                 }

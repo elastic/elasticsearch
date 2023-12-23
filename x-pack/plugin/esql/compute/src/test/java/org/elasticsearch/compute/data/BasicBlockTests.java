@@ -63,25 +63,25 @@ public class BasicBlockTests extends ESTestCase {
         assertZeroPositionsAndRelease(bf.newIntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(IntBlock.newBlockBuilder(0, bf).build());
         assertZeroPositionsAndRelease(bf.newIntArrayVector(new int[] {}, 0));
-        assertZeroPositionsAndRelease(IntVector.newVectorBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newIntVectorBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newLongArrayBlock(new long[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(LongBlock.newBlockBuilder(0, bf).build());
         assertZeroPositionsAndRelease(bf.newLongArrayVector(new long[] {}, 0));
-        assertZeroPositionsAndRelease(LongVector.newVectorBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newLongVectorBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newDoubleArrayBlock(new double[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(DoubleBlock.newBlockBuilder(0, bf).build());
         assertZeroPositionsAndRelease(bf.newDoubleArrayVector(new double[] {}, 0));
-        assertZeroPositionsAndRelease(DoubleVector.newVectorBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newDoubleVectorBuilder(0).build());
         assertZeroPositionsAndRelease(
             bf.newBytesRefArrayBlock(new BytesRefArray(0, bf.bigArrays()), 0, new int[] {}, new BitSet(), randomOrdering())
         );
         assertZeroPositionsAndRelease(BytesRefBlock.newBlockBuilder(0, bf).build());
         assertZeroPositionsAndRelease(bf.newBytesRefArrayVector(new BytesRefArray(0, bf.bigArrays()), 0));
-        assertZeroPositionsAndRelease(BytesRefVector.newVectorBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newBytesRefVectorBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newBooleanArrayBlock(new boolean[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(BooleanBlock.newBlockBuilder(0, bf).build());
         assertZeroPositionsAndRelease(bf.newBooleanArrayVector(new boolean[] {}, 0));
-        assertZeroPositionsAndRelease(BooleanVector.newVectorBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newBooleanVectorBuilder(0).build());
     }
 
     public void testSmallSingleValueDenseGrowthInt() {
@@ -207,9 +207,8 @@ public class BasicBlockTests extends ESTestCase {
             }
 
             try (
-                IntVector.Builder vectorBuilder = IntVector.newVectorBuilder(
-                    randomBoolean() ? randomIntBetween(1, positionCount) : positionCount,
-                    blockFactory
+                IntVector.Builder vectorBuilder = blockFactory.newIntVectorBuilder(
+                    randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
                 )
             ) {
                 IntStream.range(0, positionCount).forEach(vectorBuilder::appendInt);

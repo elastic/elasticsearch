@@ -132,7 +132,7 @@ public final class EvalMapper {
 
                 private Block eval(BooleanVector lhs, BooleanVector rhs) {
                     int positionCount = lhs.getPositionCount();
-                    try (var result = BooleanVector.newVectorFixedBuilder(positionCount, lhs.blockFactory())) {
+                    try (var result = lhs.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
                         for (int p = 0; p < positionCount; p++) {
                             result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
                         }
@@ -269,12 +269,7 @@ public final class EvalMapper {
                     if (fieldBlock.asVector() != null) {
                         return BooleanBlock.newConstantBlockWith(false, page.getPositionCount(), driverContext.blockFactory());
                     }
-                    try (
-                        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(
-                            page.getPositionCount(),
-                            driverContext.blockFactory()
-                        )
-                    ) {
+                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
                             builder.appendBoolean(fieldBlock.isNull(p));
                         }
@@ -323,12 +318,7 @@ public final class EvalMapper {
                     if (fieldBlock.asVector() != null) {
                         return BooleanBlock.newConstantBlockWith(true, page.getPositionCount(), driverContext.blockFactory());
                     }
-                    try (
-                        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(
-                            page.getPositionCount(),
-                            driverContext.blockFactory()
-                        )
-                    ) {
+                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
                             builder.appendBoolean(fieldBlock.isNull(p) == false);
                         }

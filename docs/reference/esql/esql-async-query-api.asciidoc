@@ -80,3 +80,13 @@ finished, and the results are returned.
 }
 ----
 // TEST[skip: no access to search ID - may return response values]
+
+Use the <<delete-async-eqsl-query-api,delete async ES|QL query API>> to
+delete an async search before the `keep_alive` period ends. If the query
+is still running, {es} cancels it.
+
+[source,console]
+----
+DELETE /_query/async/delete/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
+----
+// TEST[skip: no access to search ID]

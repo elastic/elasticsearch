@@ -23,7 +23,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected void shouldSkipTest(CsvTestCase testCase, String testName) {
+    protected void shouldSkipTest(String testName) {
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, bwcVersion));
         assumeTrue("Test " + testName + " is skipped on " + newVersion, isEnabled(testName, newVersion));
     }

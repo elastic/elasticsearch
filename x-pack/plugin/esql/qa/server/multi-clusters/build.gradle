@@ -18,23 +18,12 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(xpackModule('esql:qa:testFixtures'))
-  testImplementation project(xpackModule('esql:qa:server'))
-}
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster'
-  }
-  restTests {
-    includeXpack 'esql'
-  }
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
 }
 
 def ccsSupportedVersion = bwcVersion -> {
@@ -49,51 +38,8 @@ def ccsSupportedVersion = bwcVersion -> {
 }
 
 BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
-
-  def remoteCluster = testClusters.register("${baseName}-remote") {
-    numberOfNodes = 2
-    versions = [bwcVersion.toString()]
-    setting 'node.roles', '[data,ingest,master]'
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
   }
-
-  def localCluster = testClusters.register("${baseName}-local") {
-    numberOfNodes = 2
-    versions = [project.version]
-    setting 'node.roles', '[data,ingest,master,remote_cluster_client]'
-    setting 'cluster.remote.connections_per_cluster', '1'
-    setting 'cluster.remote.my_remote_cluster.seeds',
-      { "\"${remoteCluster.get().getAllTransportPortURI().get(0)}\"" }
-  }
-
-  tasks.register("${baseName}#remote-cluster", StandaloneRestIntegTestTask) {
-    useCluster remoteCluster
-    doFirst {
-      nonInputProperties.systemProperty('tests.rest.suite', 'remote_cluster')
-      nonInputProperties.systemProperty('tests.rest.cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-    }
-    dependsOn "processTestResources"
-  }
-
-  tasks.register("${baseName}#multi-cluster", StandaloneRestIntegTestTask) {
-    useCluster localCluster
-    useCluster remoteCluster
-    doFirst {
-      nonInputProperties.systemProperty('tests.rest.suite', 'multi_cluster')
-      nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', bwcVersion.toString())
-    }
-    dependsOn "${baseName}#remote-cluster"
-  }
-
-  tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#multi-cluster"
-    mustRunAfter("precommit")
-  }
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'false'
 }

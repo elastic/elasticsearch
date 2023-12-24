@@ -12,7 +12,6 @@ import org.apache.http.HttpEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
@@ -51,9 +50,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final String groupName;
     private final String testName;
     private final Integer lineNumber;
-    private final CsvTestCase testCase;
-
-    protected static EsqlSpecTestCase currentSpec;
+    protected final CsvTestCase testCase;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -72,29 +69,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        currentSpec = this;
-        shouldSkipTest(testCase, testName);
-        loadTestDataIfNeeded(client());
+        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
+            loadDataSetIntoEs(client());
+        }
     }
 
     @AfterClass
-    public static void afterClass() throws IOException {
-        if (currentSpec != null) {
-            currentSpec.wipeTestData(client());
-            currentSpec = null;
-        }
-    }
-
-    protected void loadTestDataIfNeeded(RestClient client) throws IOException {
-        String indexName = CSV_DATASET_MAP.keySet().iterator().next();
-        if (indexExists(client, indexName) == false) {
-            loadDataSetIntoEs(client);
-        }
-    }
-
-    protected void wipeTestData(RestClient client) throws IOException {
+    public static void wipeTestData() throws IOException {
         try {
-            client.performRequest(new Request("DELETE", "/*"));
+            adminClient().performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -104,18 +87,19 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     public boolean logResults() {
-        return true;
+        return false;
     }
 
     public final void test() throws Throwable {
         try {
+            shouldSkipTest(testName);
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
     }
 
-    protected void shouldSkipTest(CsvTestCase testCase, String testName) {
+    protected void shouldSkipTest(String testName) {
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
     }
 

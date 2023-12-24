@@ -12,11 +12,15 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,6 +34,27 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 
 public class MultiClustersIT extends ESRestTestCase {
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
+    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
+
+    @ClassRule
+    public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
+    private static boolean upgraded = false;
+
+    @Before
+    public void upgradeLocalCluster() throws Exception {
+        if (upgraded == false) {
+            upgraded = true;
+            closeClients();
+            localCluster.upgradeToVersion(Version.CURRENT);
+            initClient();
+        }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return localCluster.getHttpAddresses();
+    }
 
     record Doc(int id, String color, long data) {
 
@@ -42,7 +67,6 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @Before
     public void setUpIndices() throws Exception {
-        assumeFalse("Skip the first step", Fixtures.testAgainstRemoteClusterOnly());
         final String mapping = """
              "properties": {
                "data": { "type": "long" },
@@ -56,7 +80,7 @@ public class MultiClustersIT extends ESRestTestCase {
         createIndex(
             localClient,
             localIndex,
-            Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)).build(),
+            Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)).build(),
             mapping,
             null
         );
@@ -69,7 +93,7 @@ public class MultiClustersIT extends ESRestTestCase {
             createIndex(
                 remoteClient,
                 remoteIndex,
-                Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)).build(),
+                Settings.builder().put("index.number_of_shards", randomIntBetween(1, 5)).build(),
                 mapping,
                 null
             );
@@ -79,9 +103,6 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @After
     public void wipeIndices() throws Exception {
-        if (Fixtures.testAgainstRemoteClusterOnly()) {
-            return;
-        }
         try (RestClient remoteClient = remoteClusterClient()) {
             deleteIndex(remoteClient, remoteIndex);
         }
@@ -144,7 +165,6 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     public void testGroupedAggs() throws Exception {
-        assumeFalse("Skip the first step", Fixtures.testAgainstRemoteClusterOnly());
         {
             Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data) BY color | SORT color");
             var columns = List.of(Map.of("name", "total", "type", "long"), Map.of("name", "color", "type", "keyword"));
@@ -172,11 +192,7 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private RestClient remoteClusterClient() throws IOException {
-        String remoteCluster = System.getProperty("tests.rest.remote_cluster");
-        if (remoteCluster == null) {
-            throw new RuntimeException("remote_cluster wasn't specified");
-        }
-        var clusterHosts = parseClusterHosts(remoteCluster);
+        var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
     }
 }

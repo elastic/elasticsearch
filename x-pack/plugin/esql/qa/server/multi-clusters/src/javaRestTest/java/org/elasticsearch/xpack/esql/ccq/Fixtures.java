@@ -11,16 +11,11 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-final class Fixtures {
-
-    static boolean testAgainstRemoteClusterOnly() {
-        String suite = System.getProperty("tests.rest.suite");
-        return "remote_cluster".equals(suite);
-    }
+public final class Fixtures {
 
     static String convertQueryToRemoteIndex(String query) {
         String[] commands = query.split("\\|");
-        String first = commands[0];
+        String first = commands[0].trim();
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
             String[] parts = commands[0].split("\\[");
             assert parts.length >= 1 : parts;
@@ -29,8 +24,8 @@ final class Fixtures {
             String remoteIndices = Arrays.stream(localIndices)
                 .map(index -> "*:" + index.trim() + "," + index.trim())
                 .collect(Collectors.joining(","));
-            parts[0] = "FROM " + remoteIndices;
-            return String.join(" [", parts).trim() + " " + query.substring(first.length());
+            var newFrom = "FROM " + remoteIndices + commands[0].substring(fromStatement.length());
+            return newFrom + " " + query.substring(first.length());
         } else {
             return query;
         }
@@ -55,5 +50,4 @@ final class Fixtures {
         }
         return false;
     }
-
 }

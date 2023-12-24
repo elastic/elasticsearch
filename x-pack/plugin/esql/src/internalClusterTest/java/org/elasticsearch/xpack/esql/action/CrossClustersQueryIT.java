@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -163,13 +164,14 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         assertThat(allProfiles, equalTo(localOnlyProfiles + remoteOnlyProfiles - 1));
     }
 
-    public void testWarnings() {
+    public void testWarnings() throws Exception {
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query("FROM logs*,*:logs* | EVAL ip = to_ip(id) | STATS total = sum(v) by ip | LIMIT 10");
         PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
         InternalTestCluster cluster = cluster(LOCAL_CLUSTER);
         String node = randomFrom(cluster.getNodeNames());
-        cluster.client(node).execute(EsqlQueryAction.INSTANCE, request, ActionListener.runBefore(future, () -> {
+        CountDownLatch latch = new CountDownLatch(1);
+        cluster.client(node).execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(resp -> {
             TransportService ts = cluster.getInstance(TransportService.class, node);
             Map<String, List<String>> responseHeaders = ts.getThreadPool().getThreadContext().getResponseHeaders();
             List<String> warnings = responseHeaders.getOrDefault("Warning", List.of())
@@ -177,12 +179,15 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 .filter(w -> w.contains("is not an IP string literal"))
                 .toList();
             assertThat(warnings.size(), greaterThanOrEqualTo(20));
-        }));
-        try (EsqlQueryResponse resp = future.actionGet()) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0).get(0), equalTo(330L));
             assertNull(values.get(0).get(1));
-        }
+            latch.countDown();
+        }, e -> {
+            latch.countDown();
+            throw new AssertionError(e);
+        }));
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
     }
 
     protected EsqlQueryResponse runQuery(String query) {

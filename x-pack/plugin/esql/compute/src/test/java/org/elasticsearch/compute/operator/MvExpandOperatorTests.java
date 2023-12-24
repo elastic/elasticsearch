@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 
 import java.util.Iterator;
 import java.util.List;
@@ -254,7 +255,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
                 );
             }
         });
-        List<Page> origInput = deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = drive(new MvExpandOperator(0, randomIntBetween(1, 1000)), input.iterator(), context);
         assertSimpleOutput(origInput, results);
     }

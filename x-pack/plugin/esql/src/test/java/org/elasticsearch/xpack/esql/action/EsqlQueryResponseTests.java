@@ -41,6 +41,7 @@ import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -272,7 +273,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         public ResponseBuilder(@Nullable String asyncExecutionId, Boolean isRunning, List<ColumnInfo> columns, List<List<Object>> values) {
             this.response = new EsqlQueryResponse(
                 columns,
-                List.of(valuesToPage(BlockFactory.getNonBreakingInstance(), columns, values)),
+                List.of(valuesToPage(TestBlockFactory.getNonBreakingInstance(), columns, values)),
                 null,
                 false,
                 asyncExecutionId,

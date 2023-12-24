@@ -11,6 +11,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -48,7 +49,7 @@ public class CannedSourceOperator extends SourceOperator {
         Block.Builder[] builders = new Block.Builder[first.getBlockCount()];
         try {
             for (int b = 0; b < builders.length; b++) {
-                builders[b] = first.getBlock(b).elementType().newBlockBuilder(totalPositions, BlockFactory.getNonBreakingInstance());
+                builders[b] = first.getBlock(b).elementType().newBlockBuilder(totalPositions, TestBlockFactory.getNonBreakingInstance());
             }
             for (Page p : pages) {
                 for (int b = 0; b < builders.length; b++) {
@@ -80,7 +81,7 @@ public class CannedSourceOperator extends SourceOperator {
      */
     public static List<Page> deepCopyOf(List<Page> pages) {
         List<Page> out = new ArrayList<>(pages.size());
-        BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         for (Page p : pages) {
             Block[] blocks = new Block[p.getBlockCount()];
             for (int b = 0; b < blocks.length; b++) {

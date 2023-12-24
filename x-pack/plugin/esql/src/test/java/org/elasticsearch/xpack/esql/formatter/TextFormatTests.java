@@ -14,6 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class TextFormatTests extends ESTestCase {
 
-    static final BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+    static final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     public void testCsvContentType() {
         assertEquals("text/csv; charset=utf-8; header=present", CSV.contentType(req()));
@@ -240,7 +241,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private static EsqlQueryResponse regularData() {
-        BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         // headers
         List<ColumnInfo> headers = asList(
             new ColumnInfo("string", "keyword"),

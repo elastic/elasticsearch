@@ -496,7 +496,14 @@ public class DeploymentManager {
             }
 
             logger.debug("[{}] start and load", task.getDeploymentId());
-            process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, this::onProcessCrash));
+            process.set(
+                pyTorchProcessFactory.createProcess(
+                    task,
+                    executorServiceForProcess,
+                    () -> resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES),
+                    this::onProcessCrash
+                )
+            );
             startTime = Instant.now();
             logger.debug("[{}] process started", task.getDeploymentId());
             try {

@@ -288,13 +288,13 @@ class ClientTransformIndexer extends TransformIndexer {
         SchemaUtil.getDestinationFieldMappings(client, getConfig().getDestination().getIndex(), fieldMappingsListener);
     }
 
-    void validate(ActionListener<ValidateTransformAction.Response> listener) {
+    void validate(ActionListener<Void> listener) {
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
             new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
-            listener
+            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
         );
     }
 

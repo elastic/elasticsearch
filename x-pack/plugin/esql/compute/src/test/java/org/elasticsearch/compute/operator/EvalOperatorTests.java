@@ -37,7 +37,7 @@ public class EvalOperatorTests extends OperatorTestCase {
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
-            try (LongVector.FixedBuilder result = LongVector.newVectorFixedBuilder(page.getPositionCount(), driverContext.blockFactory())) {
+            try (LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(page.getPositionCount())) {
                 for (int p = 0; p < page.getPositionCount(); p++) {
                     result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
                 }

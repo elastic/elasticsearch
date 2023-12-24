@@ -179,7 +179,10 @@ public class ComputeService {
         listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
         final AtomicBoolean cancelled = new AtomicBoolean();
         final List<DriverProfile> collectedProfiles = configuration.profile() ? Collections.synchronizedList(new ArrayList<>()) : List.of();
-        final var exchangeSource = exchangeService.createSourceHandler(sessionId, queryPragmas.exchangeBufferSize(), ESQL_THREAD_POOL_NAME);
+        final var exchangeSource = new ExchangeSourceHandler(
+            queryPragmas.exchangeBufferSize(),
+            transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
+        );
         try (
             Releasable ignored = exchangeSource::decRef;
             RefCountingListener refs = new RefCountingListener(listener.map(unused -> new Result(collectedPages, collectedProfiles)))
@@ -655,10 +658,9 @@ public class ComputeService {
         final AtomicBoolean cancelled = new AtomicBoolean();
         final List<DriverProfile> collectedProfiles = configuration.profile() ? Collections.synchronizedList(new ArrayList<>()) : List.of();
         final String localSessionId = clusterAlias + ":" + globalSessionId;
-        var exchangeSource = exchangeService.createSourceHandler(
-            localSessionId,
+        var exchangeSource = new ExchangeSourceHandler(
             configuration.pragmas().exchangeBufferSize(),
-            ESQL_THREAD_POOL_NAME
+            transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
         );
         try (
             Releasable ignored = exchangeSource::decRef;

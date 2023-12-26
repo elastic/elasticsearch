@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.esql.ccq;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 
 public class Clusters {
     public static ElasticsearchCluster remoteCluster() {
         return ElasticsearchCluster.local()
             .name("remote_cluster")
             .distribution(DistributionType.DEFAULT)
-            // .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
-            .nodes(1)
+            .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
+            .nodes(2)
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
@@ -27,8 +28,8 @@ public class Clusters {
         return ElasticsearchCluster.local()
             .name("local_cluster")
             .distribution(DistributionType.DEFAULT)
-            // .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
-            .nodes(1)
+            .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
+            .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("node.roles", "[data,ingest,master,remote_cluster_client]")

@@ -63,7 +63,8 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                             .get()
                             .getTasks()
                             .stream()
-                            .filter( // Skip the tasks we that'd get in the way while debugging
+                            .filter(
+                                // Skip the tasks we that'd get in the way while debugging
                                 t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
                                     && false == t.action().contains(HealthNode.TASK_NAME)
                             )

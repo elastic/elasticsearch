@@ -662,7 +662,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 // there needs to be an alias
                 if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
                     aggOutput(agg, aggFunc, blockFactory, blocks);
-                            } else {
+                } else {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
                 }
             }
@@ -678,7 +678,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(aggFunc.dataType()), 1);
             wrapper.accept(value);
             blocks.add(wrapper.builder().build());
-    }
+        }
     }
 
     private static LogicalPlan skipPlan(UnaryPlan plan) {

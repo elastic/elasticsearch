@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.get;
+package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -16,11 +16,14 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -28,8 +31,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -79,6 +81,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return get(
             id,
+            indexShard::get,
             gFields,
             realtime,
             version,
@@ -93,6 +96,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     private GetResult get(
         String id,
+        Function<Engine.Get, Engine.GetResult> getFromEngine,
         String[] gFields,
         boolean realtime,
         long version,
@@ -108,6 +112,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             long now = System.nanoTime();
             GetResult getResult = innerGet(
                 id,
+                getFromEngine,
                 gFields,
                 realtime,
                 version,
@@ -141,6 +146,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return get(
             id,
+            unused -> { throw new IllegalStateException("getFromTranslog should not call getFromEngine"); },
             gFields,
             realtime,
             version,
@@ -156,6 +162,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
         return get(
             id,
+            indexShard::get,
             new String[] { RoutingFieldMapper.NAME },
             true,
             Versions.MATCH_ANY,
@@ -217,6 +224,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     private GetResult innerGet(
         String id,
+        Function<Engine.Get, Engine.GetResult> getFromEngine,
         String[] gFields,
         boolean realtime,
         long version,
@@ -232,7 +240,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             .versionType(versionType)
             .setIfSeqNo(ifSeqNo)
             .setIfPrimaryTerm(ifPrimaryTerm);
-        try (Engine.GetResult get = translogOnly ? indexShard.getFromTranslog(engineGet) : indexShard.get(engineGet)) {
+        try (Engine.GetResult get = translogOnly ? indexShard.getFromTranslog(engineGet) : getFromEngine.apply(engineGet)) {
             if (get == null) {
                 return null;
             }
@@ -344,5 +352,52 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
         return StoredFieldLoader.create(fetchSourceContext.fetchSource(), fieldsToLoad);
+    }
+
+    /**
+     * A multi-get session where we can enable optimizations for multiple get requests.
+     * This session must be created and used by a single thread.
+     */
+    public static final class MGetSession implements Releasable {
+        private final ShardGetService shardGetService;
+        private final MultiEngineGet multiEngineGet;
+
+        public MGetSession(ShardGetService shardGetService) {
+            this.shardGetService = shardGetService;
+            this.multiEngineGet = shardGetService.indexShard.newMultiEngineGet();
+        }
+
+        @Override
+        public void close() {
+            multiEngineGet.close();
+        }
+
+        public ShardId shardId() {
+            return shardGetService.shardId();
+        }
+
+        public GetResult get(
+            String id,
+            String[] gFields,
+            boolean realtime,
+            long version,
+            VersionType versionType,
+            FetchSourceContext fetchSourceContext,
+            boolean forceSyntheticSource
+        ) throws IOException {
+            return shardGetService.get(
+                id,
+                multiEngineGet::engineGet,
+                gFields,
+                realtime,
+                version,
+                versionType,
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                fetchSourceContext,
+                forceSyntheticSource,
+                false
+            );
+        }
     }
 }

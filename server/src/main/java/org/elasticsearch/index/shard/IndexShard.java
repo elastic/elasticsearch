@@ -97,7 +97,6 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -1212,15 +1211,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
-        return innerGet(get, false);
+        return innerGet(get, false, this::wrapSearcher);
+    }
+
+    final MultiEngineGet newMultiEngineGet() {
+        return new MultiEngineGet(this::wrapSearcher) {
+            @Override
+            GetResult engineGet(Engine.Get get) {
+                return innerGet(get, false, this::wrapSearchWithCache);
+            }
+        };
     }
 
     public Engine.GetResult getFromTranslog(Engine.Get get) {
         assert get.realtime();
-        return innerGet(get, true);
+        return innerGet(get, true, this::wrapSearcher);
     }
 
-    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly) {
+    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
         readAllowed();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         if (mappingLookup.hasMappings() == false) {
@@ -1230,9 +1238,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("get operations not allowed on a legacy index");
         }
         if (translogOnly) {
-            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
         }
-        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
     }
 
     /**

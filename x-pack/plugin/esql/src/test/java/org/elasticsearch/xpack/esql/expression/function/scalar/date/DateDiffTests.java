@@ -11,12 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZonedDateTime;
@@ -26,7 +25,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateDiffTests extends AbstractScalarFunctionTestCase {
+public class DateDiffTests extends AbstractFunctionTestCase {
     public DateDiffTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -40,6 +39,22 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
             List.of(
                 new TestCaseSupplier(
                     "Date Diff In Seconds - OK",
+                    List.of(DataTypes.KEYWORD, DataTypes.DATETIME, DataTypes.DATETIME),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.KEYWORD, "unit"),
+                            new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
+                            new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
+                        ),
+                        "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                            + "endTimestamp=Attribute[channel=2]]",
+                        DataTypes.INTEGER,
+                        equalTo(88170)
+                    )
+                ),
+                new TestCaseSupplier(
+                    "Date Diff In Seconds with text- OK",
+                    List.of(DataTypes.TEXT, DataTypes.DATETIME, DataTypes.DATETIME),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.TEXT, "unit"),
@@ -54,6 +69,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                 ),
                 new TestCaseSupplier(
                     "Date Diff Error Type unit",
+                    List.of(DataTypes.INTEGER, DataTypes.DATETIME, DataTypes.DATETIME),
                     () -> TestCaseSupplier.TestCase.typeError(
                         List.of(
                             new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.INTEGER, "unit"),
@@ -65,6 +81,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                 ),
                 new TestCaseSupplier(
                     "Date Diff Error Type startTimestamp",
+                    List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.DATETIME),
                     () -> TestCaseSupplier.TestCase.typeError(
                         List.of(
                             new TestCaseSupplier.TypedData(new BytesRef("minutes"), DataTypes.TEXT, "unit"),
@@ -76,6 +93,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                 ),
                 new TestCaseSupplier(
                     "Date Diff Error Type endTimestamp",
+                    List.of(DataTypes.TEXT, DataTypes.DATETIME, DataTypes.INTEGER),
                     () -> TestCaseSupplier.TestCase.typeError(
                         List.of(
                             new TestCaseSupplier.TypedData(new BytesRef("minutes"), DataTypes.TEXT, "unit"),
@@ -96,22 +114,42 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
         long endTimestamp = zdtEnd.toInstant().toEpochMilli();
 
         assertEquals(1000000000, DateDiff.process(new BytesRef("nanoseconds"), startTimestamp, endTimestamp));
+        assertEquals(1000000000, DateDiff.process(new BytesRef("ns"), startTimestamp, endTimestamp));
         assertEquals(1000000, DateDiff.process(new BytesRef("microseconds"), startTimestamp, endTimestamp));
+        assertEquals(1000000, DateDiff.process(new BytesRef("mcs"), startTimestamp, endTimestamp));
         assertEquals(1000, DateDiff.process(new BytesRef("milliseconds"), startTimestamp, endTimestamp));
+        assertEquals(1000, DateDiff.process(new BytesRef("ms"), startTimestamp, endTimestamp));
         assertEquals(1, DateDiff.process(new BytesRef("seconds"), startTimestamp, endTimestamp));
+        assertEquals(1, DateDiff.process(new BytesRef("ss"), startTimestamp, endTimestamp));
+        assertEquals(1, DateDiff.process(new BytesRef("s"), startTimestamp, endTimestamp));
 
         zdtEnd = zdtEnd.plusYears(1);
         endTimestamp = zdtEnd.toInstant().toEpochMilli();
 
         assertEquals(527040, DateDiff.process(new BytesRef("minutes"), startTimestamp, endTimestamp));
+        assertEquals(527040, DateDiff.process(new BytesRef("mi"), startTimestamp, endTimestamp));
+        assertEquals(527040, DateDiff.process(new BytesRef("n"), startTimestamp, endTimestamp));
         assertEquals(8784, DateDiff.process(new BytesRef("hours"), startTimestamp, endTimestamp));
-        assertEquals(52, DateDiff.process(new BytesRef("weeks"), startTimestamp, endTimestamp));
+        assertEquals(8784, DateDiff.process(new BytesRef("hh"), startTimestamp, endTimestamp));
         assertEquals(366, DateDiff.process(new BytesRef("weekdays"), startTimestamp, endTimestamp));
+        assertEquals(366, DateDiff.process(new BytesRef("dw"), startTimestamp, endTimestamp));
+        assertEquals(52, DateDiff.process(new BytesRef("weeks"), startTimestamp, endTimestamp));
+        assertEquals(52, DateDiff.process(new BytesRef("wk"), startTimestamp, endTimestamp));
+        assertEquals(52, DateDiff.process(new BytesRef("ww"), startTimestamp, endTimestamp));
         assertEquals(366, DateDiff.process(new BytesRef("days"), startTimestamp, endTimestamp));
+        assertEquals(366, DateDiff.process(new BytesRef("dd"), startTimestamp, endTimestamp));
+        assertEquals(366, DateDiff.process(new BytesRef("d"), startTimestamp, endTimestamp));
         assertEquals(366, DateDiff.process(new BytesRef("dy"), startTimestamp, endTimestamp));
+        assertEquals(366, DateDiff.process(new BytesRef("y"), startTimestamp, endTimestamp));
         assertEquals(12, DateDiff.process(new BytesRef("months"), startTimestamp, endTimestamp));
+        assertEquals(12, DateDiff.process(new BytesRef("mm"), startTimestamp, endTimestamp));
+        assertEquals(12, DateDiff.process(new BytesRef("m"), startTimestamp, endTimestamp));
         assertEquals(4, DateDiff.process(new BytesRef("quarters"), startTimestamp, endTimestamp));
+        assertEquals(4, DateDiff.process(new BytesRef("qq"), startTimestamp, endTimestamp));
+        assertEquals(4, DateDiff.process(new BytesRef("q"), startTimestamp, endTimestamp));
         assertEquals(1, DateDiff.process(new BytesRef("years"), startTimestamp, endTimestamp));
+        assertEquals(1, DateDiff.process(new BytesRef("yyyy"), startTimestamp, endTimestamp));
+        assertEquals(1, DateDiff.process(new BytesRef("yy"), startTimestamp, endTimestamp));
     }
 
     public void testDateDiffFunctionErrorTooLarge() {
@@ -124,18 +162,11 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
             InvalidArgumentException.class,
             () -> DateDiff.process(new BytesRef("nanoseconds"), startTimestamp, endTimestamp)
         );
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "The DATE_DIFF function resulted in an overflow; "
-                    + "the number of units separating two date/datetime instances is too large. "
-                    + "Try to use DATE_DIFF with a less precise unit."
-            )
-        );
+        assertThat(e.getMessage(), containsString("[300000000000] out of [integer] range"));
     }
 
     public void testDateDiffFunctionErrorUnitNotValid() {
-        InvalidArgumentException e = expectThrows(InvalidArgumentException.class, () -> DateDiff.process(new BytesRef("sseconds"), 0, 0));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateDiff.process(new BytesRef("sseconds"), 0, 0));
         assertThat(
             e.getMessage(),
             containsString(
@@ -144,7 +175,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        e = expectThrows(InvalidArgumentException.class, () -> DateDiff.process(new BytesRef("not-valid-unit"), 0, 0));
+        e = expectThrows(IllegalArgumentException.class, () -> DateDiff.process(new BytesRef("not-valid-unit"), 0, 0));
         assertThat(
             e.getMessage(),
             containsString(
@@ -157,15 +188,5 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new DateDiff(source, args.get(0), args.get(1), args.get(2));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(DataTypes.DATETIME), required(DataTypes.DATETIME));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.INTEGER;
     }
 }

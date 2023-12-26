@@ -7,10 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -26,10 +23,10 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateDiff}.
  * This class is generated. Do not edit it.
  */
-public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
-  private final EvalOperator.ExpressionEvaluator unit;
+  private final DateDiff.Part datePartFieldUnit;
 
   private final EvalOperator.ExpressionEvaluator startTimestamp;
 
@@ -37,11 +34,11 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
 
   private final DriverContext driverContext;
 
-  public DateDiffEvaluator(Source source, EvalOperator.ExpressionEvaluator unit,
+  public DateDiffConstantEvaluator(Source source, DateDiff.Part datePartFieldUnit,
       EvalOperator.ExpressionEvaluator startTimestamp,
       EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
     this.warnings = new Warnings(source);
-    this.unit = unit;
+    this.datePartFieldUnit = datePartFieldUnit;
     this.startTimestamp = startTimestamp;
     this.endTimestamp = endTimestamp;
     this.driverContext = driverContext;
@@ -49,43 +46,25 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock unitBlock = (BytesRefBlock) unit.eval(page)) {
-      try (LongBlock startTimestampBlock = (LongBlock) startTimestamp.eval(page)) {
-        try (LongBlock endTimestampBlock = (LongBlock) endTimestamp.eval(page)) {
-          BytesRefVector unitVector = unitBlock.asVector();
-          if (unitVector == null) {
-            return eval(page.getPositionCount(), unitBlock, startTimestampBlock, endTimestampBlock);
-          }
-          LongVector startTimestampVector = startTimestampBlock.asVector();
-          if (startTimestampVector == null) {
-            return eval(page.getPositionCount(), unitBlock, startTimestampBlock, endTimestampBlock);
-          }
-          LongVector endTimestampVector = endTimestampBlock.asVector();
-          if (endTimestampVector == null) {
-            return eval(page.getPositionCount(), unitBlock, startTimestampBlock, endTimestampBlock);
-          }
-          return eval(page.getPositionCount(), unitVector, startTimestampVector, endTimestampVector);
+    try (LongBlock startTimestampBlock = (LongBlock) startTimestamp.eval(page)) {
+      try (LongBlock endTimestampBlock = (LongBlock) endTimestamp.eval(page)) {
+        LongVector startTimestampVector = startTimestampBlock.asVector();
+        if (startTimestampVector == null) {
+          return eval(page.getPositionCount(), startTimestampBlock, endTimestampBlock);
         }
+        LongVector endTimestampVector = endTimestampBlock.asVector();
+        if (endTimestampVector == null) {
+          return eval(page.getPositionCount(), startTimestampBlock, endTimestampBlock);
+        }
+        return eval(page.getPositionCount(), startTimestampVector, endTimestampVector);
       }
     }
   }
 
-  public IntBlock eval(int positionCount, BytesRefBlock unitBlock, LongBlock startTimestampBlock,
+  public IntBlock eval(int positionCount, LongBlock startTimestampBlock,
       LongBlock endTimestampBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (unitBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (unitBlock.getValueCount(p) != 1) {
-          if (unitBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
         if (startTimestampBlock.isNull(p)) {
           result.appendNull();
           continue position;
@@ -109,7 +88,7 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
           continue position;
         }
         try {
-          result.appendInt(DateDiff.process(unitBlock.getBytesRef(unitBlock.getFirstValueIndex(p), unitScratch), startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.process(datePartFieldUnit, startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -119,13 +98,12 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
     }
   }
 
-  public IntBlock eval(int positionCount, BytesRefVector unitVector,
-      LongVector startTimestampVector, LongVector endTimestampVector) {
+  public IntBlock eval(int positionCount, LongVector startTimestampVector,
+      LongVector endTimestampVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendInt(DateDiff.process(unitVector.getBytesRef(p, unitScratch), startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
+          result.appendInt(DateDiff.process(datePartFieldUnit, startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -137,40 +115,40 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
 
   @Override
   public String toString() {
-    return "DateDiffEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+    return "DateDiffConstantEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(unit, startTimestamp, endTimestamp);
+    Releasables.closeExpectNoException(startTimestamp, endTimestamp);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory unit;
+    private final DateDiff.Part datePartFieldUnit;
 
     private final EvalOperator.ExpressionEvaluator.Factory startTimestamp;
 
     private final EvalOperator.ExpressionEvaluator.Factory endTimestamp;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory unit,
+    public Factory(Source source, DateDiff.Part datePartFieldUnit,
         EvalOperator.ExpressionEvaluator.Factory startTimestamp,
         EvalOperator.ExpressionEvaluator.Factory endTimestamp) {
       this.source = source;
-      this.unit = unit;
+      this.datePartFieldUnit = datePartFieldUnit;
       this.startTimestamp = startTimestamp;
       this.endTimestamp = endTimestamp;
     }
 
     @Override
-    public DateDiffEvaluator get(DriverContext context) {
-      return new DateDiffEvaluator(source, unit.get(context), startTimestamp.get(context), endTimestamp.get(context), context);
+    public DateDiffConstantEvaluator get(DriverContext context) {
+      return new DateDiffConstantEvaluator(source, datePartFieldUnit, startTimestamp.get(context), endTimestamp.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "DateDiffEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+      return "DateDiffConstantEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
     }
   }
 }

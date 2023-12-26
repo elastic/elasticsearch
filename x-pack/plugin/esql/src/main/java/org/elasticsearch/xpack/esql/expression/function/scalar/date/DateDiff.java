@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.date.DateTimeField;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -28,7 +31,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -39,6 +44,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
 
 /**
  * Subtract the second argument from the third argument and return their difference
@@ -53,32 +59,30 @@ public class DateDiff extends ScalarFunction implements OptionalArgument, Evalua
     private final Expression startTimestamp;
     private final Expression endTimestamp;
 
+    /**
+     * Represents units that can be used for DATE_DIFF function and how the difference
+     * between 2 dates is calculated
+     */
     public enum Part implements DateTimeField {
 
         YEAR((start, end) -> end.getYear() - start.getYear(), "years", "yyyy", "yy"),
-        QUARTER((start, end) -> safeInt(IsoFields.QUARTER_YEARS.between(start, end)), "quarters", "qq", "q"),
-        MONTH((start, end) -> safeInt(ChronoUnit.MONTHS.between(start, end)), "months", "mm", "m"),
-        DAYOFYEAR((start, end) -> safeInt(ChronoUnit.DAYS.between(start, end)), "dy", "y"),
+        QUARTER((start, end) -> safeToInt(IsoFields.QUARTER_YEARS.between(start, end)), "quarters", "qq", "q"),
+        MONTH((start, end) -> safeToInt(ChronoUnit.MONTHS.between(start, end)), "months", "mm", "m"),
+        DAYOFYEAR((start, end) -> safeToInt(ChronoUnit.DAYS.between(start, end)), "dy", "y"),
         DAY(DAYOFYEAR::diff, "days", "dd", "d"),
-        WEEK((start, end) -> safeInt(ChronoUnit.WEEKS.between(start, end)), "weeks", "wk", "ww"),
+        WEEK((start, end) -> safeToInt(ChronoUnit.WEEKS.between(start, end)), "weeks", "wk", "ww"),
         WEEKDAY(DAYOFYEAR::diff, "weekdays", "dw"),
-        HOUR((start, end) -> safeInt(ChronoUnit.HOURS.between(start, end)), "hours", "hh"),
-        MINUTE((start, end) -> safeInt(ChronoUnit.MINUTES.between(start, end)), "minutes", "mi", "n"),
-        SECOND((start, end) -> safeInt(ChronoUnit.SECONDS.between(start, end)), "seconds", "ss", "s"),
-        MILLISECOND((start, end) -> safeInt(ChronoUnit.MILLIS.between(start, end)), "milliseconds", "ms"),
-        MICROSECOND((start, end) -> safeInt(ChronoUnit.MICROS.between(start, end)), "microseconds", "mcs"),
-        NANOSECOND((start, end) -> safeInt(ChronoUnit.NANOS.between(start, end)), "nanoseconds", "ns");
+        HOUR((start, end) -> safeToInt(ChronoUnit.HOURS.between(start, end)), "hours", "hh"),
+        MINUTE((start, end) -> safeToInt(ChronoUnit.MINUTES.between(start, end)), "minutes", "mi", "n"),
+        SECOND((start, end) -> safeToInt(ChronoUnit.SECONDS.between(start, end)), "seconds", "ss", "s"),
+        MILLISECOND((start, end) -> safeToInt(ChronoUnit.MILLIS.between(start, end)), "milliseconds", "ms"),
+        MICROSECOND((start, end) -> safeToInt(ChronoUnit.MICROS.between(start, end)), "microseconds", "mcs"),
+        NANOSECOND((start, end) -> safeToInt(ChronoUnit.NANOS.between(start, end)), "nanoseconds", "ns");
 
-        private static final Map<String, Part> NAME_TO_PART;
-        private static final List<String> VALID_VALUES;
+        private static final Map<String, Part> NAME_TO_PART = DateTimeField.initializeResolutionMap(values());
 
-        static {
-            NAME_TO_PART = DateTimeField.initializeResolutionMap(values());
-            VALID_VALUES = DateTimeField.initializeValidValues(values());
-        }
-
-        private BiFunction<ZonedDateTime, ZonedDateTime, Integer> diffFunction;
-        private Set<String> aliases;
+        private final BiFunction<ZonedDateTime, ZonedDateTime, Integer> diffFunction;
+        private final Set<String> aliases;
 
         Part(BiFunction<ZonedDateTime, ZonedDateTime, Integer> diffFunction, String... aliases) {
             this.diffFunction = diffFunction;
@@ -94,37 +98,44 @@ public class DateDiff extends ScalarFunction implements OptionalArgument, Evalua
             return aliases;
         }
 
-        private static int safeInt(long diff) {
-            if (diff > Integer.MAX_VALUE || diff < Integer.MIN_VALUE) {
-                throw new InvalidArgumentException(
-                    "The DATE_DIFF function resulted in an overflow; the number of units "
-                        + "separating two date/datetime instances is too large. Try to use DATE_DIFF with a less precise unit."
-                );
-            } else {
-                return Long.valueOf(diff).intValue();
-            }
-        }
-
-        public static List<String> findSimilar(String match) {
-            return DateTimeField.findSimilar(NAME_TO_PART.keySet(), match);
-        }
-
         public static Part resolve(String dateTimeUnit) {
-            return DateTimeField.resolveMatch(NAME_TO_PART, dateTimeUnit);
+            Part datePartField = DateTimeField.resolveMatch(NAME_TO_PART, dateTimeUnit);
+            if (datePartField == null) {
+                List<String> similar = DateTimeField.findSimilar(NAME_TO_PART.keySet(), dateTimeUnit);
+                String errorMessage = String.format(
+                    Locale.ROOT,
+                    "A value of %s or their aliases is required; received [%s]",
+                    Arrays.asList(Part.values()),
+                    dateTimeUnit
+                );
+                if (similar.isEmpty() == false) {
+                    errorMessage = String.format(
+                        Locale.ROOT,
+                        "Received value [%s] is not valid date part to add; did you mean %s?",
+                        dateTimeUnit,
+                        similar
+                    );
+                }
+                throw new IllegalArgumentException(errorMessage);
+            }
+
+            return datePartField;
         }
     }
 
-    @FunctionInfo(returnType = "integer",
-        description = "Subtract 2 dates and return their difference in multiples of a unit specified in the 1st argument")
+    @FunctionInfo(
+        returnType = "integer",
+        description = "Subtract 2 dates and return their difference in multiples of a unit specified in the 1st argument"
+    )
     public DateDiff(
         Source source,
-        @Param(name = "unit", type = { "text" }, description = "A valid date unit") Expression unit,
+        @Param(name = "unit", type = { "keyword", "text" }, description = "A valid date unit") Expression unit,
         @Param(
             name = "startTimestamp",
             type = { "date" },
             description = "A string representing a start timestamp"
         ) Expression startTimestamp,
-        @Param(name = "endTimestamp", type = { "date" }, description = "A string representing a end timestamp") Expression endTimestamp
+        @Param(name = "endTimestamp", type = { "date" }, description = "A string representing an end timestamp") Expression endTimestamp
     ) {
         super(source, List.of(unit, startTimestamp, endTimestamp));
         this.unit = unit;
@@ -132,39 +143,32 @@ public class DateDiff extends ScalarFunction implements OptionalArgument, Evalua
         this.endTimestamp = endTimestamp;
     }
 
-    @Evaluator
-    static int process(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+    @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int process(@Fixed Part datePartFieldUnit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestamp), UTC);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), UTC);
+        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+    }
 
-        Part datePartField = Part.resolve(unit.utf8ToString());
-        if (datePartField == null) {
-            List<String> similar = Part.findSimilar(unit.utf8ToString());
-            if (similar.isEmpty()) {
-                throw new InvalidArgumentException(
-                    "A value of {} or their aliases is required; received [{}]",
-                    Part.values(),
-                    unit.utf8ToString()
-                );
-            } else {
-                throw new InvalidArgumentException(
-                    "Received value [{}] is not valid date part to add; " + "did you mean {}?",
-                    unit.utf8ToString(),
-                    similar
-                );
-            }
-        }
-
-        Integer result = datePartField.diff(zdtStart, zdtEnd);
-
-        return result;
+    @Evaluator(warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
+    static int process(BytesRef unit, long startTimestamp, long endTimestamp) throws IllegalArgumentException {
+        return process(Part.resolve(unit.utf8ToString()), startTimestamp, endTimestamp);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        ExpressionEvaluator.Factory unitEvaluator = toEvaluator.apply(unit);
         ExpressionEvaluator.Factory startTimestampEvaluator = toEvaluator.apply(startTimestamp);
         ExpressionEvaluator.Factory endTimestampEvaluator = toEvaluator.apply(endTimestamp);
+
+        if (unit.foldable()) {
+            try {
+                Part datePartField = Part.resolve(((BytesRef) unit.fold()).utf8ToString());
+                return new DateDiffConstantEvaluator.Factory(source(), datePartField, startTimestampEvaluator, endTimestampEvaluator);
+            } catch (IllegalArgumentException e) {
+                throw new EsqlIllegalArgumentException(e, "invalid unit format for [{}]: {}", sourceText(), e.getMessage());
+            }
+        }
+        ExpressionEvaluator.Factory unitEvaluator = toEvaluator.apply(unit);
         return new DateDiffEvaluator.Factory(source(), unitEvaluator, startTimestampEvaluator, endTimestampEvaluator);
     }
 

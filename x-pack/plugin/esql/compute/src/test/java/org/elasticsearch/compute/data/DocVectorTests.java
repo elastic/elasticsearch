@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
@@ -163,6 +164,42 @@ public class DocVectorTests extends ComputeTestCase {
         );
         assertThat(docs.singleSegmentNonDecreasing(), is(false));
         docs.ramBytesUsed(); // ensure non-singleSegmentNonDecreasing handles nulls in ramByteUsed
+    }
+
+    public void testFilter() {
+        BlockFactory factory = blockFactory();
+        try (
+            DocVector docs = new DocVector(
+                factory.newConstantIntVector(0, 10),
+                factory.newConstantIntVector(0, 10),
+                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
+                false
+            );
+            DocVector filtered = docs.filter(1, 2, 3);
+            DocVector expected = new DocVector(
+                factory.newConstantIntVector(0, 3),
+                factory.newConstantIntVector(0, 3),
+                factory.newIntArrayVector(new int[] { 1, 2, 3 }, 3),
+                false
+            );
+        ) {
+            assertThat(filtered, equalTo(expected));
+        }
+    }
+
+    public void testFilterBreaks() {
+        BlockFactory factory = blockFactory(ByteSizeValue.ofBytes(between(160, 280)));
+        try (
+            DocVector docs = new DocVector(
+                factory.newConstantIntVector(0, 10),
+                factory.newConstantIntVector(0, 10),
+                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
+                false
+            )
+        ) {
+            Exception e = expectThrows(CircuitBreakingException.class, () -> docs.filter(1, 2, 3));
+            assertThat(e.getMessage(), equalTo("over test limit"));
+        }
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {

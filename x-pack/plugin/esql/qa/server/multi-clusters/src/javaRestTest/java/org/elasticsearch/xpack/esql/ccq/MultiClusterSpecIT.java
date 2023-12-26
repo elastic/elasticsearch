@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.ccq;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;

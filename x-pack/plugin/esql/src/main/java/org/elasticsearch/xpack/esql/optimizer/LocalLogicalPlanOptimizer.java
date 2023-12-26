@@ -172,19 +172,14 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             List<Attribute> output = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(agg), List.of());
             for (Attribute o : output) {
                 DataType dataType = o.dataType();
-                // look for count(literal) with literal != null
+                // boolean right now is used for the internal #seen so always return true
+                var value = dataType == DataTypes.BOOLEAN ? true
+                    // look for count(literal) with literal != null
+                    : aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null) ? 0L
+                    // otherwise nullify
+                    : null;
                 var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(dataType), 1);
-                // seen output
-                if (dataType == DataTypes.BOOLEAN) {
-                    wrapper.accept(true);
-                } else {
-                    if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
-                        wrapper.accept(0L);
-                    } else {
-                        // otherwise just put null
-                        wrapper.accept(null);
-                    }
-                }
+                wrapper.accept(value);
                 blocks.add(wrapper.builder().build());
             }
         }

@@ -11,6 +11,8 @@ package org.elasticsearch.action.admin.indices.resolve;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -158,14 +160,23 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
 
                     @Override
                     public void onFailure(Exception failure) {
+                        System.err.println("XXX DEBUG 1: failure: " + failure);
                         if (resolveClusterTask.isCancelled()) {
                             releaseResourcesOnCancel.run();
                             return;
                         }
                         if (notConnectedError(failure)) {
+                            System.err.println("XXX DEBUG 2");
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                        } else if (ExceptionsHelper.unwrap(failure, ElasticsearchSecurityException.class)
+                            instanceof ElasticsearchSecurityException ese) {
+                            System.err.println("XXX DEBUG 3");
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, ese.getMessage()));
                         } else {
+                            Throwable securityException = ExceptionsHelper.unwrap(failure, ElasticsearchSecurityException.class);
+
                             Throwable cause = ExceptionsHelper.unwrapCause(failure);
+                            System.err.println("XXX DEBUG 4: cause: " + cause);
                             // when querying an older cluster that does not have the _resolve/cluster endpoint,
                             // we will get this error at the Transport layer, since there are version guards
                             // on the Writeables for this Action.

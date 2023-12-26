@@ -814,9 +814,7 @@ public class LocalExecutionPlanner {
 
         @Override
         public String describe() {
-            StringBuilder sb = new StringBuilder();
-            sb.append(driverFactories.stream().map(DriverFactory::describe).collect(joining("\n")));
-            return sb.toString();
+            return driverFactories.stream().map(DriverFactory::describe).collect(joining("\n"));
         }
     }
 }

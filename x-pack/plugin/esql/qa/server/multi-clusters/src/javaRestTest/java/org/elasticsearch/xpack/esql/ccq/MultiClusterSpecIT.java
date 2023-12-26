@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.ccq;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -22,8 +23,11 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,6 +35,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * This suite loads the data into either the local cluster or the remote cluster, then run spec tests with CCQ.
+ * TODO: Some spec tests prevents us from splitting data across multiple shards/indices/clusters
+ */
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
@@ -59,34 +67,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase));
     }
 
-    static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
-        String oldQuery = testCase.query;
-        testCase.query = Fixtures.convertQueryToRemoteIndex(oldQuery);
-        int offset = testCase.query.length() - oldQuery.length();
-        if (offset != 0) {
-            final String pattern = "Line (\\d+):(\\d+):";
-            final Pattern regex = Pattern.compile(pattern);
-            testCase.adjustExpectedWarnings(warning -> {
-                Matcher matcher = regex.matcher(warning);
-                if (matcher.find()) {
-                    int line = Integer.parseInt(matcher.group(1));
-                    if (line == 1) {
-                        int position = Integer.parseInt(matcher.group(2));
-                        int newPosition = position + offset;
-                        return warning.replaceFirst(pattern, "Line " + line + ":" + newPosition + ":");
-                    }
-                }
-                return warning;
-            });
-        }
-        return testCase;
-    }
-
     @Override
     protected void shouldSkipTest(String testName) {
         super.shouldSkipTest(testName);
-        assumeFalse("CCQ doesn't support enrich yet", Fixtures.hasEnrich(testCase.query));
-        assumeFalse("can't test with _index metadata", Fixtures.hasIndexMetadata(testCase.query));
+        assumeFalse("CCQ doesn't support enrich yet", hasEnrich(testCase.query));
+        assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
     }
 
@@ -120,5 +105,60 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return null;
         }).when(twoClients).close();
         return twoClients;
+    }
+
+    static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
+        String query = testCase.query;
+        String[] commands = query.split("\\|");
+        String first = commands[0].trim();
+        if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
+            String[] parts = commands[0].split("\\[");
+            assert parts.length >= 1 : parts;
+            String fromStatement = parts[0];
+            String[] localIndices = fromStatement.substring("FROM ".length()).split(",");
+            String remoteIndices = Arrays.stream(localIndices)
+                .map(index -> "*:" + index.trim() + "," + index.trim())
+                .collect(Collectors.joining(","));
+            var newFrom = "FROM " + remoteIndices + commands[0].substring(fromStatement.length());
+            testCase.query = newFrom + " " + query.substring(first.length());
+        }
+        int offset = testCase.query.length() - query.length();
+        if (offset != 0) {
+            final String pattern = "Line (\\d+):(\\d+):";
+            final Pattern regex = Pattern.compile(pattern);
+            testCase.adjustExpectedWarnings(warning -> {
+                Matcher matcher = regex.matcher(warning);
+                if (matcher.find()) {
+                    int line = Integer.parseInt(matcher.group(1));
+                    if (line == 1) {
+                        int position = Integer.parseInt(matcher.group(2));
+                        int newPosition = position + offset;
+                        return warning.replaceFirst(pattern, "Line " + line + ":" + newPosition + ":");
+                    }
+                }
+                return warning;
+            });
+        }
+        return testCase;
+    }
+
+    static boolean hasEnrich(String query) {
+        String[] commands = query.split("\\|");
+        for (int i = 0; i < commands.length; i++) {
+            commands[i] = commands[i].trim();
+            if (commands[i].toLowerCase(Locale.ROOT).startsWith("enrich")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean hasIndexMetadata(String query) {
+        String[] commands = query.split("\\|");
+        if (commands[0].trim().toLowerCase(Locale.ROOT).startsWith("from")) {
+            String[] parts = commands[0].split("\\[");
+            return parts.length > 1 && parts[1].contains("_index");
+        }
+        return false;
     }
 }

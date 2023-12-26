@@ -13,10 +13,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -42,25 +40,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
-    private static boolean upgraded = false;
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
-
-    @Override
-    protected String getTestRestCluster() {
-        return localCluster.getHttpAddresses();
-    }
-
-    @Before
-    public void upgradeLocalCluster() throws Exception {
-        if (upgraded == false) {
-            upgraded = true;
-            closeClients();
-            localCluster.upgradeToVersion(Version.CURRENT);
-            initClient();
-        }
-    }
 
     public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase));
@@ -72,6 +54,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("CCQ doesn't support enrich yet", hasEnrich(testCase.query));
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return localCluster.getHttpAddresses();
     }
 
     @Override

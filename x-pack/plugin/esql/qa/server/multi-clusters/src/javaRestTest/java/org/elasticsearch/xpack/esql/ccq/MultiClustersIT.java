@@ -13,7 +13,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
@@ -39,17 +38,6 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
-    private static boolean upgraded = false;
-
-    @Before
-    public void upgradeLocalCluster() throws Exception {
-        if (upgraded == false) {
-            upgraded = true;
-            closeClients();
-            localCluster.upgradeToVersion(Version.CURRENT);
-            initClient();
-        }
-    }
 
     @Override
     protected String getTestRestCluster() {

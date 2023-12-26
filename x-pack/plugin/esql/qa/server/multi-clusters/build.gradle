@@ -6,15 +6,7 @@
  * Side Public License, v 1.
  */
 
-/*
- This qa module runs yaml and java against a local and a remote clusters connected via CCS.
- The local cluster is always on the current version, the remote cluster is tested for all wire-compatible versions
- that are also CCS compatible (i.e. all versions on the previous minor branch)
-*/
-
-
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 

@@ -28,7 +28,7 @@ public class Clusters {
         return ElasticsearchCluster.local()
             .name("local_cluster")
             .distribution(DistributionType.DEFAULT)
-            .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
+            .version(Version.CURRENT)
             .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")

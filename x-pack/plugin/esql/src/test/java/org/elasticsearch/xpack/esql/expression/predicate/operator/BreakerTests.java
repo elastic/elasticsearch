@@ -66,7 +66,6 @@ public class BreakerTests extends ESTestCase {
         EvalOperator.ExpressionEvaluator eval = AbstractFunctionTestCase.evaluator(expression).get(context);
         try (Block b = unlimited.blockFactory().newConstantNullBlock(1)) {
             Exception e = expectThrows(CircuitBreakingException.class, () -> eval.eval(new Page(b)));
-            e.printStackTrace();
             assertThat(e.getMessage(), equalTo("over test limit"));
         }
     }

@@ -227,10 +227,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
             }
+
             // check to make sure that the required step details are either all null or all set.
             final long maxNull;
             final Stream<String> conditions;
-            // step:ERROR is permitted with null phase,action
+
+            // step==ERROR allows phase,action to be set or null
             if (ErrorStep.NAME.equals(step)) {
                 maxNull = 2;
                 conditions = Stream.of(phase, action);
@@ -238,6 +240,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 maxNull = 3;
                 conditions = Stream.of(phase, action, step);
             }
+
             long numNull = conditions.filter(Objects::isNull).count();
             if (numNull > 0 && numNull < maxNull) {
                 throw new IllegalArgumentException(

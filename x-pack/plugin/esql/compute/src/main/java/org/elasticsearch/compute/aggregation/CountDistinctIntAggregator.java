@@ -35,7 +35,7 @@ public class CountDistinctIntAggregator {
 
     public static Block evaluateFinal(HllStates.SingleState state, DriverContext driverContext) {
         long result = state.cardinality();
-        return LongBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantLongBlockWith(result, 1);
     }
 
     public static HllStates.GroupingState initGrouping(BigArrays bigArrays, int precision) {

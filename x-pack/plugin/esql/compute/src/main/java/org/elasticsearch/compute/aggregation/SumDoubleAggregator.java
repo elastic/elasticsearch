@@ -59,7 +59,7 @@ class SumDoubleAggregator {
 
     public static Block evaluateFinal(SumState state, DriverContext driverContext) {
         double result = state.value();
-        return DoubleBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantDoubleBlockWith(result, 1);
     }
 
     public static GroupingSumState initGrouping(BigArrays bigArrays) {

@@ -224,12 +224,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
             int value = randomInt();
-            IntBlock block;
-            if (randomBoolean()) {
-                block = IntBlock.newConstantBlockWith(value, positionCount, blockFactory);
-            } else {
-                block = blockFactory.newConstantIntBlockWith(value, positionCount);
-            }
+            IntBlock block = blockFactory.newConstantIntBlockWith(value, positionCount);
             assertThat(positionCount, is(block.getPositionCount()));
             assertThat(value, is(block.getInt(0)));
             assertThat(value, is(block.getInt(positionCount - 1)));
@@ -295,12 +290,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
             long value = randomLong();
-            LongBlock block;
-            if (randomBoolean()) {
-                block = LongBlock.newConstantBlockWith(value, positionCount, blockFactory);
-            } else {
-                block = blockFactory.newConstantLongBlockWith(value, positionCount);
-            }
+            LongBlock block = blockFactory.newConstantLongBlockWith(value, positionCount);
             assertThat(positionCount, is(block.getPositionCount()));
             assertThat(value, is(block.getLong(0)));
             assertThat(value, is(block.getLong(positionCount - 1)));
@@ -369,12 +359,7 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);
             double value = randomDouble();
-            DoubleBlock block;
-            if (randomBoolean()) {
-                block = DoubleBlock.newConstantBlockWith(value, positionCount, blockFactory);
-            } else {
-                block = blockFactory.newConstantDoubleBlockWith(value, positionCount);
-            }
+            DoubleBlock block = blockFactory.newConstantDoubleBlockWith(value, positionCount);
             assertThat(positionCount, is(block.getPositionCount()));
             assertThat(value, is(block.getDouble(0)));
             assertThat(value, is(block.getDouble(positionCount - 1)));
@@ -496,12 +481,7 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);
             BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
-            BytesRefBlock block;
-            if (randomBoolean()) {
-                block = BytesRefBlock.newConstantBlockWith(value, positionCount, blockFactory);
-            } else {
-                block = blockFactory.newConstantBytesRefBlockWith(value, positionCount);
-            }
+            BytesRefBlock block = blockFactory.newConstantBytesRefBlockWith(value, positionCount);
             assertThat(block.getPositionCount(), is(positionCount));
 
             BytesRef bytes = new BytesRef();
@@ -572,12 +552,7 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);
             boolean value = randomBoolean();
-            BooleanBlock block;
-            if (randomBoolean()) {
-                block = BooleanBlock.newConstantBlockWith(value, positionCount, blockFactory);
-            } else {
-                block = blockFactory.newConstantBooleanBlockWith(value, positionCount);
-            }
+            BooleanBlock block = blockFactory.newConstantBooleanBlockWith(value, positionCount);
             assertThat(positionCount, is(block.getPositionCount()));
             assertThat(block.getBoolean(0), is(value));
             assertThat(block.getBoolean(positionCount - 1), is(value));

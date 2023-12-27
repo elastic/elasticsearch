@@ -119,7 +119,7 @@ public final class MaxLongAggregatorFunction implements AggregatorFunction {
       blocks[offset] = Block.constantNullBlock(1, driverContext.blockFactory());
       return;
     }
-    blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1, driverContext.blockFactory());
+    blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
   }
 
   @Override

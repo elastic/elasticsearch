@@ -267,7 +267,7 @@ public final class EvalMapper {
             public Block eval(Page page) {
                 try (Block fieldBlock = field.eval(page)) {
                     if (fieldBlock.asVector() != null) {
-                        return BooleanBlock.newConstantBlockWith(false, page.getPositionCount(), driverContext.blockFactory());
+                        return driverContext.blockFactory().newConstantBooleanBlockWith(false, page.getPositionCount());
                     }
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
@@ -316,7 +316,7 @@ public final class EvalMapper {
             public Block eval(Page page) {
                 try (Block fieldBlock = field.eval(page)) {
                     if (fieldBlock.asVector() != null) {
-                        return BooleanBlock.newConstantBlockWith(true, page.getPositionCount(), driverContext.blockFactory());
+                        return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
                     }
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {

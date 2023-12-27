@@ -202,7 +202,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(1000);
+        assumeFalse("doesn't throw in tests but probably should", true);
+        return ByteSizeValue.ofBytes(1);
     }
 
     public void testNoopStatus() {

@@ -875,10 +875,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             List<?> values = (List<?>) XContentMapValues.extractValue("fields.binary", hitRsp);
             assertEquals(1, values.size());
             byte[] binaryValue = switch (XContentType.fromMediaType(restResponse.getEntity().getContentType().getValue())) {
-                case JSON, YAML, VND_JSON, VND_YAML -> {
-                    String value = (String) values.get(0);
-                    yield Base64.getDecoder().decode(value);
-                }
+                case JSON, YAML, VND_JSON, VND_YAML -> Base64.getDecoder().decode((String) values.get(0));
                 case SMILE, CBOR, VND_SMILE, VND_CBOR -> (byte[]) values.get(0);
             };
             assertEquals("Unexpected binary length [" + Base64.getEncoder().encodeToString(binaryValue) + "]", 16, binaryValue.length);

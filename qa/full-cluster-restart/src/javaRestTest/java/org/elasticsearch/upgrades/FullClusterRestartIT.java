@@ -392,7 +392,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 mappingsAndSettings.field("number_of_shards", 1);
                 mappingsAndSettings.field("number_of_replicas", 0);
                 mappingsAndSettings.endObject();
-                mappingsAndSettings.endObject();
                 return mappingsAndSettings;
             });
             createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));

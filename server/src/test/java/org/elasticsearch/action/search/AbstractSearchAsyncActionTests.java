@@ -18,10 +18,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -194,7 +194,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 new IllegalArgumentException()
             );
         }
-        action.sendSearchResponse(InternalSearchResponse.EMPTY_WITH_TOTAL_HITS, phaseResults.results);
+        action.sendSearchResponse(
+            new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1),
+            phaseResults.results
+        );
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);

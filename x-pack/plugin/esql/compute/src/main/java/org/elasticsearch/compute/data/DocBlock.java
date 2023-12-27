@@ -71,11 +71,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
-    }
-
-    @Override
     public void closeInternal() {
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
@@ -84,8 +79,8 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     /**
      * A builder the for {@link DocBlock}.
      */
-    public static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return new Builder(estimatedSize, blockFactory);
+    public static Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+        return new Builder(blockFactory, estimatedSize);
     }
 
     public static class Builder implements Block.Builder {
@@ -93,10 +88,10 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
 
-        private Builder(int estimatedSize, BlockFactory blockFactory) {
-            shards = IntVector.newVectorBuilder(estimatedSize, blockFactory);
-            segments = IntVector.newVectorBuilder(estimatedSize, blockFactory);
-            docs = IntVector.newVectorBuilder(estimatedSize, blockFactory);
+        private Builder(BlockFactory blockFactory, int estimatedSize) {
+            shards = blockFactory.newIntVectorBuilder(estimatedSize);
+            segments = blockFactory.newIntVectorBuilder(estimatedSize);
+            docs = blockFactory.newIntVectorBuilder(estimatedSize);
         }
 
         public Builder appendShard(int shard) {

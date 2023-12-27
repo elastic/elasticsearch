@@ -36,7 +36,7 @@ public class FilterOperatorTests extends OperatorTestCase {
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
-            BooleanVector.FixedBuilder result = BooleanVector.newVectorFixedBuilder(page.getPositionCount(), context.blockFactory());
+            BooleanVector.FixedBuilder result = context.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount());
             for (int p = 0; p < page.getPositionCount(); p++) {
                 result.appendBoolean(lhsVector.getLong(p) % 10 == rhsVector.getLong(p) % 10);
             }

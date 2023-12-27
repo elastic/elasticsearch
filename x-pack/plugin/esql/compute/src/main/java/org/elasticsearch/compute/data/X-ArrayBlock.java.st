@@ -15,31 +15,25 @@ import org.elasticsearch.core.Releasables;
 
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
 $endif$
 import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of $type$.
+ * Block implementation that stores values in a {@link $Type$ArrayVector}.
+$if(BytesRef)$
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
+$endif$
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
+final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 
-$if(BytesRef)$
-    private final BytesRefArray values;
+    private final $Type$ArrayVector vector;
 
-$else$
-    private final $type$[] values;
-$endif$
-
-    public $Type$ArrayBlock($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public $Type$ArrayBlock(
+    $Type$ArrayBlock(
         $if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values,
         int positionCount,
         int[] firstValueIndexes,
@@ -48,7 +42,11 @@ $endif$
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        $if(BytesRef)$
+        this.vector = new BytesRefArrayVector(values, (int) values.size(), blockFactory);
+        $else$
+        this.vector = new $Type$ArrayVector(values, values.length, blockFactory);
+        $endif$
     }
 
     @Override
@@ -59,10 +57,10 @@ $endif$
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return values.get(valueIndex, dest);
+        return vector.getBytesRef(valueIndex, dest);
 $else$
     public $type$ get$Type$(int valueIndex) {
-        return values[valueIndex];
+        return vector.get$Type$(valueIndex);
 $endif$
     }
 
@@ -104,7 +102,7 @@ $endif$
             incRef();
             return this;
         }
-        // TODO use reference counting to share the values
+        // TODO use reference counting to share the vector
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$
@@ -128,14 +126,13 @@ $endif$
         }
     }
 
-    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    private long ramBytesUsedOnlyBlock() {
+        return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+        return ramBytesUsedOnlyBlock() + vector.ramBytesUsed();
     }
 
     @Override
@@ -158,23 +155,20 @@ $endif$
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-$if(BytesRef)$
-            + ", values="
-            + values.size()
-$else$
-            + ", values="
-            + Arrays.toString(values)
-$endif$
+            + ", vector="
+            + vector
             + ']';
     }
 
     @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
     public void closeInternal() {
-    $if(BytesRef)$
-        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
-        Releasables.closeExpectNoException(values);
-    $else$
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
-    $endif$
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        Releasables.closeExpectNoException(vector);
     }
 }

@@ -13,7 +13,10 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -84,6 +87,29 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("model"), is("model"));
     }
 
+    public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
+        var request = createRequest(null, null, "secret", "abcd", "model", null);
+        var truncatedRequest = request.truncate();
+        assertThat(request.getURI().toString(), is(buildDefaultUri().toString()));
+
+        var httpRequest = truncatedRequest.createRequest();
+        assertThat(httpRequest, instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest;
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap, aMapWithSize(2));
+        assertThat(requestMap.get("input"), is(List.of("ab")));
+        assertThat(requestMap.get("model"), is("model"));
+    }
+
+    public void testIsTruncated_ReturnsTrue() throws URISyntaxException, IOException {
+        var request = createRequest(null, null, "secret", "abcd", "model", null);
+        assertFalse(request.getTruncationInfo()[0]);
+
+        var truncatedRequest = request.truncate();
+        assertTrue(truncatedRequest.getTruncationInfo()[0]);
+    }
+
     public static OpenAiEmbeddingsRequest createRequest(
         @Nullable String url,
         @Nullable String org,
@@ -95,8 +121,12 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         var uri = url == null ? null : new URI(url);
 
         var account = new OpenAiAccount(uri, org, new SecureString(apiKey.toCharArray()));
-        var entity = new OpenAiEmbeddingsRequestEntity(List.of(input), model, user);
 
-        return new OpenAiEmbeddingsRequest(account, entity);
+        return new OpenAiEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            account,
+            new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            new OpenAiEmbeddingsTaskSettings(model, user)
+        );
     }
 }

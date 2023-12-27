@@ -61,6 +61,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -150,9 +151,22 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 hosts,
                 os
             );
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
-            restTestExecutionContext = createRestTestExecutionContext(testCandidate, clientYamlTestClient);
-            adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts);
+            restTestExecutionContext = createRestTestExecutionContext(
+                testCandidate,
+                clientYamlTestClient,
+                esVersion,
+                ESRestTestCase::clusterHasFeature,
+                os
+            );
+            adminExecutionContext = new ClientYamlTestExecutionContext(
+                testCandidate,
+                clientYamlTestClient,
+                false,
+                esVersion,
+                ESRestTestCase::clusterHasFeature,
+                os
+            );
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (final String entry : blacklist) {
@@ -178,20 +192,27 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient
+        ClientYamlTestClient clientYamlTestClient,
+        final Version esVersion,
+        final Predicate<String> clusterFeaturesPredicate,
+        final String os
     ) {
-        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType());
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            esVersion,
+            clusterFeaturesPredicate,
+            os
+        );
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
-        final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os
+        final List<HttpHost> hosts
     ) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
+        return new ClientYamlTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -410,7 +431,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    String readOsFromNodesInfo(RestClient restClient) throws IOException {
+    static String readOsFromNodesInfo(RestClient restClient) throws IOException {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);

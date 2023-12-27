@@ -69,7 +69,6 @@ public class AggregatorImplementer {
     private final ExecutableElement init;
     private final ExecutableElement combine;
     private final ExecutableElement combineValueCount;
-    private final ExecutableElement combineStates;
     private final ExecutableElement combineIntermediate;
     private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
@@ -95,7 +94,6 @@ public class AggregatorImplementer {
             return firstParamType.isPrimitive() || firstParamType.toString().equals(stateType.toString());
         });
         this.combineValueCount = findMethod(declarationType, "combineValueCount");
-        this.combineStates = findMethod(declarationType, "combineStates");
         this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
 
@@ -399,34 +397,30 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
         builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
-        builder.addStatement("Block uncastBlock = page.getBlock(channels.get(0))");
-        builder.beginControlFlow("if (uncastBlock.areAllValuesNull())");
-        {
-            builder.addStatement("return");
-            builder.endControlFlow();
-        }
-        int count = 0;
-        for (var interState : intermediateState) {
+        for (int i = 0; i < intermediateState.size(); i++) {
+            var interState = intermediateState.get(i);
+            ClassName blockType = blockType(interState.elementType());
+            builder.addStatement("Block $L = page.getBlock(channels.get($L))", interState.name + "Uncast", i);
+            builder.beginControlFlow("if ($L.areAllValuesNull())", interState.name + "Uncast");
+            {
+                builder.addStatement("return");
+                builder.endControlFlow();
+            }
             builder.addStatement(
-                "$T " + interState.name() + " = page.<$T>getBlock(channels.get(" + count + ")).asVector()",
+                "$T $L = (($T) $L).asVector()",
                 vectorType(interState.elementType()),
-                blockType(interState.elementType())
+                interState.name(),
+                blockType,
+                interState.name() + "Uncast"
             );
-            count++;
+            builder.addStatement("assert $L.getPositionCount() == 1", interState.name());
         }
-        final String first = intermediateState.get(0).name();
-        builder.addStatement("assert " + first + ".getPositionCount() == 1");
-        if (intermediateState.size() > 1) {
-            builder.addStatement(
-                "assert "
-                    + intermediateState.stream()
-                        .map(IntermediateStateDesc::name)
-                        .skip(1)
-                        .map(s -> first + ".getPositionCount() == " + s + ".getPositionCount()")
-                        .collect(joining(" && "))
-            );
-        }
-        if (hasPrimitiveState()) {
+        if (combineIntermediate != null) {
+            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
+                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+            }
+            builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
+        } else if (hasPrimitiveState()) {
             assert intermediateState.size() == 2;
             assert intermediateState.get(1).name().equals("seen");
             builder.beginControlFlow("if (seen.getBoolean(0))");
@@ -438,10 +432,7 @@ public class AggregatorImplementer {
                 builder.endControlFlow();
             }
         } else {
-            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
-                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
-            }
-            builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
+            throw new IllegalArgumentException("Don't know how to combine intermediate input. Define combineIntermediate");
         }
         return builder.build();
     }
@@ -468,7 +459,7 @@ public class AggregatorImplementer {
                 return "doubleValue";
             default:
                 throw new IllegalArgumentException(
-                    "don't know how to fetch primitive values from " + stateType + ". define combineStates."
+                    "don't know how to fetch primitive values from " + stateType + ". define combineIntermediate."
                 );
         }
     }
@@ -508,22 +499,13 @@ public class AggregatorImplementer {
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
             case "org.elasticsearch.compute.aggregation.IntState":
-                builder.addStatement(
-                    "blocks[offset] = $T.newConstantBlockWith(state.intValue(), 1, driverContext.blockFactory())",
-                    INT_BLOCK
-                );
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1)");
                 return;
             case "org.elasticsearch.compute.aggregation.LongState":
-                builder.addStatement(
-                    "blocks[offset] = $T.newConstantBlockWith(state.longValue(), 1, driverContext.blockFactory())",
-                    LONG_BLOCK
-                );
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1)");
                 return;
             case "org.elasticsearch.compute.aggregation.DoubleState":
-                builder.addStatement(
-                    "blocks[offset] = $T.newConstantBlockWith(state.doubleValue(), 1, driverContext.blockFactory())",
-                    DOUBLE_BLOCK
-                );
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(state.doubleValue(), 1)");
                 return;
             default:
                 throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);

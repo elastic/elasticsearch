@@ -173,7 +173,21 @@ public final class DocVector extends AbstractVector implements Vector {
 
     @Override
     public DocVector filter(int... positions) {
-        return new DocVector(shards.filter(positions), segments.filter(positions), docs.filter(positions), null);
+        IntVector filteredShards = null;
+        IntVector filteredSegments = null;
+        IntVector filteredDocs = null;
+        DocVector result = null;
+        try {
+            filteredShards = shards.filter(positions);
+            filteredSegments = segments.filter(positions);
+            filteredDocs = docs.filter(positions);
+            result = new DocVector(filteredShards, filteredSegments, filteredDocs, null);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(filteredShards, filteredSegments, filteredDocs);
+            }
+        }
     }
 
     @Override

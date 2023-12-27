@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -96,23 +97,21 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         SearchContext ctx = mockSearchContext(reader);
-        SearchExecutionContext ectx = mock(SearchExecutionContext.class);
-        when(ctx.getSearchExecutionContext()).thenReturn(ectx);
-        when(ectx.getFieldType(anyString())).thenAnswer(inv -> {
+        when(ctx.getSearchExecutionContext().getFieldType(anyString())).thenAnswer(inv -> {
             String name = inv.getArgument(0);
             return switch (name) {
                 case "s" -> S_FIELD;
                 default -> throw new IllegalArgumentException("don't support [" + name + "]");
             };
         });
-        when(ectx.getForField(any(), any())).thenAnswer(inv -> {
+        when(ctx.getSearchExecutionContext().getForField(any(), any())).thenAnswer(inv -> {
             MappedFieldType ft = inv.getArgument(0);
             IndexFieldData.Builder builder = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"));
             return builder.build(new IndexFieldDataCache.None(), bigArrays.breakerService());
         });
-        when(ectx.nestedScope()).thenReturn(new NestedScope());
-        when(ectx.nestedLookup()).thenReturn(NestedLookup.EMPTY);
-        when(ectx.getIndexReader()).thenReturn(reader);
+        when(ctx.getSearchExecutionContext().nestedScope()).thenReturn(new NestedScope());
+        when(ctx.getSearchExecutionContext().nestedLookup()).thenReturn(NestedLookup.EMPTY);
+        when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
         Function<SearchContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
         return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit);
@@ -216,6 +215,10 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             );
             SearchContext searchContext = mock(SearchContext.class);
             when(searchContext.searcher()).thenReturn(searcher);
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchContext.getSearchExecutionContext()).thenReturn(searchExecutionContext);
+            when(searchExecutionContext.getFullyQualifiedIndex()).thenReturn(new Index("test", "uid"));
+            when(searchExecutionContext.getShardId()).thenReturn(0);
             return searchContext;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

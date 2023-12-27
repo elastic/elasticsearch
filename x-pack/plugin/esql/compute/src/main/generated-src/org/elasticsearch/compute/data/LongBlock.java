@@ -177,15 +177,6 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     }
 
     /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantLongBlockWith}
-     */
-    @Deprecated
-    static LongBlock newConstantBlockWith(long value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantLongBlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link LongBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.LongBuilder permits LongBlockBuilder {

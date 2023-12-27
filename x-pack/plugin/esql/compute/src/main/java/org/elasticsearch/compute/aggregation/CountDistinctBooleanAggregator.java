@@ -33,10 +33,6 @@ public class CountDistinctBooleanAggregator {
         current.bits |= v ? BIT_TRUE : BIT_FALSE;
     }
 
-    public static void combineStates(SingleState current, SingleState state) {
-        current.bits |= state.bits;
-    }
-
     public static void combineIntermediate(SingleState current, boolean fbit, boolean tbit) {
         if (fbit) current.bits |= BIT_FALSE;
         if (tbit) current.bits |= BIT_TRUE;
@@ -44,7 +40,7 @@ public class CountDistinctBooleanAggregator {
 
     public static Block evaluateFinal(SingleState state, DriverContext driverContext) {
         long result = ((state.bits & BIT_TRUE) >> 1) + (state.bits & BIT_FALSE);
-        return LongBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantLongBlockWith(result, 1);
     }
 
     public static GroupingState initGrouping(BigArrays bigArrays) {

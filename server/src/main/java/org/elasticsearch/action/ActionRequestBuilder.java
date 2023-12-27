@@ -48,13 +48,6 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
         return execute().actionGet(timeout);
     }
 
-    /**
-     * Short version of execute().actionGet().
-     */
-    public Response get(String timeout) {
-        return execute().actionGet(timeout);
-    }
-
     public void execute(ActionListener<Response> listener) {
         client.execute(action, request, listener);
     }

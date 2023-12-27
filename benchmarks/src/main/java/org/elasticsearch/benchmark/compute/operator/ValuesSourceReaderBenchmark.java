@@ -31,6 +31,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -111,11 +112,11 @@ public class ValuesSourceReaderBenchmark {
     private static List<ValuesSourceReaderOperator.FieldInfo> fields(String name) {
         return switch (name) {
             case "3_stored_keywords" -> List.of(
-                new ValuesSourceReaderOperator.FieldInfo("keyword_1", List.of(blockLoader("stored_keyword_1"))),
-                new ValuesSourceReaderOperator.FieldInfo("keyword_2", List.of(blockLoader("stored_keyword_2"))),
-                new ValuesSourceReaderOperator.FieldInfo("keyword_3", List.of(blockLoader("stored_keyword_3")))
+                new ValuesSourceReaderOperator.FieldInfo("keyword_1", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_1")),
+                new ValuesSourceReaderOperator.FieldInfo("keyword_2", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_2")),
+                new ValuesSourceReaderOperator.FieldInfo("keyword_3", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_3"))
             );
-            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader(name))));
+            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType(name), shardIdx -> blockLoader(name)));
         };
     }
 
@@ -123,6 +124,26 @@ public class ValuesSourceReaderBenchmark {
         DOC_VALUES,
         SOURCE,
         STORED;
+    }
+
+    private static ElementType elementType(String name) {
+        if (name.startsWith("stored_")) {
+            name = name.substring("stored_".length());
+        } else if (name.startsWith("source_")) {
+            name = name.substring("source_".length());
+        }
+        switch (name) {
+            case "long":
+                return ElementType.LONG;
+            case "int":
+                return ElementType.INT;
+            case "double":
+                return ElementType.DOUBLE;
+        }
+        if (name.startsWith("keyword")) {
+            return ElementType.BYTES_REF;
+        }
+        throw new UnsupportedOperationException("no element type for [" + name + "]");
     }
 
     private static BlockLoader blockLoader(String name) {

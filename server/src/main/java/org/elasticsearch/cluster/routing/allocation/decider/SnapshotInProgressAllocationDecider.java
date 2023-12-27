@@ -104,6 +104,10 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                 if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
                     && snapshotsInProgress.isNodeIdForRemoval(shardRouting.currentNodeId())) {
                     // this shard snapshot is paused pending the removal of its assigned node
+                    //
+                    // NB we check isNodeIdForRemoval() too because if the node was marked for removal and then that mark was removed then
+                    // the shard can still be PAUSED_FOR_NODE_REMOVAL while there are other shards on the node which haven't finished
+                    // pausing yet. In that case the shard is about to go back into INIT state again so we should keep it where it is.
                     continue;
                 }
 

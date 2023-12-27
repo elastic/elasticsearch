@@ -42,10 +42,6 @@ class SumDoubleAggregator {
         current.add(value, delta);
     }
 
-    public static void combineStates(SumState current, SumState state) {
-        current.add(state.value(), state.delta());
-    }
-
     public static void combineIntermediate(SumState state, double inValue, double inDelta, boolean seen) {
         if (seen) {
             combine(state, inValue, inDelta);

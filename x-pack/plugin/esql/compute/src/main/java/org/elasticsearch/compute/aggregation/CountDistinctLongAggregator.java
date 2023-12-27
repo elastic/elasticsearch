@@ -29,10 +29,6 @@ public class CountDistinctLongAggregator {
         current.collect(v);
     }
 
-    public static void combineStates(HllStates.SingleState current, HllStates.SingleState state) {
-        current.merge(0, state.hll, 0);
-    }
-
     public static void combineIntermediate(HllStates.SingleState current, BytesRef inValue) {
         current.merge(0, inValue, 0);
     }

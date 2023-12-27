@@ -18,18 +18,13 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
 }
 
-def ccsSupportedVersion = bwcVersion -> {
+def supportedVersion = bwcVersion -> {
+  // This test is less restricted than the actual CCS compatibility matrix that we are supporting.
   // CCQ is available on 8.13 or later
-  if (bwcVersion.before(Version.fromString("8.13.0"))) {
-    return false;
-  }
-  def currentVersion = Version.fromString(project.version)
-  // in case the current version is the first in a new major series, all wire compatible versions (i.e. last minor of previous major)
-  // are CCS compatible
-  return currentVersion.minor == 0 || (currentVersion.major == bwcVersion.major && currentVersion.minor - bwcVersion.minor <= 1)
+  return bwcVersion.onOrAfter(Version.fromString("8.13.0"));
 }
 
-BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

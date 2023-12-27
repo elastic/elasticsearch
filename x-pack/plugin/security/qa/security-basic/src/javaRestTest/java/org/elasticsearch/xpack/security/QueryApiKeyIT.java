@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
@@ -43,10 +45,12 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     private static final String API_KEY_ADMIN_AUTH_HEADER = "Basic YXBpX2tleV9hZG1pbjpzZWN1cml0eS10ZXN0LXBhc3N3b3Jk";
     private static final String API_KEY_USER_AUTH_HEADER = "Basic YXBpX2tleV91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
     private static final String TEST_USER_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
+    private static final String SYSTEM_WRITE_ROLE_NAME = "system_write";
+    private static final String SUPERUSER_WITH_SYSTEM_WRITE = "superuser_with_system_write";
 
     public void testQuery() throws IOException {
         createApiKeys();
-        createUser("someone");
+        createUser("someone", new String[0]);
 
         // Admin with manage_api_key can search for all keys
         assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
@@ -295,6 +299,40 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final Map<String, Object> responseMap2 = responseAsMap(response2);
         assertThat(responseMap2.get("total"), equalTo(total));
         assertThat(responseMap2.get("count"), equalTo(0));
+    }
+
+    public void testX() throws Exception {
+        final List<String> apiKeyIds = new ArrayList<>(5);
+        apiKeyIds.add(createApiKey("k0", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        apiKeyIds.add(createApiKey("k1", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        apiKeyIds.add(createApiKey("k2", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        apiKeyIds.add(createApiKey("k3", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        apiKeyIds.add(createApiKey("k4", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
+            {"query": {"term": {"type": "rest" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
+        });
+
+        createSystemWriteRole();
+        createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
+
+        final Request request = new Request("PUT", "/.security/_doc/fake-" + randomAlphaOfLength(8));
+        request.setJsonEntity("{ \"enabled\": false }");
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(
+                    HttpHeaders.AUTHORIZATION,
+                    basicAuthHeaderValue(SUPERUSER_WITH_SYSTEM_WRITE, new SecureString("super-strong-password".toCharArray()))
+                )
+        );
+        expectWarnings(
+                request,
+                "this request accesses system indices: [.security-7],"
+                        + " but in a future major version, direct access to system indices will be prevented by default"
+        );
+        Response response = client().performRequest(request);
+        assertOK(response);
     }
 
     @SuppressWarnings("unchecked")
@@ -598,10 +636,37 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return tuple.v1();
     }
 
-    private void createUser(String name) throws IOException {
-        final Request request = new Request("POST", "/_security/user/" + name);
-        request.setJsonEntity("""
-            {"password":"super-strong-password","roles":[]}""");
-        assertOK(adminClient().performRequest(request));
+    private void createUser(String username, String[] roles) throws IOException {
+        final Request request = new Request("POST", "/_security/user/" + username);
+        Map<String, Object> body = Map.ofEntries(Map.entry("roles", roles), Map.entry("password", "super-strong-password".toString()));
+        request.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+    }
+
+    private void createSystemWriteRole() throws IOException {
+        final Request addRole = new Request("POST", "/_security/role/" + SYSTEM_WRITE_ROLE_NAME);
+        addRole.setJsonEntity("""
+            {
+              "indices": [
+                {
+                  "names": [ "*" ],
+                  "privileges": ["all"],
+                  "allow_restricted_indices" : true
+                }
+              ]
+            }""");
+        Response response = adminClient().performRequest(addRole);
+        assertOK(response);
+    }
+
+    private void expectWarnings(Request request, String... expectedWarnings) {
+        final Set<String> expected = Set.of(expectedWarnings);
+        RequestOptions options = request.getOptions().toBuilder().setWarningsHandler(warnings -> {
+            final Set<String> actual = Set.copyOf(warnings);
+            // Return true if the warnings aren't what we expected; the client will treat them as a fatal error.
+            return actual.equals(expected) == false;
+        }).build();
+        request.setOptions(options);
     }
 }

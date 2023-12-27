@@ -37,7 +37,7 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
     public static final String API_KEY_TYPE_RUNTIME_MAPPING_FIELD = "runtime_key_type";
     private static final Map<String, Object> API_KEY_TYPE_RUNTIME_MAPPING = Map.of(
         API_KEY_TYPE_RUNTIME_MAPPING_FIELD,
-        Map.of("type", "keyword", "script", Map.of("source", "emit(doc['type'].value ?: \"rest\");"))
+        Map.of("type", "keyword", "script", Map.of("source", "emit(doc['type'].empty ? \"rest\" : doc['type'].value);"))
     );
 
     private final ApiKeyService apiKeyService;

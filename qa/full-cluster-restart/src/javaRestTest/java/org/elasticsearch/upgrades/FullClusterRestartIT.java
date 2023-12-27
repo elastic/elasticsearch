@@ -736,7 +736,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             client().performRequest(
                 newXContentRequest(
                     HttpMethod.GET,
-                    "/" + index + "/_explain",
+                    "/" + index + "/_explain/" + id,
                     (builder, params) -> builder.startObject("query").startObject("match_all").endObject().endObject()
                 )
             )
@@ -860,9 +860,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                     (builder, params) -> builder.startObject("query")
                         .startObject("match_all")
                         .endObject()
+                        .endObject()
                         .field("size", 100)
                         .field("stored_fields", "binary")
-                        .endObject()
                 )
             )
         );

@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -307,62 +308,34 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         apiKeyIds.add(createApiKey("k1", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
         apiKeyIds.add(createApiKey("k2", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
         apiKeyIds.add(createApiKey("k3", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
-            {"query": {"term": {"type": "rest" }}}""", apiKeys -> {
-            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
-        });
-        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
-            {"query": {"prefix": {"type": "re" }}}""", apiKeys -> {
-            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
-        });
-        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
-            {"query": {"wildcard": {"type": "r*t" }}}""", apiKeys -> {
-            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
-        });
+        for (String query : List.of("""
+            {"query": {"term": {"type": "rest" }}}""", """
+            {"query": {"prefix": {"type": "re" }}}""", """
+            {"query": {"wildcard": {"type": "r*t" }}}""", """
+            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
+            assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
+                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
+            });
+        }
 
         createSystemWriteRole();
         createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
 
-        {
-            final Request request = new Request("POST", "/.security/_update_by_query?refresh=true&wait_for_completion=true");
-            request.setJsonEntity("""
-                {
-                  "script": {
-                    "source": "ctx._source.remove('type')",
-                    "lang": "painless"
-                  },
-                  "query": {
-                    "term": {
-                      "doc_type": "api_key"
-                    }
-                  }
-                }
-                """);
-            request.setOptions(
-                    request.getOptions()
-                            .toBuilder()
-                            .addHeader(
-                                    HttpHeaders.AUTHORIZATION,
-                                    basicAuthHeaderValue(SUPERUSER_WITH_SYSTEM_WRITE, new SecureString("super-strong-password".toCharArray()))
-                            )
-            );
-            expectWarnings(
-                    request,
-                    "this request accesses system indices: [.security-7],"
-                            + " but in a future major version, direct access to system indices will be prevented by default"
-            );
-            Response response = client().performRequest(request);
-            assertOK(response);
-        }
+        updateKeys("ctx._source.remove('type')", apiKeyIds);
+
         apiKeyIds.add(createApiKey("k4", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
         apiKeyIds.add(createApiKey("k5", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
         apiKeyIds.add(createApiKey("k6", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
 
-        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
-            {"query": {"term": {"type": "rest" }}}""", apiKeys -> {
-            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
-        });
-
+        for (String query : List.of("""
+            {"query": {"term": {"type": "rest" }}}""", """
+            {"query": {"prefix": {"type": "re" }}}""", """
+            {"query": {"wildcard": {"type": "r*t" }}}""", """
+            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
+            assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
+                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
+            });
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -698,5 +671,41 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             return actual.equals(expected) == false;
         }).build();
         request.setOptions(options);
+    }
+
+    private void updateKeys(String script, Collection<String> ids) throws IOException {
+        final Request request = new Request("POST", "/.security/_update_by_query?refresh=true&wait_for_completion=true");
+        request.setJsonEntity(Strings.format("""
+            {
+              "script": {
+                "source": "%s",
+                "lang": "painless"
+              },
+              "query": {
+                "bool": {
+                  "must": [
+                    {"term": {"doc_type": "api_key"}},
+                    {"term": {"type": "rest"}},
+                    {"ids": {"values": %s}}
+                  ]
+                }
+              }
+            }
+            """, script, ids.stream().map(id -> "\"" + id + "\"").collect(Collectors.toList())));
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(
+                    HttpHeaders.AUTHORIZATION,
+                    basicAuthHeaderValue(SUPERUSER_WITH_SYSTEM_WRITE, new SecureString("super-strong-password".toCharArray()))
+                )
+        );
+        expectWarnings(
+            request,
+            "this request accesses system indices: [.security-7],"
+                + " but in a future major version, direct access to system indices will be prevented by default"
+        );
+        Response response = client().performRequest(request);
+        assertOK(response);
     }
 }

@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -214,7 +215,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
             // The main purpose of this test is that actionGet() here will throw an exception
             // if any of the simultaneous calls returns an error due to interaction between
             // the many estimation processes that get run
-            ExplainDataFrameAnalyticsAction.Response current = future.actionGet(10000);
+            ExplainDataFrameAnalyticsAction.Response current = future.actionGet(10000, TimeUnit.MILLISECONDS);
             if (previous != null) {
                 // A secondary check the test can perform is that the multiple invocations
                 // return the same result (but it was failures due to unwanted interactions

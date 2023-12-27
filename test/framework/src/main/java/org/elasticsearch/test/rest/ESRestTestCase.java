@@ -2316,7 +2316,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         Response response = restClient.performRequest(request);
         assertOK(response);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
+        try (XContentParser parser = responseAsParser(response)) {
             return FieldCapabilitiesResponse.fromXContent(parser);
         }
     }

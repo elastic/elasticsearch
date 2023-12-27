@@ -33,10 +33,6 @@ public class CountDistinctBooleanAggregator {
         current.bits |= v ? BIT_TRUE : BIT_FALSE;
     }
 
-    public static void combineStates(SingleState current, SingleState state) {
-        current.bits |= state.bits;
-    }
-
     public static void combineIntermediate(SingleState current, boolean fbit, boolean tbit) {
         if (fbit) current.bits |= BIT_FALSE;
         if (tbit) current.bits |= BIT_TRUE;

@@ -59,7 +59,7 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try (IntVector.Builder builder = IntVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            try (IntVector.Builder builder = driverContext.blockFactory().newIntVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     builder.appendInt(values.get(selected.getInt(i)));
                 }

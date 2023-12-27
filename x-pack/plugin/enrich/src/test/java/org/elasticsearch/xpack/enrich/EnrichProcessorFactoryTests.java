@@ -28,7 +28,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
@@ -257,26 +256,26 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                     ActionListener<Response> listener
                 ) {
                     assert EnrichCoordinatorProxyAction.NAME.equals(action.name());
-                    var emptyResponse = new SearchResponse(
-                        new InternalSearchResponse(
+                    requestCounter[0]++;
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
                             new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
                             InternalAggregations.EMPTY,
                             new Suggest(Collections.emptyList()),
+                            false,
+                            false,
                             new SearchProfileResults(Collections.emptyMap()),
-                            false,
-                            false,
-                            1
-                        ),
-                        "",
-                        1,
-                        1,
-                        0,
-                        0,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
+                            1,
+                            "",
+                            1,
+                            1,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        )
                     );
-                    requestCounter[0]++;
-                    listener.onResponse((Response) emptyResponse);
                 }
             };
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);

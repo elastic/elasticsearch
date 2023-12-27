@@ -116,7 +116,7 @@ public class FilterOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 600));
+    protected ByteSizeValue memoryLimitForSimple() {
+        return ByteSizeValue.ofKb(1);
     }
 }

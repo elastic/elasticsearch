@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -227,9 +228,19 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
             }
-            // check to make sure that step details are either all null or all set.
-            long numNull = Stream.of(phase, action, step).filter(Objects::isNull).count();
-            if (numNull > 0 && numNull < 3) {
+            // check to make sure that the required step details are either all null or all set.
+            final long maxNull;
+            final Stream<String> conditions;
+            // step:ERROR is permitted with null phase,action
+            if (ErrorStep.NAME.equals(step)) {
+                maxNull = 2;
+                conditions = Stream.of(phase, action);
+            } else {
+                maxNull = 3;
+                conditions = Stream.of(phase, action, step);
+            }
+            long numNull = conditions.filter(Objects::isNull).count();
+            if (numNull > 0 && numNull < maxNull) {
                 throw new IllegalArgumentException(
                     "managed index response must have complete step details ["
                         + PHASE_FIELD.getPreferredName()

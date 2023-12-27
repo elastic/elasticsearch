@@ -140,7 +140,6 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         }
 
         final IndexLifecycleExplainResponse indexResponse;
-        final String CHECK_POLICY_EXISTS = "check-policy-exists";
         if (metadata.isIndexManagedByILM(indexMetadata)) {
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false
@@ -151,8 +150,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     indexCreationDate,
                     policyName,
                     originationDate != -1L ? originationDate : lifecycleState.lifecycleDate(),
-                    indexLifecycleService.policyExists(policyName) == false ? CHECK_POLICY_EXISTS : lifecycleState.phase(),
-                    indexLifecycleService.policyExists(policyName) == false ? CHECK_POLICY_EXISTS : lifecycleState.action(),
+                    lifecycleState.phase(),
+                    lifecycleState.action(),
                     indexLifecycleService.policyExists(policyName) == false ? ErrorStep.NAME : lifecycleState.step(),
                     lifecycleState.failedStep(),
                     lifecycleState.isAutoRetryableError(),

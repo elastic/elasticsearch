@@ -118,7 +118,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
@@ -1770,7 +1769,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         request.addParameter("flat_settings", "true");
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
-            return XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            return XContentHelper.convertToMap(
+                XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
+                is,
+                true
+            );
         }
     }
 
@@ -1860,7 +1863,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     public static XContentParser responseAsParser(Response response) throws IOException {
-        return XContentHelper.createParser(XContentParserConfiguration.EMPTY, responseAsBytes(response), XContentType.JSON);
+        return XContentHelper.createParser(
+            XContentParserConfiguration.EMPTY,
+            responseAsBytes(response),
+            XContentType.fromMediaType(response.getEntity().getContentType().getValue())
+        );
     }
 
     protected static BytesReference responseAsBytes(Response response) throws IOException {

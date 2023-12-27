@@ -97,8 +97,8 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
+    protected ByteSizeValue memoryLimitForSimple() {
+        assumeTrue("doesn't allocate", false);
         return null;
     }
 

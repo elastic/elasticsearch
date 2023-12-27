@@ -160,15 +160,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     Block expand();
 
     /**
-     * {@return a constant null block with the given number of positions}.
-     * @deprecated use {@link BlockFactory#newConstantNullBlock}
-     */
-    @Deprecated
-    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantNullBlock(positions);
-    }
-
-    /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
      * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */

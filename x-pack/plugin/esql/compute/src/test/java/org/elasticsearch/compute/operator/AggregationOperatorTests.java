@@ -83,8 +83,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big array so never breaks", false);
-        return null;
+    protected ByteSizeValue memoryLimitForSimple() {
+        return ByteSizeValue.ofBytes(50);
     }
 }

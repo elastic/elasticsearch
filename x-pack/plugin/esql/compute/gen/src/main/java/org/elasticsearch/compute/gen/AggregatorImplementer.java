@@ -484,7 +484,7 @@ public class AggregatorImplementer {
             .addParameter(DRIVER_CONTEXT, "driverContext");
         if (stateTypeHasSeen) {
             builder.beginControlFlow("if (state.seen() == false)");
-            builder.addStatement("blocks[offset] = $T.constantNullBlock(1, driverContext.blockFactory())", BLOCK);
+            builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1)", BLOCK);
             builder.addStatement("return");
             builder.endControlFlow();
         }

@@ -204,15 +204,6 @@ $endif$
     }
 
     /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#new$Type$BlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.new$Type$BlockBuilder(estimatedSize);
-    }
-
-    /**
      * Builder for {@link $Type$Block}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.$Type$Builder permits $Type$BlockBuilder {

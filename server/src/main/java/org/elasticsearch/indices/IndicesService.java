@@ -655,7 +655,6 @@ public class IndicesService extends AbstractLifecycleComponent
                             for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
                                 indexShard.setFieldHasValue(fieldInfo.getName());
                             }
-                            IOUtils.close(leafReader);
                         }
                         IOUtils.close(hasValueSearcher);
                     } catch (IOException e) {

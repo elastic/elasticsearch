@@ -8,9 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DocVectorTests extends ESTestCase {
+public class DocVectorTests extends ComputeTestCase {
     public void testNonDecreasingSetTrue() {
         int length = between(1, 100);
         DocVector docs = new DocVector(intRange(0, length), intRange(0, length), intRange(0, length), true);
@@ -29,28 +30,36 @@ public class DocVectorTests extends ESTestCase {
     }
 
     public void testNonDecreasingSetFalse() {
-        DocVector docs = new DocVector(intRange(0, 2), intRange(0, 2), new IntArrayVector(new int[] { 1, 0 }, 2), false);
+        BlockFactory blockFactory = blockFactory();
+        DocVector docs = new DocVector(intRange(0, 2), intRange(0, 2), blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2), false);
         assertFalse(docs.singleSegmentNonDecreasing());
+        docs.close();
     }
 
     public void testNonDecreasingNonConstantShard() {
-        DocVector docs = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null);
+        BlockFactory blockFactory = blockFactory();
+        DocVector docs = new DocVector(intRange(0, 2), blockFactory.newConstantIntVector(0, 2), intRange(0, 2), null);
         assertFalse(docs.singleSegmentNonDecreasing());
+        docs.close();
     }
 
     public void testNonDecreasingNonConstantSegment() {
-        DocVector docs = new DocVector(IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), intRange(0, 2), null);
+        BlockFactory blockFactory = blockFactory();
+        DocVector docs = new DocVector(blockFactory.newConstantIntVector(0, 2), intRange(0, 2), intRange(0, 2), null);
         assertFalse(docs.singleSegmentNonDecreasing());
+        docs.close();
     }
 
     public void testNonDecreasingDescendingDocs() {
+        BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            IntBlock.newConstantBlockWith(0, 2).asVector(),
-            IntBlock.newConstantBlockWith(0, 2).asVector(),
-            new IntArrayVector(new int[] { 1, 0 }, 2),
+            blockFactory.newConstantIntVector(0, 2),
+            blockFactory.newConstantIntVector(0, 2),
+            blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
             null
         );
         assertFalse(docs.singleSegmentNonDecreasing());
+        docs.close();
     }
 
     public void testShardSegmentDocMap() {
@@ -100,7 +109,7 @@ public class DocVectorTests extends ESTestCase {
 
     private void assertShardSegmentDocMap(int[][] data, int[][] expected) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(data.length, blockFactory)) {
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, data.length)) {
             for (int r = 0; r < data.length; r++) {
                 builder.appendShard(data[r][0]);
                 builder.appendSegment(data[r][1]);
@@ -133,7 +142,8 @@ public class DocVectorTests extends ESTestCase {
     }
 
     public void testCannotDoubleRelease() {
-        var block = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null).asBlock();
+        BlockFactory blockFactory = blockFactory();
+        var block = new DocVector(intRange(0, 2), blockFactory.newConstantIntBlockWith(0, 2).asVector(), intRange(0, 2), null).asBlock();
         assertThat(block.isReleased(), is(false));
         Page page = new Page(block);
 
@@ -141,7 +151,7 @@ public class DocVectorTests extends ESTestCase {
         assertThat(block.isReleased(), is(true));
 
         Exception e = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(e.getMessage(), containsString("can't release already released block"));
+        assertThat(e.getMessage(), containsString("can't release already released object"));
 
         e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
         assertThat(e.getMessage(), containsString("can't read released block"));
@@ -151,17 +161,55 @@ public class DocVectorTests extends ESTestCase {
     }
 
     public void testRamBytesUsedWithout() {
+        BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            IntBlock.newConstantBlockWith(0, 1).asVector(),
-            IntBlock.newConstantBlockWith(0, 1).asVector(),
-            IntBlock.newConstantBlockWith(0, 1).asVector(),
+            blockFactory.newConstantIntBlockWith(0, 1).asVector(),
+            blockFactory.newConstantIntBlockWith(0, 1).asVector(),
+            blockFactory.newConstantIntBlockWith(0, 1).asVector(),
             false
         );
         assertThat(docs.singleSegmentNonDecreasing(), is(false));
         docs.ramBytesUsed(); // ensure non-singleSegmentNonDecreasing handles nulls in ramByteUsed
+        docs.close();
+    }
+
+    public void testFilter() {
+        BlockFactory factory = blockFactory();
+        try (
+            DocVector docs = new DocVector(
+                factory.newConstantIntVector(0, 10),
+                factory.newConstantIntVector(0, 10),
+                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
+                false
+            );
+            DocVector filtered = docs.filter(1, 2, 3);
+            DocVector expected = new DocVector(
+                factory.newConstantIntVector(0, 3),
+                factory.newConstantIntVector(0, 3),
+                factory.newIntArrayVector(new int[] { 1, 2, 3 }, 3),
+                false
+            );
+        ) {
+            assertThat(filtered, equalTo(expected));
+        }
+    }
+
+    public void testFilterBreaks() {
+        BlockFactory factory = blockFactory(ByteSizeValue.ofBytes(between(160, 280)));
+        try (
+            DocVector docs = new DocVector(
+                factory.newConstantIntVector(0, 10),
+                factory.newConstantIntVector(0, 10),
+                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
+                false
+            )
+        ) {
+            Exception e = expectThrows(CircuitBreakingException.class, () -> docs.filter(1, 2, 3));
+            assertThat(e.getMessage(), equalTo("over test limit"));
+        }
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {
-        return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance());
+        return IntVector.range(startInclusive, endExclusive, TestBlockFactory.getNonBreakingInstance());
     }
 }

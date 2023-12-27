@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,9 +15,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -29,14 +26,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 
 /**
- * A request to start a compute on a remote cluster. The output pages of the compute on the remote cluster will be placed
- * in an exchange sink specified by {@code sessionId}. The exchange sink with this sessionId should have been opened by
- * {@link ExchangeService#openExchange(TransportService, Transport.Connection, String, int, Executor, ActionListener)} before
- * sending this request to the remote cluster. The coordinator on the main cluster will poll pages from this sink.
- * Internally, this compute can initiate computations on data nodes via {@link DataNodeRequest}.
+ * A request to initiate a compute on a remote cluster. The output pages of the compute on the remote cluster will be placed in an
+ * exchange sink specified by the {@code sessionId}. The exchange sink associated with this {@code sessionId} should have been opened
+ * via {@link ExchangeService#openExchange} before sending this request to the remote cluster. The coordinator on the main cluster
+ * will poll pages from this sink. Internally, this compute will trigger sub-computes on data nodes via {@link DataNodeRequest}.
  */
 final class ClusterComputeRequest extends TransportRequest implements IndicesRequest {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();

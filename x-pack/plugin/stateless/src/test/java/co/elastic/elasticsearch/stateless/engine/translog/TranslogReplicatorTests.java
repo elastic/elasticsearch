@@ -531,7 +531,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
-        expectThrows(ElasticsearchTimeoutException.class, () -> future.actionGet(300));
+        expectThrows(ElasticsearchTimeoutException.class, () -> future.actionGet(300, TimeUnit.MILLISECONDS));
 
         translogReplicator.add(shardId, operationsBytes[2], 2, new Translog.Location(0, currentLocation, operationsBytes[2].length()));
         currentLocation += operationsBytes[2].length();
@@ -541,7 +541,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future2);
-        expectThrows(ElasticsearchTimeoutException.class, () -> future2.actionGet(300));
+        expectThrows(ElasticsearchTimeoutException.class, () -> future2.actionGet(300, TimeUnit.MILLISECONDS));
 
         firstSyncCompleter.get().onResponse(null);
 

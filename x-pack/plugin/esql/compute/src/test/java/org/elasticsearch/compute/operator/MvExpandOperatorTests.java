@@ -201,9 +201,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+    protected ByteSizeValue memoryLimitForSimple() {
+        return ByteSizeValue.ofKb(1000);
     }
 
     public void testNoopStatus() {

@@ -194,7 +194,7 @@ public class Methods {
             case "DOUBLE" -> "getDouble";
             case "BYTES_REF" -> "getBytesRef";
             default -> throw new IllegalArgumentException(
-                "don't know how to fetch primitive values from " + elementTypeName + ". define combineStates."
+                "don't know how to fetch primitive values from " + elementTypeName + ". define combineIntermediate."
             );
         };
     }

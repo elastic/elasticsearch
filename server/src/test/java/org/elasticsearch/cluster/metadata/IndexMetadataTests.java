@@ -112,8 +112,10 @@ public class IndexMetadataTests extends ESTestCase {
         builder.startObject();
         IndexMetadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
+        final IndexMetadata fromXContentMeta;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            fromXContentMeta = IndexMetadata.fromXContent(parser);
+        }
         assertEquals(
             "expected: " + Strings.toString(metadata) + "\nactual  : " + Strings.toString(fromXContentMeta),
             metadata,

@@ -44,7 +44,9 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
             PutComposableIndexTemplateAction.Request indexTemplateRequest = new PutComposableIndexTemplateAction.Request(
                 "simulating_template"
             );
-            indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));
+            try (var parser = request.contentParser()) {
+                indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+            }
             indexTemplateRequest.create(request.paramAsBoolean("create", false));
             indexTemplateRequest.cause(request.param("cause", "api"));
 

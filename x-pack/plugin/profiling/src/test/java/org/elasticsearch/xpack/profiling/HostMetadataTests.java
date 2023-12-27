@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 public class HostMetadataTests extends ESTestCase {
-    public void testCreateFromRegularSource() {
+    public void testCreateFromSourceAWS() {
         final String hostID = "1440256254710195396";
         final String machine = "x86_64";
         final String provider = "aws";
@@ -25,9 +25,8 @@ public class HostMetadataTests extends ESTestCase {
             Map.of(
                 "host.id", hostID,
                 "profiling.host.machine", machine,
-                "profiling.host.tags", Arrays.asList(
-                    "cloud_provider:"+provider, "cloud_environment:qa", "cloud_region:"+region),
-                "ec2.instance_type", instanceType
+                "ec2.instance_type", instanceType,
+                "ec2.placement.region", region
             )
         );
         // end::noformat
@@ -37,5 +36,142 @@ public class HostMetadataTests extends ESTestCase {
         assertEquals(provider, host.instanceType.provider);
         assertEquals(region, host.instanceType.region);
         assertEquals(instanceType, host.instanceType.name);
+    }
+
+    public void testCreateFromSourceGCP() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+        final String provider = "gcp";
+        final String[] regions = { "", "", "europe-west1", "europewest", "europe-west1" };
+        final String[] zones = {
+            "",
+            "/",
+            "projects/123456789/zones/" + regions[2] + "-b",
+            "projects/123456789/zones/" + regions[3],
+            "projects/123456789/zones/" + regions[4] + "-b-c" };
+
+        for (int i = 0; i < regions.length; i++) {
+            String region = regions[i];
+            String zone = zones[i];
+
+            // tag::noformat
+            HostMetadata host = HostMetadata.fromSource(
+                Map.of(
+                    "host.id", hostID,
+                    "profiling.host.machine", machine,
+                    "gce.instance.zone", zone
+                )
+            );
+            // end::noformat
+
+            assertEquals(hostID, host.hostID);
+            assertEquals(machine, host.profilingHostMachine);
+            assertEquals(provider, host.instanceType.provider);
+            assertEquals(region, host.instanceType.region);
+            assertEquals("", host.instanceType.name);
+        }
+    }
+
+    public void testCreateFromSourceGCPZoneFuzzer() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+        final String provider = "gcp";
+        final Character[] chars = new Character[] { '/', '-', 'a' };
+
+        for (int zoneLength = 1; zoneLength <= 5; zoneLength++) {
+            CarthesianCombinator<Character> combinator = new CarthesianCombinator<>(chars, zoneLength);
+
+            combinator.forEach((result) -> {
+                StringBuilder sb = new StringBuilder();
+                for (Character c : result) {
+                    sb.append(c);
+                }
+                String zone = sb.toString();
+
+                // tag::noformat
+                HostMetadata host = HostMetadata.fromSource(
+                    Map.of(
+                        "host.id", hostID,
+                        "profiling.host.machine", machine,
+                        "gce.instance.zone", zone
+                    )
+                );
+                // end::noformat
+
+                assertEquals(hostID, host.hostID);
+                assertEquals(machine, host.profilingHostMachine);
+                assertEquals(provider, host.instanceType.provider);
+                assertNotNull(host.instanceType.region);
+                assertEquals("", host.instanceType.name);
+                // region isn't tested because of the combinatorial nature of this test
+            });
+        }
+    }
+
+    public void testCreateFromSourceAzure() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+        final String provider = "azure";
+        final String region = "eastus2";
+
+        // tag::noformat
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
+                "host.id", hostID,
+                "profiling.host.machine", machine,
+                "azure.compute.location", region
+            )
+        );
+        // end::noformat
+
+        assertEquals(hostID, host.hostID);
+        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(provider, host.instanceType.provider);
+        assertEquals(region, host.instanceType.region);
+        assertEquals("", host.instanceType.name);
+    }
+
+    public void testCreateFromSourceECS() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+        final String provider = "any-provider";
+        final String region = "any-region";
+
+        // tag::noformat
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
+                "host.id", hostID,
+                "profiling.host.machine", machine,
+                "profiling.host.tags", Arrays.asList(
+                    "cloud_provider:"+provider, "cloud_environment:qa", "cloud_region:"+region)
+            )
+        );
+        // end::noformat
+
+        assertEquals(hostID, host.hostID);
+        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(provider, host.instanceType.provider);
+        assertEquals(region, host.instanceType.region);
+        assertEquals("", host.instanceType.name);
+    }
+
+    public void testCreateFromSourceNoProvider() {
+        final String hostID = "1440256254710195396";
+        final String machine = "x86_64";
+
+        // tag::noformat
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
+                "host.id", hostID,
+                "profiling.host.machine", machine
+            )
+        );
+        // end::noformat
+
+        assertEquals(hostID, host.hostID);
+        assertEquals(machine, host.profilingHostMachine);
+        assertEquals("", host.instanceType.provider);
+        assertEquals("", host.instanceType.region);
+        assertEquals("", host.instanceType.name);
     }
 }

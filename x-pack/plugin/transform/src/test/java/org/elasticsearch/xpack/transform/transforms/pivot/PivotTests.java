@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.client.internal.Client;
@@ -327,9 +326,7 @@ public class PivotTests extends ESTestCase {
     }
 
     private static SearchResponse searchResponseFromAggs(Aggregations aggs) {
-        SearchResponseSections sections = new SearchResponseSections(null, aggs, null, false, null, null, 1);
-        SearchResponse searchResponse = new SearchResponse(sections, null, 10, 5, 0, 0, new ShardSearchFailure[0], null);
-        return searchResponse;
+        return new SearchResponse(null, aggs, null, false, null, null, 1, null, 10, 5, 0, 0, new ShardSearchFailure[0], null);
     }
 
     private class MyMockClient extends NoOpClient {
@@ -359,17 +356,14 @@ public class PivotTests extends ESTestCase {
                     }
                 }
 
-                final SearchResponseSections sections = new SearchResponseSections(
+                final SearchResponse response = new SearchResponse(
                     new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0),
                     null,
                     null,
                     false,
                     null,
                     null,
-                    1
-                );
-                final SearchResponse response = new SearchResponse(
-                    sections,
+                    1,
                     null,
                     10,
                     searchFailures.size() > 0 ? 0 : 5,

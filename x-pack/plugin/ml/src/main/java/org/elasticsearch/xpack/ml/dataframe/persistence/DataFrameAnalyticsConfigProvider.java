@@ -176,14 +176,12 @@ public class DataFrameAnalyticsConfigProvider {
 
             // Parse the original config
             DataFrameAnalyticsConfig originalConfig;
-            try {
-                try (
-                    InputStream stream = getResponse.getSourceAsBytesRef().streamInput();
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-                ) {
-                    originalConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
-                }
+            try (
+                InputStream stream = getResponse.getSourceAsBytesRef().streamInput();
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+            ) {
+                originalConfig = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchParseException("Failed to parse data frame analytics configuration [" + id + "]", e));
                 return;

@@ -15,11 +15,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class PerFieldMapperCodecTests extends ESTestCase {
@@ -27,23 +30,29 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testUseBloomFilter() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(false, randomBoolean(), false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
         PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, true);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
         assertWarnings(
             "[index.bloom_filter_for_id_field.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
         );

@@ -118,10 +118,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
@@ -849,16 +845,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices) {
             return new ClusterSearchShardsRequestBuilder(this).setIndices(indices);
-        }
-
-        @Override
-        public PendingClusterTasksRequestBuilder preparePendingClusterTasks() {
-            return new PendingClusterTasksRequestBuilder(this);
-        }
-
-        @Override
-        public void pendingClusterTasks(PendingClusterTasksRequest request, ActionListener<PendingClusterTasksResponse> listener) {
-            execute(TransportPendingClusterTasksAction.TYPE, request, listener);
         }
 
         @Override

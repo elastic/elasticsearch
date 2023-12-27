@@ -38,10 +38,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
-import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
-import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
-import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
@@ -429,22 +426,16 @@ public class ConnectorSyncJobIndexService {
                         onFailure(new ResourceNotFoundException("Connector with id '" + connectorId + "' does not exist."));
                         return;
                     }
-
-                    Map<String, Object> source = response.getSource();
-
-                    @SuppressWarnings("unchecked")
-                    final Connector syncJobConnectorInfo = new Connector.Builder().setConnectorId(connectorId)
-                        .setFiltering((List<ConnectorFiltering>) source.get(Connector.FILTERING_FIELD.getPreferredName()))
-                        .setIndexName((String) source.get(Connector.INDEX_NAME_FIELD.getPreferredName()))
-                        .setLanguage((String) source.get(Connector.LANGUAGE_FIELD.getPreferredName()))
-                        .setPipeline((ConnectorIngestPipeline) source.get(Connector.PIPELINE_FIELD.getPreferredName()))
-                        .setServiceType((String) source.get(Connector.SERVICE_TYPE_FIELD.getPreferredName()))
-                        .setConfiguration(
-                            (Map<String, ConnectorConfiguration>) source.get(Connector.CONFIGURATION_FIELD.getPreferredName())
-                        )
-                        .build();
-
-                    listener.onResponse(syncJobConnectorInfo);
+                    try {
+                        final Connector syncJobConnectorInfo = ConnectorSyncJob.syncJobConnectorFromXContentBytes(
+                            response.getSourceAsBytesRef(),
+                            connectorId,
+                            XContentType.JSON
+                        );
+                        listener.onResponse(syncJobConnectorInfo);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
 
                 @Override

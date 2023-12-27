@@ -208,6 +208,28 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanArrayBlock.java"
   }
+  // BigArray block implementations
+  File bigArrayBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-BigArrayBlock.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntBigArrayBlock.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongBigArrayBlock.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleBigArrayBlock.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanBigArrayBlock.java"
+  }
   // vector blocks
   File vectorBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorBlock.java.st")
   template {

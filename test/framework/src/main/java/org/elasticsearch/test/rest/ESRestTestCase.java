@@ -1698,9 +1698,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                     var mappingParser = XContentType.JSON.xContent()
                         .createParser(XContentParserConfiguration.EMPTY, mapping.trim().startsWith("{") ? mapping : '{' + mapping + '}')
                 ) {
-                    builder.startObject("mappings");
+                    builder.field("mappings");
                     builder.copyCurrentStructure(mappingParser);
-                    builder.endObject();
                 }
             }
 
@@ -1708,9 +1707,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 try (
                     var aliasesParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, '{' + aliases + '}')
                 ) {
-                    builder.startObject("aliases");
+                    builder.field("aliases");
                     builder.copyCurrentStructure(aliasesParser);
-                    builder.endObject();
                 }
             }
 

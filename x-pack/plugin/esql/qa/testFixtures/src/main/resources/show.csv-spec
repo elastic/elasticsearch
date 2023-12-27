@@ -188,7 +188,7 @@ boolean is_nan(n:double)
 ;
 
 
-showFunctionsFiltered
+showFunctionsFiltered#[skip:-8.12.99]
 // tag::showFunctionsFiltered[]
 SHOW functions 
 | WHERE STARTS_WITH(name, "is_")

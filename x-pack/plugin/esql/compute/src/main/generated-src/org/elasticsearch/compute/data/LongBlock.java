@@ -168,15 +168,6 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     }
 
     /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newLongBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newLongBlockBuilder(estimatedSize);
-    }
-
-    /**
      * Builder for {@link LongBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.LongBuilder permits LongBlockBuilder {

@@ -24,10 +24,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -122,10 +118,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
@@ -796,16 +788,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void nodesHotThreads(NodesHotThreadsRequest request, ActionListener<NodesHotThreadsResponse> listener) {
-            execute(TransportNodesHotThreadsAction.TYPE, request, listener);
-        }
-
-        @Override
-        public NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds) {
-            return new NodesHotThreadsRequestBuilder(this).setNodesIds(nodesIds);
-        }
-
-        @Override
         public ActionFuture<ListTasksResponse> listTasks(final ListTasksRequest request) {
             return execute(TransportListTasksAction.TYPE, request);
         }
@@ -863,16 +845,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices) {
             return new ClusterSearchShardsRequestBuilder(this).setIndices(indices);
-        }
-
-        @Override
-        public PendingClusterTasksRequestBuilder preparePendingClusterTasks() {
-            return new PendingClusterTasksRequestBuilder(this);
-        }
-
-        @Override
-        public void pendingClusterTasks(PendingClusterTasksRequest request, ActionListener<PendingClusterTasksResponse> listener) {
-            execute(TransportPendingClusterTasksAction.TYPE, request, listener);
         }
 
         @Override

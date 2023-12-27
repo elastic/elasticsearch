@@ -164,11 +164,9 @@ public final class CompressedXContent implements Writeable {
      * @return compressed x-content normalized to not contain any whitespaces
      */
     public static CompressedXContent fromJSON(String json) throws IOException {
-        return new CompressedXContent(
-            (ToXContentObject) (builder, params) -> builder.copyCurrentStructure(
-                JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)
-            )
-        );
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return new CompressedXContent((ToXContentObject) (builder, params) -> builder.copyCurrentStructure(parser));
+        }
     }
 
     public CompressedXContent(String str) throws IOException {

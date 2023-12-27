@@ -99,15 +99,18 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        Map<String, Object> map = parser.mapOrdered();
-        CreateSnapshotRequest processed = new CreateSnapshotRequest((String) map.get("repository"), (String) map.get("snapshot"));
-        processed.waitForCompletion(original.waitForCompletion());
-        processed.masterNodeTimeout(original.masterNodeTimeout());
-        processed.source(map);
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+        ) {
+            Map<String, Object> map = parser.mapOrdered();
+            CreateSnapshotRequest processed = new CreateSnapshotRequest((String) map.get("repository"), (String) map.get("snapshot"));
+            processed.waitForCompletion(original.waitForCompletion());
+            processed.masterNodeTimeout(original.masterNodeTimeout());
+            processed.source(map);
 
-        assertEquals(original, processed);
+            assertEquals(original, processed);
+        }
     }
 
     public void testSizeCheck() {

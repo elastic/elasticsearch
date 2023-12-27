@@ -46,10 +46,12 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     private String pitId;
     private final TimeValue keepAlive;
+    private final QueryBuilder filter;
 
     public PITAwareQueryClient(EqlSession eqlSession) {
         super(eqlSession);
         this.keepAlive = eqlSession.configuration().requestTimeout();
+        this.filter = eqlSession.configuration().filter();
     }
 
     @Override
@@ -98,6 +100,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     private void makeRequestPITCompatible(SearchRequest request) {
+        request.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
         SearchSourceBuilder source = request.source();
         // don't increase the keep alive
         source.pointInTimeBuilder(new PointInTimeBuilder(pitId));
@@ -131,6 +134,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
             .keepAlive(keepAlive);
+        request.indexFilter(filter);
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
             runnable.run();

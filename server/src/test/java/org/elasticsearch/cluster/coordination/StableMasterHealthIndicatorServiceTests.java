@@ -312,8 +312,11 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-        return parser.map();
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+        ) {
+            return parser.map();
+        }
     }
 }

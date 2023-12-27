@@ -50,7 +50,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
     }
 
     private static IndicesShardStoresResponse execute(IndicesShardStoresRequest request) {
-        return client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest()).actionGet(10, TimeUnit.SECONDS);
+        return client().execute(TransportIndicesShardStoresAction.TYPE, request).actionGet(10, TimeUnit.SECONDS);
     }
 
     public void testEmpty() {

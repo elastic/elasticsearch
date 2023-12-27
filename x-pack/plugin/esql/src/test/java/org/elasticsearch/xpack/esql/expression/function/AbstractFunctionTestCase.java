@@ -32,6 +32,7 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -192,7 +193,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), values));
+        return new Page(BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
     }
 
     /**
@@ -239,7 +240,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
-        // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
+        logger.info("Result type: " + expression.dataType());
+
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
             try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
@@ -433,13 +435,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
         try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
-            Block[] orig = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), simpleData);
+            BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+            Block[] orig = BlockUtils.fromListRow(blockFactory, simpleData);
             for (int i = 0; i < orig.length; i++) {
                 List<Object> data = new ArrayList<>();
                 Block[] blocks = new Block[orig.length];
                 for (int b = 0; b < blocks.length; b++) {
                     if (b == i) {
-                        blocks[b] = orig[b].elementType().newBlockBuilder(1).appendNull().build();
+                        blocks[b] = orig[b].elementType().newBlockBuilder(1, blockFactory).appendNull().build();
                         data.add(null);
                     } else {
                         blocks[b] = orig[b];
@@ -741,6 +744,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return suppliers;
     }
 
+    /**
+     * Validate that we know the types for all the test cases already created
+     * @param suppliers - list of suppliers before adding in the illegal type combinations
+     */
     private static void typesRequired(List<TestCaseSupplier> suppliers) {
         String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
         if (bad.equals("") == false) {
@@ -886,6 +893,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 DataTypes.NULL
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
+        ),
+        Map.entry(
+            Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.LONG, DataTypes.TEXT, DataTypes.UNSIGNED_LONG, DataTypes.NULL),
+            "geo_point or long or string or unsigned_long"
+        ),
+        Map.entry(
+            Set.of(
+                EsqlDataTypes.CARTESIAN_POINT,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
+            ),
+            "cartesian_point or long or string or unsigned_long"
         )
     );
 

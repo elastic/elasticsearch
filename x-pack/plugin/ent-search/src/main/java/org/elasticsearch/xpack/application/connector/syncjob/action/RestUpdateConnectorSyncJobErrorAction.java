@@ -12,6 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +47,7 @@ public class RestUpdateConnectorSyncJobErrorAction extends BaseRestHandler {
         return restChannel -> client.execute(
             UpdateConnectorSyncJobErrorAction.INSTANCE,
             request,
-            new RestToXContentListener<>(restChannel)
+            new RestToXContentListener<>(restChannel, ConnectorUpdateActionResponse::status)
         );
     }
 }

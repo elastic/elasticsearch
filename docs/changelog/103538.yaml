@@ -1,0 +1,6 @@
+pr: 103538
+summary: "ESQL: Improve pushdown of certain filters"
+area: ES|QL
+type: bug
+issues:
+ - 103536

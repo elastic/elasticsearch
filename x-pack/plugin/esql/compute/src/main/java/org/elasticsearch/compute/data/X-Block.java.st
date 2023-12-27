@@ -213,15 +213,6 @@ $endif$
     }
 
     /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstant$Type$BlockWith}
-     */
-    @Deprecated
-    static $Type$Block newConstantBlockWith($type$ value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstant$Type$BlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link $Type$Block}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.$Type$Builder permits $Type$BlockBuilder {

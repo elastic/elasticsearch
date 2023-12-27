@@ -42,10 +42,6 @@ class SumDoubleAggregator {
         current.add(value, delta);
     }
 
-    public static void combineStates(SumState current, SumState state) {
-        current.add(state.value(), state.delta());
-    }
-
     public static void combineIntermediate(SumState state, double inValue, double inDelta, boolean seen) {
         if (seen) {
             combine(state, inValue, inDelta);
@@ -63,7 +59,7 @@ class SumDoubleAggregator {
 
     public static Block evaluateFinal(SumState state, DriverContext driverContext) {
         double result = state.value();
-        return DoubleBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantDoubleBlockWith(result, 1);
     }
 
     public static GroupingSumState initGrouping(BigArrays bigArrays) {

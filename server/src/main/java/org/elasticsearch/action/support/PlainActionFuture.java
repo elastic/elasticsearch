@@ -195,16 +195,6 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     }
 
     @Override
-    public T actionGet(String timeout) {
-        return actionGet(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".actionGet.timeout"));
-    }
-
-    @Override
-    public T actionGet(long timeoutMillis) {
-        return actionGet(timeoutMillis, TimeUnit.MILLISECONDS);
-    }
-
-    @Override
     public T actionGet(TimeValue timeout) {
         return actionGet(timeout.millis(), TimeUnit.MILLISECONDS);
     }

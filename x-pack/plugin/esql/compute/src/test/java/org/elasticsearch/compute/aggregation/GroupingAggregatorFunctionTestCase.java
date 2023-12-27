@@ -147,8 +147,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 32));
+    protected ByteSizeValue memoryLimitForSimple() {
+        return ByteSizeValue.ofBytes(100);
     }
 
     public final void testNullGroupsAndValues() {

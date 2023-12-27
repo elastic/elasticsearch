@@ -37,20 +37,24 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     public void testNonDecreasingNonConstantShard() {
-        DocVector docs = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null);
+        BlockFactory blockFactory = blockFactory();
+        DocVector docs = new DocVector(intRange(0, 2), blockFactory.newConstantIntVector(0, 2), intRange(0, 2), null);
         assertFalse(docs.singleSegmentNonDecreasing());
+        docs.close();
     }
 
     public void testNonDecreasingNonConstantSegment() {
-        DocVector docs = new DocVector(IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), intRange(0, 2), null);
+        BlockFactory blockFactory = blockFactory();
+        DocVector docs = new DocVector(blockFactory.newConstantIntVector(0, 2), intRange(0, 2), intRange(0, 2), null);
         assertFalse(docs.singleSegmentNonDecreasing());
+        docs.close();
     }
 
     public void testNonDecreasingDescendingDocs() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            IntBlock.newConstantBlockWith(0, 2).asVector(),
-            IntBlock.newConstantBlockWith(0, 2).asVector(),
+            blockFactory.newConstantIntVector(0, 2),
+            blockFactory.newConstantIntVector(0, 2),
             blockFactory.newIntArrayVector(new int[] { 1, 0 }, 2),
             null
         );
@@ -105,7 +109,7 @@ public class DocVectorTests extends ComputeTestCase {
 
     private void assertShardSegmentDocMap(int[][] data, int[][] expected) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(data.length, blockFactory)) {
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, data.length)) {
             for (int r = 0; r < data.length; r++) {
                 builder.appendShard(data[r][0]);
                 builder.appendSegment(data[r][1]);
@@ -138,7 +142,8 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     public void testCannotDoubleRelease() {
-        var block = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null).asBlock();
+        BlockFactory blockFactory = blockFactory();
+        var block = new DocVector(intRange(0, 2), blockFactory.newConstantIntBlockWith(0, 2).asVector(), intRange(0, 2), null).asBlock();
         assertThat(block.isReleased(), is(false));
         Page page = new Page(block);
 
@@ -156,14 +161,16 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     public void testRamBytesUsedWithout() {
+        BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
-            IntBlock.newConstantBlockWith(0, 1).asVector(),
-            IntBlock.newConstantBlockWith(0, 1).asVector(),
-            IntBlock.newConstantBlockWith(0, 1).asVector(),
+            blockFactory.newConstantIntBlockWith(0, 1).asVector(),
+            blockFactory.newConstantIntBlockWith(0, 1).asVector(),
+            blockFactory.newConstantIntBlockWith(0, 1).asVector(),
             false
         );
         assertThat(docs.singleSegmentNonDecreasing(), is(false));
         docs.ramBytesUsed(); // ensure non-singleSegmentNonDecreasing handles nulls in ramByteUsed
+        docs.close();
     }
 
     public void testFilter() {
@@ -203,6 +210,6 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {
-        return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance());
+        return IntVector.range(startInclusive, endExclusive, TestBlockFactory.getNonBreakingInstance());
     }
 }

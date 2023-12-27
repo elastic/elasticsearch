@@ -47,6 +47,7 @@ import org.elasticsearch.transport.Compression;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -852,20 +853,19 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     void assertStoredBinaryFields(int count) throws Exception {
-        Map<String, Object> rsp = entityAsMap(
-            client().performRequest(
-                newXContentRequest(
-                    HttpMethod.GET,
-                    "/" + index + "/_search",
-                    (builder, params) -> builder.startObject("query")
-                        .startObject("match_all")
-                        .endObject()
-                        .endObject()
-                        .field("size", 100)
-                        .field("stored_fields", "binary")
-                )
+        final var restResponse = client().performRequest(
+            newXContentRequest(
+                HttpMethod.GET,
+                "/" + index + "/_search",
+                (builder, params) -> builder.startObject("query")
+                    .startObject("match_all")
+                    .endObject()
+                    .endObject()
+                    .field("size", 100)
+                    .field("stored_fields", "binary")
             )
         );
+        Map<String, Object> rsp = entityAsMap(restResponse);
 
         assertTotalHits(count, rsp);
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", rsp);
@@ -874,9 +874,14 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             Map<?, ?> hitRsp = (Map<?, ?>) hit;
             List<?> values = (List<?>) XContentMapValues.extractValue("fields.binary", hitRsp);
             assertEquals(1, values.size());
-            String value = (String) values.get(0);
-            byte[] binaryValue = Base64.getDecoder().decode(value);
-            assertEquals("Unexpected string length [" + value + "]", 16, binaryValue.length);
+            byte[] binaryValue = switch (XContentType.fromMediaType(restResponse.getEntity().getContentType().getValue())) {
+                case JSON, YAML, VND_JSON, VND_YAML -> {
+                    String value = (String) values.get(0);
+                    yield Base64.getDecoder().decode(value);
+                }
+                case SMILE, CBOR, VND_SMILE, VND_CBOR -> (byte[]) values.get(0);
+            };
+            assertEquals("Unexpected binary length [" + Base64.getEncoder().encodeToString(binaryValue) + "]", 16, binaryValue.length);
         }
     }
 

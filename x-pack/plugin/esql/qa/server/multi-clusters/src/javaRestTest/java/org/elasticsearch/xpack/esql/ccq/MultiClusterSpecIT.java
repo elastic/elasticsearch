@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.ccq;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
@@ -36,6 +39,7 @@ import static org.mockito.Mockito.when;
  * This suite loads the data into either the local cluster or the remote cluster, then run spec tests with CCQ.
  * TODO: Some spec tests prevents us from splitting data across multiple shards/indices/clusters
  */
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();

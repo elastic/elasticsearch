@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.ccq;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
@@ -32,6 +35,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);

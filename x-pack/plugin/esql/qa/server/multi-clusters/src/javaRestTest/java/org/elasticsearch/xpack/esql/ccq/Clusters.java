@@ -21,6 +21,7 @@ public class Clusters {
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .shared(true)
             .build();
     }
 
@@ -35,6 +36,7 @@ public class Clusters {
             .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
+            .shared(true)
             .build();
     }
 

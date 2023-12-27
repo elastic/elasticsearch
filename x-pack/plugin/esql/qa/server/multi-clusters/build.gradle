@@ -33,5 +33,6 @@ BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    maxParallelForks = 1
   }
 }

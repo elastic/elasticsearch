@@ -119,10 +119,6 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
      *     result the <strong>whole</strong> tree rooted at this expression must
      *     be valid.
      * </p>
-     * <p>
-     *     Implementations will rarely interact with the {@link TypeResolution}
-     *     class directly, instead usually calling the utility methods on {@link TypeResolutions}.
-     * </p>
      */
     public final TypeResolution typeResolved() {
         if (lazyTypeResolution == null) {
@@ -132,24 +128,8 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     }
 
     /**
-     * Does the tree rooted at this expression have valid types at all nodes?
-     * <p>
-     *     For example, {@code SIN(1.2)} has a valid type and should return
-     *     {@link TypeResolution#TYPE_RESOLVED} to signal "this type is fine".
-     *     Another example, {@code SIN("cat")} has an invalid type in the
-     *     tree. The value passed to the {@code SIN} function is a string which
-     *     doesn't make any sense. So this method should return a "failure"
-     *     resolution which it can build by calling {@link TypeResolution#TypeResolution(String)}.
-     * </p>
-     * <p>
-     *     Take {@code SIN(1.2) + COS(ATAN("cat"))}, this tree should also
-     *     fail, specifically because {@code ATAN("cat")} is invalid. This should
-     *     fail even though {@code +} is perfectly valid when run on the results
-     *     of {@code SIN} and {@code COS}. And {@code COS} can operate on the results
-     *     of any valid call to {@code ATAN}. For this method to return a "valid"
-     *     result the <strong>whole</strong> tree rooted at this expression must
-     *     be valid.
-     * </p>
+     * The implementation of {@link #typeResolved}, which is just a caching wrapper
+     * around this method. See it's javadoc for what this method should return.
      * <p>
      *     Implementations will rarely interact with the {@link TypeResolution}
      *     class directly, instead usually calling the utility methods on {@link TypeResolutions}.

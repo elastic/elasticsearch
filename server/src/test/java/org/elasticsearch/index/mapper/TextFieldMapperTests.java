@@ -1190,6 +1190,15 @@ public class TextFieldMapperTests extends MapperTestCase {
         return v -> ((BytesRef) v).utf8ToString();
     }
 
+    protected boolean nullLoaderExpected(MapperService mapper, String fieldName) {
+        TextFieldType type = ((TextFieldType) mapper.fieldType(fieldName));
+        if (type.isSyntheticSource() == false || type.canUseSyntheticSourceDelegate() || type.isStored()) {
+            return false;
+        }
+        String parentField = mapper.mappingLookup().parentField(fieldName);
+        return parentField == null || nullLoaderExpected(mapper, parentField);
+    }
+
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");

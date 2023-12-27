@@ -1286,7 +1286,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
         });
         Function<Object, Object> valuesConvert = loadBlockExpected();
-        if (valuesConvert == null) {
+        if (valuesConvert == null || nullLoaderExpected(mapper, loaderFieldName)) {
             assertNull(loader);
             return;
         }
@@ -1346,6 +1346,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(inBlock, e);
             }
         }
+    }
+
+    protected boolean nullLoaderExpected(MapperService mapper, String loaderFieldName) {
+        return false;
     }
 
     /**

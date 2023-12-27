@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -49,7 +48,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
@@ -90,23 +88,21 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader);
-        SearchExecutionContext ectx = mock(SearchExecutionContext.class);
-        when(ctx.getSearchExecutionContext()).thenReturn(ectx);
-        when(ectx.getFieldType(anyString())).thenAnswer(inv -> {
+        when(ctx.getSearchExecutionContext().getFieldType(anyString())).thenAnswer(inv -> {
             String name = inv.getArgument(0);
             return switch (name) {
                 case "s" -> S_FIELD;
                 default -> throw new IllegalArgumentException("don't support [" + name + "]");
             };
         });
-        when(ectx.getForField(any(), any())).thenAnswer(inv -> {
+        when(ctx.getSearchExecutionContext().getForField(any(), any())).thenAnswer(inv -> {
             MappedFieldType ft = inv.getArgument(0);
             IndexFieldData.Builder builder = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"));
             return builder.build(new IndexFieldDataCache.None(), bigArrays.breakerService());
         });
-        when(ectx.nestedScope()).thenReturn(new NestedScope());
-        when(ectx.nestedLookup()).thenReturn(NestedLookup.EMPTY);
-        when(ectx.getIndexReader()).thenReturn(reader);
+        when(ctx.getSearchExecutionContext().nestedScope()).thenReturn(new NestedScope());
+        when(ctx.getSearchExecutionContext().nestedLookup()).thenReturn(NestedLookup.EMPTY);
+        when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
         Function<SearchContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));

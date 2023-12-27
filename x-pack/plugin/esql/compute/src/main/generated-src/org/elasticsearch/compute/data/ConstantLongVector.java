@@ -19,12 +19,9 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
 
     private final long value;
 
-    private final LongBlock block;
-
     ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new LongVectorBlock(this);
     }
 
     @Override
@@ -34,7 +31,7 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
 
     @Override
     public LongBlock asBlock() {
-        return block;
+        return new LongVectorBlock(this);
     }
 
     @Override
@@ -72,14 +69,5 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

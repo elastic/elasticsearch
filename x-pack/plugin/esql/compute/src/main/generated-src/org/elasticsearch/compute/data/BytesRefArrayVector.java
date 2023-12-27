@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Vector implementation that stores an array of BytesRef values.
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
@@ -22,17 +23,14 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
 
     private final BytesRefArray values;
 
-    private final BytesRefBlock block;
-
     BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
     public BytesRefBlock asBlock() {
-        return block;
+        return new BytesRefVectorBlock(this);
     }
 
     @Override
@@ -89,11 +87,9 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
+        // of this class.
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }

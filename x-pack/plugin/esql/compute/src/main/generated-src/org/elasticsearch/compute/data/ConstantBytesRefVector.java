@@ -20,12 +20,9 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
         .shallowSizeOfInstance(BytesRef.class);
     private final BytesRef value;
 
-    private final BytesRefBlock block;
-
     ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
@@ -35,7 +32,7 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
 
     @Override
     public BytesRefBlock asBlock() {
-        return block;
+        return new BytesRefVectorBlock(this);
     }
 
     @Override
@@ -77,14 +74,5 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
     }
 }

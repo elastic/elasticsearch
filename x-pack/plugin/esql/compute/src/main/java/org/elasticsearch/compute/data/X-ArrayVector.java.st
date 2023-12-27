@@ -21,6 +21,9 @@ $endif$
 
 /**
  * Vector implementation that stores an array of $type$ values.
+$if(BytesRef)$
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
+$endif$
  * This class is generated. Do not edit it.
  */
 final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
@@ -34,17 +37,14 @@ $else$
     private final $type$[] values;
 $endif$
 
-    private final $Type$Block block;
-
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return block;
+        return new $Type$VectorBlock(this);
     }
 
 $if(BytesRef)$
@@ -120,11 +120,9 @@ $endif$
 
 $if(BytesRef)$
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
+        // of this class.
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }

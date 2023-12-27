@@ -39,6 +39,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         "_id",
         "doc_type",
         "name",
+        "type",
         API_KEY_TYPE_RUNTIME_MAPPING_FIELD,
         "api_key_invalidated",
         "invalidation_time",

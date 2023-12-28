@@ -431,4 +431,4 @@ setup:
         index: 'test1,test2,test3'
         fields: [ text, misc ]
 
-  - match: { fields: [ ] }
+  - length: { fields: 0 }

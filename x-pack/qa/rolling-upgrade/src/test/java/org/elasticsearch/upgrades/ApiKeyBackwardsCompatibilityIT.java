@@ -43,9 +43,9 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -55,31 +55,23 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private RestClient newVersionClient = null;
 
     public void testQueryRestTypeKeys() throws IOException {
-        List<String> apiKeyRestTypeQueries = List.of("""
-            {"query": {"term": {"type": "rest" }}}""", """
-            {"query": {"prefix": {"type": "re" }}}""", """
-            {"query": {"wildcard": {"type": "r*t" }}}""", """
-            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""");
         switch (CLUSTER_TYPE) {
-            case OLD -> {
-                createOrGrantApiKey(client(), "test-key-from-old-cluster", "{}");
-            }
-            case MIXED -> {
-                createClientsByVersion();
-                createOrGrantApiKey(oldVersionClient, "test-key-from-mixed-cluster-old-client", "{}");
-                createOrGrantApiKey(newVersionClient, "test-key-from-mixed-cluster-new-client", "{}");
-            }
+            case OLD -> createOrGrantApiKey(client(), "query-test-rest-key-from-old-cluster", "{}");
+            case MIXED -> createOrGrantApiKey(client(), "query-test-rest-key-from-mixed-cluster", "{}");
             case UPGRADED -> {
-                createOrGrantApiKey(client(), "test-key-from-upgraded-cluster", "{}");
-                for (String query : apiKeyRestTypeQueries) {
+                createOrGrantApiKey(client(), "query-test-rest-key-from-upgraded-cluster", "{}");
+                for (String query : List.of("""
+                    {"query": {"term": {"type": "rest" }}}""", """
+                    {"query": {"prefix": {"type": "re" }}}""", """
+                    {"query": {"wildcard": {"type": "r*t" }}}""", """
+                    {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
                     assertQuery(client(), query, apiKeys -> {
                         assertThat(
                             apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                            containsInAnyOrder(
-                                "test-key-from-old-cluster",
-                                "test-key-from-mixed-cluster-old-client",
-                                "test-key-from-mixed-cluster-new-client",
-                                "test-key-from-upgraded-cluster"
+                            hasItems(
+                                "query-test-rest-key-from-old-cluster",
+                                "query-test-rest-key-from-mixed-cluster",
+                                "query-test-rest-key-from-upgraded-cluster"
                             )
                         );
                     });

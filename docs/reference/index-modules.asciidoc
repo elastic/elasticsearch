@@ -24,10 +24,6 @@ They can be changed on a live index using the
 <<indices-update-settings,update-index-settings>> API.
 // end::index-modules-settings-description-tag[]
 
-WARNING: Changing static or dynamic index settings on a closed index could
-result in incorrect settings that are impossible to rectify without deleting
-and recreating the index.
-
 [discrete]
 === Static index settings
 

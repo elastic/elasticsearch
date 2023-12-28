@@ -109,7 +109,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
-        return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed, metadata);
+        return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed, false, metadata);
     }
 
     @Override
@@ -210,7 +210,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
+        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, false, metadata);
     }
 
     public void testLargeReduce() {
@@ -229,6 +229,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
                 )
             ),
             DocValueFormat.RAW,
+            false,
             false,
             null
         );

@@ -12,6 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.junit.Before;
 
@@ -75,6 +77,20 @@ public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTest
         for (int i = 0; i < size; i++) {
             values[i] = randomSortValue();
             sortValueFormats[i] = DocValueFormat.RAW;
+        }
+        return new SearchSortValuesAndFormats(values, sortValueFormats);
+    }
+    public static SearchSortValuesAndFormats LongMaxMinValue() {
+        Object[] values = new Object[2];
+        DocValueFormat.DateTime formatter = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_millis"),
+            randomZone(),
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        DocValueFormat[] sortValueFormats = new DocValueFormat[2];
+        for (int i = 0; i < 2; i++) {
+            values[i] = Long.MAX_VALUE;
+            sortValueFormats[i] = formatter;
         }
         return new SearchSortValuesAndFormats(values, sortValueFormats);
     }

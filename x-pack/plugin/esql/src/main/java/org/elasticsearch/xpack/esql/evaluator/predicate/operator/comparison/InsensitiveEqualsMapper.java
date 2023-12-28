@@ -20,28 +20,27 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
-public class EqualsIgnoreCaseMapper extends ExpressionMapper<EqualsIgnoreCase> {
+public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals> {
 
     private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> ints =
-        EqualsIgnoreCaseIntsEvaluator.Factory::new;
+        InsensitiveEqualsIntsEvaluator.Factory::new;
     private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> longs =
-        EqualsIgnoreCaseLongsEvaluator.Factory::new;
+        InsensitiveEqualsLongsEvaluator.Factory::new;
     private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> doubles =
-        EqualsIgnoreCaseDoublesEvaluator.Factory::new;
+        InsensitiveEqualsDoublesEvaluator.Factory::new;
     private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> keywords =
-        EqualsIgnoreCaseKeywordsEvaluator.Factory::new;
+        InsensitiveEqualsKeywordsEvaluator.Factory::new;
     private final TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> bools =
-        EqualsIgnoreCaseBoolsEvaluator.Factory::new;
+        InsensitiveEqualsBoolsEvaluator.Factory::new;
 
     @Override
-    public final ExpressionEvaluator.Factory map(EqualsIgnoreCase bc, Layout layout) {
+    public final ExpressionEvaluator.Factory map(InsensitiveEquals bc, Layout layout) {
         DataType leftType = bc.left().dataType();
         DataType rightType = bc.right().dataType();
         if (leftType.isNumeric()) {
@@ -68,7 +67,7 @@ public class EqualsIgnoreCaseMapper extends ExpressionMapper<EqualsIgnoreCase> {
                 Automaton automaton = AutomatonQueries.toCaseInsensitiveString(
                     rightVal instanceof BytesRef br ? br.utf8ToString() : String.valueOf(rightVal)
                 );
-                return dvrCtx -> new EqualsIgnoreCaseKeywordsConstantEvaluator(
+                return dvrCtx -> new InsensitiveEqualsKeywordsConstantEvaluator(
                     bc.source(),
                     leftEval.get(dvrCtx),
                     new ByteRunAutomaton(automaton),
@@ -94,7 +93,7 @@ public class EqualsIgnoreCaseMapper extends ExpressionMapper<EqualsIgnoreCase> {
     }
 
     public static ExpressionEvaluator.Factory castToEvaluator(
-        BinaryOperator<?, ?, ?, ?> op,
+        InsensitiveEquals op,
         Layout layout,
         DataType required,
         TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> factory

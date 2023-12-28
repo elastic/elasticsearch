@@ -10,40 +10,31 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
-public class EqualsIgnoreCase extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.EqualsIgnoreCase {
-
-    public EqualsIgnoreCase(Source source, Expression left, Expression right, ZoneId zoneId) {
+    public InsensitiveEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, zoneId);
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
+    public InsensitiveBinaryComparison reverse() {
+        return this;
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.EqualsIgnoreCase> info() {
-        return NodeInfo.create(this, EqualsIgnoreCase::new, left(), right(), zoneId());
+    protected NodeInfo<InsensitiveEquals> info() {
+        return NodeInfo.create(this, InsensitiveEquals::new, left(), right(), zoneId());
     }
 
     @Override
-    protected EqualsIgnoreCase replaceChildren(Expression newLeft, Expression newRight) {
-        return new EqualsIgnoreCase(source(), newLeft, newRight, zoneId());
-    }
-
-    @Override
-    public EqualsIgnoreCase swapLeftAndRight() {
-        return new EqualsIgnoreCase(source(), right(), left(), zoneId());
+    protected InsensitiveEquals replaceChildren(Expression newLeft, Expression newRight) {
+        return new InsensitiveEquals(source(), newLeft, newRight, zoneId());
     }
 
     @Evaluator(extraName = "Ints")
@@ -74,5 +65,9 @@ public class EqualsIgnoreCase extends org.elasticsearch.xpack.ql.expression.pred
     @Evaluator(extraName = "Bools")
     static boolean processBools(boolean lhs, boolean rhs) {
         return lhs == rhs;
+    }
+
+    public Object symbol() {
+        return "=~";
     }
 }

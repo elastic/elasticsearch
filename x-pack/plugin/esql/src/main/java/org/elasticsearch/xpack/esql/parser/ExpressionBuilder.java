@@ -13,9 +13,9 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCase;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
@@ -283,7 +283,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         return switch (op.getSymbol().getType()) {
             case EsqlBaseParser.EQ -> new Equals(source, left, right, zoneId);
-            case EsqlBaseParser.EQ_IGNORE_CASE -> new EqualsIgnoreCase(source, left, right, zoneId);
+            case EsqlBaseParser.SEQ -> new InsensitiveEquals(source, left, right, zoneId);
             case EsqlBaseParser.NEQ -> new Not(source, new Equals(source, left, right, zoneId));
             case EsqlBaseParser.LT -> new LessThan(source, left, right, zoneId);
             case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);

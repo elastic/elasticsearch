@@ -15,9 +15,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCase;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
@@ -284,13 +284,19 @@ public final class PlanNamedTypes {
             of(NamedExpression.class, Alias.class, PlanNamedTypes::writeAlias, PlanNamedTypes::readAlias),
             // BinaryComparison
             of(BinaryComparison.class, Equals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
-            of(BinaryComparison.class, EqualsIgnoreCase.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, NullEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, NotEquals.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, GreaterThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, GreaterThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            // InsensitiveEquals
+            of(
+                InsensitiveEquals.class,
+                InsensitiveEquals.class,
+                PlanNamedTypes::writeInsensitiveEquals,
+                PlanNamedTypes::readInsensitiveEquals
+            ),
             // InComparison
             of(ScalarFunction.class, In.class, PlanNamedTypes::writeInComparison, PlanNamedTypes::readInComparison),
             // RegexMatch
@@ -1065,7 +1071,6 @@ public final class PlanNamedTypes {
         var zoneId = in.readOptionalZoneId();
         return switch (operation) {
             case EQ -> new Equals(source, left, right, zoneId);
-            case EQ_IGNORE_CASE -> new EqualsIgnoreCase(source, left, right, zoneId);
             case NULLEQ -> new NullEquals(source, left, right, zoneId);
             case NEQ -> new NotEquals(source, left, right, zoneId);
             case GT -> new GreaterThan(source, left, right, zoneId);
@@ -1081,6 +1086,22 @@ public final class PlanNamedTypes {
         out.writeExpression(binaryComparison.left());
         out.writeExpression(binaryComparison.right());
         out.writeOptionalZoneId(binaryComparison.zoneId());
+    }
+
+    // -- InsensitiveEquals
+    static InsensitiveEquals readInsensitiveEquals(PlanStreamInput in, String name) throws IOException {
+        var source = in.readSource();
+        var left = in.readExpression();
+        var right = in.readExpression();
+        var zoneId = in.readOptionalZoneId();
+        return new InsensitiveEquals(source, left, right, zoneId);
+    }
+
+    static void writeInsensitiveEquals(PlanStreamOutput out, InsensitiveEquals eq) throws IOException {
+        out.writeSource(eq.source());
+        out.writeExpression(eq.left());
+        out.writeExpression(eq.right());
+        out.writeOptionalZoneId(eq.zoneId());
     }
 
     // -- InComparison

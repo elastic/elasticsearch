@@ -20,10 +20,10 @@ import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link EqualsIgnoreCase}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link InsensitiveEquals}.
  * This class is generated. Do not edit it.
  */
-public final class EqualsIgnoreCaseLongsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class InsensitiveEqualsLongsEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator lhs;
@@ -32,7 +32,7 @@ public final class EqualsIgnoreCaseLongsEvaluator implements EvalOperator.Expres
 
   private final DriverContext driverContext;
 
-  public EqualsIgnoreCaseLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
+  public InsensitiveEqualsLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.lhs = lhs;
@@ -82,7 +82,7 @@ public final class EqualsIgnoreCaseLongsEvaluator implements EvalOperator.Expres
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(EqualsIgnoreCase.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+        result.appendBoolean(InsensitiveEquals.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
@@ -91,7 +91,7 @@ public final class EqualsIgnoreCaseLongsEvaluator implements EvalOperator.Expres
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(EqualsIgnoreCase.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+        result.appendBoolean(InsensitiveEquals.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
       }
       return result.build();
     }
@@ -99,7 +99,7 @@ public final class EqualsIgnoreCaseLongsEvaluator implements EvalOperator.Expres
 
   @Override
   public String toString() {
-    return "EqualsIgnoreCaseLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "InsensitiveEqualsLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
   }
 
   @Override
@@ -122,13 +122,13 @@ public final class EqualsIgnoreCaseLongsEvaluator implements EvalOperator.Expres
     }
 
     @Override
-    public EqualsIgnoreCaseLongsEvaluator get(DriverContext context) {
-      return new EqualsIgnoreCaseLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+    public InsensitiveEqualsLongsEvaluator get(DriverContext context) {
+      return new InsensitiveEqualsLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "EqualsIgnoreCaseLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+      return "InsensitiveEqualsLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
     }
   }
 }

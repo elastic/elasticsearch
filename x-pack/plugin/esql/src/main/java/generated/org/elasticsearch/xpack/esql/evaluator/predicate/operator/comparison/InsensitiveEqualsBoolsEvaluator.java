@@ -7,13 +7,9 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -22,20 +18,20 @@ import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link EqualsIgnoreCase}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link InsensitiveEquals}.
  * This class is generated. Do not edit it.
  */
-public final class EqualsIgnoreCaseKeywordsConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class InsensitiveEqualsBoolsEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator lhs;
 
-  private final ByteRunAutomaton rhs;
+  private final EvalOperator.ExpressionEvaluator rhs;
 
   private final DriverContext driverContext;
 
-  public EqualsIgnoreCaseKeywordsConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator lhs, ByteRunAutomaton rhs, DriverContext driverContext) {
+  public InsensitiveEqualsBoolsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
@@ -44,18 +40,23 @@ public final class EqualsIgnoreCaseKeywordsConstantEvaluator implements EvalOper
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock lhsBlock = (BytesRefBlock) lhs.eval(page)) {
-      BytesRefVector lhsVector = lhsBlock.asVector();
-      if (lhsVector == null) {
-        return eval(page.getPositionCount(), lhsBlock);
+    try (BooleanBlock lhsBlock = (BooleanBlock) lhs.eval(page)) {
+      try (BooleanBlock rhsBlock = (BooleanBlock) rhs.eval(page)) {
+        BooleanVector lhsVector = lhsBlock.asVector();
+        if (lhsVector == null) {
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+        }
+        BooleanVector rhsVector = rhsBlock.asVector();
+        if (rhsVector == null) {
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+        }
+        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
       }
-      return eval(page.getPositionCount(), lhsVector).asBlock();
     }
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock lhsBlock) {
+  public BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef lhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -68,17 +69,27 @@ public final class EqualsIgnoreCaseKeywordsConstantEvaluator implements EvalOper
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(EqualsIgnoreCase.processKeywords(lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhs));
+        if (rhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.getValueCount(p) != 1) {
+          if (rhsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(InsensitiveEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
   }
 
-  public BooleanVector eval(int positionCount, BytesRefVector lhsVector) {
+  public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      BytesRef lhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(EqualsIgnoreCase.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhs));
+        result.appendBoolean(InsensitiveEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
       }
       return result.build();
     }
@@ -86,12 +97,12 @@ public final class EqualsIgnoreCaseKeywordsConstantEvaluator implements EvalOper
 
   @Override
   public String toString() {
-    return "EqualsIgnoreCaseKeywordsConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "InsensitiveEqualsBoolsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(lhs);
+    Releasables.closeExpectNoException(lhs, rhs);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -99,23 +110,23 @@ public final class EqualsIgnoreCaseKeywordsConstantEvaluator implements EvalOper
 
     private final EvalOperator.ExpressionEvaluator.Factory lhs;
 
-    private final ByteRunAutomaton rhs;
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
-        ByteRunAutomaton rhs) {
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;
     }
 
     @Override
-    public EqualsIgnoreCaseKeywordsConstantEvaluator get(DriverContext context) {
-      return new EqualsIgnoreCaseKeywordsConstantEvaluator(source, lhs.get(context), rhs, context);
+    public InsensitiveEqualsBoolsEvaluator get(DriverContext context) {
+      return new InsensitiveEqualsBoolsEvaluator(source, lhs.get(context), rhs.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "EqualsIgnoreCaseKeywordsConstantEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+      return "InsensitiveEqualsBoolsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
     }
   }
 }

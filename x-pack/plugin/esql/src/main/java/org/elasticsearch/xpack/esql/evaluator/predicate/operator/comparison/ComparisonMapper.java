@@ -33,15 +33,6 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
     ) {
     };
 
-    public static final ExpressionMapper<?> EQUALS_IGNORE_CASE = new ComparisonMapper<EqualsIgnoreCase>(
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCaseIntsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCaseLongsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCaseDoublesEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCaseKeywordsEvaluator.Factory::new,
-        org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCaseBoolsEvaluator.Factory::new
-    ) {
-    };
-
     public static final ExpressionMapper<?> NOT_EQUALS = new ComparisonMapper<NotEquals>(
         org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEqualsIntsEvaluator.Factory::new,
         org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEqualsLongsEvaluator.Factory::new,

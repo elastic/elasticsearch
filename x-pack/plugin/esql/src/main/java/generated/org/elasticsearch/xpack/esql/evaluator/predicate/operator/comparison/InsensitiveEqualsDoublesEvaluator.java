@@ -20,10 +20,10 @@ import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link EqualsIgnoreCase}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link InsensitiveEquals}.
  * This class is generated. Do not edit it.
  */
-public final class EqualsIgnoreCaseDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class InsensitiveEqualsDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator lhs;
@@ -32,7 +32,7 @@ public final class EqualsIgnoreCaseDoublesEvaluator implements EvalOperator.Expr
 
   private final DriverContext driverContext;
 
-  public EqualsIgnoreCaseDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
+  public InsensitiveEqualsDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.lhs = lhs;
@@ -82,7 +82,7 @@ public final class EqualsIgnoreCaseDoublesEvaluator implements EvalOperator.Expr
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(EqualsIgnoreCase.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        result.appendBoolean(InsensitiveEquals.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
@@ -91,7 +91,7 @@ public final class EqualsIgnoreCaseDoublesEvaluator implements EvalOperator.Expr
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(EqualsIgnoreCase.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        result.appendBoolean(InsensitiveEquals.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }
       return result.build();
     }
@@ -99,7 +99,7 @@ public final class EqualsIgnoreCaseDoublesEvaluator implements EvalOperator.Expr
 
   @Override
   public String toString() {
-    return "EqualsIgnoreCaseDoublesEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    return "InsensitiveEqualsDoublesEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
   }
 
   @Override
@@ -122,13 +122,13 @@ public final class EqualsIgnoreCaseDoublesEvaluator implements EvalOperator.Expr
     }
 
     @Override
-    public EqualsIgnoreCaseDoublesEvaluator get(DriverContext context) {
-      return new EqualsIgnoreCaseDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+    public InsensitiveEqualsDoublesEvaluator get(DriverContext context) {
+      return new InsensitiveEqualsDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "EqualsIgnoreCaseDoublesEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+      return "InsensitiveEqualsDoublesEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
     }
   }
 }

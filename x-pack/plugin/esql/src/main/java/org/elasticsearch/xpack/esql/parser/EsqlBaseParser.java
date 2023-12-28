@@ -24,8 +24,8 @@ public class EsqlBaseParser extends Parser {
     PIPE=26, STRING=27, INTEGER_LITERAL=28, DECIMAL_LITERAL=29, BY=30, AND=31, 
     ASC=32, ASSIGN=33, COMMA=34, DESC=35, DOT=36, FALSE=37, FIRST=38, LAST=39, 
     LP=40, IN=41, IS=42, LIKE=43, NOT=44, NULL=45, NULLS=46, OR=47, PARAM=48, 
-    RLIKE=49, RP=50, TRUE=51, EQ=52, EQ_IGNORE_CASE=53, NEQ=54, LT=55, LTE=56, 
-    GT=57, GTE=58, PLUS=59, MINUS=60, ASTERISK=61, SLASH=62, PERCENT=63, OPENING_BRACKET=64, 
+    RLIKE=49, RP=50, TRUE=51, EQ=52, SEQ=53, NEQ=54, LT=55, LTE=56, GT=57, 
+    GTE=58, PLUS=59, MINUS=60, ASTERISK=61, SLASH=62, PERCENT=63, OPENING_BRACKET=64, 
     CLOSING_BRACKET=65, UNQUOTED_IDENTIFIER=66, QUOTED_IDENTIFIER=67, EXPR_LINE_COMMENT=68, 
     EXPR_MULTILINE_COMMENT=69, EXPR_WS=70, METADATA=71, FROM_UNQUOTED_IDENTIFIER=72, 
     FROM_LINE_COMMENT=73, FROM_MULTILINE_COMMENT=74, FROM_WS=75, PROJECT_UNQUOTED_IDENTIFIER=76, 
@@ -95,8 +95,8 @@ public class EsqlBaseParser extends Parser {
       "PIPE", "STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", "BY", "AND", 
       "ASC", "ASSIGN", "COMMA", "DESC", "DOT", "FALSE", "FIRST", "LAST", "LP", 
       "IN", "IS", "LIKE", "NOT", "NULL", "NULLS", "OR", "PARAM", "RLIKE", "RP", 
-      "TRUE", "EQ", "EQ_IGNORE_CASE", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", 
-      "MINUS", "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET", 
+      "TRUE", "EQ", "SEQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", 
+      "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET", 
       "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", 
       "EXPR_WS", "METADATA", "FROM_UNQUOTED_IDENTIFIER", "FROM_LINE_COMMENT", 
       "FROM_MULTILINE_COMMENT", "FROM_WS", "PROJECT_UNQUOTED_IDENTIFIER", "PROJECT_LINE_COMMENT", 
@@ -4122,7 +4122,7 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class ComparisonOperatorContext extends ParserRuleContext {
     public TerminalNode EQ() { return getToken(EsqlBaseParser.EQ, 0); }
-    public TerminalNode EQ_IGNORE_CASE() { return getToken(EsqlBaseParser.EQ_IGNORE_CASE, 0); }
+    public TerminalNode SEQ() { return getToken(EsqlBaseParser.SEQ, 0); }
     public TerminalNode NEQ() { return getToken(EsqlBaseParser.NEQ, 0); }
     public TerminalNode LT() { return getToken(EsqlBaseParser.LT, 0); }
     public TerminalNode LTE() { return getToken(EsqlBaseParser.LTE, 0); }

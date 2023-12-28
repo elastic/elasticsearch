@@ -85,8 +85,8 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 32));
+    protected ByteSizeValue memoryLimitForSimple() {
+        return ByteSizeValue.ofKb(15);
     }
 
     public void testMultivalueDissectInput() {

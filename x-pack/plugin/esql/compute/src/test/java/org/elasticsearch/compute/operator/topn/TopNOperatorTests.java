@@ -178,12 +178,12 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
+    protected ByteSizeValue memoryLimitForSimple() {
         /*
          * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker. So 775 is the max on this range.
+         * trip the breaker.
          */
-        return ByteSizeValue.ofBytes(between(1, 775));
+        return ByteSizeValue.ofBytes(775);
     }
 
     public void testRamBytesUsed() {

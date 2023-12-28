@@ -303,14 +303,17 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     }
 
     public void testTypeField() throws Exception {
-        final List<String> apiKeyIds = new ArrayList<>(7);
-        apiKeyIds.add(createApiKey("k0", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        apiKeyIds.add(createApiKey("k1", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        apiKeyIds.add(createApiKey("k2", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        apiKeyIds.add(createApiKey("k3", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        apiKeyIds.add(createApiKey("k4", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        apiKeyIds.add(createApiKey("k5", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        apiKeyIds.add(createApiKey("k6", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        final List<String> allApiKeyIds = new ArrayList<>(7);
+        allApiKeyIds.add(createApiKey("k0", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        allApiKeyIds.add(createApiKey("k1", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        allApiKeyIds.add(createApiKey("k2", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        allApiKeyIds.add(createApiKey("k3", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        allApiKeyIds.add(createApiKey("k4", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        allApiKeyIds.add(createApiKey("k5", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        allApiKeyIds.add(createApiKey("k6", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        List<String> apiKeyIdsSubset = randomSubsetOf(allApiKeyIds);
+        List<String> apiKeyIdsSubsetDifference = new ArrayList<>(allApiKeyIds);
+        apiKeyIdsSubsetDifference.removeAll(apiKeyIdsSubset);
 
         List<String> apiKeyRestTypeQueries = List.of("""
             {"query": {"term": {"type": "rest" }}}""", """
@@ -320,18 +323,25 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         for (String query : apiKeyRestTypeQueries) {
             assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
-                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
+                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(allApiKeyIds.toArray(new String[0])));
             });
         }
 
         createSystemWriteRole(SYSTEM_WRITE_ROLE_NAME);
         String systemWriteCreds = createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
 
-        updateApiKeys(systemWriteCreds, "ctx._source.remove('type')", apiKeyIds);
-
+        // test keys with no "type" field are considered of type "rest"
+        updateApiKeys(systemWriteCreds, "ctx._source.remove('type');", apiKeyIdsSubset);
         for (String query : apiKeyRestTypeQueries) {
             assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
-                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
+                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(allApiKeyIds.toArray(new String[0])));
+            });
+        }
+
+        updateApiKeys(systemWriteCreds, "ctx._source['type'] = 'cross_cluster';", apiKeyIdsSubset);
+        for (String query : apiKeyRestTypeQueries) {
+            assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
+                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIdsSubsetDifference.toArray(new String[0])));
             });
         }
     }
@@ -673,6 +683,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     }
 
     private void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
+        if (ids.isEmpty()) {
+            return;
+        }
         final Request request = new Request("POST", "/.security/_update_by_query?refresh=true&wait_for_completion=true");
         request.setJsonEntity(Strings.format("""
             {

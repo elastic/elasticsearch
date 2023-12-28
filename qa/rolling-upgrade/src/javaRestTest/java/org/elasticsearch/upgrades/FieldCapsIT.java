@@ -104,7 +104,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
 
     public void testOldIndicesOnly() throws Exception {
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), null, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), null, null, null, true);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_red_1", "old_red_2", "old_red_empty" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -114,7 +114,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), null, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), null, null, null, true);
             assertThat(
                 resp.getIndices(),
                 equalTo(new String[] { "old_green_1", "old_green_2", "old_green_empty", "old_red_1", "old_red_2", "old_red_empty" })
@@ -132,7 +132,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     public void testOldIndicesWithIndexFilter() throws Exception {
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), indexFilter, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_red_*"), List.of("*"), indexFilter, null, null, true);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_red_1", "old_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -142,7 +142,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), indexFilter, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*"), List.of("*"), indexFilter, null, null, true);
             assertThat(resp.getIndices(), equalTo(new String[] { "old_green_1", "old_green_2", "old_red_1", "old_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -157,7 +157,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     public void testNewIndicesOnly() throws Exception {
         assumeFalse("required mixed or upgraded cluster", isOldCluster());
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), null, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), null, null, null, true);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2", "new_red_empty" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -167,7 +167,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_*"), List.of("*"), null, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_*"), List.of("*"), null, null, null, true);
             assertThat(
                 resp.getIndices(),
                 equalTo(new String[] { "new_green_1", "new_green_2", "new_green_empty", "new_red_1", "new_red_2", "new_red_empty" })
@@ -186,7 +186,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
         assumeFalse("required mixed or upgraded cluster", isOldCluster());
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), indexFilter, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), indexFilter, null, null, true);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -196,7 +196,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
             assertTrue(resp.getField("blue_field").get("keyword").isSearchable());
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_*"), List.of("*"), indexFilter, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(List.of("new_*"), List.of("*"), indexFilter, null, null, true);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_green_1", "new_green_2", "new_red_1", "new_red_2" }));
             assertThat(resp.getField("red_field").keySet(), contains("keyword"));
             assertTrue(resp.getField("red_field").get("keyword").isSearchable());
@@ -210,7 +210,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
 
     public void testAllIndices() throws Exception {
         assumeFalse("required mixed or upgraded cluster", isOldCluster());
-        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null, null, null);
+        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null, null, null, true);
         assertThat(
             resp.getIndices(),
             equalTo(
@@ -243,7 +243,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     public void testAllIndicesWithIndexFilter() throws Exception {
         assumeFalse("required mixed or upgraded cluster", isOldCluster());
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
-        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), indexFilter, null, null);
+        FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), indexFilter, null, null, true);
         assertThat(
             resp.getIndices(),
             equalTo(
@@ -294,7 +294,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     public void testAllIndicesWithFieldTypeFilter() throws Exception {
         assumeFalse("required mixed or upgraded cluster", isOldCluster());
         RestClient restClient = getUpgradedNodeClient();
-        FieldCapabilitiesResponse resp = fieldCaps(restClient, List.of("old_*", "new_*"), List.of("*"), null, "keyword", null);
+        FieldCapabilitiesResponse resp = fieldCaps(restClient, List.of("old_*", "new_*"), List.of("*"), null, "keyword", null, true);
         assertThat(resp.getField("red_field").keySet(), contains("keyword"));
         assertNull(resp.getField("yellow_field"));
         restClient.close();
@@ -308,11 +308,11 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
         assumeFalse("required mixed or upgraded cluster", isOldCluster());
         RestClient client = getUpgradedNodeClient();
         {
-            FieldCapabilitiesResponse resp = fieldCaps(client, List.of("old_*", "new_*"), List.of("*"), null, null, null);
+            FieldCapabilitiesResponse resp = fieldCaps(client, List.of("old_*", "new_*"), List.of("*"), null, null, null, true);
             assertThat(resp.getField("multi_field.keyword").keySet(), contains("keyword"));
         }
         {
-            FieldCapabilitiesResponse resp = fieldCaps(client, List.of("old_*", "new_*"), List.of("*"), null, null, "-multifield");
+            FieldCapabilitiesResponse resp = fieldCaps(client, List.of("old_*", "new_*"), List.of("*"), null, null, "-multifield", true);
             assertThat(resp.getField("multi_field").keySet(), contains("ip"));
             assertNull(resp.getField("multi_field.keyword"));
         }

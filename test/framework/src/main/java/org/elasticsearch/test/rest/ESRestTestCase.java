@@ -113,7 +113,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
@@ -2267,9 +2266,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         List<String> fields,
         QueryBuilder indexFilter,
         String fieldTypes,
-        String fieldFilters
+        String fieldFilters,
+        boolean includeFieldsWithNoValue
     ) throws IOException {
-        return fieldCaps(client(), indices, fields, indexFilter, fieldTypes, fieldFilters);
+        return fieldCaps(client(), indices, fields, indexFilter, fieldTypes, fieldFilters, includeFieldsWithNoValue);
     }
 
     protected FieldCapabilitiesResponse fieldCaps(
@@ -2278,7 +2278,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         List<String> fields,
         QueryBuilder indexFilter,
         String fieldTypes,
-        String fieldFilters
+        String fieldFilters,
+        boolean includeFieldsWithNoValue
     ) throws IOException {
         Request request = new Request("POST", "/_field_caps");
         request.addParameter("index", String.join(",", indices));
@@ -2296,6 +2297,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             body.endObject();
             request.setJsonEntity(Strings.toString(body));
         }
+        request.addParameter("include_fields_with_no_value", String.valueOf(includeFieldsWithNoValue));
         Response response = restClient.performRequest(request);
         assertOK(response);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {

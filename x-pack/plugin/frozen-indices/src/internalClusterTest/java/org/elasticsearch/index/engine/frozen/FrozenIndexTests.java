@@ -107,7 +107,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         IndexService indexService = indexServices.indexServiceSafe(index);
         IndexShard shard = indexService.getShard(0);
         Engine engine = IndexShardTestCase.getEngine(shard);
-        assertEquals(1, shard.refreshStats().getTotal());
+        assertEquals(0, shard.refreshStats().getTotal());
         boolean useDFS = randomBoolean();
         assertHitCount(
             client().prepareSearch()
@@ -116,7 +116,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             3
         );
         assertThat(engine, Matchers.instanceOf(FrozenEngine.class));
-        assertEquals(useDFS ? 4 : 3, shard.refreshStats().getTotal());
+        assertEquals(useDFS ? 3 : 2, shard.refreshStats().getTotal());
         assertFalse(((FrozenEngine) engine).isReaderOpen());
         assertTrue(indexService.getIndexSettings().isSearchThrottled());
 
@@ -150,7 +150,11 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         try {
             for (int from = 0; from < 3; from++) {
                 assertResponse(
-                    client().prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(1).setFrom(from),
+                    client().prepareSearch()
+                        .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+                        .setPointInTime(new PointInTimeBuilder(pitId))
+                        .setSize(1)
+                        .setFrom(from),
                     response -> {
                         assertHitCount(response, 3);
                         assertEquals(1, response.getHits().getHits().length);
@@ -183,14 +187,13 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
         String indexName = "index";
-        int numberOfShards = 2;
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", numberOfShards).build(), mapping);
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 2).build(), mapping);
         for (int i = 0; i < 10; i++) {
             prepareIndex(indexName).setId("" + i).setSource("field", "foo bar baz").get();
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         int numRequests = randomIntBetween(20, 50);
-        int numRefreshes = numberOfShards;
+        int numRefreshes = 0;
         int numSearches = 0;
         for (int i = 0; i < numRequests; i++) {
             numRefreshes++;
@@ -241,7 +244,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertTrue(FrozenEngine.INDEX_FROZEN.get(indexService.getIndexSettings().getSettings()));
             assertTrue(FrozenEngine.INDEX_FROZEN.exists(indexService.getIndexSettings().getSettings()));
             IndexShard shard = indexService.getShard(0);
-            assertEquals(1, shard.refreshStats().getTotal());
+            assertEquals(0, shard.refreshStats().getTotal());
             assertThat(indexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").setFreeze(false)).actionGet());
@@ -312,18 +315,18 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertIndexFrozen(indexName);
 
         IndicesStatsResponse index = indicesAdmin().prepareStats(indexName).clear().setRefresh(true).get();
-        assertEquals(1, index.getTotal().refresh.getTotal());
+        assertEquals(0, index.getTotal().refresh.getTotal());
         assertHitCount(client().prepareSearch(indexName).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED), 1);
         index = indicesAdmin().prepareStats(indexName).clear().setRefresh(true).get();
-        assertEquals(2, index.getTotal().refresh.getTotal());
+        assertEquals(1, index.getTotal().refresh.getTotal());
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test*")).actionGet());
         assertIndexFrozen(indexName);
         assertIndexFrozen("test-idx-1");
         index = indicesAdmin().prepareStats(indexName).clear().setRefresh(true).get();
-        assertEquals(2, index.getTotal().refresh.getTotal());
-        index = indicesAdmin().prepareStats("test-idx-1").clear().setRefresh(true).get();
         assertEquals(1, index.getTotal().refresh.getTotal());
+        index = indicesAdmin().prepareStats("test-idx-1").clear().setRefresh(true).get();
+        assertEquals(0, index.getTotal().refresh.getTotal());
         assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
     }
 
@@ -395,7 +398,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             );
 
             IndicesStatsResponse response = indicesAdmin().prepareStats("index").clear().setRefresh(true).get();
-            assertEquals(1, response.getTotal().refresh.getTotal());
+            assertEquals(0, response.getTotal().refresh.getTotal());
 
             // Retry with point in time
             PlainActionFuture<ShardSearchContextId> openContextFuture = new PlainActionFuture<>();

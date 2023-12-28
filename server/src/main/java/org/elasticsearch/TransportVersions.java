@@ -177,7 +177,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_CLUSTER_ALIAS = def(8_565_00_0);
     public static final TransportVersion FIELD_CAPS_FIELD_HAS_VALUE = def(8_566_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

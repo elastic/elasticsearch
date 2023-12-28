@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -96,10 +95,6 @@ abstract class QueryList {
             case LONG -> {
                 LongBlock longBlock = (LongBlock) block;
                 yield longBlock::getLong;
-            }
-            case POINT -> {
-                PointBlock pointBlock = (PointBlock) block;
-                yield pointBlock::getPoint;
             }
             case NULL -> offset -> null;
             case DOC -> throw new EsqlIllegalArgumentException("can't read values from [doc] block");

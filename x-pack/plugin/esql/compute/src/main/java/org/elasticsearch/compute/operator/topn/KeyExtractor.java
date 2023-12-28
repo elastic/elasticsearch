@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
@@ -33,7 +32,6 @@ interface KeyExtractor {
             case INT -> KeyExtractorForInt.extractorFor(encoder, ascending, nul, nonNul, (IntBlock) block);
             case LONG -> KeyExtractorForLong.extractorFor(encoder, ascending, nul, nonNul, (LongBlock) block);
             case DOUBLE -> KeyExtractorForDouble.extractorFor(encoder, ascending, nul, nonNul, (DoubleBlock) block);
-            case POINT -> KeyExtractorForPoint.extractorFor(encoder, ascending, nul, nonNul, (PointBlock) block);
             case NULL -> new KeyExtractorForNull(nul);
             default -> {
                 assert false : "No key extractor for [" + block.elementType() + "]";

@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.PointBlock;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -51,7 +50,6 @@ public abstract class BatchEncoder implements Accountable {
             case DOUBLE -> new DoublesDecoder();
             case BYTES_REF -> new BytesRefsDecoder();
             case BOOLEAN -> new BooleansDecoder();
-            case POINT -> new PointsDecoder();
             default -> throw new IllegalArgumentException("can't encode " + elementType);
         };
     }
@@ -537,45 +535,6 @@ public abstract class BatchEncoder implements Accountable {
             bytes.setLength(bytes.length() + Double.BYTES);
             doubleHandle.set(bytes.bytes(), bytes.length(), v.getY());
             bytes.setLength(bytes.length() + Double.BYTES);
-        }
-    }
-
-    protected static final class DirectPoints extends DirectEncoder {
-        DirectPoints(PointBlock block) {
-            super(block);
-        }
-
-        @Override
-        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
-            int before = dst.length();
-            int after = before + Double.BYTES * 2;
-            dst.grow(after);
-            SpatialPoint v = ((PointBlock) block).getPoint(valueIndex);
-            doubleHandle.set(dst.bytes(), before, v.getX());
-            doubleHandle.set(dst.bytes(), before + Double.BYTES, v.getY());
-            dst.setLength(after);
-            return Double.BYTES * 2;
-        }
-    }
-
-    private static class PointsDecoder implements Decoder {
-        @Override
-        public void decode(Block.Builder builder, IsNull isNull, BytesRef[] encoded, int count) {
-            PointBlock.Builder b = (PointBlock.Builder) builder;
-            for (int i = 0; i < count; i++) {
-                if (isNull.isNull(i)) {
-                    b.appendNull();
-                } else {
-                    BytesRef e = encoded[i];
-                    double x = (double) doubleHandle.get(e.bytes, e.offset);
-                    e.offset += Double.BYTES;
-                    e.length -= Double.BYTES;
-                    double y = (double) doubleHandle.get(e.bytes, e.offset);
-                    e.offset += Double.BYTES;
-                    e.length -= Double.BYTES;
-                    b.appendPoint(new SpatialPoint(x, y));
-                }
-            }
         }
     }
 

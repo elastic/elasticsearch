@@ -382,7 +382,7 @@ public class LocalExecutionPlanner {
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
                     "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
-                case "geo_point", "cartesian_point" -> TopNEncoder.WKB; // TODO: use DEFAULT_SORTABLE for PointBlock
+                case "geo_point", "cartesian_point" -> TopNEncoder.WKB;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;
                 default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());

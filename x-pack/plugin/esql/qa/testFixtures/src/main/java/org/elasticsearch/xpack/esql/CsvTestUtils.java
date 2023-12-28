@@ -451,7 +451,6 @@ public final class CsvTestUtils {
                 case NULL -> NULL;
                 case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
-                case POINT -> pointBlockType(actualType);
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };

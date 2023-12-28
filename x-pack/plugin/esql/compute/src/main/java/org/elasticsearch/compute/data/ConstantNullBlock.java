@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,14 +19,7 @@ import java.util.Objects;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractBlock
-    implements
-        BooleanBlock,
-        IntBlock,
-        LongBlock,
-        DoubleBlock,
-        BytesRefBlock,
-        PointBlock {
+public final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, IntBlock, LongBlock, DoubleBlock, BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
 
@@ -225,12 +217,6 @@ public final class ConstantNullBlock extends AbstractBlock
 
     @Override
     public double getDouble(int valueIndex) {
-        assert false : "null block";
-        throw new UnsupportedOperationException("null block");
-    }
-
-    @Override
-    public SpatialPoint getPoint(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

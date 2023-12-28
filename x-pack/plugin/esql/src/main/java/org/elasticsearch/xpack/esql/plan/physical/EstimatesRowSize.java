@@ -116,7 +116,6 @@ public interface EstimatesRowSize {
             case DOUBLE -> Double.BYTES;
             case INT -> Integer.BYTES;
             case LONG -> Long.BYTES;
-            case POINT -> 2 * Double.BYTES;
             case NULL -> 0;
             case UNKNOWN -> throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
         };

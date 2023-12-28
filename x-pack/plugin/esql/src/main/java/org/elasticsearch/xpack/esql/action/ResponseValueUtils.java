@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -127,8 +126,6 @@ public final class ResponseValueUtils {
             return spatial.longAsPoint(longBlock.getLong(offset));
         } else if (block instanceof BytesRefBlock wkbBlock) {
             return spatial.wkbAsPoint(wkbBlock.getBytesRef(offset, scratch));
-        } else if (block instanceof PointBlock pointBlock) {
-            return spatial.pointAsPoint(pointBlock.getPoint(offset));
         } else {
             throw new IllegalArgumentException("Unsupported block type for " + dataType + ": " + block.getWriteableName());
         }

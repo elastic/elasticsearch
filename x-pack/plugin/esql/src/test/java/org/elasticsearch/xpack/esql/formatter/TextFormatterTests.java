@@ -23,6 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.arrayWithSize;
 
@@ -62,8 +63,10 @@ public class TextFormatterTests extends ESTestCase {
                     2
                 ).asBlock(),
                 blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                blockFactory.newPointArrayVector(new SpatialPoint[] { new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611) }, 2)
-                    .asBlock(),
+                BytesRefBlock.newBlockBuilder(2)
+                    .appendBytesRef(CARTESIAN.pointAsWKB(new SpatialPoint(1234, 5678)))
+                    .appendBytesRef(CARTESIAN.pointAsWKB(new SpatialPoint(-9753, 2611)))
+                    .build(),
                 Block.constantNullBlock(2)
             )
         ),
@@ -128,8 +131,10 @@ public class TextFormatterTests extends ESTestCase {
                         2
                     ).asBlock(),
                     blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                    blockFactory.newPointArrayVector(new SpatialPoint[] { new SpatialPoint(1234, 5678), new SpatialPoint(-9753, 2611) }, 2)
-                        .asBlock(),
+                    BytesRefBlock.newBlockBuilder(2)
+                        .appendBytesRef(CARTESIAN.pointAsWKB(new SpatialPoint(1234, 5678)))
+                        .appendBytesRef(CARTESIAN.pointAsWKB(new SpatialPoint(-9753, 2611)))
+                        .build(),
                     Block.constantNullBlock(2)
                 )
             ),

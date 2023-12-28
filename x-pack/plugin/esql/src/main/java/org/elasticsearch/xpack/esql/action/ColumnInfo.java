@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,7 +19,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -231,10 +229,6 @@ public record ColumnInfo(String name, String type) implements Writeable {
                 // This block only converts WKB to WKT, so does not need CRS, so we could remove this class if WKB was the only block type
                 BytesRef wkb = wkbBlock.getBytesRef(valueIndex, scratch);
                 String wkt = spatial.wkbAsString(wkb);
-                return builder.value(wkt);
-            } else if (block instanceof PointBlock pointBlock) {
-                SpatialPoint point = pointBlock.getPoint(valueIndex);
-                String wkt = spatial.pointAsString(point);
                 return builder.value(wkt);
             } else {
                 throw new IllegalArgumentException("Unrecognized block type " + block.getWriteableName() + " for type " + type);

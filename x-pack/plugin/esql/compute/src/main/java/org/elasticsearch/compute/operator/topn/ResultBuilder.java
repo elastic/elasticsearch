@@ -51,7 +51,6 @@ interface ResultBuilder extends Releasable {
             case INT -> new ResultBuilderForInt(blockFactory, encoder, inKey, positions);
             case LONG -> new ResultBuilderForLong(blockFactory, encoder, inKey, positions);
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
-            case POINT -> new ResultBuilderForPoint(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
             case DOC -> new ResultBuilderForDoc(blockFactory, positions);
             default -> {

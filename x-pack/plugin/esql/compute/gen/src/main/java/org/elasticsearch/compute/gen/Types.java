@@ -41,14 +41,12 @@ public class Types {
     static final ClassName INT_BLOCK = ClassName.get(DATA_PACKAGE, "IntBlock");
     static final ClassName LONG_BLOCK = ClassName.get(DATA_PACKAGE, "LongBlock");
     static final ClassName DOUBLE_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleBlock");
-    static final ClassName POINT_BLOCK = ClassName.get(DATA_PACKAGE, "PointBlock");
 
     static final ClassName BOOLEAN_BLOCK_BUILDER = BOOLEAN_BLOCK.nestedClass("Builder");
     static final ClassName BYTES_REF_BLOCK_BUILDER = BYTES_REF_BLOCK.nestedClass("Builder");
     static final ClassName INT_BLOCK_BUILDER = INT_BLOCK.nestedClass("Builder");
     static final ClassName LONG_BLOCK_BUILDER = LONG_BLOCK.nestedClass("Builder");
     static final ClassName DOUBLE_BLOCK_BUILDER = DOUBLE_BLOCK.nestedClass("Builder");
-    static final ClassName POINT_BLOCK_BUILDER = POINT_BLOCK.nestedClass("Builder");
 
     static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
 
@@ -57,41 +55,35 @@ public class Types {
     static final ClassName INT_VECTOR = ClassName.get(DATA_PACKAGE, "IntVector");
     static final ClassName LONG_VECTOR = ClassName.get(DATA_PACKAGE, "LongVector");
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");
-    static final ClassName POINT_VECTOR = ClassName.get(DATA_PACKAGE, "PointVector");
 
     static final ClassName BOOLEAN_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "Builder");
     static final ClassName BYTES_REF_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BytesRefVector", "Builder");
     static final ClassName INT_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "Builder");
     static final ClassName LONG_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "LongVector", "Builder");
     static final ClassName DOUBLE_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "DoubleVector", "Builder");
-    static final ClassName POINT_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "PointVector", "Builder");
 
     static final ClassName BOOLEAN_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "FixedBuilder");
     static final ClassName INT_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "FixedBuilder");
     static final ClassName LONG_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "LongVector", "FixedBuilder");
     static final ClassName DOUBLE_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "DoubleVector", "FixedBuilder");
-    static final ClassName POINT_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "PointVector", "FixedBuilder");
 
     static final ClassName BOOLEAN_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanArrayVector");
     static final ClassName BYTES_REF_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefArrayVector");
     static final ClassName INT_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "IntArrayVector");
     static final ClassName LONG_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "LongArrayVector");
     static final ClassName DOUBLE_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleArrayVector");
-    static final ClassName POINT_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "PointArrayVector");
 
     static final ClassName BOOLEAN_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanArrayBlock");
     static final ClassName BYTES_REF_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefArrayBlock");
     static final ClassName INT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "IntArrayBlock");
     static final ClassName LONG_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "LongArrayBlock");
     static final ClassName DOUBLE_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleArrayBlock");
-    static final ClassName POINT_ARRAY_BLOCK = ClassName.get(DATA_PACKAGE, "PointArrayBlock");
 
     static final ClassName BOOLEAN_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBooleanVector");
     static final ClassName BYTES_REF_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBytesRefVector");
     static final ClassName INT_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantIntVector");
     static final ClassName LONG_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantLongVector");
     static final ClassName DOUBLE_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantDoubleVector");
-    static final ClassName POINT_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantPointVector");
 
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName AGGREGATOR_FUNCTION_SUPPLIER = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunctionSupplier");
@@ -155,12 +147,10 @@ public class Types {
             return DOUBLE_BLOCK;
         }
         if (elementType.equals(POINT)) {
-            // TODO: Decide if we want to support backing POINT with LONG, POINT or BYTES_REF
-            // return POINT_BLOCK;
             return BYTES_REF_BLOCK;
         }
         if (elementType.equals(GEOMETRY)) {
-            return POINT_BLOCK;
+            return BYTES_REF_BLOCK;
         }
         throw new IllegalArgumentException("unknown block type for [" + elementType + "]");
     }
@@ -182,8 +172,6 @@ public class Types {
             return DOUBLE_BLOCK;
         }
         if (elementType.equalsIgnoreCase("POINT")) {
-            // TODO: Decide if we want to support backing POINT with LONG, POINT or BYTES_REF
-            // return POINT_BLOCK;
             return BYTES_REF_BLOCK;
         }
         if (elementType.equalsIgnoreCase("GEOMETRY")) {
@@ -209,8 +197,6 @@ public class Types {
             return DOUBLE_VECTOR;
         }
         if (elementType.equals(POINT)) {
-            // TODO: Decide if we want to support backing POINT with LONG, POINT or BYTES_REF
-            // return POINT_VECTOR;
             return BYTES_REF_VECTOR;
         }
         if (elementType.equals(GEOMETRY)) {
@@ -236,8 +222,6 @@ public class Types {
             return DOUBLE_VECTOR;
         }
         if (elementType.equalsIgnoreCase("POINT")) {
-            // TODO: Decide if we want to support backing POINT with LONG, POINT or BYTES_REF
-            // return POINT_VECTOR;
             return BYTES_REF_VECTOR;
         }
         if (elementType.equalsIgnoreCase("GEOMETRY")) {
@@ -277,12 +261,6 @@ public class Types {
         if (resultType.equals(DOUBLE_VECTOR)) {
             return DOUBLE_VECTOR_BUILDER;
         }
-        if (resultType.equals(POINT_BLOCK)) {
-            return POINT_BLOCK_BUILDER;
-        }
-        if (resultType.equals(POINT_VECTOR)) {
-            return POINT_VECTOR_BUILDER;
-        }
         throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
     }
 
@@ -298,9 +276,6 @@ public class Types {
         }
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_VECTOR_FIXED_BUILDER;
-        }
-        if (elementType.equals(POINT)) {
-            return POINT_VECTOR_FIXED_BUILDER;
         }
         throw new IllegalArgumentException("unknown vector fixed builder type for [" + elementType + "]");
     }
@@ -321,9 +296,6 @@ public class Types {
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_ARRAY_VECTOR;
         }
-        if (elementType.equals(POINT)) {
-            return POINT_ARRAY_VECTOR;
-        }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }
 
@@ -342,9 +314,6 @@ public class Types {
         }
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_ARRAY_BLOCK;
-        }
-        if (elementType.equals(POINT)) {
-            return POINT_ARRAY_BLOCK;
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }
@@ -365,9 +334,6 @@ public class Types {
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_CONSTANT_VECTOR;
         }
-        if (elementType.equals(POINT)) {
-            return POINT_CONSTANT_VECTOR;
-        }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }
 
@@ -386,9 +352,6 @@ public class Types {
         }
         if (t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR) || t.equals(DOUBLE_BLOCK_BUILDER)) {
             return TypeName.DOUBLE;
-        }
-        if (t.equals(POINT_BLOCK) || t.equals(POINT_VECTOR) || t.equals(POINT_BLOCK_BUILDER)) {
-            return POINT;
         }
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }

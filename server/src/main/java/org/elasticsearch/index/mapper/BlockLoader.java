@@ -350,11 +350,6 @@ public interface BlockLoader {
         BytesRefBuilder bytesRefs(int expectedCount);
 
         /**
-         * Build a builder to load {@link SpatialPoint}s without any loading constraints.
-         */
-        PointBuilder points(int expectedCount);
-
-        /**
          * Build a builder to load {@link SpatialPoint}s backed by WKB in BytesRefBlock.
          */
         BytesRefBuilder geometries(int expectedCount);

@@ -839,7 +839,6 @@ public class BasicBlockTests extends ESTestCase {
                     case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
                     case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
                     case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
-                    case POINT -> ((PointBlock) block).getPoint(i++);
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }
@@ -928,11 +927,6 @@ public class BasicBlockTests extends ESTestCase {
                             boolean b = randomBoolean();
                             valuesAtPosition.add(b);
                             ((BooleanBlock.Builder) builder).appendBoolean(b);
-                        }
-                        case POINT -> {
-                            SpatialPoint pt = new SpatialPoint(pointSupplier.get());
-                            valuesAtPosition.add(pt);
-                            ((PointBlock.Builder) builder).appendPoint(pt);
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

@@ -27,11 +27,6 @@ public enum ElementType {
     BYTES_REF(BytesRefBlock::newBlockBuilder),
 
     /**
-     * geo_point and cartesian_point
-     */
-    POINT(PointBlock::newBlockBuilder),
-
-    /**
      * Blocks that reference individual lucene documents.
      */
     DOC(DocBlock::newBlockBuilder),

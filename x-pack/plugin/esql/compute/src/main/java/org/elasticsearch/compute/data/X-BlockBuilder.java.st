@@ -14,14 +14,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
-$elseif(Point)$
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.common.util.ObjectArray;
-
-import java.util.Arrays;
-
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -299,11 +291,6 @@ $else$
             if (values[i]) {
                 array.set(i);
             }
-        }
-    $elseif(Point)$
-        final ObjectArray<SpatialPoint> array = blockFactory.bigArrays().newObjectArray(valueCount);
-        for (int i = 0; i < valueCount; i++) {
-            array.set(i, values[i]);
         }
     $else$
         final $Array$ array = blockFactory.bigArrays().new$Array$(valueCount, false);

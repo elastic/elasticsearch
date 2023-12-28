@@ -138,24 +138,6 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
     }
 
-    public static class PointsBlockLoader extends SourceBlockLoader {
-        private final ValueFetcher fetcher;
-
-        public PointsBlockLoader(ValueFetcher fetcher) {
-            this.fetcher = fetcher;
-        }
-
-        @Override
-        public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.points(expectedCount);
-        }
-
-        @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) {
-            return new Points(fetcher);
-        }
-    }
-
     public static class GeometriesBlockLoader extends SourceBlockLoader {
         private final ValueFetcher fetcher;
 
@@ -189,40 +171,6 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         @Override
         public String toString() {
             return "BlockSourceReader.Bytes";
-        }
-    }
-
-    private static class Points extends BlockSourceReader {
-
-        Points(ValueFetcher fetcher) {
-            super(fetcher);
-        }
-
-        @Override
-        protected void append(BlockLoader.Builder builder, Object v) {
-            if (v instanceof SpatialPoint point) {
-                ((BlockLoader.PointBuilder) builder).appendPoint(point);
-            } else if (v instanceof String wkt) {
-                try {
-                    // TODO: figure out why this is not already happening in the GeoPointFieldMapper
-                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
-                    if (geometry instanceof Point point) {
-                        // TODO: perhaps we should not create points for later GC here, and pass in primitives only?
-                        ((BlockLoader.PointBuilder) builder).appendPoint(new SpatialPoint(point.getX(), point.getY()));
-                    } else {
-                        throw new IllegalArgumentException("Cannot convert geometry into point:: " + geometry.type());
-                    }
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("Failed to parse point geometry: " + e.getMessage(), e);
-                }
-            } else {
-                throw new IllegalArgumentException("Unsupported source type for point: " + v.getClass().getSimpleName());
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "BlockSourceReader.Points";
         }
     }
 

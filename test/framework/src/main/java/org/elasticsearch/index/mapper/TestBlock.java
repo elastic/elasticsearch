@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -56,19 +55,6 @@ public class TestBlock implements BlockLoader.Block {
                     }
                 }
                 return new BytesRefsBuilder();
-            }
-
-            @Override
-            public BlockLoader.PointBuilder points(int expectedCount) {
-                class PointsBuilder extends TestBlock.Builder implements BlockLoader.PointBuilder {
-                    @Override
-                    public PointsBuilder appendPoint(SpatialPoint value) {
-                        add(value.getX());
-                        add(value.getY());
-                        return this;
-                    }
-                }
-                return new PointsBuilder();
             }
 
             @Override

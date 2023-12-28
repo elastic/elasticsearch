@@ -8,12 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-$if(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.common.util.ObjectArray;
-$else$
 import org.elasticsearch.common.util.$Array$;
-$endif$
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -61,8 +56,6 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
         var blockFactory = blockFactory();
     $if(boolean)$
         final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
-    $elseif(Point)$
-        final $Array$ filtered = blockFactory.bigArrays().newObjectArray(positions.length);
     $else$
         final $Array$ filtered = blockFactory.bigArrays().new$Array$(positions.length);
     $endif$

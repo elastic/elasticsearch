@@ -254,7 +254,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             IntBlock.ENTRY,
             LongBlock.ENTRY,
             DoubleBlock.ENTRY,
-            PointBlock.ENTRY,
             BytesRefBlock.ENTRY,
             BooleanBlock.ENTRY,
             ConstantNullBlock.ENTRY

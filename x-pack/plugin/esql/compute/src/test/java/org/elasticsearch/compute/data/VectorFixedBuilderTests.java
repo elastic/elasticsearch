@@ -120,7 +120,6 @@ public class VectorFixedBuilderTests extends ESTestCase {
             case DOUBLE -> DoubleVector.newVectorFixedBuilder(size, blockFactory);
             case INT -> IntVector.newVectorFixedBuilder(size, blockFactory);
             case LONG -> LongVector.newVectorFixedBuilder(size, blockFactory);
-            case POINT -> PointVector.newVectorFixedBuilder(size, blockFactory);
         };
     }
 
@@ -145,11 +144,6 @@ public class VectorFixedBuilderTests extends ESTestCase {
             case LONG -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((LongVector.FixedBuilder) builder).appendLong(((LongVector) from).getLong(p));
-                }
-            }
-            case POINT -> {
-                for (int p = 0; p < from.getPositionCount(); p++) {
-                    ((PointVector.FixedBuilder) builder).appendPoint(((PointVector) from).getPoint(p));
                 }
             }
         }

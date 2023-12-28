@@ -38,7 +38,6 @@ public class BlockTestUtils {
             case BOOLEAN -> randomBoolean();
             case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
             case NULL -> null;
-            case POINT -> randomSpatialPoint();
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }
@@ -62,8 +61,6 @@ public class BlockTestUtils {
             b.appendBoolean(v);
         } else if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
-        } else if (builder instanceof PointBlock.Builder b && value instanceof SpatialPoint v) {
-            b.appendPoint(v);
         } else {
             throw new IllegalArgumentException("Can't append [" + value + "/" + value.getClass() + "] to [" + builder + "]");
         }

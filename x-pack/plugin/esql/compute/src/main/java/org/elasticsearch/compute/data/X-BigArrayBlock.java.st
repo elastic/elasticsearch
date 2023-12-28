@@ -8,12 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
-$if(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.common.util.ObjectArray;
-$else$
 import org.elasticsearch.common.util.$Array$;
-$endif$
 import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;

@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -29,7 +28,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.PointBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -41,14 +39,12 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.compute.data.BlockTestUtils.randomSpatialPoint;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -176,7 +172,6 @@ public class MultivalueDedupeTests extends ESTestCase {
             case INT -> assertIntHash(Set.of(), b);
             case LONG -> assertLongHash(Set.of(), b);
             case DOUBLE -> assertDoubleHash(Set.of(), b);
-            case POINT -> assertPointHash(Set.of(), b);
             default -> throw new IllegalArgumentException();
         }
     }
@@ -226,14 +221,6 @@ public class MultivalueDedupeTests extends ESTestCase {
                     previousValues.add(randomDouble());
                 }
                 assertDoubleHash(previousValues, b);
-            }
-            case POINT -> {
-                int prevSize = between(1, 10000);
-                Set<SpatialPoint> previousValues = new HashSet<>(prevSize);
-                while (previousValues.size() < prevSize) {
-                    previousValues.add(randomSpatialPoint());
-                }
-                assertPointHash(previousValues, b);
             }
             default -> throw new IllegalArgumentException();
         }
@@ -346,16 +333,6 @@ public class MultivalueDedupeTests extends ESTestCase {
         }
     }
 
-    private void assertPointHash(Set<SpatialPoint> previousValues, BasicBlockTests.RandomBlock b) {
-        LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        previousValues.stream().forEach(p -> hash.add(p.hashCode()));
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupePoint((PointBlock) b.block()).hash(blockFactory(), hash);
-        try (IntBlock ords = hashes.ords()) {
-            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(Objects::isNull)));
-            assertHash(b, ords, hash.size(), previousValues, hash::get, p -> (long) p.hashCode());
-        }
-    }
-
     private void assertHash(
         BasicBlockTests.RandomBlock b,
         IntBlock hashes,
@@ -434,7 +411,6 @@ public class MultivalueDedupeTests extends ESTestCase {
                     case LONG -> assertThat(toDecode[i].length, equalTo(Long.BYTES));
                     case DOUBLE -> assertThat(toDecode[i].length, equalTo(Double.BYTES));
                     case BOOLEAN -> assertThat(toDecode[i].length, equalTo(1));
-                    case POINT -> assertThat(toDecode[i].length, equalTo(2 * Double.BYTES));
                     case BYTES_REF -> {
                         // Not a well defined length
                     }

@@ -13,11 +13,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
-$elseif(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
-
-import java.util.Arrays;
-
 $else$
 import java.util.Arrays;
 $endif$

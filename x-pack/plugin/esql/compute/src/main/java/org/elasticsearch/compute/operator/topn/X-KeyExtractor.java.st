@@ -9,8 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$elseif(Point)$
-import org.elasticsearch.common.geo.SpatialPoint;
 $endif$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
@@ -165,15 +163,6 @@ $elseif(boolean)$
                 }
             }
             return nonNul(key, true);
-$elseif(Point)$
-            $type$ min = block.get$Type$(start);
-            for (int i = start + 1; i < end; i++) {
-                SpatialPoint other = block.getPoint(i);
-                if (other.compareTo(min) < 0) {
-                    min = other;
-                }
-            }
-            return nonNul(key, min);
 $else$
             $type$ min = block.get$Type$(start);
             for (int i = start + 1; i < end; i++) {
@@ -222,15 +211,6 @@ $elseif(boolean)$
                 }
             }
             return nonNul(key, false);
-$elseif(Point)$
-            $type$ max = block.get$Type$(start);
-            for (int i = start + 1; i < end; i++) {
-                SpatialPoint other = block.getPoint(i);
-                if (other.compareTo(max) > 0) {
-                    max = other;
-                }
-            }
-            return nonNul(key, max);
 $else$
             $type$ max = block.get$Type$(start);
             for (int i = start + 1; i < end; i++) {

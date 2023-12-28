@@ -228,36 +228,27 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
             }
 
-            // check to make sure that the required step details are either all null or all set.
-            final long maxNull;
-            final Stream<String> conditions;
-
-            // step==ERROR allows phase,action to be set or null
-            if (ErrorStep.NAME.equals(step)) {
-                maxNull = 2;
-                conditions = Stream.of(phase, action);
-            } else {
-                maxNull = 3;
-                conditions = Stream.of(phase, action, step);
-            }
-
-            long numNull = conditions.filter(Objects::isNull).count();
-            if (numNull > 0 && numNull < maxNull) {
-                throw new IllegalArgumentException(
-                    "managed index response must have complete step details ["
-                        + PHASE_FIELD.getPreferredName()
-                        + "="
-                        + phase
-                        + ", "
-                        + ACTION_FIELD.getPreferredName()
-                        + "="
-                        + action
-                        + ", "
-                        + STEP_FIELD.getPreferredName()
-                        + "="
-                        + step
-                        + "]"
-                );
+            // If at least one detail is null, but not *all* are null
+            if (Stream.of(phase, action, step).anyMatch(Objects::isNull)
+                && Stream.of(phase, action, step).allMatch(Objects::isNull) == false) {
+                // …and it's not in the error step
+                if (ErrorStep.NAME.equals(step) == false) {
+                    throw new IllegalArgumentException(
+                        "managed index response must have complete step details ["
+                            + PHASE_FIELD.getPreferredName()
+                            + "="
+                            + phase
+                            + ", "
+                            + ACTION_FIELD.getPreferredName()
+                            + "="
+                            + action
+                            + ", "
+                            + STEP_FIELD.getPreferredName()
+                            + "="
+                            + step
+                            + "]"
+                    );
+                }
             }
         } else {
             if (policyName != null

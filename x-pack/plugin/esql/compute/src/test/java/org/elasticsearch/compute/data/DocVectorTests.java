@@ -108,7 +108,7 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     private void assertShardSegmentDocMap(int[][] data, int[][] expected) {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        BlockFactory blockFactory = blockFactory();
         try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, data.length)) {
             for (int r = 0; r < data.length; r++) {
                 builder.appendShard(data[r][0]);
@@ -116,7 +116,9 @@ public class DocVectorTests extends ComputeTestCase {
                 builder.appendDoc(data[r][2]);
             }
             try (DocVector docVector = builder.build().asVector()) {
+                assertThat(blockFactory.breaker().getUsed(), equalTo(docVector.ramBytesUsed()));
                 int[] forwards = docVector.shardSegmentDocMapForwards();
+                assertThat(blockFactory.breaker().getUsed(), equalTo(docVector.ramBytesUsed()));
 
                 int[][] result = new int[docVector.getPositionCount()][];
                 for (int p = 0; p < result.length; p++) {
@@ -195,7 +197,7 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     public void testFilterBreaks() {
-        BlockFactory factory = blockFactory(ByteSizeValue.ofBytes(between(160, 280)));
+        BlockFactory factory = blockFactory(ByteSizeValue.ofBytes(between(250, 370)));
         try (
             DocVector docs = new DocVector(
                 factory.newConstantIntVector(0, 10),

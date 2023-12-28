@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -77,30 +78,33 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // prepare the request for execution; has the side effect of touching the request parameters
-        final RestChannelConsumer action = prepareRequest(request, client);
+        try (var action = prepareRequest(request, client)) {
 
-        // validate unconsumed params, but we must exclude params used to format the response
-        // use a sorted set so the unconsumed parameters appear in a reliable sorted order
-        final SortedSet<String> unconsumedParams = request.unconsumedParams()
-            .stream()
-            .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
-            .collect(Collectors.toCollection(TreeSet::new));
+            // validate unconsumed params, but we must exclude params used to format the response
+            // use a sorted set so the unconsumed parameters appear in a reliable sorted order
+            final SortedSet<String> unconsumedParams = request.unconsumedParams()
+                .stream()
+                .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
+                .collect(Collectors.toCollection(TreeSet::new));
 
-        // validate the non-response params
-        if (unconsumedParams.isEmpty() == false) {
-            final Set<String> candidateParams = new HashSet<>();
-            candidateParams.addAll(request.consumedParams());
-            candidateParams.addAll(responseParams(request.getRestApiVersion()));
-            throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
+            // validate the non-response params
+            if (unconsumedParams.isEmpty() == false) {
+                final Set<String> candidateParams = new HashSet<>();
+                candidateParams.addAll(request.consumedParams());
+                candidateParams.addAll(responseParams(request.getRestApiVersion()));
+                throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
+            }
+
+            if (request.hasContent() && request.isContentConsumed() == false) {
+                throw new IllegalArgumentException(
+                    "request [" + request.method() + " " + request.path() + "] does not support having a body"
+                );
+            }
+
+            usageCount.increment();
+            // execute the action
+            action.accept(channel);
         }
-
-        if (request.hasContent() && request.isContentConsumed() == false) {
-            throw new IllegalArgumentException("request [" + request.method() + " " + request.path() + "] does not support having a body");
-        }
-
-        usageCount.increment();
-        // execute the action
-        action.accept(channel);
     }
 
     protected static String unrecognized(
@@ -149,11 +153,13 @@ public abstract class BaseRestHandler implements RestHandler {
     }
 
     /**
-     * REST requests are handled by preparing a channel consumer that represents the execution of
-     * the request against a channel.
+     * REST requests are handled by preparing a channel consumer that represents the execution of the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception>, Releasable {
+        @Override
+        default void close() {}
+    }
 
     /**
      * Prepare the request for execution. Implementations should consume all request params before

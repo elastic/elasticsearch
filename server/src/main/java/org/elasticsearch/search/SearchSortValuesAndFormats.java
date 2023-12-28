@@ -31,6 +31,8 @@ public class SearchSortValuesAndFormats implements Writeable {
             Object sortValue = rawSortValues[i];
             if (sortValue instanceof BytesRef) {
                 this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
+            } else if (sortValueFormats[i] instanceof DocValueFormat.DateTime) {
+                this.formattedSortValues[i] = sortValueFormats[i].formatSortValue(sortValue);
             } else if (sortValue instanceof Long) {
                 this.formattedSortValues[i] = sortValueFormats[i].format((long) sortValue);
             } else if (sortValue instanceof Double) {

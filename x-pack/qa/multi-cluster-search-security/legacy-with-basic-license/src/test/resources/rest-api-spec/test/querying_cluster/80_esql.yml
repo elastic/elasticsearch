@@ -1,0 +1,143 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit-password",
+              "roles" : [ "x_cluster_role" ]
+            }
+  - do:
+      security.put_role:
+        name: "x_cluster_role"
+        body:  >
+            {
+              "cluster": [],
+              "indices": [
+                {
+                  "names": ["local_index", "esql_local"],
+                  "privileges": ["read"]
+                }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "remote"
+        body:  >
+            {
+              "password": "s3krit-password",
+              "roles" : [ "remote_ccs" ]
+            }
+  - do:
+      security.put_role:
+        name: "remote_ccs"
+        body:  >
+            {
+            }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "x_cluster_role"
+        ignore: 404
+
+---
+"Index data and search on the mixed cluster":
+
+  - do:
+      indices.create:
+        index: esql_local
+        body:
+          mappings:
+            properties:
+              since:
+                type: date
+                format: "yyyy-MM-dd"
+              cost:
+                type: long
+              tag:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "esql_local"}}'
+          - '{"since" : "2023-01-01", "cost": 750, "tag": "monitor"}'
+          - '{"index": {"_index": "esql_local"}}'
+          - '{ "since" : "2023-01-02", "cost": 2100, "tag": "laptop"}'
+          - '{"index": {"_index": "esql_local"}}'
+          - '{"since" : "2023-01-03", "cost": 250, "tag": "monitor"}'
+          - '{"index": {"_index": "esql_local"}}'
+          - '{"since" : "2023-01-04", "cost": 100, "tag": "tablet"}'
+          - '{"index": {"_index": "esql_local"}}'
+          - '{"since" : "2023-01-05", "cost": 50, "tag": "headphone"}'
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      esql.query:
+        body:
+          query: 'FROM *:esql*,esql_* | STATS total = sum(cost) by tag | SORT tag | LIMIT 10'
+
+  - match: {columns.0.name: "total"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "tag"}
+  - match: {columns.1.type: "keyword"}
+
+  - match: {values.0.0: 2200}
+  - match: {values.0.1: "computer"}
+  - match: {values.1.0: 170}
+  - match: {values.1.1: "headphone"}
+  - match: {values.2.0: 2100 }
+  - match: {values.2.1: "laptop" }
+  - match: {values.3.0: 1000 }
+  - match: {values.3.1: "monitor" }
+  - match: {values.4.0: 550 }
+  - match: {values.4.1: "tablet" }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      esql.query:
+        body:
+          query: 'FROM *:esql*,esql_* [METADATA _index] | sort cost | KEEP _index, tag, cost | LIMIT 10'
+          filter:
+            range:
+              since:
+                gte: "2023-01-02"
+                lte: "2023-01-03"
+                format: "yyyy-MM-dd"
+
+  - match: {columns.0.name: "_index"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "tag"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "cost" }
+  - match: {columns.2.type: "long" }
+
+  - match: {values.0.0: "esql_local"}
+  - match: {values.0.1: "monitor"}
+  - match: {values.0.2: 250 }
+  - match: {values.1.0: "my_remote_cluster:esql_index" }
+  - match: {values.1.1: "tablet"}
+  - match: {values.1.2: 450 }
+  - match: {values.2.0: "my_remote_cluster:esql_index" }
+  - match: {values.2.1: "computer" }
+  - match: {values.2.2: 1200 }
+  - match: {values.3.0: "esql_local"}
+  - match: {values.3.1: "laptop" }
+  - match: {values.3.2: 2100 }
+
+  - do:
+      indices.delete:
+        index: esql_local

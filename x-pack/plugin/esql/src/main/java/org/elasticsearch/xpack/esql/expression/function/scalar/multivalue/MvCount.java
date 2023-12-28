@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -107,7 +106,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
         @Override
         protected Block evalNullable(Block block) {
-            try (var builder = IntBlock.newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())) {
+            try (var builder = driverContext.blockFactory().newIntBlockBuilder(block.getPositionCount())) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
                     int valueCount = block.getValueCount(p);
                     if (valueCount == 0) {

@@ -308,30 +308,28 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         apiKeyIds.add(createApiKey("k1", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
         apiKeyIds.add(createApiKey("k2", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
         apiKeyIds.add(createApiKey("k3", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        for (String query : List.of("""
+        apiKeyIds.add(createApiKey("k4", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        apiKeyIds.add(createApiKey("k5", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        apiKeyIds.add(createApiKey("k6", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+
+        List<String> apiKeyRestTypeQueries = List.of("""
             {"query": {"term": {"type": "rest" }}}""", """
             {"query": {"prefix": {"type": "re" }}}""", """
             {"query": {"wildcard": {"type": "r*t" }}}""", """
-            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
+            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""");
+
+        for (String query : apiKeyRestTypeQueries) {
             assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
                 assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
             });
         }
 
-        createSystemWriteRole();
-        createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
+        createSystemWriteRole(SYSTEM_WRITE_ROLE_NAME);
+        String systemWriteCreds = createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
 
-        updateKeys("ctx._source.remove('type')", apiKeyIds);
+        updateApiKeys(systemWriteCreds, "ctx._source.remove('type')", apiKeyIds);
 
-        apiKeyIds.add(createApiKey("k4", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        apiKeyIds.add(createApiKey("k5", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        apiKeyIds.add(createApiKey("k6", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-
-        for (String query : List.of("""
-            {"query": {"term": {"type": "rest" }}}""", """
-            {"query": {"prefix": {"type": "re" }}}""", """
-            {"query": {"wildcard": {"type": "r*t" }}}""", """
-            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
+        for (String query : apiKeyRestTypeQueries) {
             assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
                 assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
             });
@@ -639,16 +637,17 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         return tuple.v1();
     }
 
-    private void createUser(String username, String[] roles) throws IOException {
+    private String createUser(String username, String[] roles) throws IOException {
         final Request request = new Request("POST", "/_security/user/" + username);
         Map<String, Object> body = Map.ofEntries(Map.entry("roles", roles), Map.entry("password", "super-strong-password".toString()));
         request.setJsonEntity(XContentTestUtils.convertToXContent(body, XContentType.JSON).utf8ToString());
         Response response = adminClient().performRequest(request);
         assertOK(response);
+        return basicAuthHeaderValue(SUPERUSER_WITH_SYSTEM_WRITE, new SecureString("super-strong-password".toCharArray()));
     }
 
-    private void createSystemWriteRole() throws IOException {
-        final Request addRole = new Request("POST", "/_security/role/" + SYSTEM_WRITE_ROLE_NAME);
+    private void createSystemWriteRole(String roleName) throws IOException {
+        final Request addRole = new Request("POST", "/_security/role/" + roleName);
         addRole.setJsonEntity("""
             {
               "indices": [
@@ -673,7 +672,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         request.setOptions(options);
     }
 
-    private void updateKeys(String script, Collection<String> ids) throws IOException {
+    private void updateApiKeys(String creds, String script, Collection<String> ids) throws IOException {
         final Request request = new Request("POST", "/.security/_update_by_query?refresh=true&wait_for_completion=true");
         request.setJsonEntity(Strings.format("""
             {
@@ -692,14 +691,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
               }
             }
             """, script, ids.stream().map(id -> "\"" + id + "\"").collect(Collectors.toList())));
-        request.setOptions(
-            request.getOptions()
-                .toBuilder()
-                .addHeader(
-                    HttpHeaders.AUTHORIZATION,
-                    basicAuthHeaderValue(SUPERUSER_WITH_SYSTEM_WRITE, new SecureString("super-strong-password".toCharArray()))
-                )
-        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, creds));
         expectWarnings(
             request,
             "this request accesses system indices: [.security-7],"

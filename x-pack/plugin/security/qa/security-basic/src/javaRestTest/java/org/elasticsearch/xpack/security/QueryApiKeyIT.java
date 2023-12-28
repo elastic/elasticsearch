@@ -304,13 +304,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
     public void testTypeField() throws Exception {
         final List<String> allApiKeyIds = new ArrayList<>(7);
-        allApiKeyIds.add(createApiKey("k0", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        allApiKeyIds.add(createApiKey("k1", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        allApiKeyIds.add(createApiKey("k2", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        allApiKeyIds.add(createApiKey("k3", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        allApiKeyIds.add(createApiKey("k4", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        allApiKeyIds.add(createApiKey("k5", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
-        allApiKeyIds.add(createApiKey("k6", Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1());
+        for (int i = 0; i < 7; i++) {
+            allApiKeyIds.add(
+                createApiKey("typed_key_" + i, Map.of(), randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER)).v1()
+            );
+        }
         List<String> apiKeyIdsSubset = randomSubsetOf(allApiKeyIds);
         List<String> apiKeyIdsSubsetDifference = new ArrayList<>(allApiKeyIds);
         apiKeyIdsSubsetDifference.removeAll(apiKeyIdsSubset);
@@ -345,8 +343,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             });
         }
 
-        // but the same keys with type "cross_cluster" are NOT of type "rest"
-        updateApiKeys(systemWriteCreds, "ctx._source['type']='cross_cluster';", apiKeyIdsSubset);
+        // but the same keys with type "other" are NOT of type "rest"
+        updateApiKeys(systemWriteCreds, "ctx._source['type']='other';", apiKeyIdsSubset);
         for (String query : apiKeyRestTypeQueries) {
             assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
                 assertThat(
@@ -355,13 +353,17 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 );
             });
         }
-        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
-            {"query": {"term": {"type": "cross_cluster" }}}""", apiKeys -> {
-            assertThat(
-                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
-                containsInAnyOrder(apiKeyIdsSubset.toArray(new String[0]))
-            );
-        });
+        // the complement set is not of type "rest" if it is "cross_cluster"
+        updateApiKeys(systemWriteCreds, "ctx._source['type']='rest';", apiKeyIdsSubset);
+        updateApiKeys(systemWriteCreds, "ctx._source['type']='cross_cluster';", apiKeyIdsSubsetDifference);
+        for (String query : apiKeyRestTypeQueries) {
+            assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                    containsInAnyOrder(apiKeyIdsSubset.toArray(new String[0]))
+                );
+            });
+        }
     }
 
     @SuppressWarnings("unchecked")

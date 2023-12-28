@@ -39,9 +39,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -51,6 +53,40 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private RestClient oldVersionClient = null;
     private RestClient newVersionClient = null;
+
+    public void testQueryRestTypeKeys() throws IOException {
+        List<String> apiKeyRestTypeQueries = List.of("""
+            {"query": {"term": {"type": "rest" }}}""", """
+            {"query": {"prefix": {"type": "re" }}}""", """
+            {"query": {"wildcard": {"type": "r*t" }}}""", """
+            {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""");
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                createOrGrantApiKey(client(), "test-key-from-old-cluster", "{}");
+            }
+            case MIXED -> {
+                createClientsByVersion();
+                createOrGrantApiKey(oldVersionClient, "test-key-from-mixed-cluster-old-client", "{}");
+                createOrGrantApiKey(newVersionClient, "test-key-from-mixed-cluster-new-client", "{}");
+            }
+            case UPGRADED -> {
+                createOrGrantApiKey(client(), "test-key-from-upgraded-cluster", "{}");
+                for (String query : apiKeyRestTypeQueries) {
+                    assertQuery(client(), query, apiKeys -> {
+                        assertThat(
+                            apiKeys.stream().map(k -> (String) k.get("name")).toList(),
+                            containsInAnyOrder(
+                                "test-key-from-old-cluster",
+                                "test-key-from-mixed-cluster-old-client",
+                                "test-key-from-mixed-cluster-new-client",
+                                "test-key-from-upgraded-cluster"
+                            )
+                        );
+                    });
+                }
+            }
+        }
+    }
 
     public void testCreatingAndUpdatingApiKeys() throws Exception {
         assumeTrue(
@@ -177,7 +213,10 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private Tuple<String, String> createOrGrantApiKey(RestClient client, String roles) throws IOException {
-        final String name = "test-api-key-" + randomAlphaOfLengthBetween(3, 5);
+        return createOrGrantApiKey(client, "test-api-key-" + randomAlphaOfLengthBetween(3, 5), roles);
+    }
+
+    private Tuple<String, String> createOrGrantApiKey(RestClient client, String name, String roles) throws IOException {
         final Request createApiKeyRequest;
         String body = Strings.format("""
             {
@@ -390,5 +429,16 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
             null
         );
+    }
+
+    private void assertQuery(RestClient restClient, String body, Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {
+        final Request request = new Request("GET", "/_security/_query/api_key");
+        request.setJsonEntity(body);
+        final Response response = restClient.performRequest(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> apiKeys = (List<Map<String, Object>>) responseMap.get("api_keys");
+        apiKeysVerifier.accept(apiKeys);
     }
 }

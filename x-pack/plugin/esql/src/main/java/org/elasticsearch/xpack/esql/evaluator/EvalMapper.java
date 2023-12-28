@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsIgnoreCaseMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RegexMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -41,7 +42,6 @@ public final class EvalMapper {
 
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
         ComparisonMapper.EQUALS,
-        ComparisonMapper.EQUALS_IGNORE_CASE,
         ComparisonMapper.NOT_EQUALS,
         ComparisonMapper.GREATER_THAN,
         ComparisonMapper.GREATER_THAN_OR_EQUAL,
@@ -49,6 +49,7 @@ public final class EvalMapper {
         ComparisonMapper.LESS_THAN_OR_EQUAL,
         InMapper.IN_MAPPER,
         RegexMapper.REGEX_MATCH,
+        new EqualsIgnoreCaseMapper(),
         new BooleanLogic(),
         new Nots(),
         new Attributes(),

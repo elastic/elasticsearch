@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -62,6 +64,11 @@ public class EqualsIgnoreCase extends org.elasticsearch.xpack.ql.expression.pred
     @Evaluator(extraName = "Keywords")
     static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
         return lhs.utf8ToString().equalsIgnoreCase(rhs.utf8ToString());
+    }
+
+    @Evaluator(extraName = "KeywordsConstant")
+    static boolean processKeywords(BytesRef lhs, @Fixed ByteRunAutomaton rhs) {
+        return rhs.run(lhs.bytes, lhs.offset, lhs.length);
     }
 
     @Evaluator(extraName = "Bools")

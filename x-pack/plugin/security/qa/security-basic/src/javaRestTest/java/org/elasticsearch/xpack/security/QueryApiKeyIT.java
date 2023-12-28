@@ -323,27 +323,45 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         for (String query : apiKeyRestTypeQueries) {
             assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
-                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(allApiKeyIds.toArray(new String[0])));
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                    containsInAnyOrder(allApiKeyIds.toArray(new String[0]))
+                );
             });
         }
 
         createSystemWriteRole(SYSTEM_WRITE_ROLE_NAME);
         String systemWriteCreds = createUser(SUPERUSER_WITH_SYSTEM_WRITE, new String[] { "superuser", SYSTEM_WRITE_ROLE_NAME });
 
-        // test keys with no "type" field are considered of type "rest"
+        // test keys with no "type" field are still considered of type "rest"
+        // this is so in order to accommodate pre-8.9 API keys which where all of type "rest" implicitly
         updateApiKeys(systemWriteCreds, "ctx._source.remove('type');", apiKeyIdsSubset);
         for (String query : apiKeyRestTypeQueries) {
             assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
-                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(allApiKeyIds.toArray(new String[0])));
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                    containsInAnyOrder(allApiKeyIds.toArray(new String[0]))
+                );
             });
         }
 
-        updateApiKeys(systemWriteCreds, "ctx._source['type'] = 'cross_cluster';", apiKeyIdsSubset);
+        // but the same keys with type "cross_cluster" are NOT of type "rest"
+        updateApiKeys(systemWriteCreds, "ctx._source['type']='cross_cluster';", apiKeyIdsSubset);
         for (String query : apiKeyRestTypeQueries) {
             assertQuery(API_KEY_ADMIN_AUTH_HEADER, query, apiKeys -> {
-                assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIdsSubsetDifference.toArray(new String[0])));
+                assertThat(
+                    apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                    containsInAnyOrder(apiKeyIdsSubsetDifference.toArray(new String[0]))
+                );
             });
         }
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
+            {"query": {"term": {"type": "cross_cluster" }}}""", apiKeys -> {
+            assertThat(
+                apiKeys.stream().map(k -> (String) k.get("id")).toList(),
+                containsInAnyOrder(apiKeyIdsSubset.toArray(new String[0]))
+            );
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -697,7 +715,6 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 "bool": {
                   "must": [
                     {"term": {"doc_type": "api_key"}},
-                    {"term": {"type": "rest"}},
                     {"ids": {"values": %s}}
                   ]
                 }

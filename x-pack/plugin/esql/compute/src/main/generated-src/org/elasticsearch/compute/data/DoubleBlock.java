@@ -168,44 +168,6 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     }
 
     /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newDoubleBlockBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newDoubleBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newDoubleBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantDoubleBlockWith}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static DoubleBlock newConstantBlockWith(double value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantDoubleBlockWith}
-     */
-    @Deprecated
-    static DoubleBlock newConstantBlockWith(double value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantDoubleBlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link DoubleBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.DoubleBuilder permits DoubleBlockBuilder {

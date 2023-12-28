@@ -30,7 +30,7 @@ public class RemoteClusterCredentialsManager {
         updateClusterCredentials(settings);
     }
 
-    public void updateClusterCredentials(Settings settings) {
+    public final void updateClusterCredentials(Settings settings) {
         clusterCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
         logger.debug(
             () -> Strings.format(

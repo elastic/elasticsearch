@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -144,7 +145,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestEsqlQueryAction(), new RestEsqlAsyncQueryAction(), new RestEsqlGetAsyncResultAction());
+        return List.of(
+            new RestEsqlQueryAction(),
+            new RestEsqlAsyncQueryAction(),
+            new RestEsqlGetAsyncResultAction(),
+            new RestEsqlDeleteAsyncResultAction()
+        );
     }
 
     @Override

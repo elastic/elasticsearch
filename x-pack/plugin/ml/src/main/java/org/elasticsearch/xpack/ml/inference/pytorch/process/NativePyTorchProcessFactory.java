@@ -56,6 +56,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     public NativePyTorchProcess createProcess(
         TrainedModelDeploymentTask task,
         ExecutorService executorService,
+        TimeoutRunnable afterInStreamClose,
         Consumer<String> onProcessCrash
     ) {
         ProcessPipes processPipes = new ProcessPipes(
@@ -80,6 +81,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             processPipes,
             0,
             Collections.emptyList(),
+            afterInStreamClose,
             onProcessCrash
         );
 

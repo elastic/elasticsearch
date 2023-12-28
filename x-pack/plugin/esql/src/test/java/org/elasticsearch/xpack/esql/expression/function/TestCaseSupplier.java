@@ -1098,6 +1098,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private String[] expectedWarnings;
 
+        private Class<? extends Throwable> foldingExceptionClass;
+        private String foldingExceptionMessage;
+
         private final String expectedTypeError;
         private final boolean allTypesAreRepresentable;
 
@@ -1163,6 +1166,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return expectedWarnings;
         }
 
+        public Class<? extends Throwable> foldingExceptionClass() {
+            return foldingExceptionClass;
+        }
+
+        public String foldingExceptionMessage() {
+            return foldingExceptionMessage;
+        }
+
         public String getExpectedTypeError() {
             return expectedTypeError;
         }
@@ -1176,6 +1187,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 newWarnings = new String[] { warning };
             }
             return new TestCase(data, evaluatorToString, expectedType, matcher, newWarnings, expectedTypeError);
+        }
+
+        public <T extends Throwable> TestCase withFoldingException(Class<T> clazz, String message) {
+            foldingExceptionClass = clazz;
+            foldingExceptionMessage = message;
+            return this;
         }
     }
 

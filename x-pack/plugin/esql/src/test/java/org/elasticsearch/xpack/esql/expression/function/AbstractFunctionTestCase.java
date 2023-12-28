@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
@@ -470,7 +471,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             // function processing of the first parameter(s) could raise an exception/warning. (But hasn't been the case so far.)
             // For n-ary functions, dealing with one multivalue (before hitting the null parameter injected above) will now trigger
             // a warning ("SV-function encountered a MV") that thus needs to be checked.
-            if (simpleData.stream().anyMatch(List.class::isInstance) && testCase.getExpectedWarnings() != null) {
+            if (this instanceof AbstractMultivalueFunctionTestCase == false
+                && simpleData.stream().anyMatch(List.class::isInstance)
+                && testCase.getExpectedWarnings() != null) {
                 assertWarnings(testCase.getExpectedWarnings());
             }
         }
@@ -536,17 +539,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         assertFalse(expression.typeResolved().unresolved());
-        expression = new FoldNull().rule(expression);
-        assertThat(expression.dataType(), equalTo(testCase.expectedType));
-        assertTrue(expression.foldable());
-        Object result = expression.fold();
-        // Decode unsigned longs into BigIntegers
-        if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
-            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
-        }
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
+        Expression nullOptimized = new FoldNull().rule(expression);
+        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType));
+        assertTrue(nullOptimized.foldable());
+        if (testCase.foldingExceptionClass() == null) {
+            Object result = nullOptimized.fold();
+            // Decode unsigned longs into BigIntegers
+            if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
+                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+            }
+            assertThat(result, testCase.getMatcher());
+            if (testCase.getExpectedWarnings() != null) {
+                assertWarnings(testCase.getExpectedWarnings());
+            }
+        } else {
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), nullOptimized::fold);
+            assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }
 

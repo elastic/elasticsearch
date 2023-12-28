@@ -190,7 +190,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         int numRequests = randomIntBetween(20, 50);
-        int numRefreshes = 1 + numberOfShards;
+        int numRefreshes = numberOfShards;
         int numSearches = 0;
         for (int i = 0; i < numRequests; i++) {
             numRefreshes++;

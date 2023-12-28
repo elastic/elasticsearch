@@ -131,8 +131,10 @@ public final class DocVector extends AbstractVector implements Vector {
         boolean success = false;
         long estimatedSize = sizeOfSegmentDocMap();
         blockFactory().adjustBreaker(estimatedSize, true);
+        int[] forwards = null;
+        int[] backwards = null;
         try {
-            int[] forwards = shardSegmentDocMapForwards = new int[shards.getPositionCount()];
+            int[] finalForwards = forwards = new int[shards.getPositionCount()];
             for (int p = 0; p < forwards.length; p++) {
                 forwards[p] = p;
             }
@@ -141,35 +143,37 @@ public final class DocVector extends AbstractVector implements Vector {
 
                 @Override
                 protected void setPivot(int i) {
-                    pivot = forwards[i];
+                    pivot = finalForwards[i];
                 }
 
                 @Override
                 protected int comparePivot(int j) {
-                    int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(forwards[j]));
+                    int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(finalForwards[j]));
                     if (cmp != 0) {
                         return cmp;
                     }
-                    cmp = Integer.compare(segments.getInt(pivot), segments.getInt(forwards[j]));
+                    cmp = Integer.compare(segments.getInt(pivot), segments.getInt(finalForwards[j]));
                     if (cmp != 0) {
                         return cmp;
                     }
-                    return Integer.compare(docs.getInt(pivot), docs.getInt(forwards[j]));
+                    return Integer.compare(docs.getInt(pivot), docs.getInt(finalForwards[j]));
                 }
 
                 @Override
                 protected void swap(int i, int j) {
-                    int tmp = forwards[i];
-                    forwards[i] = forwards[j];
-                    forwards[j] = tmp;
+                    int tmp = finalForwards[i];
+                    finalForwards[i] = finalForwards[j];
+                    finalForwards[j] = tmp;
                 }
             }.sort(0, forwards.length);
 
-            int[] backwards = shardSegmentDocMapBackwards = new int[forwards.length];
+            backwards = new int[forwards.length];
             for (int p = 0; p < forwards.length; p++) {
                 backwards[forwards[p]] = p;
             }
             success = true;
+            shardSegmentDocMapForwards = forwards;
+            shardSegmentDocMapBackwards = backwards;
         } finally {
             if (success == false) {
                 blockFactory().adjustBreaker(-estimatedSize, true);
@@ -251,6 +255,7 @@ public final class DocVector extends AbstractVector implements Vector {
 
     @Override
     public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
         shards.allowPassingToDifferentDriver();
         segments.allowPassingToDifferentDriver();
         docs.allowPassingToDifferentDriver();

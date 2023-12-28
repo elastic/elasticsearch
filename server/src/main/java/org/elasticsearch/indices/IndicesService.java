@@ -642,34 +642,35 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
-        final IndexEventListener afterIndexShardStarted = new IndexEventListener() {
+        final IndexEventListener afterIndexCreated = new IndexEventListener() {
             @Override
-            public void afterIndexShardStarted(IndexShard indexShard) {
-                Engine engine = indexShard.getEngineOrNull();
-                if (engine != null) {
-                    try {
-                        Engine.Searcher hasValueSearcher = engine.acquireSearcher("find_field_has_value");
-                        IndexReader hasValueReader = hasValueSearcher.getIndexReader();
-                        for (LeafReaderContext leaf : hasValueReader.leaves()) {
-                            LeafReader leafReader = leaf.reader();
-                            for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
-                                indexShard.setFieldHasValue(fieldInfo.getName());
-                            }
+            public void afterIndexCreated(IndexService indexService) {
+
+                indexService.shardIds().forEach(shardId -> {
+                    IndexShard indexShard = indexService.getShardOrNull(shardId);
+                    if (indexShard == null) return; // TODO-MP log?
+                    Engine engine = indexShard.getEngineOrNull();
+                    if (engine == null) return; // TODO-MP log?
+                    Engine.Searcher hasValueSearcher = engine.acquireSearcher("field_has_value");
+                    IndexReader hasValueReader = hasValueSearcher.getIndexReader();
+                    for (LeafReaderContext leaf : hasValueReader.leaves()) {
+                        LeafReader leafReader = leaf.reader();
+                        for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
+                            indexShard.setFieldHasValue(fieldInfo.getName());
                         }
+                    }
+                    try {
                         IOUtils.close(hasValueSearcher);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
-
-                } else {
-                    throw new RuntimeException("Engine not yet started, aborting..."); // TODO-MP handle exception
-                }
+                });
             }
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         finalListeners.add(beforeIndexShardRecovery);
-        finalListeners.add(afterIndexShardStarted);
+        finalListeners.add(afterIndexCreated);
         IndexService indexService;
         try (var ignored = threadPool.getThreadContext().newStoredContext()) {
             indexService = createIndexService(

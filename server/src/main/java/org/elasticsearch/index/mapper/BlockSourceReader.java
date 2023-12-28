@@ -22,6 +22,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -195,7 +196,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
                     } else {
                         throw new IllegalArgumentException("Cannot convert geometry into point:: " + geometry.type());
                     }
-                } catch (Exception e) {
+                } catch (IOException | ParseException e) {
                     throw new IllegalArgumentException("Failed to parse point geometry: " + e.getMessage(), e);
                 }
             } else {

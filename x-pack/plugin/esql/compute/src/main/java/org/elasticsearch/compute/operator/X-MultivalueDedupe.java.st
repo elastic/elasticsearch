@@ -71,7 +71,7 @@ $endif$
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -125,7 +125,7 @@ $endif$
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -159,7 +159,7 @@ $endif$
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);

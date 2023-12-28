@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a IntVector.
+ * Block view of a {@link IntVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {

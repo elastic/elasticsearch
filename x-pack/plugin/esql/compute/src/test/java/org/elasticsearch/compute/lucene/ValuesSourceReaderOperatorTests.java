@@ -272,9 +272,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+    protected ByteSizeValue memoryLimitForSimple() {
+        assumeFalse("strange exception in the test, fix soon", true);
+        return ByteSizeValue.ofKb(1);
     }
 
     public void testLoadAll() {

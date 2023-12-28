@@ -19,7 +19,7 @@ import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class ExtractorTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         List<Object[]> cases = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
             switch (e) {
@@ -83,9 +84,9 @@ public class ExtractorTests extends ESTestCase {
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
                             () -> new DocVector(
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 randomBoolean() ? null : randomBoolean()
                             ).asBlock()
                         ) }
@@ -113,7 +114,7 @@ public class ExtractorTests extends ESTestCase {
                 name,
                 type,
                 encoder,
-                () -> BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), Arrays.asList(value.get()))[0]
+                () -> BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), Arrays.asList(value.get()))[0]
             ) };
     }
 
@@ -154,7 +155,7 @@ public class ExtractorTests extends ESTestCase {
         assertThat(valuesBuilder.length(), greaterThan(0));
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
-            BlockFactory.getNonBreakingInstance(),
+            TestBlockFactory.getNonBreakingInstance(),
             testCase.type,
             testCase.encoder.toUnsortable(),
             false,
@@ -181,7 +182,7 @@ public class ExtractorTests extends ESTestCase {
         assertThat(valuesBuilder.length(), greaterThan(0));
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
-            BlockFactory.getNonBreakingInstance(),
+            TestBlockFactory.getNonBreakingInstance(),
             testCase.type,
             testCase.encoder.toUnsortable(),
             true,

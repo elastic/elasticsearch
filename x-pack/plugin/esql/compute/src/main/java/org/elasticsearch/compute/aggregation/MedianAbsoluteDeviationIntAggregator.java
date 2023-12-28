@@ -28,10 +28,6 @@ class MedianAbsoluteDeviationIntAggregator {
         current.add(v);
     }
 
-    public static void combineStates(QuantileStates.SingleState current, QuantileStates.SingleState state) {
-        current.add(state);
-    }
-
     public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue) {
         state.add(inValue);
     }

@@ -11,7 +11,9 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -139,6 +141,7 @@ public final class CsvTestUtils {
 
         CsvColumn[] columns = null;
 
+        var blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(source)) {
             String line;
             int lineNumber = 1;
@@ -178,7 +181,7 @@ public final class CsvTestUtils {
                             columns[i] = new CsvColumn(
                                 name,
                                 type,
-                                BlockUtils.wrapperFor(BlockFactory.getNonBreakingInstance(), ElementType.fromJava(type.clazz()), 8)
+                                BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(type.clazz()), 8)
                             );
                         }
                     }

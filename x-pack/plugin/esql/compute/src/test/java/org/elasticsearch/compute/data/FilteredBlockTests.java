@@ -288,7 +288,10 @@ public class FilteredBlockTests extends ESTestCase {
             var filter = block.filter(0, 1);
             assertThat(
                 filter.toString(),
-                containsString("BooleanArrayBlock[positions=2, mvOrdering=UNORDERED, values=[true, true, false, false]]")
+                containsString(
+                    "BooleanArrayBlock[positions=2, mvOrdering=UNORDERED, "
+                        + "vector=BooleanArrayVector[positions=4, values=[true, true, false, false]]]"
+                )
             );
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);
@@ -300,7 +303,12 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendInt(90).appendInt(1000).endPositionEntry();
             var block = builder.build();
             var filter = block.filter(0, 1);
-            assertThat(filter.toString(), containsString("IntArrayBlock[positions=2, mvOrdering=UNORDERED, values=[0, 10, 20, 50]]"));
+            assertThat(
+                filter.toString(),
+                containsString(
+                    "IntArrayBlock[positions=2, mvOrdering=UNORDERED, vector=IntArrayVector[positions=4, values=[0, 10, 20, 50]]]"
+                )
+            );
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);
         }
@@ -311,7 +319,12 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendLong(90).appendLong(1000).endPositionEntry();
             var block = builder.build();
             var filter = block.filter(0, 1);
-            assertThat(filter.toString(), containsString("LongArrayBlock[positions=2, mvOrdering=UNORDERED, values=[0, 10, 20, 50]]"));
+            assertThat(
+                filter.toString(),
+                containsString(
+                    "LongArrayBlock[positions=2, mvOrdering=UNORDERED, vector=LongArrayVector[positions=4, values=[0, 10, 20, 50]]]"
+                )
+            );
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);
         }
@@ -324,7 +337,10 @@ public class FilteredBlockTests extends ESTestCase {
             var filter = block.filter(0, 1);
             assertThat(
                 filter.toString(),
-                containsString("DoubleArrayBlock[positions=2, mvOrdering=UNORDERED, values=[0.0, 10.0, 0.002, 1.0E9]]")
+                containsString(
+                    "DoubleArrayBlock[positions=2, mvOrdering=UNORDERED, "
+                        + "vector=DoubleArrayVector[positions=4, values=[0.0, 10.0, 0.002, 1.0E9]]]"
+                )
             );
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);
@@ -338,7 +354,10 @@ public class FilteredBlockTests extends ESTestCase {
             builder.beginPositionEntry().appendBytesRef(new BytesRef("pig")).appendBytesRef(new BytesRef("chicken")).endPositionEntry();
             var block = builder.build();
             var filter = block.filter(0, 1);
-            assertThat(filter.toString(), containsString("BytesRefArrayBlock[positions=2, mvOrdering=UNORDERED, values=4]"));
+            assertThat(
+                filter.toString(),
+                containsString("BytesRefArrayBlock[positions=2, mvOrdering=UNORDERED, vector=BytesRefArrayVector[positions=4]]")
+            );
             assertThat(filter.getPositionCount(), equalTo(2));
             Releasables.close(builder, block);
             releaseAndAssertBreaker(filter);

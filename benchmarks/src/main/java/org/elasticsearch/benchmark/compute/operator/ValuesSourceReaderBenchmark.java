@@ -22,7 +22,9 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -78,6 +80,11 @@ public class ValuesSourceReaderBenchmark {
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
     private static final int COMMIT_INTERVAL = 500;
+    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;
+    private static final BlockFactory blockFactory = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
@@ -246,7 +253,7 @@ public class ValuesSourceReaderBenchmark {
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
-            BlockFactory.getNonBreakingInstance(),
+            blockFactory,
             fields(name),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                 throw new UnsupportedOperationException("can't load _source here");
@@ -379,7 +386,7 @@ public class ValuesSourceReaderBenchmark {
         pages = new ArrayList<>();
         switch (layout) {
             case "in_order" -> {
-                IntVector.Builder docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                 for (LeafReaderContext ctx : reader.leaves()) {
                     int begin = 0;
                     while (begin < ctx.reader().maxDoc()) {
@@ -390,14 +397,14 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    IntBlock.newConstantBlockWith(0, end - begin).asVector(),
-                                    IntBlock.newConstantBlockWith(ctx.ord, end - begin).asVector(),
+                                    blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
+                                    blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
                                     true
                                 ).asBlock()
                             )
                         );
-                        docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                        docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                         begin = end;
                     }
                 }
@@ -408,8 +415,8 @@ public class ValuesSourceReaderBenchmark {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     docItrs.add(new ItrAndOrd(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx.ord));
                 }
-                IntVector.Builder docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
-                IntVector.Builder leafs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+                IntVector.Builder leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                 int size = 0;
                 while (docItrs.isEmpty() == false) {
                     Iterator<ItrAndOrd> itrItr = docItrs.iterator();
@@ -425,12 +432,11 @@ public class ValuesSourceReaderBenchmark {
                         if (size >= BLOCK_LENGTH) {
                             pages.add(
                                 new Page(
-                                    new DocVector(IntBlock.newConstantBlockWith(0, size).asVector(), leafs.build(), docs.build(), null)
-                                        .asBlock()
+                                    new DocVector(blockFactory.newConstantIntVector(0, size), leafs.build(), docs.build(), null).asBlock()
                                 )
                             );
-                            docs = IntVector.newVectorBuilder(BLOCK_LENGTH);
-                            leafs = IntVector.newVectorBuilder(BLOCK_LENGTH);
+                            docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+                            leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
                             size = 0;
                         }
                     }
@@ -439,7 +445,7 @@ public class ValuesSourceReaderBenchmark {
                     pages.add(
                         new Page(
                             new DocVector(
-                                IntBlock.newConstantBlockWith(0, size).asVector(),
+                                blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
                                 null
@@ -465,9 +471,9 @@ public class ValuesSourceReaderBenchmark {
                         pages.add(
                             new Page(
                                 new DocVector(
-                                    IntBlock.newConstantBlockWith(0, 1).asVector(),
-                                    IntBlock.newConstantBlockWith(next.ord, 1).asVector(),
-                                    IntBlock.newConstantBlockWith(next.itr.nextInt(), 1).asVector(),
+                                    blockFactory.newConstantIntVector(0, 1),
+                                    blockFactory.newConstantIntVector(next.ord, 1),
+                                    blockFactory.newConstantIntVector(next.itr.nextInt(), 1),
                                     true
                                 ).asBlock()
                             )

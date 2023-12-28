@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
@@ -139,7 +138,7 @@ public final class TransformIndex {
         if (dest.length == 0) {
             TransformDestIndexSettings generatedDestIndexSettings = createTransformDestIndexSettings(
                 destIndexSettings,
-                Boolean.FALSE.equals(config.getSettings().getDeduceMappings()) ? emptyMap() : destIndexMappings,
+                destIndexMappings,
                 config.getId(),
                 Clock.systemUTC()
             );

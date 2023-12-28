@@ -102,7 +102,10 @@ Here, you'll be able to:
 1. Choose a name for your pipeline.
   - This name will need to be unique across the whole deployment.
   If you want this pipeline to be index-specific, we recommend including the name of your index in the pipeline name.
+  - If you do not set the pipeline name, a default unique name will be provided upon selecting an ML trained model.
 2. Select the ML trained model you want to use.
+  - The model must be deployed before you can select it.
+  To begin deployment of a model, click the *Deploy* button.
 3. Select one or more source fields as input for the inference processor.
   - If there are no source fields available, your index will need a <<mapping, field mapping>>.
 4. (Optional) Choose a name for your target field(s).

@@ -175,6 +175,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ASYNC_QUERY = def(8_563_00_0);
     public static final TransportVersion ESQL_STATUS_INCLUDE_LUCENE_QUERIES = def(8_564_00_0);
     public static final TransportVersion ESQL_CLUSTER_ALIAS = def(8_565_00_0);
+    public static final TransportVersion SMALLER_RELOAD_SECURE_SETTINGS_REQUEST = def(8_566_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

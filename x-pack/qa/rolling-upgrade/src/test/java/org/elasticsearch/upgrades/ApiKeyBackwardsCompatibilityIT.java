@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -51,10 +52,16 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+
     private RestClient oldVersionClient = null;
     private RestClient newVersionClient = null;
 
     public void testQueryRestTypeKeys() throws IOException {
+        assumeTrue(
+            "only API keys created pre-8.9 are relevant for the rest-type query bwc case",
+            UPGRADE_FROM_VERSION.before(Version.V_8_9_0)
+        );
         switch (CLUSTER_TYPE) {
             case OLD -> createOrGrantApiKey(client(), "query-test-rest-key-from-old-cluster", "{}");
             case MIXED -> createOrGrantApiKey(client(), "query-test-rest-key-from-mixed-cluster", "{}");

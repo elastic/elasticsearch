@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
 import java.util.function.Function;
 
 public class GroupingAggregator implements Releasable {
@@ -46,7 +47,7 @@ public class GroupingAggregator implements Releasable {
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds) throws IOException {
                     aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
             };
@@ -67,7 +68,7 @@ public class GroupingAggregator implements Releasable {
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    public void evaluate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+    public void evaluate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) throws IOException {
         if (mode.isOutputPartial()) {
             aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
         } else {

@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -68,11 +69,11 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     @Override
-    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) throws IOException {
         add(page, addInput, DEFAULT_BATCH_SIZE);
     }
 
-    void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
+    void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) throws IOException {
         try (AddWork work = new AddWork(page, addInput, batchSize)) {
             work.add();
         }
@@ -110,7 +111,7 @@ final class PackedValuesBlockHash extends BlockHash {
          * mostly provided by {@link BatchEncoder} with nulls living in a bit mask at the
          * front of the bytes.
          */
-        void add() {
+        void add() throws IOException {
             for (position = 0; position < positionCount; position++) {
                 // Make sure all encoders have encoded the current position and the offsets are queued to it's start
                 boolean singleEntry = true;
@@ -136,7 +137,7 @@ final class PackedValuesBlockHash extends BlockHash {
             emitOrds();
         }
 
-        private void addSingleEntry() {
+        private void addSingleEntry() throws IOException {
             for (int g = 0; g < groups.length; g++) {
                 Group group = groups[g];
                 if (group.encoder.read(group.valueOffset++, bytes) == 0) {
@@ -150,7 +151,7 @@ final class PackedValuesBlockHash extends BlockHash {
             addedValue(position);
         }
 
-        private void addMultipleEntries() {
+        private void addMultipleEntries() throws IOException {
             ords.beginPositionEntry();
             int g = 0;
             outer: for (;;) {

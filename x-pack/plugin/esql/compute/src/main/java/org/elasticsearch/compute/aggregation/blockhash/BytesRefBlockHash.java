@@ -53,7 +53,7 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     @Override
-    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) throws IOException {
         Block block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
             seenNull = true;

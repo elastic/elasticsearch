@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -71,7 +72,7 @@ public class AggregationOperator implements Operator {
     }
 
     @Override
-    public void addInput(Page page) {
+    public void addInput(Page page) throws IOException {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
         try {
@@ -91,7 +92,7 @@ public class AggregationOperator implements Operator {
     }
 
     @Override
-    public void finish() {
+    public void finish() throws IOException {
         if (finished) {
             return;
         }

@@ -34,6 +34,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -78,7 +79,7 @@ public class BlockHashTests extends ESTestCase {
         this.forcePackedHash = forcePackedHash;
     }
 
-    public void testIntHash() {
+    public void testIntHash() throws IOException {
         int[] values = new int[] { 1, 2, 3, 1, 2, 3, 1, 2, 3 };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
@@ -94,7 +95,7 @@ public class BlockHashTests extends ESTestCase {
         }, blockFactory.newIntArrayVector(values, values.length).asBlock());
     }
 
-    public void testIntHashWithNulls() {
+    public void testIntHashWithNulls() throws IOException {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(4)) {
             builder.appendInt(0);
             builder.appendNull();
@@ -116,7 +117,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testIntHashWithMultiValuedFields() {
+    public void testIntHashWithMultiValuedFields() throws IOException {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(8)) {
             builder.appendInt(1);
             builder.beginPositionEntry();
@@ -169,7 +170,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testLongHash() {
+    public void testLongHash() throws IOException {
         long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
 
         hash(ordsAndKeys -> {
@@ -186,7 +187,7 @@ public class BlockHashTests extends ESTestCase {
         }, blockFactory.newLongArrayVector(values, values.length).asBlock());
     }
 
-    public void testLongHashWithNulls() {
+    public void testLongHashWithNulls() throws IOException {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(4)) {
             builder.appendLong(0);
             builder.appendNull();
@@ -208,7 +209,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testLongHashWithMultiValuedFields() {
+    public void testLongHashWithMultiValuedFields() throws IOException {
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(8)) {
             builder.appendLong(1);
             builder.beginPositionEntry();
@@ -261,7 +262,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testDoubleHash() {
+    public void testDoubleHash() throws IOException {
         double[] values = new double[] { 2.0, 1.0, 4.0, 2.0, 4.0, 1.0, 3.0, 4.0 };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
@@ -277,7 +278,7 @@ public class BlockHashTests extends ESTestCase {
         }, blockFactory.newDoubleArrayVector(values, values.length).asBlock());
     }
 
-    public void testDoubleHashWithNulls() {
+    public void testDoubleHashWithNulls() throws IOException {
         try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(4)) {
             builder.appendDouble(0);
             builder.appendNull();
@@ -299,7 +300,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testDoubleHashWithMultiValuedFields() {
+    public void testDoubleHashWithMultiValuedFields() throws IOException {
         try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(8)) {
             builder.appendDouble(1);
             builder.beginPositionEntry();
@@ -351,7 +352,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testBasicBytesRefHash() {
+    public void testBasicBytesRefHash() throws IOException {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(8)) {
             builder.appendBytesRef(new BytesRef("item-2"));
             builder.appendBytesRef(new BytesRef("item-1"));
@@ -379,7 +380,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testBytesRefHashWithNulls() {
+    public void testBytesRefHashWithNulls() throws IOException {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(4)) {
             builder.appendBytesRef(new BytesRef("cat"));
             builder.appendNull();
@@ -403,7 +404,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testBytesRefHashWithMultiValuedFields() {
+    public void testBytesRefHashWithMultiValuedFields() throws IOException {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(8)) {
             builder.appendBytesRef(new BytesRef("foo"));
             builder.beginPositionEntry();
@@ -458,7 +459,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testBooleanHashFalseFirst() {
+    public void testBooleanHashFalseFirst() throws IOException {
         boolean[] values = new boolean[] { false, true, true, true, true };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
@@ -474,7 +475,7 @@ public class BlockHashTests extends ESTestCase {
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
     }
 
-    public void testBooleanHashTrueFirst() {
+    public void testBooleanHashTrueFirst() throws IOException {
         boolean[] values = new boolean[] { true, false, false, true, true };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
@@ -491,7 +492,7 @@ public class BlockHashTests extends ESTestCase {
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
     }
 
-    public void testBooleanHashTrueOnly() {
+    public void testBooleanHashTrueOnly() throws IOException {
         boolean[] values = new boolean[] { true, true, true, true };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
@@ -508,7 +509,7 @@ public class BlockHashTests extends ESTestCase {
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
     }
 
-    public void testBooleanHashFalseOnly() {
+    public void testBooleanHashFalseOnly() throws IOException {
         boolean[] values = new boolean[] { false, false, false, false };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
@@ -524,7 +525,7 @@ public class BlockHashTests extends ESTestCase {
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
     }
 
-    public void testBooleanHashWithNulls() {
+    public void testBooleanHashWithNulls() throws IOException {
         try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(4)) {
             builder.appendBoolean(false);
             builder.appendNull();
@@ -549,7 +550,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testBooleanHashWithMultiValuedFields() {
+    public void testBooleanHashWithMultiValuedFields() throws IOException {
         try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(8)) {
             builder.appendBoolean(false);
             builder.beginPositionEntry();
@@ -604,7 +605,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testLongLongHash() {
+    public void testLongLongHash() throws IOException {
         long[] values1 = new long[] { 0, 1, 0, 1, 0, 1 };
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
         hash(ordsAndKeys -> {
@@ -654,7 +655,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testLongLongHashWithMultiValuedFields() {
+    public void testLongLongHashWithMultiValuedFields() throws IOException {
         try (LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(8); LongBlock.Builder b2 = blockFactory.newLongBlockBuilder(8)) {
             append(b1, b2, new long[] { 1, 2 }, new long[] { 10, 20 });
             append(b1, b2, new long[] { 1, 2 }, new long[] { 10 });
@@ -728,7 +729,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testLongLongHashHugeCombinatorialExplosion() {
+    public void testLongLongHashHugeCombinatorialExplosion() throws IOException {
         long[] v1 = LongStream.range(0, 5000).toArray();
         long[] v2 = LongStream.range(100, 200).toArray();
 
@@ -762,7 +763,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testIntLongHash() {
+    public void testIntLongHash() throws IOException {
         int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
         Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { 1, 1L }, new Object[] { 0, 1L } };
@@ -777,7 +778,7 @@ public class BlockHashTests extends ESTestCase {
         );
     }
 
-    public void testLongDoubleHash() {
+    public void testLongDoubleHash() throws IOException {
         long[] values1 = new long[] { 0, 1, 0, 1, 0, 1 };
         double[] values2 = new double[] { 0, 0, 0, 1, 1, 1 };
         Object[][] expectedKeys = { new Object[] { 0L, 0d }, new Object[] { 1L, 0d }, new Object[] { 1L, 1d }, new Object[] { 0L, 1d } };
@@ -792,7 +793,7 @@ public class BlockHashTests extends ESTestCase {
         );
     }
 
-    public void testIntBooleanHash() {
+    public void testIntBooleanHash() throws IOException {
         int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
         boolean[] values2 = new boolean[] { false, false, false, true, true, true };
         Object[][] expectedKeys = {
@@ -811,7 +812,7 @@ public class BlockHashTests extends ESTestCase {
         );
     }
 
-    public void testLongLongHashWithNull() {
+    public void testLongLongHashWithNull() throws IOException {
         try (LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(2); LongBlock.Builder b2 = blockFactory.newLongBlockBuilder(2)) {
             b1.appendLong(1);
             b2.appendLong(0);
@@ -848,7 +849,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testLongBytesRefHash() {
+    public void testLongBytesRefHash() throws IOException {
         try (
             LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(8);
             BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(8)
@@ -888,7 +889,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testLongBytesRefHashWithNull() {
+    public void testLongBytesRefHashWithNull() throws IOException {
         try (
             LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(2);
             BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(2)
@@ -958,7 +959,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testLongBytesRefHashWithMultiValuedFields() {
+    public void testLongBytesRefHashWithMultiValuedFields() throws IOException {
         try (
             LongBlock.Builder b1 = blockFactory.newLongBlockBuilder(8);
             BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(8)
@@ -1041,7 +1042,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    public void testBytesRefLongHashHugeCombinatorialExplosion() {
+    public void testBytesRefLongHashHugeCombinatorialExplosion() throws IOException {
         long[] v1 = LongStream.range(0, 3000).toArray();
         String[] v2 = LongStream.range(100, 200).mapToObj(l -> "a" + l).toArray(String[]::new);
 
@@ -1089,7 +1090,7 @@ public class BlockHashTests extends ESTestCase {
      * Hash some values into a single block of group ids. If the hash produces
      * more than one block of group ids this will fail.
      */
-    private void hash(Consumer<OrdsAndKeys> callback, Block.Builder... values) {
+    private void hash(Consumer<OrdsAndKeys> callback, Block.Builder... values) throws IOException {
         Block[] blocks = new Block[values.length];
         for (int i = 0; i < blocks.length; i++) {
             blocks[i] = values[i].build();
@@ -1101,7 +1102,7 @@ public class BlockHashTests extends ESTestCase {
      * Hash some values into a single block of group ids. If the hash produces
      * more than one block of group ids this will fail.
      */
-    private void hash(Consumer<OrdsAndKeys> callback, Block... values) {
+    private void hash(Consumer<OrdsAndKeys> callback, Block... values) throws IOException {
         boolean[] called = new boolean[] { false };
         hash(ordsAndKeys -> {
             if (called[0]) {
@@ -1112,7 +1113,7 @@ public class BlockHashTests extends ESTestCase {
         }, 16 * 1024, values);
     }
 
-    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block.Builder... values) {
+    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block.Builder... values) throws IOException {
         Block[] blocks = new Block[values.length];
         for (int i = 0; i < blocks.length; i++) {
             blocks[i] = values[i].build();
@@ -1120,7 +1121,7 @@ public class BlockHashTests extends ESTestCase {
         hash(callback, emitBatchSize, blocks);
     }
 
-    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block... values) {
+    private void hash(Consumer<OrdsAndKeys> callback, int emitBatchSize, Block... values) throws IOException {
         try {
             List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(values.length);
             for (int c = 0; c < values.length; c++) {
@@ -1139,7 +1140,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    static void hash(boolean collectKeys, BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) {
+    static void hash(boolean collectKeys, BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) throws IOException {
         blockHash.add(new Page(values), new GroupingAggregatorFunction.AddInput() {
             @Override
             public void add(int positionOffset, IntBlock groupIds) {

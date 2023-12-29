@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.io.IOException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
@@ -88,7 +89,7 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void addIntermediateInput(Page page) {
+  public void addIntermediateInput(Page page) throws IOException {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block valueUncast = page.getBlock(channels.get(0));
@@ -113,7 +114,8 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) throws
+      IOException {
     state.toIntermediate(blocks, offset, driverContext);
   }
 

@@ -25,6 +25,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
+
 /**
  * Maps a {@link LongBlock} column paired with a {@link BytesRefBlock} column to group ids.
  */
@@ -65,7 +67,7 @@ final class BytesRefLongBlockHash extends BlockHash {
     }
 
     @Override
-    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) throws IOException {
         BytesRefBlock block1 = page.getBlock(channel1);
         LongBlock block2 = page.getBlock(channel2);
         BytesRefVector vector1 = block1.asVector();
@@ -104,7 +106,7 @@ final class BytesRefLongBlockHash extends BlockHash {
             this.block2 = block2;
         }
 
-        void add() {
+        void add() throws IOException {
             BytesRef scratch = new BytesRef();
             int positions = block1.getPositionCount();
             long[] seen1 = EMPTY;

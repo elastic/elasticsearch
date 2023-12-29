@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
 
+import java.io.IOException;
+
 import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.FALSE_ORD;
 import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.NULL_ORD;
 import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.TRUE_ORD;
@@ -36,7 +38,7 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     @Override
-    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) throws IOException {
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
             everSeen[NULL_ORD] = true;

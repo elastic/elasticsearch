@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -57,7 +58,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         return simpleWithMode(bigArrays, AggregatorMode.SINGLE);
     }
 
-    public final void testInitialFinal() {
+    public final void testInitialFinal() throws IOException {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
@@ -81,7 +82,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    public final void testManyInitialFinal() {
+    public final void testManyInitialFinal() throws IOException {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
@@ -103,7 +104,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    public final void testInitialIntermediateFinal() {
+    public final void testInitialIntermediateFinal() throws IOException {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
@@ -129,7 +130,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    public final void testManyInitialManyPartialFinal() {
+    public final void testManyInitialManyPartialFinal() throws IOException {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
@@ -160,7 +161,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     // Similar to testManyInitialManyPartialFinal, but uses with the DriverRunner infrastructure
     // to move the data through the pipeline.
-    public final void testManyInitialManyPartialFinalRunner() {
+    public final void testManyInitialManyPartialFinalRunner() throws IOException {
         BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());

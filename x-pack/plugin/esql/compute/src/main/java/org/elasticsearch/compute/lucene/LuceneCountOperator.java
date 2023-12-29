@@ -23,7 +23,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -119,60 +118,56 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     @Override
-    public Page getOutput() {
+    public Page getOutput() throws IOException {
         if (isFinished()) {
             assert remainingDocs <= 0 : remainingDocs;
             return null;
         }
-        try {
-            final LuceneScorer scorer = getCurrentOrLoadNextScorer();
-            // no scorer means no more docs
-            if (scorer == null) {
-                remainingDocs = 0;
+        final LuceneScorer scorer = getCurrentOrLoadNextScorer();
+        // no scorer means no more docs
+        if (scorer == null) {
+            remainingDocs = 0;
+        } else {
+            Weight weight = scorer.weight();
+            var leafReaderContext = scorer.leafReaderContext();
+            // see org.apache.lucene.search.TotalHitCountCollector
+            int leafCount = weight.count(leafReaderContext);
+            if (leafCount != -1) {
+                // make sure to NOT multi count as the count _shortcut_ (which is segment wide)
+                // handle doc partitioning where the same leaf can be seen multiple times
+                // since the count is global, consider it only for the first partition and skip the rest
+                // SHARD, SEGMENT and the first DOC_ reader in data partitioning contain the first doc (position 0)
+                if (scorer.position() == 0) {
+                    // check to not count over the desired number of docs/limit
+                    var count = Math.min(leafCount, remainingDocs);
+                    totalHits += count;
+                    remainingDocs -= count;
+                }
+                scorer.markAsDone();
             } else {
-                Weight weight = scorer.weight();
-                var leafReaderContext = scorer.leafReaderContext();
-                // see org.apache.lucene.search.TotalHitCountCollector
-                int leafCount = weight.count(leafReaderContext);
-                if (leafCount != -1) {
-                    // make sure to NOT multi count as the count _shortcut_ (which is segment wide)
-                    // handle doc partitioning where the same leaf can be seen multiple times
-                    // since the count is global, consider it only for the first partition and skip the rest
-                    // SHARD, SEGMENT and the first DOC_ reader in data partitioning contain the first doc (position 0)
-                    if (scorer.position() == 0) {
-                        // check to not count over the desired number of docs/limit
-                        var count = Math.min(leafCount, remainingDocs);
-                        totalHits += count;
-                        remainingDocs -= count;
-                    }
-                    scorer.markAsDone();
-                } else {
-                    // could not apply shortcut, trigger the search
-                    // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
-                    scorer.scoreNextRange(leafCollector, leafReaderContext.reader().getLiveDocs(), remainingDocs);
-                }
+                // could not apply shortcut, trigger the search
+                // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
+                scorer.scoreNextRange(leafCollector, leafReaderContext.reader().getLiveDocs(), remainingDocs);
             }
-
-            Page page = null;
-            // emit only one page
-            if (remainingDocs <= 0 && pagesEmitted == 0) {
-                pagesEmitted++;
-                LongBlock count = null;
-                BooleanBlock seen = null;
-                try {
-                    count = blockFactory.newConstantLongBlockWith(totalHits, PAGE_SIZE);
-                    seen = blockFactory.newConstantBooleanBlockWith(true, PAGE_SIZE);
-                    page = new Page(PAGE_SIZE, count, seen);
-                } finally {
-                    if (page == null) {
-                        Releasables.closeExpectNoException(count, seen);
-                    }
-                }
-            }
-            return page;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
+
+        Page page = null;
+        // emit only one page
+        if (remainingDocs <= 0 && pagesEmitted == 0) {
+            pagesEmitted++;
+            LongBlock count = null;
+            BooleanBlock seen = null;
+            try {
+                count = blockFactory.newConstantLongBlockWith(totalHits, PAGE_SIZE);
+                seen = blockFactory.newConstantBooleanBlockWith(true, PAGE_SIZE);
+                page = new Page(PAGE_SIZE, count, seen);
+            } finally {
+                if (page == null) {
+                    Releasables.closeExpectNoException(count, seen);
+                }
+            }
+        }
+        return page;
     }
 
     @Override

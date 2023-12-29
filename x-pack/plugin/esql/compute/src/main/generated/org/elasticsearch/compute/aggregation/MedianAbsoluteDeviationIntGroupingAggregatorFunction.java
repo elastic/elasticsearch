@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.io.IOException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
@@ -149,7 +150,8 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) throws
+      IOException {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
@@ -171,7 +173,8 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) throws
+      IOException {
     state.toIntermediate(blocks, offset, selected, driverContext);
   }
 

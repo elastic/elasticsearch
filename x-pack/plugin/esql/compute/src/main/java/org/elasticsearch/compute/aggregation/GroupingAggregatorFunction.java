@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
+
 /**
  * Applies some grouping function like {@code min} or {@code avg} to many values,
  * grouped into buckets.
@@ -48,7 +50,7 @@ public interface GroupingAggregatorFunction extends Releasable {
          * @param groupIds {@link Block} of group id, some of which may be null
          *                 or multivalued
          */
-        void add(int positionOffset, IntBlock groupIds);
+        void add(int positionOffset, IntBlock groupIds) throws IOException;
 
         /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}
@@ -64,7 +66,7 @@ public interface GroupingAggregatorFunction extends Releasable {
          * @param groupIds {@link Vector} of group id, some of which may be null
          *                 or multivalued
          */
-        void add(int positionOffset, IntVector groupIds);
+        void add(int positionOffset, IntVector groupIds) throws IOException;
     }
 
     /**
@@ -79,7 +81,7 @@ public interface GroupingAggregatorFunction extends Releasable {
     /**
      * Add data produced by {@link #evaluateIntermediate}.
      */
-    void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
+    void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) throws IOException;
 
     /**
      * Add the position-th row from the intermediate output of the given aggregator function to the groupId
@@ -91,7 +93,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    void evaluateIntermediate(Block[] blocks, int offset, IntVector selected);
+    void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) throws IOException;
 
     /**
      * Build the final results for this aggregation.

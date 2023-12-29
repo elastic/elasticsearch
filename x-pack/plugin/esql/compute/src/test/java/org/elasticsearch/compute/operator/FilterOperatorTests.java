@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -91,11 +92,11 @@ public class FilterOperatorTests extends OperatorTestCase {
         assertThat(actualCount, equalTo(expectedCount));
     }
 
-    public void testNoResults() {
+    public void testNoResults() throws IOException {
         assertSimple(driverContext(), 3);
     }
 
-    public void testReadFromBlock() {
+    public void testReadFromBlock() throws IOException {
         DriverContext context = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(
             new SequenceBooleanBlockSourceOperator(context.blockFactory(), List.of(true, false, true, false))

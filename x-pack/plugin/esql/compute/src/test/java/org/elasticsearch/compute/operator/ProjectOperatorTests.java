@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -25,14 +26,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ProjectOperatorTests extends OperatorTestCase {
-    public void testProjectionOnEmptyPage() {
+    public void testProjectionOnEmptyPage() throws IOException {
         var page = new Page(0);
         var projection = new ProjectOperator(randomProjection(10));
         projection.addInput(page);
         assertEquals(page, projection.getOutput());
     }
 
-    public void testProjection() {
+    public void testProjection() throws IOException {
         DriverContext context = driverContext();
         var size = randomIntBetween(2, 5);
         var blocks = new Block[size];

@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -48,7 +49,7 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * Add all values for the "group by" columns in the page to the hash and
      * pass the ordinals to the provided {@link GroupingAggregatorFunction.AddInput}.
      */
-    public abstract void add(Page page, GroupingAggregatorFunction.AddInput addInput);
+    public abstract void add(Page page, GroupingAggregatorFunction.AddInput addInput) throws IOException;
 
     /**
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.

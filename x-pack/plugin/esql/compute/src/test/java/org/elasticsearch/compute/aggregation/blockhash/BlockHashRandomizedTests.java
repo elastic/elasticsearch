@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -98,13 +99,13 @@ public class BlockHashRandomizedTests extends ESTestCase {
         this.allowedTypes = allowedTypes;
     }
 
-    public void test() {
+    public void test() throws IOException {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
         test(new MockBlockFactory(breaker, bigArrays));
     }
 
-    public void testWithCranky() {
+    public void testWithCranky() throws IOException {
         CircuitBreakerService service = new CrankyCircuitBreakerService();
         CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, service);
@@ -117,7 +118,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         }
     }
 
-    private void test(MockBlockFactory blockFactory) {
+    private void test(MockBlockFactory blockFactory) throws IOException {
         List<ElementType> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
         BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.size()];
         Block[] blocks = new Block[types.size()];

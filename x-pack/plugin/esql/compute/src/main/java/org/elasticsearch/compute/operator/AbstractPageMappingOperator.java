@@ -30,7 +30,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
      */
     private int pagesProcessed;
 
-    protected abstract Page process(Page page);
+    protected abstract Page process(Page page) throws IOException;
 
     @Override
     public abstract String toString();
@@ -57,7 +57,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
     }
 
     @Override
-    public final Page getOutput() {
+    public final Page getOutput() throws IOException {
         if (prev == null) {
             return null;
         }

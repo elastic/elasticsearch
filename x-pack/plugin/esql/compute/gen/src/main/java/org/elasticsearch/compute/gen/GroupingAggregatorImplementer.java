@@ -18,6 +18,7 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -401,6 +402,7 @@ public class GroupingAggregatorImplementer {
         builder.addParameter(TypeName.INT, "positionOffset");
         builder.addParameter(INT_VECTOR, "groups");
         builder.addParameter(PAGE, "page");
+        builder.addException(IOException.class);
 
         builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
@@ -497,6 +499,7 @@ public class GroupingAggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selected");
+        builder.addException(IOException.class);
         builder.addStatement("state.toIntermediate(blocks, offset, selected, driverContext)");
         return builder.build();
     }

@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.DoubleStream;
@@ -92,7 +93,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         return ByteSizeValue.ofBytes(20);
     }
 
-    public final void testIgnoresNulls() {
+    public final void testIgnoresNulls() throws IOException {
         int end = between(1_000, 100_000);
         List<Page> results = new ArrayList<>();
         DriverContext driverContext = driverContext();
@@ -114,7 +115,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testMultivalued() {
+    public final void testMultivalued() throws IOException {
         int end = between(1_000, 100_000);
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
@@ -125,7 +126,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertSimpleOutput(origInput, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator(), driverContext));
     }
 
-    public final void testMultivaluedWithNulls() {
+    public final void testMultivaluedWithNulls() throws IOException {
         int end = between(1_000, 100_000);
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();

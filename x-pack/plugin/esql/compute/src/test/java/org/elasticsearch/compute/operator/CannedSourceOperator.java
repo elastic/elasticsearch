@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.List;
  * {@link SourceOperator} that returns a sequence of pre-built {@link Page}s.
  */
 public class CannedSourceOperator extends SourceOperator {
-    public static List<Page> collectPages(SourceOperator source) {
+    public static List<Page> collectPages(SourceOperator source) throws IOException {
         try {
             List<Page> pages = new ArrayList<>();
             while (source.isFinished() == false) {

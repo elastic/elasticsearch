@@ -12,9 +12,11 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
+
 public interface GroupingAggregatorState extends Releasable {
 
     /** Extracts an intermediate view of the contents of this state.  */
-    void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext);
+    void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) throws IOException;
 
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AssumptionViolatedException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -61,14 +62,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * Test a small input set against {@link #simple}. Smaller input sets
      * are more likely to discover accidental behavior for clumped inputs.
      */
-    public final void testSimpleSmallInput() {
+    public final void testSimpleSmallInput() throws IOException {
         assertSimple(driverContext(), between(10, 100));
     }
 
     /**
      * Test a larger input set against {@link #simple}.
      */
-    public final void testSimpleLargeInput() {
+    public final void testSimpleLargeInput() throws IOException {
         assertSimple(driverContext(), between(1_000, 10_000));
     }
 
@@ -87,7 +88,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * between 0 bytes and {@link #memoryLimitForSimple} and assert that
      * it breaks in a sane way.
      */
-    public final void testSimpleCircuitBreaking() {
+    public final void testSimpleCircuitBreaking() throws IOException {
         testSimpleCircuitBreaking(ByteSizeValue.ofBytes(randomLongBetween(0, memoryLimitForSimple().getBytes())));
     }
 
@@ -101,11 +102,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      *     limit will use the actual maximum very rarely.
      * </p>
      */
-    public final void testSimpleCircuitBreakingAtLimit() {
+    public final void testSimpleCircuitBreakingAtLimit() throws IOException {
         testSimpleCircuitBreaking(memoryLimitForSimple());
     }
 
-    private void testSimpleCircuitBreaking(ByteSizeValue limit) {
+    private void testSimpleCircuitBreaking(ByteSizeValue limit) throws IOException {
         /*
          * We build two CircuitBreakers - one for the input blocks and one for the operation itself.
          * The input blocks don't count against the memory usage for the limited operator that we
@@ -143,7 +144,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * properly cleaning up things like {@link BigArray}s, particularly
      * in ctors.
      */
-    public final void testSimpleWithCranky() {
+    public final void testSimpleWithCranky() throws IOException {
         DriverContext inputFactoryContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
 
@@ -197,7 +198,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         return result;
     }
 
-    protected final void assertSimple(DriverContext context, int size) {
+    protected final void assertSimple(DriverContext context, int size) throws IOException {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), size));
 
         List<Block> inputBlocks = new ArrayList<>();
@@ -240,7 +241,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * Tests that finish then close without calling {@link Operator#getOutput} to
      * retrieve a potential last page, releases all memory.
      */
-    public void testSimpleFinishClose() {
+    public void testSimpleFinishClose() throws IOException {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
         assert input.size() == 1 : "Expected single page, got: " + input;

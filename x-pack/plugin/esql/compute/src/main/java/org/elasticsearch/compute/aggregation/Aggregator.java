@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
 import java.util.function.Function;
 
 public class Aggregator implements Releasable {
@@ -35,7 +36,7 @@ public class Aggregator implements Releasable {
         return mode.isOutputPartial() ? aggregatorFunction.intermediateBlockCount() : 1;
     }
 
-    public void processPage(Page page) {
+    public void processPage(Page page) throws IOException {
         if (mode.isInputPartial()) {
             aggregatorFunction.addIntermediateInput(page);
         } else {
@@ -43,7 +44,7 @@ public class Aggregator implements Releasable {
         }
     }
 
-    public void evaluate(Block[] blocks, int offset, DriverContext driverContext) {
+    public void evaluate(Block[] blocks, int offset, DriverContext driverContext) throws IOException {
         if (mode.isOutputPartial()) {
             aggregatorFunction.evaluateIntermediate(blocks, offset, driverContext);
         } else {

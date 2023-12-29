@@ -20,6 +20,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -130,7 +131,7 @@ public class Driver implements Releasable, Describable {
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
-    private SubscribableListener<Void> run(TimeValue maxTime, int maxIterations) {
+    private SubscribableListener<Void> run(TimeValue maxTime, int maxIterations) throws IOException {
         long maxTimeNanos = maxTime.nanos();
         long startTime = System.nanoTime();
         long nextStatus = startTime + statusNanos;
@@ -189,7 +190,7 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    private SubscribableListener<Void> runSingleLoopIteration() {
+    private SubscribableListener<Void> runSingleLoopIteration() throws IOException {
         ensureNotCancelled();
         boolean movedPage = false;
 
@@ -319,7 +320,7 @@ public class Driver implements Releasable, Describable {
         executor.execute(new AbstractRunnable() {
 
             @Override
-            protected void doRun() {
+            protected void doRun() throws IOException {
                 if (driver.isFinished()) {
                     onComplete(listener);
                     return;

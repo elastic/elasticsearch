@@ -246,7 +246,7 @@ public class ValuesSourceReaderBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(INDEX_SIZE)
-    public void benchmark() {
+    public void benchmark() throws IOException {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             blockFactory,
             fields(name),

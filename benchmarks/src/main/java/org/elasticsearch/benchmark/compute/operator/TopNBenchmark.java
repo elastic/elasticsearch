@@ -38,6 +38,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -74,7 +75,7 @@ public class TopNBenchmark {
                     run(data, Integer.parseInt(topCount));
                 }
             }
-        } catch (NoSuchFieldException e) {
+        } catch (NoSuchFieldException | IOException e) {
             throw new AssertionError();
         }
     }
@@ -182,11 +183,11 @@ public class TopNBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(1024 * BLOCK_LENGTH)
-    public void run() {
+    public void run() throws IOException {
         run(data, topCount);
     }
 
-    private static void run(String data, int topCount) {
+    private static void run(String data, int topCount) throws IOException {
         try (Operator operator = operator(data, topCount)) {
             Page page = page(data);
             for (int i = 0; i < 1024; i++) {

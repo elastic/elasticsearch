@@ -39,6 +39,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -186,7 +187,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         return ByteSizeValue.ofBytes(775);
     }
 
-    public void testRamBytesUsed() {
+    public void testRamBytesUsed() throws IOException {
         RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
             @Override
             public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {

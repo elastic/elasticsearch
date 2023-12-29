@@ -17,6 +17,8 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.io.IOException;
+
 @Aggregator({ @IntermediateState(name = "hll", type = "BYTES_REF") })
 @GroupingAggregator
 public class CountDistinctIntAggregator {
@@ -29,7 +31,7 @@ public class CountDistinctIntAggregator {
         current.collect(v);
     }
 
-    public static void combineIntermediate(HllStates.SingleState current, BytesRef inValue) {
+    public static void combineIntermediate(HllStates.SingleState current, BytesRef inValue) throws IOException {
         current.merge(0, inValue, 0);
     }
 
@@ -46,7 +48,7 @@ public class CountDistinctIntAggregator {
         current.collect(groupId, v);
     }
 
-    public static void combineIntermediate(HllStates.GroupingState current, int groupId, BytesRef inValue) {
+    public static void combineIntermediate(HllStates.GroupingState current, int groupId, BytesRef inValue) throws IOException {
         current.merge(groupId, inValue, 0);
     }
 

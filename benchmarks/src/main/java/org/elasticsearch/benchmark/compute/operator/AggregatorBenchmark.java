@@ -48,6 +48,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
@@ -104,7 +105,7 @@ public class AggregatorBenchmark {
                     }
                 }
             }
-        } catch (NoSuchFieldException e) {
+        } catch (NoSuchFieldException | IOException e) {
             throw new AssertionError();
         }
     }
@@ -564,11 +565,11 @@ public class AggregatorBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(OP_COUNT * BLOCK_LENGTH)
-    public void run() {
+    public void run() throws IOException {
         run(grouping, op, blockType, OP_COUNT);
     }
 
-    private static void run(String grouping, String op, String blockType, int opCount) {
+    private static void run(String grouping, String op, String blockType, int opCount) throws IOException {
         String dataType = switch (blockType) {
             case VECTOR_LONGS, HALF_NULL_LONGS -> LONGS;
             case VECTOR_DOUBLES, HALF_NULL_DOUBLES -> DOUBLES;

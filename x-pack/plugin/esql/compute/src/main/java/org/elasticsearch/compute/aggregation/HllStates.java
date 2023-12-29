@@ -8,9 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.hppc.BitMixer;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -28,47 +26,17 @@ import java.io.IOException;
 final class HllStates {
     private HllStates() {}
 
-    static BytesRef serializeHLL(int groupId, HyperLogLogPlusPlus hll) {
+    static BytesRef serializeHLL(int groupId, HyperLogLogPlusPlus hll) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(baos);
-        try {
-            hll.writeTo(groupId, out);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        hll.writeTo(groupId, out);
         return new BytesRef(baos.toByteArray());
     }
 
-    static AbstractHyperLogLogPlusPlus deserializeHLL(BytesRef bytesRef) {
+    static AbstractHyperLogLogPlusPlus deserializeHLL(BytesRef bytesRef) throws IOException {
         ByteArrayStreamInput in = new ByteArrayStreamInput(bytesRef.bytes);
         in.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-        try {
-            return HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Copies the content of the BytesReference to an array of bytes. The byte[] must
-     * have enough space to fit the bytesReference object, otherwise an
-     * {@link ArrayIndexOutOfBoundsException} will be thrown.
-     *
-     * @return number of bytes copied
-     */
-    static int copyToArray(BytesReference bytesReference, byte[] arr, int offset) {
-        int origOffset = offset;
-        final BytesRefIterator iterator = bytesReference.iterator();
-        try {
-            BytesRef slice;
-            while ((slice = iterator.next()) != null) {
-                System.arraycopy(slice.bytes, slice.offset, arr, offset, slice.length);
-                offset += slice.length;
-            }
-            return offset - origOffset;
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
+        return HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     static class SingleState implements AggregatorState {
@@ -110,13 +78,13 @@ final class HllStates {
             hll.merge(groupId, other, otherGroup);
         }
 
-        void merge(int groupId, BytesRef other, int otherGroup) {
+        void merge(int groupId, BytesRef other, int otherGroup) throws IOException {
             hll.merge(groupId, deserializeHLL(other), otherGroup);
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) throws IOException {
             assert blocks.length >= offset + 1;
             blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeHLL(SINGLE_BUCKET_ORD, hll), 1);
         }
@@ -170,13 +138,13 @@ final class HllStates {
             hll.merge(groupId, other, otherGroup);
         }
 
-        void merge(int groupId, BytesRef other, int otherGroup) {
+        void merge(int groupId, BytesRef other, int otherGroup) throws IOException {
             hll.merge(groupId, deserializeHLL(other), otherGroup);
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) throws IOException {
             assert blocks.length >= offset + 1;
             try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {

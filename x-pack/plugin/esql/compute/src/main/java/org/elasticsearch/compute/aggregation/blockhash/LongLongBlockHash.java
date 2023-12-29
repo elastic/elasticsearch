@@ -24,6 +24,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
+
 /**
  * Maps two {@link LongBlock} columns to group ids.
  */
@@ -47,7 +49,7 @@ final class LongLongBlockHash extends BlockHash {
     }
 
     @Override
-    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) throws IOException {
         LongBlock block1 = page.getBlock(channel1);
         LongBlock block2 = page.getBlock(channel2);
         LongVector vector1 = block1.asVector();
@@ -85,7 +87,7 @@ final class LongLongBlockHash extends BlockHash {
             this.block2 = block2;
         }
 
-        void add() {
+        void add() throws IOException {
             int positions = block1.getPositionCount();
             long[] seen1 = EMPTY;
             long[] seen2 = EMPTY;
@@ -156,13 +158,13 @@ final class LongLongBlockHash extends BlockHash {
             this.ords = blockFactory.newIntBlockBuilder(emitBatchSize);
         }
 
-        protected final void addedValue(int position) {
+        protected final void addedValue(int position) throws IOException {
             if (++added % emitBatchSize == 0) {
                 rollover(position + 1);
             }
         }
 
-        protected final void addedValueInMultivaluePosition(int position) {
+        protected final void addedValueInMultivaluePosition(int position) throws IOException {
             if (++added % emitBatchSize == 0) {
                 ords.endPositionEntry();
                 rollover(position);
@@ -170,13 +172,13 @@ final class LongLongBlockHash extends BlockHash {
             }
         }
 
-        protected final void emitOrds() {
+        protected final void emitOrds() throws IOException {
             try (IntBlock ordsBlock = ords.build()) {
                 addInput.add(positionOffset, ordsBlock);
             }
         }
 
-        private void rollover(int position) {
+        private void rollover(int position) throws IOException {
             emitOrds();
             positionOffset = position;
             ords = blockFactory.newIntBlockBuilder(emitBatchSize); // TODO add a clear method to the builder?

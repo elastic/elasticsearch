@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -31,7 +32,7 @@ public class RowOperatorTests extends ESTestCase {
         TestBlockFactory.getNonBreakingInstance()
     );
 
-    public void testBoolean() {
+    public void testBoolean() throws IOException {
         RowOperator.RowOperatorFactory factory = new RowOperator.RowOperatorFactory(List.of(false));
         assertThat(factory.describe(), equalTo("RowOperator[objects = false]"));
         assertThat(factory.get(driverContext).toString(), equalTo("RowOperator[objects=[false]]"));
@@ -39,7 +40,7 @@ public class RowOperatorTests extends ESTestCase {
         assertThat(block.getBoolean(0), equalTo(false));
     }
 
-    public void testInt() {
+    public void testInt() throws IOException {
         RowOperator.RowOperatorFactory factory = new RowOperator.RowOperatorFactory(List.of(213));
         assertThat(factory.describe(), equalTo("RowOperator[objects = 213]"));
         assertThat(factory.get(driverContext).toString(), equalTo("RowOperator[objects=[213]]"));
@@ -47,7 +48,7 @@ public class RowOperatorTests extends ESTestCase {
         assertThat(block.getInt(0), equalTo(213));
     }
 
-    public void testLong() {
+    public void testLong() throws IOException {
         RowOperator.RowOperatorFactory factory = new RowOperator.RowOperatorFactory(List.of(21321343214L));
         assertThat(factory.describe(), equalTo("RowOperator[objects = 21321343214]"));
         assertThat(factory.get(driverContext).toString(), equalTo("RowOperator[objects=[21321343214]]"));
@@ -55,7 +56,7 @@ public class RowOperatorTests extends ESTestCase {
         assertThat(block.getLong(0), equalTo(21321343214L));
     }
 
-    public void testDouble() {
+    public void testDouble() throws IOException {
         RowOperator.RowOperatorFactory factory = new RowOperator.RowOperatorFactory(List.of(2.0));
         assertThat(factory.describe(), equalTo("RowOperator[objects = 2.0]"));
         assertThat(factory.get(driverContext).toString(), equalTo("RowOperator[objects=[2.0]]"));
@@ -63,7 +64,7 @@ public class RowOperatorTests extends ESTestCase {
         assertThat(block.getDouble(0), equalTo(2.0));
     }
 
-    public void testString() {
+    public void testString() throws IOException {
         RowOperator.RowOperatorFactory factory = new RowOperator.RowOperatorFactory(List.of(new BytesRef("cat")));
         assertThat(factory.describe(), equalTo("RowOperator[objects = [63 61 74]]"));
         assertThat(factory.get(driverContext).toString(), equalTo("RowOperator[objects=[[63 61 74]]]"));
@@ -71,7 +72,7 @@ public class RowOperatorTests extends ESTestCase {
         assertThat(block.getBytesRef(0, new BytesRef()), equalTo(new BytesRef("cat")));
     }
 
-    public void testNull() {
+    public void testNull() throws IOException {
         RowOperator.RowOperatorFactory factory = new RowOperator.RowOperatorFactory(Arrays.asList(new Object[] { null }));
         assertThat(factory.describe(), equalTo("RowOperator[objects = null]"));
         assertThat(factory.get(driverContext).toString(), equalTo("RowOperator[objects=[null]]"));

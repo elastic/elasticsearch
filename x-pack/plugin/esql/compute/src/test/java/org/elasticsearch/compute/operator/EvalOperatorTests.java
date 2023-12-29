@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.core.Tuple;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -102,7 +103,7 @@ public class EvalOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testReadFromBlock() {
+    public void testReadFromBlock() throws IOException {
         DriverContext context = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), 10));
         List<Page> results = drive(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0)).get(context), input.iterator(), context);

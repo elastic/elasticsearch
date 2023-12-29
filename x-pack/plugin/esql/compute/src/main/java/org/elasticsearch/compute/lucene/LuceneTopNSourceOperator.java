@@ -29,7 +29,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -137,7 +136,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public Page getOutput() {
+    public Page getOutput() throws IOException {
         if (isFinished()) {
             return null;
         }
@@ -148,7 +147,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private Page collect() {
+    private Page collect() throws IOException {
         assert doneCollecting == false;
         var scorer = getCurrentOrLoadNextScorer();
         if (scorer == null) {
@@ -165,8 +164,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         } catch (CollectionTerminatedException cte) {
             // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
             scorer.markAsDone();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
         if (scorer.isDone()) {
             var nextScorer = getCurrentOrLoadNextScorer();

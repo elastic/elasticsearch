@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
@@ -236,7 +237,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         result.forEach(Page::releaseBlocks);
     }
 
-    public void testExpandWithBytesRefs() {
+    public void testExpandWithBytesRefs() throws IOException {
         DriverContext context = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(new AbstractBlockSourceOperator(context.blockFactory(), 8 * 1024) {
             private int idx;

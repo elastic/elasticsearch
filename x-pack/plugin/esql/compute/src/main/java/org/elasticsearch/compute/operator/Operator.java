@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.io.IOException;
+
 /**
  * Operator is low-level building block that consumes, transforms and produces data.
  * An operator can have state, and assumes single-threaded access.
@@ -50,12 +52,12 @@ public interface Operator extends Releasable {
      * adds an input page to the operator. only called when needsInput() == true and isFinished() == false
      * @throws UnsupportedOperationException  if the operator is a {@link SourceOperator}
      */
-    void addInput(Page page);
+    void addInput(Page page) throws IOException;
 
     /**
      * notifies the operator that it won't receive any more input pages
      */
-    void finish();
+    void finish() throws IOException;
 
     /**
      * whether the operator has finished processing all input pages and made the corresponding output pages available
@@ -66,7 +68,7 @@ public interface Operator extends Releasable {
      * returns non-null if output page available. Only called when isFinished() == false
      * @throws UnsupportedOperationException  if the operator is a {@link SinkOperator}
      */
-    Page getOutput();
+    Page getOutput() throws IOException;
 
     /**
      * notifies the operator that it won't be used anymore (i.e. none of the other methods called),

@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.io.IOException;
+
 @Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
 @GroupingAggregator
 class MedianAbsoluteDeviationIntAggregator {
@@ -28,7 +30,7 @@ class MedianAbsoluteDeviationIntAggregator {
         current.add(v);
     }
 
-    public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue) {
+    public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue) throws IOException {
         state.add(inValue);
     }
 
@@ -44,7 +46,7 @@ class MedianAbsoluteDeviationIntAggregator {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(QuantileStates.GroupingState state, int groupId, BytesRef inValue) {
+    public static void combineIntermediate(QuantileStates.GroupingState state, int groupId, BytesRef inValue) throws IOException {
         state.add(groupId, inValue);
     }
 

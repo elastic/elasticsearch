@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Page;
 
+import java.io.IOException;
+
 public abstract class MappingSourceOperator extends SourceOperator {
     private final SourceOperator delegate;
 
@@ -19,7 +21,7 @@ public abstract class MappingSourceOperator extends SourceOperator {
     protected abstract Page map(Page page);
 
     @Override
-    public void finish() {
+    public void finish() throws IOException {
         delegate.finish();
     }
 
@@ -29,7 +31,7 @@ public abstract class MappingSourceOperator extends SourceOperator {
     }
 
     @Override
-    public Page getOutput() {
+    public Page getOutput() throws IOException {
         Page p = delegate.getOutput();
         if (p == null) {
             return p;

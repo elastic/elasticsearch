@@ -35,25 +35,17 @@ public final class QuantileStates {
         return 0 <= p && p <= 100 ? p : null;
     }
 
-    static BytesRef serializeDigest(TDigestState digest) {
+    static BytesRef serializeDigest(TDigestState digest) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(baos);
-        try {
-            TDigestState.write(digest, out);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        TDigestState.write(digest, out);
         return new BytesRef(baos.toByteArray());
     }
 
-    static TDigestState deserializeDigest(BytesRef bytesRef) {
+    static TDigestState deserializeDigest(BytesRef bytesRef) throws IOException {
         ByteArrayStreamInput in = new ByteArrayStreamInput(bytesRef.bytes);
         in.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-        try {
-            return TDigestState.read(in);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return TDigestState.read(in);
     }
 
     static class SingleState implements AggregatorState {
@@ -72,13 +64,13 @@ public final class QuantileStates {
             digest.add(v);
         }
 
-        void add(BytesRef other) {
+        void add(BytesRef other) throws IOException {
             digest.add(deserializeDigest(other));
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) throws IOException {
             assert blocks.length >= offset + 1;
             blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeDigest(this.digest), 1);
         }
@@ -139,7 +131,7 @@ public final class QuantileStates {
             // We always enable.
         }
 
-        void add(int groupId, BytesRef other) {
+        void add(int groupId, BytesRef other) throws IOException {
             getOrAddGroup(groupId).add(deserializeDigest(other));
         }
 
@@ -153,7 +145,7 @@ public final class QuantileStates {
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) throws IOException {
             assert blocks.length >= offset + 1;
             try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {

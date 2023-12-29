@@ -11,8 +11,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
+
 public interface AggregatorState extends Releasable {
 
     /** Extracts an intermediate view of the contents of this state.  */
-    void toIntermediate(Block[] blocks, int offset, DriverContext driverContext);
+    void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) throws IOException;
 }

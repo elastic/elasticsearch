@@ -12,13 +12,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
+
 public interface AggregatorFunction extends Releasable {
 
     void addRawInput(Page page);
 
-    void addIntermediateInput(Page page);
+    void addIntermediateInput(Page page) throws IOException;
 
-    void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext);
+    void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) throws IOException;
 
     void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext);
 

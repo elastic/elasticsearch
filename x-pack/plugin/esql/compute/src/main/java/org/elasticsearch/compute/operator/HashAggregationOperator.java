@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -93,7 +94,7 @@ public class HashAggregationOperator implements Operator {
     }
 
     @Override
-    public void addInput(Page page) {
+    public void addInput(Page page) throws IOException {
         try {
             checkState(needsInput(), "Operator is already finishing");
             requireNonNull(page, "page is null");
@@ -105,7 +106,7 @@ public class HashAggregationOperator implements Operator {
 
             blockHash.add(wrapPage(page), new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
+                public void add(int positionOffset, IntBlock groupIds) throws IOException {
                     IntVector groupIdsVector = groupIds.asVector();
                     if (groupIdsVector != null) {
                         add(positionOffset, groupIdsVector);
@@ -117,7 +118,7 @@ public class HashAggregationOperator implements Operator {
                 }
 
                 @Override
-                public void add(int positionOffset, IntVector groupIds) {
+                public void add(int positionOffset, IntVector groupIds) throws IOException {
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
                         p.add(positionOffset, groupIds);
                     }
@@ -136,7 +137,7 @@ public class HashAggregationOperator implements Operator {
     }
 
     @Override
-    public void finish() {
+    public void finish() throws IOException {
         if (finished) {
             return;
         }

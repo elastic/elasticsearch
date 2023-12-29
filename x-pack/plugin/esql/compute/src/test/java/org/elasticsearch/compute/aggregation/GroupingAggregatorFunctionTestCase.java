@@ -34,6 +34,7 @@ import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
@@ -151,7 +152,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return ByteSizeValue.ofBytes(100);
     }
 
-    public final void testNullGroupsAndValues() {
+    public final void testNullGroupsAndValues() throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -167,7 +168,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testNullGroups() {
+    public final void testNullGroups() throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -181,7 +182,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public void testAllKeyNulls() {
+    public void testAllKeyNulls() throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = new ArrayList<>();
@@ -228,7 +229,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         };
     }
 
-    public final void testNullValues() {
+    public final void testNullValues() throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -242,7 +243,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testNullValuesInitialIntermediateFinal() {
+    public final void testNullValuesInitialIntermediateFinal() throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -273,7 +274,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         };
     }
 
-    public final void testMultivalued() {
+    public final void testMultivalued() throws IOException {
         DriverContext driverContext = driverContext();
         int end = between(1_000, 100_000);
         List<Page> input = CannedSourceOperator.collectPages(
@@ -288,7 +289,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testMulitvaluedNullGroupsAndValues() {
+    public final void testMulitvaluedNullGroupsAndValues() throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -304,7 +305,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public void testMulitvaluedNullGroup() {
+    public void testMulitvaluedNullGroup() throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(1, 2);  // TODO revert
@@ -319,7 +320,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testMulitvaluedNullValues() {
+    public final void testMulitvaluedNullValues() throws IOException {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
@@ -383,12 +384,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         }
     }
 
-    public final void testNullSome() {
+    public final void testNullSome() throws IOException {
         DriverContext driverContext = driverContext();
         assertNullSome(driverContext, List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)));
     }
 
-    public final void testNullSomeInitialFinal() {
+    public final void testNullSomeInitialFinal() throws IOException {
         DriverContext driverContext = driverContext();
         assertNullSome(
             driverContext,
@@ -399,7 +400,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         );
     }
 
-    public final void testNullSomeInitialIntermediateFinal() {
+    public final void testNullSomeInitialIntermediateFinal() throws IOException {
         DriverContext driverContext = driverContext();
         assertNullSome(
             driverContext,
@@ -414,7 +415,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     /**
      * Run the agg on some data where one group is always null.
      */
-    private void assertNullSome(DriverContext driverContext, List<Operator> operators) {
+    private void assertNullSome(DriverContext driverContext, List<Operator> operators) throws IOException {
         List<Page> inputData = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1000));
         SeenGroups seenGroups = seenGroups(inputData);
 
@@ -566,7 +567,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             }, page);
 
                             @Override
-                            public void add(int positionOffset, IntBlock groupIds) {
+                            public void add(int positionOffset, IntBlock groupIds) throws IOException {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     IntBlock.Builder builder = blockFactory().newIntBlockBuilder(emitChunkSize);
                                     int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
@@ -597,7 +598,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             }
 
                             @Override
-                            public void add(int positionOffset, IntVector groupIds) {
+                            public void add(int positionOffset, IntVector groupIds) throws IOException {
                                 int[] chunk = new int[emitChunkSize];
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     int count = 0;
@@ -614,7 +615,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void addIntermediateInput(int positionOffset, IntVector groupIds, Page page) {
+                    public void addIntermediateInput(int positionOffset, IntVector groupIds, Page page) throws IOException {
                         int[] chunk = new int[emitChunkSize];
                         for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                             int count = 0;
@@ -632,7 +633,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+                    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) throws IOException {
                         delegate.evaluateIntermediate(blocks, offset, selected);
                     }
 

@@ -77,7 +77,7 @@ public abstract class LuceneOperator extends SourceOperator {
     @Override
     public void close() {}
 
-    LuceneScorer getCurrentOrLoadNextScorer() {
+    LuceneScorer getCurrentOrLoadNextScorer() throws IOException {
         while (currentScorer == null || currentScorer.isDone()) {
             if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
                 sliceIndex = 0;
@@ -128,7 +128,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private int maxPosition;
         private Thread executingThread;
 
-        LuceneScorer(int shardIndex, SearchContext searchContext, Weight weight, LeafReaderContext leafReaderContext) {
+        LuceneScorer(int shardIndex, SearchContext searchContext, Weight weight, LeafReaderContext leafReaderContext) throws IOException {
             this.shardIndex = shardIndex;
             this.searchContext = searchContext;
             this.weight = weight;
@@ -136,13 +136,9 @@ public abstract class LuceneOperator extends SourceOperator {
             reinitialize();
         }
 
-        private void reinitialize() {
+        private void reinitialize() throws IOException {
             this.executingThread = Thread.currentThread();
-            try {
-                this.bulkScorer = weight.bulkScorer(leafReaderContext);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            this.bulkScorer = weight.bulkScorer(leafReaderContext);
         }
 
         void scoreNextRange(LeafCollector collector, Bits acceptDocs, int numDocs) throws IOException {

@@ -22,6 +22,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeLong;
 
+import java.io.IOException;
 import java.util.BitSet;
 
 /**
@@ -47,7 +48,7 @@ final class LongBlockHash extends BlockHash {
     }
 
     @Override
-    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) throws IOException {
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
             seenNull = true;

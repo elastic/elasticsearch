@@ -200,7 +200,7 @@ public class BlockSerializationTests extends SerializationTestCase {
     }
 
     // TODO: more types, grouping, etc...
-    public void testSimulateAggs() {
+    public void testSimulateAggs() throws IOException {
         DriverContext driverCtx = driverContext();
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
         var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;

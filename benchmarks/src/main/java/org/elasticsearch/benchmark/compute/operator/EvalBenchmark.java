@@ -46,6 +46,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
@@ -77,7 +78,7 @@ public class EvalBenchmark {
             for (String operation : EvalBenchmark.class.getField("operation").getAnnotationsByType(Param.class)[0].value()) {
                 run(operation);
             }
-        } catch (NoSuchFieldException e) {
+        } catch (NoSuchFieldException | IOException e) {
             throw new AssertionError();
         }
     }
@@ -256,11 +257,11 @@ public class EvalBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(1024 * BLOCK_LENGTH)
-    public void run() {
+    public void run() throws IOException {
         run(operation);
     }
 
-    private static void run(String operation) {
+    private static void run(String operation) throws IOException {
         try (Operator operator = operator(operation)) {
             Page page = page(operation);
             Page output = null;

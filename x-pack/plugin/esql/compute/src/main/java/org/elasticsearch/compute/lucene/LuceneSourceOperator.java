@@ -22,7 +22,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -124,47 +123,43 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public Page getOutput() {
+    public Page getOutput() throws IOException {
         if (isFinished()) {
             assert currentPagePos == 0 : currentPagePos;
             return null;
         }
-        try {
-            final LuceneScorer scorer = getCurrentOrLoadNextScorer();
-            if (scorer == null) {
-                return null;
-            }
-            scorer.scoreNextRange(
-                leafCollector,
-                scorer.leafReaderContext().reader().getLiveDocs(),
-                // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
-                // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
-                // alleviates this issue.
-                maxPageSize - currentPagePos
-            );
-            Page page = null;
-            if (currentPagePos >= minPageSize || remainingDocs <= 0 || scorer.isDone()) {
-                pagesEmitted++;
-                IntBlock shard = null;
-                IntBlock leaf = null;
-                IntVector docs = null;
-                try {
-                    shard = blockFactory.newConstantIntBlockWith(scorer.shardIndex(), currentPagePos);
-                    leaf = blockFactory.newConstantIntBlockWith(scorer.leafReaderContext().ord, currentPagePos);
-                    docs = docsBuilder.build();
-                    docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                    page = new Page(currentPagePos, new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock());
-                } finally {
-                    if (page == null) {
-                        Releasables.closeExpectNoException(shard, leaf, docs);
-                    }
-                }
-                currentPagePos = 0;
-            }
-            return page;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        final LuceneScorer scorer = getCurrentOrLoadNextScorer();
+        if (scorer == null) {
+            return null;
         }
+        scorer.scoreNextRange(
+            leafCollector,
+            scorer.leafReaderContext().reader().getLiveDocs(),
+            // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
+            // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
+            // alleviates this issue.
+            maxPageSize - currentPagePos
+        );
+        Page page = null;
+        if (currentPagePos >= minPageSize || remainingDocs <= 0 || scorer.isDone()) {
+            pagesEmitted++;
+            IntBlock shard = null;
+            IntBlock leaf = null;
+            IntVector docs = null;
+            try {
+                shard = blockFactory.newConstantIntBlockWith(scorer.shardIndex(), currentPagePos);
+                leaf = blockFactory.newConstantIntBlockWith(scorer.leafReaderContext().ord, currentPagePos);
+                docs = docsBuilder.build();
+                docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
+                page = new Page(currentPagePos, new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock());
+            } finally {
+                if (page == null) {
+                    Releasables.closeExpectNoException(shard, leaf, docs);
+                }
+            }
+            currentPagePos = 0;
+        }
+        return page;
     }
 
     @Override

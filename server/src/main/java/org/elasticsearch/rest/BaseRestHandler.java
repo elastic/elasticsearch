@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
@@ -157,6 +158,11 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     @FunctionalInterface
     protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception>, Releasable {
+        /**
+         * Called just after the execution has started (or failed, if the request was invalid), but typically well before the execution has
+         * completed. This callback should be used to release (refs to) resources that were acquired when constructing this consumer, for
+         * instance by calling {@link RefCounted#decRef()} on any newly-created transport requests with nontrivial lifecycles.
+         */
         @Override
         default void close() {}
     }

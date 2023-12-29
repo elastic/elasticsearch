@@ -894,6 +894,7 @@ public class BasicBlockTests extends ESTestCase {
     ) {
         List<List<Object>> values = new ArrayList<>();
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
+            boolean bytesRefFromPoints = randomBoolean();
             Supplier<SpatialPoint> pointSupplier = randomBoolean() ? ESTestCase::randomGeoPoint : ESTestCase::randomCartesianPoint;
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
@@ -926,8 +927,9 @@ public class BasicBlockTests extends ESTestCase {
                             ((DoubleBlock.Builder) builder).appendDouble(d);
                         }
                         case BYTES_REF -> {
-                            // TODO: also test spatial types encoded to WKB
-                            BytesRef b = new BytesRef(randomRealisticUnicodeOfLength(4));
+                            BytesRef b = bytesRefFromPoints
+                                ? GEO.pointAsWKB(pointSupplier.get())
+                                : new BytesRef(randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);
                         }

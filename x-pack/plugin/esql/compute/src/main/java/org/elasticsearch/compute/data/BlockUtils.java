@@ -220,7 +220,6 @@ public final class BlockUtils {
     }
 
     private static BytesRef spatialToBytesRef(Object val) {
-        // TODO: if the cluster is running an older version that does not support this, should we throw and error here
         if (val instanceof SpatialPoint point) {
             return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
         }

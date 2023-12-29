@@ -38,7 +38,7 @@ public final class GeoPoint extends SpatialPoint implements ToXContentFragment {
      * @param value String to create the point from
      */
     public GeoPoint(String value) {
-        this();
+        this();  // initialize to defaults (since super-class does not have empty constructor)
         this.resetFromString(value);
     }
 

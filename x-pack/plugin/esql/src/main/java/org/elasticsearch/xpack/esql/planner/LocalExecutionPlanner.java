@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -88,7 +87,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
@@ -323,29 +321,6 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkHandler, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
-        // see https://github.com/elastic/elasticsearch/issues/100807 - handle case where the plan has been fully minimized
-        // to a local relation and the aggregate intermediate data erased. For this scenario, match the output the exchange output
-        // with that of the local relation
-
-        if (child instanceof LocalSourceExec localExec) {
-            var output = exchangeSink.output();
-            var localOutput = localExec.output();
-            if (output.equals(localOutput) == false) {
-                // the outputs are going to be similar except for the bool "seen" flags which are added in below
-                List<Block> blocks = new ArrayList<>(asList(localExec.supplier().get()));
-                if (blocks.size() > 0) {
-                    for (int i = 0, s = output.size(); i < s; i++) {
-                        var out = output.get(i);
-                        if (out.dataType() == DataTypes.BOOLEAN) {
-                            blocks.add(i, PlannerUtils.NON_BREAKING_BLOCK_FACTORY.newConstantBooleanBlockWith(true, 1));
-                        }
-                    }
-                }
-                var newSupplier = LocalSupplier.of(blocks.toArray(Block[]::new));
-
-                child = new LocalSourceExec(localExec.source(), output, newSupplier);
-            }
-        }
 
         PhysicalOperation source = plan(child, context);
 
@@ -814,9 +789,7 @@ public class LocalExecutionPlanner {
 
         @Override
         public String describe() {
-            StringBuilder sb = new StringBuilder();
-            sb.append(driverFactories.stream().map(DriverFactory::describe).collect(joining("\n")));
-            return sb.toString();
+            return driverFactories.stream().map(DriverFactory::describe).collect(joining("\n"));
         }
     }
 }

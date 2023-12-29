@@ -51,8 +51,8 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeFalse("doesn't use big arrays", true);
+    protected ByteSizeValue memoryLimitForSimple() {
+        assumeFalse("doesn't allocate, just filters", true);
         return null;
     }
 

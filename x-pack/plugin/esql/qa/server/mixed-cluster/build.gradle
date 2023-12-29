@@ -27,7 +27,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion() && bwcVersion.onOrAfter(Version.fromString("8.11.0"))) {
     def baseCluster = testClusters.register(baseName) {
-      versions = [bwcVersion.toString(), bwcVersion.toString(), project.version, project.version]
+      versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 4
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'

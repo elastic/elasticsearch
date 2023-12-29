@@ -13,7 +13,7 @@ $endif$
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a $Type$Vector.
+ * Block view of a {@link $Type$Vector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {

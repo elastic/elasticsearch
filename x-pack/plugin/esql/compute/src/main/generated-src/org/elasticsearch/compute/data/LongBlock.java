@@ -168,44 +168,6 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     }
 
     /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newLongBlockBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newLongBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newLongBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantLongBlockWith}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static LongBlock newConstantBlockWith(long value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantLongBlockWith}
-     */
-    @Deprecated
-    static LongBlock newConstantBlockWith(long value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantLongBlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link LongBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.LongBuilder permits LongBlockBuilder {

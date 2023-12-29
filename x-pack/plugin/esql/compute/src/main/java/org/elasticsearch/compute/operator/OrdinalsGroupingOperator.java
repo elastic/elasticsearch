@@ -475,7 +475,7 @@ public class OrdinalsGroupingOperator implements Operator {
             DriverContext driverContext
         ) {
             this.extractor = new ValuesSourceReaderOperator(
-                BlockFactory.getNonBreakingInstance(),
+                driverContext.blockFactory(),
                 List.of(new ValuesSourceReaderOperator.FieldInfo(groupingField, blockLoaders)),
                 shardContexts,
                 docChannel

@@ -1,0 +1,5 @@
+pr: 103670
+summary: "ESQL: Improve local folding of aggregates"
+area: ES|QL
+type: bug
+issues: []

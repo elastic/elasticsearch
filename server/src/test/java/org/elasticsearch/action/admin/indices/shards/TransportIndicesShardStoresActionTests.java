@@ -67,9 +67,8 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                     request,
                     future
                 );
-                assertTrue(future.isDone());
 
-                final var response = future.actionGet(0L);
+                final var response = future.result();
                 assertThat(response.getFailures(), empty());
                 assertThat(response.getStoreStatuses(), anEmptyMap());
                 assertThat(shardsWithFailures, empty());
@@ -132,8 +131,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 listExpected = false;
                 assertFalse(future.isDone());
                 deterministicTaskQueue.runAllTasks();
-                assertTrue(future.isDone());
-                expectThrows(TaskCancelledException.class, () -> future.actionGet(0L));
+                expectThrows(TaskCancelledException.class, future::result);
             }
         });
     }
@@ -153,9 +151,8 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 assertFalse(future.isDone());
                 failOneRequest = true;
                 deterministicTaskQueue.runAllTasks();
-                assertTrue(future.isDone());
                 assertFalse(failOneRequest);
-                assertEquals("simulated", expectThrows(ElasticsearchException.class, () -> future.actionGet(0L)).getMessage());
+                assertEquals("simulated", expectThrows(ElasticsearchException.class, future::result).getMessage());
             }
         });
     }

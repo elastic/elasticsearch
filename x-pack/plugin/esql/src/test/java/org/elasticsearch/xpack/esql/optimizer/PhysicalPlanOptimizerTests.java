@@ -1892,6 +1892,110 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(localSourceExec.output()), contains("languages", "min", "seen"));
     }
 
+    /**
+     * Expects
+     * intermediate plan
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,null]
+     *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[COUNT(emp_no{f}#6) AS c]]
+     * \_Filter[emp_no{f}#6 > 10[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]]]
+     *
+     * and final plan is
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[COUNT(emp_no{f}#6) AS c],FINAL,8]
+     *   \_ExchangeExec[[count{r}#16, seen{r}#17],true]
+     *     \_LocalSourceExec[[count{r}#16, seen{r}#17],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testPartialAggFoldingOutput() {
+        var plan = physicalPlan("""
+              from test
+            | where emp_no > 10
+            | stats c = count(emp_no)
+            """);
+
+        var stats = statsForMissingField("emp_no");
+        var optimized = optimizedPlan(plan, stats);
+
+        var limit = as(optimized, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        assertThat(Expressions.names(exchange.output()), contains("count", "seen"));
+        var source = as(exchange.child(), LocalSourceExec.class);
+        assertThat(Expressions.names(source.output()), contains("count", "seen"));
+    }
+
+    /**
+     * Checks that when the folding happens on the coordinator, the intermediate agg state
+     * are not used anymore.
+     *
+     * Expects
+     * LimitExec[10000[INTEGER]]
+     * \_AggregateExec[[],[COUNT(emp_no{f}#5) AS c],FINAL,8]
+     *   \_AggregateExec[[],[COUNT(emp_no{f}#5) AS c],PARTIAL,8]
+     *     \_LimitExec[10[INTEGER]]
+     *       \_ExchangeExec[[],false]
+     *         \_ProjectExec[[emp_no{r}#5]]
+     *           \_EvalExec[[null[INTEGER] AS emp_no]]
+     *             \_EsQueryExec[test], query[][_doc{f}#26], limit[10], sort[] estimatedRowSize[8]
+     */
+    public void testGlobalAggFoldingOutput() {
+        var plan = physicalPlan("""
+              from test
+            | limit 10
+            | stats c = count(emp_no)
+            """);
+
+        var stats = statsForMissingField("emp_no");
+        var optimized = optimizedPlan(plan, stats);
+
+        var limit = as(optimized, LimitExec.class);
+        var aggFinal = as(limit.child(), AggregateExec.class);
+        var aggPartial = as(aggFinal.child(), AggregateExec.class);
+        assertThat(Expressions.names(aggPartial.output()), contains("c"));
+        limit = as(aggPartial.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+    }
+
+    /**
+     * Checks the folded aggregation preserves the intermediate output.
+     *
+     * Expects
+     * ProjectExec[[a{r}#5]]
+     * \_EvalExec[[__a_SUM@734e2841{r}#16 / __a_COUNT@12536eab{r}#17 AS a]]
+     *   \_LimitExec[500[INTEGER]]
+     *     \_AggregateExec[[],[SUM(emp_no{f}#6) AS __a_SUM@734e2841, COUNT(emp_no{f}#6) AS __a_COUNT@12536eab],FINAL,24]
+     *       \_ExchangeExec[[sum{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
+     *         \_LocalSourceExec[[sum{r}#18, seen{r}#19, count{r}#20, seen{r}#21],[LongArrayBlock[positions=1, mvOrdering=UNORDERED,
+     *         values=[0,
+     * 0]], BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]],
+     *      LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]],
+     *      BooleanVectorBlock[vector=ConstantBooleanVector[positions=1, value=true]]]]
+     */
+    public void testPartialAggFoldingOutputForSyntheticAgg() {
+        var plan = physicalPlan("""
+              from test
+            | where emp_no > 10
+            | stats a = avg(emp_no)
+            """);
+
+        var stats = statsForMissingField("emp_no");
+        var optimized = optimizedPlan(plan, stats);
+
+        var project = as(optimized, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        var aggFinal = as(limit.child(), AggregateExec.class);
+        assertThat(aggFinal.output(), hasSize(2));
+        var exchange = as(aggFinal.child(), ExchangeExec.class);
+        assertThat(Expressions.names(exchange.output()), contains("sum", "seen", "count", "seen"));
+        var source = as(exchange.child(), LocalSourceExec.class);
+        assertThat(Expressions.names(source.output()), contains("sum", "seen", "count", "seen"));
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();
@@ -1941,6 +2045,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
+        // System.out.println(physical);
         assertSerialization(physical);
         return physical;
     }

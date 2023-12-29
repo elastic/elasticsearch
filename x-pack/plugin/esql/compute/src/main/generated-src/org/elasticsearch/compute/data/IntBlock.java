@@ -167,44 +167,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     }
 
     /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newIntBlockBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newIntBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newIntBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantIntBlockWith}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static IntBlock newConstantBlockWith(int value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantIntBlockWith}
-     */
-    @Deprecated
-    static IntBlock newConstantBlockWith(int value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantIntBlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link IntBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.IntBuilder permits IntBlockBuilder {

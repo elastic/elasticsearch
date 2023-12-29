@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a BooleanVector.
+ * Block view of a {@link BooleanVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class BooleanVectorBlock extends AbstractVectorBlock implements BooleanBlock {
@@ -74,11 +74,6 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
-    }
-
-    @Override
     public void closeInternal() {
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
@@ -87,5 +82,10 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

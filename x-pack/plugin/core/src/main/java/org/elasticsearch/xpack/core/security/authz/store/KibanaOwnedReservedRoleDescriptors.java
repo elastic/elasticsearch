@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
@@ -251,8 +251,12 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/data_stream/lifecycle/put"
                     )
                     .build(),
-                // Endpoint specific action responses. Kibana reads from these to display responses to the user.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.action.responses-*").privileges("read").build(),
+                // Endpoint specific action responses. Kibana reads and writes (for third party agents) to the index
+                // to display action responses to the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.action.responses-*")
+                    .privileges("auto_configure", "read", "write")
+                    .build(),
                 // Endpoint specific actions. Kibana reads and writes to this index to track new actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.actions-*")
@@ -285,7 +289,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "synthetics-browser.network-*",
                         "synthetics-browser.screenshot-*"
                     )
-                    .privileges(DeleteIndexAction.NAME)
+                    .privileges(TransportDeleteIndexAction.TYPE.name())
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -326,7 +330,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices("logs-ti_*.*-*")
                     .privileges(
                         // Require "delete_index" to perform ILM policy actions
-                        DeleteIndexAction.NAME,
+                        TransportDeleteIndexAction.TYPE.name(),
                         // Require "read" and "view_index_metadata" for transform
                         "read",
                         "view_index_metadata"

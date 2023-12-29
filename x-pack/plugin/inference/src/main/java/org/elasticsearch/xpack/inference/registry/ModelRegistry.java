@@ -98,17 +98,16 @@ public class ModelRegistry {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String modelId, ActionListener<UnparsedModel> listener) {
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
+                delegate.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
                 return;
             }
 
             var hits = searchResponse.getHits().getHits();
-            listener.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(hits, modelId)));
-
-        }, listener::onFailure);
+            delegate.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(hits, modelId)));
+        });
 
         QueryBuilder queryBuilder = documentIdQuery(modelId);
         SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
@@ -126,19 +125,18 @@ public class ModelRegistry {
      * @param listener Model listener
      */
     public void getModel(String modelId, ActionListener<UnparsedModel> listener) {
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
+                delegate.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
                 return;
             }
 
             var hits = searchResponse.getHits().getHits();
             var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
             assert modelConfigs.size() == 1;
-            listener.onResponse(modelConfigs.get(0));
-
-        }, listener::onFailure);
+            delegate.onResponse(modelConfigs.get(0));
+        });
 
         QueryBuilder queryBuilder = documentIdQuery(modelId);
         SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
@@ -157,18 +155,17 @@ public class ModelRegistry {
      * @param listener Models listener
      */
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // Not an error if no models of this task_type
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onResponse(List.of());
+                delegate.onResponse(List.of());
                 return;
             }
 
             var hits = searchResponse.getHits().getHits();
             var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
-            listener.onResponse(modelConfigs);
-
-        }, listener::onFailure);
+            delegate.onResponse(modelConfigs);
+        });
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
 
@@ -188,18 +185,17 @@ public class ModelRegistry {
      * @param listener Models listener
      */
     public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // Not an error if no models of this task_type
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onResponse(List.of());
+                delegate.onResponse(List.of());
                 return;
             }
 
             var hits = searchResponse.getHits().getHits();
             var modelConfigs = parseHitsAsModels(hits).stream().map(UnparsedModel::unparsedModelFromMap).toList();
-            listener.onResponse(modelConfigs);
-
-        }, listener::onFailure);
+            delegate.onResponse(modelConfigs);
+        });
 
         // In theory the index should only contain model config documents
         // and a match all query would be sufficient. But just in case the
@@ -361,11 +357,7 @@ public class ModelRegistry {
         request.setQuery(documentIdQuery(modelId));
         request.setRefresh(true);
 
-        client.execute(
-            DeleteByQueryAction.INSTANCE,
-            request,
-            ActionListener.wrap(r -> listener.onResponse(Boolean.TRUE), listener::onFailure)
-        );
+        client.execute(DeleteByQueryAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE)));
     }
 
     private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -151,18 +151,18 @@ public class EnrichLookupService {
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         ActionListener<Page> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
-        hasEnrichPrivilege(ActionListener.wrap(ignored -> {
+        hasEnrichPrivilege(listener.delegateFailureAndWrap((delegate, ignored) -> {
             ClusterState clusterState = clusterService.state();
             GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
                 .searchShards(clusterState, new String[] { index }, Map.of(), "_local");
             if (shardIterators.size() != 1) {
-                listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", index));
+                delegate.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", index));
                 return;
             }
             ShardIterator shardIt = shardIterators.get(0);
             ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
-                listener.onFailure(new UnavailableShardsException(shardIt.shardId(), "enrich index is not available"));
+                delegate.onFailure(new UnavailableShardsException(shardIt.shardId(), "enrich index is not available"));
                 return;
             }
             DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
@@ -176,13 +176,13 @@ public class EnrichLookupService {
                     parentTask,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        listener.map(LookupResponse::takePage),
+                        delegate.map(LookupResponse::takePage),
                         in -> new LookupResponse(in, blockFactory),
                         executor
                     )
                 );
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void hasEnrichPrivilege(ActionListener<Void> outListener) {
@@ -369,7 +369,7 @@ public class EnrichLookupService {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
             request.incRef();
-            ActionListener<LookupResponse> listener = ActionListener.runBefore(new OwningChannelActionListener<>(channel), request::decRef);
+            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
             doLookup(
                 request.sessionId,
                 (CancellableTask) task,
@@ -378,7 +378,7 @@ public class EnrichLookupService {
                 request.matchField,
                 request.inputPage,
                 request.extractFields,
-                listener.map(LookupResponse::new)
+                listener.delegateFailureAndWrap((l, outPage) -> ActionListener.respondAndRelease(l, new LookupResponse(outPage)))
             );
         }
     }

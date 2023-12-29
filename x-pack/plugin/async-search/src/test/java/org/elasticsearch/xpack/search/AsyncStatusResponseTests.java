@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -316,10 +316,8 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 99, 1);
-        SearchResponse searchResponse = new SearchResponse(
-            internalSearchResponse,
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             null,
             totalShards,
             successfulShards,
@@ -343,10 +341,8 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
 
-        SearchResponse searchResponse = new SearchResponse(
-            internalSearchResponse,
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             null,
             totalShards,
             successfulShards,
@@ -370,7 +366,6 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
 
         int totalClusters;
         int successfulClusters;
@@ -390,8 +385,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             skippedClusters = totalClusters - (successfulClusters + partial);
             clusters = AsyncSearchResponseTests.createCCSClusterObjects(80, 80, true, successfulClusters, skippedClusters, partial);
         }
-        SearchResponse searchResponse = new SearchResponse(
-            internalSearchResponse,
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             null,
             totalShards,
             successfulShards,
@@ -421,7 +415,6 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         int successful = randomInt(10);
         int partial = randomInt(10);
         int skipped = randomInt(10);
@@ -437,8 +430,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         }
         SearchResponse.Clusters clusters = AsyncSearchResponseTests.createCCSClusterObjects(100, 99, true, successful, skipped, partial);
 
-        SearchResponse searchResponse = new SearchResponse(
-            internalSearchResponse,
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             null,
             totalShards,
             successfulShards,

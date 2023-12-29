@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -78,7 +78,11 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         ClusterSearchShardsAction.NAME,
-        TransportSearchShardsAction.TYPE.name()
+        TransportSearchShardsAction.TYPE.name(),
+        // cross clusters query for ESQL
+        "internal:data/read/esql/open_exchange",
+        "internal:data/read/esql/exchange",
+        "indices:data/read/esql/cluster"
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",
@@ -112,7 +116,7 @@ public final class IndexPrivilege extends Privilege {
         AutoCreateAction.NAME,
         CreateDataStreamAction.NAME
     );
-    private static final Automaton DELETE_INDEX_AUTOMATON = patterns(DeleteIndexAction.NAME, DeleteDataStreamAction.NAME);
+    private static final Automaton DELETE_INDEX_AUTOMATON = patterns(TransportDeleteIndexAction.TYPE.name(), DeleteDataStreamAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(
         GetAliasesAction.NAME,
         GetIndexAction.NAME,
@@ -152,9 +156,9 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CROSS_CLUSTER_REPLICATION_AUTOMATON = patterns(
         "indices:data/read/xpack/ccr/shard_changes*",
         IndicesStatsAction.NAME + "*",
-        RetentionLeaseActions.Add.ACTION_NAME + "*",
-        RetentionLeaseActions.Remove.ACTION_NAME + "*",
-        RetentionLeaseActions.Renew.ACTION_NAME + "*"
+        RetentionLeaseActions.ADD.name() + "*",
+        RetentionLeaseActions.REMOVE.name() + "*",
+        RetentionLeaseActions.RENEW.name() + "*"
     );
     private static final Automaton CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON = patterns(
         "indices:internal/admin/ccr/restore/session/clear*",

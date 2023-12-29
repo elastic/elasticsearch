@@ -598,7 +598,7 @@ public class Node implements Closeable {
     public void prepareForClose() {
         HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
         Map<String, Runnable> stoppers = new HashMap<>();
-        stoppers.put("http-server-transport-stop", httpServerTransport::stop);
+        stoppers.put("http-server-transport-stop", httpServerTransport::close);
         stoppers.put("async-search-stop", this::awaitSearchTasksComplete);
         if (terminationHandler != null) {
             stoppers.put("termination-handler-stop", terminationHandler::handleTermination);

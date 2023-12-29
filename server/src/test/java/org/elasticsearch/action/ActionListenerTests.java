@@ -107,49 +107,6 @@ public class ActionListenerTests extends ESTestCase {
         );
     }
 
-    public void testWrapListener() {
-        var succeeded = new AtomicBoolean();
-        var failed = new AtomicBoolean();
-
-        var listener = ActionListener.wrap(new ActionListener<>() {
-            @Override
-            public void onResponse(Object o) {
-                assertTrue(succeeded.compareAndSet(false, true));
-                if (o instanceof RuntimeException e) {
-                    throw e;
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertTrue(failed.compareAndSet(false, true));
-                assertEquals("test exception", e.getMessage());
-                if (e instanceof UnsupportedOperationException uoe) {
-                    throw uoe;
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "test listener";
-            }
-        });
-
-        assertEquals("wrapped{test listener}", listener.toString());
-
-        listener.onResponse(new Object());
-        assertTrue(succeeded.getAndSet(false));
-        assertFalse(failed.getAndSet(false));
-
-        listener.onFailure(new RuntimeException("test exception"));
-        assertFalse(succeeded.getAndSet(false));
-        assertTrue(failed.getAndSet(false));
-
-        listener.onResponse(new RuntimeException("test exception"));
-        assertTrue(succeeded.getAndSet(false));
-        assertTrue(failed.getAndSet(false));
-    }
-
     public void testOnResponse() {
         final int numListeners = randomIntBetween(1, 20);
         List<AtomicReference<Boolean>> refList = new ArrayList<>();

@@ -33,7 +33,7 @@ import java.util.Arrays;
 /**
  * Request for a reload secure settings action
  */
-public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesReloadSecureSettingsRequest> implements RefCounted {
+public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesReloadSecureSettingsRequest> {
 
     /**
      * The password is used to re-read and decrypt the contents
@@ -87,7 +87,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
         return new NodeRequest(secureSettingsPassword, refs);
     }
 
-    public static class NodeRequest extends TransportRequest implements RefCounted {
+    public static class NodeRequest extends TransportRequest {
 
         @Nullable
         private final SecureString secureSettingsPassword;

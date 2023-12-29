@@ -162,8 +162,9 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                 w.addDocument(document);
                 if (targetShapeType.compareTo(calculator.getDimensionalShapeType()) == 0) {
                     double weight = calculator.sumWeight();
-                    compensatedSumLat.add(weight * calculator.getY());
-                    compensatedSumLon.add(weight * calculator.getX());
+                    // compute the centroid of centroids in float space
+                    compensatedSumLat.add(weight * (float) calculator.getY());
+                    compensatedSumLon.add(weight * (float) calculator.getX());
                     compensatedSumWeight.add(weight);
                 }
             }

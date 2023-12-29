@@ -167,14 +167,17 @@ h:double
 
 countOfDouble
 // tag::count[]
-FROM employees
-| STATS COUNT(height)
+from employees | stats c = count(gender) by gender
 // end::count[]
 ;
 
 // tag::count-result[]
-COUNT(height):long
-100
+       c       |    gender     
+---------------+---------------
+0              |null           
+57             |M              
+33             |F              
+Any field that does not have a value for gender is treated as if it had a value of "N/A" and the count displays any null or missing values.
 // end::count-result[]
 ;
 

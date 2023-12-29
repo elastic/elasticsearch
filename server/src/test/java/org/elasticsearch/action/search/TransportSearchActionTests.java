@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -61,7 +60,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -481,7 +479,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
     private static SearchResponse emptySearchResponse() {
         return new SearchResponse(
-            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             InternalAggregations.EMPTY,
             null,
             false,

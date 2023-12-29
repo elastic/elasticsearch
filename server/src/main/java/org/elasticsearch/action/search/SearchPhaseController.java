@@ -364,7 +364,7 @@ public final class SearchPhaseController {
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
-        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        final SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
         try {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
                 mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);

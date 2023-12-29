@@ -171,7 +171,12 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         ShardSearchFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY
                     );
-                    channel.sendResponse(searchResponse);
+                    try {
+                        channel.sendResponse(searchResponse);
+                    } finally {
+                        searchResponse.decRef();
+                        searchHits.decRef();
+                    }
                 }
             );
             newService.registerRequestHandler(

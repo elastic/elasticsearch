@@ -74,7 +74,7 @@ public enum SpatialCoordinateTypes {
     public abstract long pointAsLong(double x, double y);
 
     public String pointAsString(SpatialPoint point) {
-        return WellKnownText.toWKT(new Point(point.getX(), point.getY()));
+        return point.toWKT();
     }
 
     public SpatialPoint stringAsPoint(String string) {
@@ -127,6 +127,10 @@ public enum SpatialCoordinateTypes {
 
     public String wkbAsString(BytesRef wkb) {
         Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+        if (geometry instanceof Point point) {
+            // WellKnownText.toWKT renders points slightly differently to SpatialPoint.toWKT
+            return pointAsString(pointAsPoint(point));
+        }
         return WellKnownText.toWKT(geometry);
     }
 

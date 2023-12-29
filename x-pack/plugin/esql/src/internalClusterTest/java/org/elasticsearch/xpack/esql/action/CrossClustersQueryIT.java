@@ -118,6 +118,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103747")
     public void testProfile() {
         final int localOnlyProfiles;
         {

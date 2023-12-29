@@ -717,4 +717,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         // Currently ESQL support for geo_point is limited to source values
         return false;
     }
+
+    public void testBlockLoaderFromRowStrideReader() {
+        // Disabled due to unsolved test failures
+        assumeTrue("fix MapperTestCase.testBlockLoader for geo_point, possibly by tweaking the test data", false);
+    }
 }

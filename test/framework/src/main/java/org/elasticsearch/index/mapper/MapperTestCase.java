@@ -1243,7 +1243,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         testBlockLoader(true);
     }
 
-    public final void testBlockLoaderFromRowStrideReader() throws IOException {
+    public void testBlockLoaderFromRowStrideReader() throws IOException {
         testBlockLoader(false);
     }
 

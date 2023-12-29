@@ -713,9 +713,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SupportedReaders getSupportedReaders(MapperService mapper, MappedFieldType ft) {
-        // TODO: Support testing both reading from source as well as reading from doc-values
-        GeoPointFieldMapper.GeoPointFieldType text = (GeoPointFieldMapper.GeoPointFieldType) ft;
-        return new SupportedReaders(text.isIndexed() == false && ft.hasDocValues(), false);
+    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
+        // Currently ESQL support for geo_point is limited to source values
+        return false;
     }
 }

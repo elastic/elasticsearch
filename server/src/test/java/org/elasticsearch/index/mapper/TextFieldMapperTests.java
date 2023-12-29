@@ -1328,18 +1328,18 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SupportedReaders getSupportedReaders(MapperService mapper, MappedFieldType ft) {
+    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
         String parentName = mapper.mappingLookup().parentField(ft.name());
         if (parentName == null) {
             TextFieldMapper.TextFieldType text = (TextFieldType) ft;
-            return new SupportedReaders(text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues(), true);
+            return text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues();
         }
         MappedFieldType parent = mapper.fieldType(parentName);
         if (false == parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
             throw new UnsupportedOperationException();
         }
         KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
-        return new SupportedReaders(kwd.hasDocValues(), true);
+        return kwd.hasDocValues();
     }
 
     public void testBlockLoaderFromParentColumnReader() throws IOException {

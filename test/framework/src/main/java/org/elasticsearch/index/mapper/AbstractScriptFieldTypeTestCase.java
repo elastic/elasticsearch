@@ -423,11 +423,6 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             }
 
             @Override
-            public boolean forStats() {
-                return false;
-            }
-
-            @Override
             public SearchLookup lookup() {
                 return mockContext().lookup();
             }

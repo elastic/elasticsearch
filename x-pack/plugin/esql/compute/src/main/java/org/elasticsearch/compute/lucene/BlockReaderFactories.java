@@ -59,11 +59,6 @@ public final class BlockReaderFactories {
                 }
 
                 @Override
-                public boolean forStats() {
-                    return forStats;
-                }
-
-                @Override
                 public SearchLookup lookup() {
                     return ctx.lookup();
                 }

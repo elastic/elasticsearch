@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -57,13 +58,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     protected abstract void assertSimpleOutput(List<Page> input, List<Page> results);
 
     /**
-     * A {@link ByteSizeValue} that is so small any input to the operator
-     * will cause it to circuit break. If the operator can't break then
-     * throw an {@link AssumptionViolatedException}.
-     */
-    protected abstract ByteSizeValue smallEnoughToCircuitBreak();
-
-    /**
      * Test a small input set against {@link #simple}. Smaller input sets
      * are more likely to discover accidental behavior for clumped inputs.
      */
@@ -79,27 +73,55 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     }
 
     /**
-     * Run {@link #simple} with a circuit breaker configured by
-     * {@link #smallEnoughToCircuitBreak} and assert that it breaks
-     * in a sane way.
+     * A {@link ByteSizeValue} that is small enough that running {@link #simple}
+     * on {@link #simpleInput} will exhaust the breaker and throw a
+     * {@link CircuitBreakingException}. We should make an effort to make this
+     * number as large as possible and still cause a break consistently so we get
+     * good test coverage. If the operator can't break then throw an
+     * {@link AssumptionViolatedException}.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101824")
+    protected abstract ByteSizeValue memoryLimitForSimple();
+
+    /**
+     * Run {@link #simple} with a circuit breaker limited to somewhere
+     * between 0 bytes and {@link #memoryLimitForSimple} and assert that
+     * it breaks in a sane way.
+     */
     public final void testSimpleCircuitBreaking() {
+        testSimpleCircuitBreaking(ByteSizeValue.ofBytes(randomLongBetween(0, memoryLimitForSimple().getBytes())));
+    }
+
+    /**
+     * Run {@link #simple} with a circuit breaker configured limited to
+     * {@link #memoryLimitForSimple} and assert that it breaks in a sane way.
+     * <p>
+     *     This test helps to make sure that the limits set by
+     *     {@link #memoryLimitForSimple} aren't too large.
+     *     {@link #testSimpleCircuitBreaking}, with it's random configured
+     *     limit will use the actual maximum very rarely.
+     * </p>
+     */
+    public final void testSimpleCircuitBreakingAtLimit() {
+        testSimpleCircuitBreaking(memoryLimitForSimple());
+    }
+
+    private void testSimpleCircuitBreaking(ByteSizeValue limit) {
         /*
          * We build two CircuitBreakers - one for the input blocks and one for the operation itself.
          * The input blocks don't count against the memory usage for the limited operator that we
          * build.
          */
         DriverContext inputFactoryContext = driverContext();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak())
-            .withCircuitBreaking();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
+        Operator.OperatorFactory simple = simple(bigArrays);
+        logger.info("running {} with {}", simple, bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
         boolean[] driverStarted = new boolean[1];
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            var operator = simple(bigArrays).get(driverContext);
+            var operator = simple.get(driverContext);
             driverStarted[0] = true;
             drive(operator, input.iterator(), driverContext);
         });
@@ -186,7 +208,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
 
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
 
         List<Page> results = drive(simple(bigArrays).get(context), input.iterator(), context);
@@ -270,10 +292,10 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             drivers.add(
                 new Driver(
                     "dummy-session",
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BlockFactory.getNonBreakingInstance()),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
                     () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(
-                        BlockFactory.getNonBreakingInstance(),
+                        TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),
                         between(1, 100)
                     ),

@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -599,7 +600,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> indexStatus = (Map<String, Object>) ((Map<String, Object>) responseMap.get("indices")).get(index);
             assertNull(indexStatus.get("phase"));
             assertNull(indexStatus.get("action"));
-            assertNull(indexStatus.get("step"));
+            assertEquals(ErrorStep.NAME, indexStatus.get("step"));
             Map<String, String> stepInfo = (Map<String, String>) indexStatus.get("step_info");
             assertNotNull(stepInfo);
             assertEquals("policy [does_not_exist] does not exist", stepInfo.get("reason"));

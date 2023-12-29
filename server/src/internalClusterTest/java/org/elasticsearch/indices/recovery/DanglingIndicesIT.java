@@ -138,10 +138,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest("NonExistentUUID", true);
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> clusterAdmin().importDanglingIndex(request).actionGet()
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, clusterAdmin().importDanglingIndex(request));
 
         assertThat(e.getMessage(), containsString("No dangling index found for UUID [NonExistentUUID]"));
     }
@@ -157,7 +154,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, false);
 
-        Exception e = expectThrows(Exception.class, () -> clusterAdmin().importDanglingIndex(request).actionGet());
+        Exception e = expectThrows(Exception.class, clusterAdmin().importDanglingIndex(request));
 
         assertThat(e.getMessage(), containsString("accept_data_loss must be set to true"));
     }
@@ -254,7 +251,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             Exception.class,
-            () -> clusterAdmin().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, false)).actionGet()
+            clusterAdmin().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, false))
         );
 
         assertThat(e.getMessage(), containsString("accept_data_loss must be set to true"));

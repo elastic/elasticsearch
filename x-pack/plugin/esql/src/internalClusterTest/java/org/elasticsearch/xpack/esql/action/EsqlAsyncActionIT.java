@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -89,8 +88,8 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
 
             // assert initial contents, if any, are the same as async get contents
             if (initialColumns != null) {
-                assertThat(initialColumns, contains(getResponse.columns()));
-                assertThat(initialPages, contains(getResponse.pages()));
+                assertEquals(initialColumns, getResponse.columns());
+                assertEquals(initialPages, getResponse.pages());
             }
 
             assertDeletable(id);

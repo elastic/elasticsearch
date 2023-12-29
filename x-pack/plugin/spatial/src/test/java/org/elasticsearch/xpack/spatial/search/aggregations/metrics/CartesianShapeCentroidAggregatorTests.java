@@ -39,7 +39,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-import static java.lang.Math.signum;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
@@ -155,8 +154,6 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
             CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
             CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
             CompensatedSum compensatedSumWeight = new CompensatedSum(0, 0);
-            TestExpected xExpected = new TestExpected();
-            TestExpected yExpected = new TestExpected();
             for (Geometry geometry : geometries) {
                 Document document = new Document();
                 CentroidCalculator calculator = new CentroidCalculator();
@@ -168,17 +165,19 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                     compensatedSumLat.add(weight * calculator.getY());
                     compensatedSumLon.add(weight * calculator.getX());
                     compensatedSumWeight.add(weight);
-                    xExpected.setValue(compensatedSumLon.value() / compensatedSumWeight.value());
-                    yExpected.setValue(compensatedSumLat.value() / compensatedSumWeight.value());
                 }
             }
             // force using a single aggregator to compute the centroid
             w.forceMerge(1);
-            assertCentroid(w, xExpected, yExpected);
+            CartesianPoint expectedCentroid = new CartesianPoint(
+                compensatedSumLon.value() / compensatedSumWeight.value(),
+                compensatedSumLat.value() / compensatedSumWeight.value()
+            );
+            assertCentroid(w, expectedCentroid);
         }
     }
 
-    private void assertCentroid(RandomIndexWriter w, TestExpected xExpected, TestExpected yExpected) throws IOException {
+    private void assertCentroid(RandomIndexWriter w, CartesianPoint expectedCentroid) throws IOException {
         MappedFieldType fieldType = new ShapeFieldMapper.ShapeFieldType(
             "field",
             true,
@@ -194,33 +193,20 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
             assertEquals("my_agg", result.getName());
             SpatialPoint centroid = result.centroid();
             assertNotNull(centroid);
-            assertCentroid("x-value", centroid.getX(), xExpected);
-            assertCentroid("y-value", centroid.getY(), yExpected);
+            assertCentroid("x-value", result.count(), centroid.getX(), expectedCentroid.getX());
+            assertCentroid("y-value", result.count(), centroid.getY(), expectedCentroid.getY());
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }
     }
 
-    private void assertCentroid(String name, double value, TestExpected expected) {
-        assertEquals("Centroid over " + expected.count + " had incorrect " + name, expected.value, value, expected.tolerance());
+    private void assertCentroid(String name, long count, double value, double expected) {
+        assertEquals("Centroid over " + count + " had incorrect " + name, expected, value, tolerance(expected, count));
     }
 
-    private static class TestExpected {
-        private double value;
-        private double previous;
-        private int count;
-
-        private void setValue(double value) {
-            this.previous = this.value;
-            this.value = value;
-            this.count++;
-        }
-
-        private double tolerance() {
-            // When last numbers change sign, they usually end up as much smaller numbers (but retain high errors)
-            double tolerance = signum(value) != signum(previous) ? Math.abs(value / 1e3) : Math.abs(value / 1e5);
-            // Very large numbers have more floating point error, also increasing with count
-            return tolerance > 1e25 ? tolerance * count : tolerance;
-        }
+    private double tolerance(double expected, long count) {
+        double tolerance = Math.abs(expected / 1e5);
+        // Very large numbers have more floating point error, also increasing with count
+        return tolerance > 1e25 ? tolerance * count : tolerance;
     }
 
     @Override

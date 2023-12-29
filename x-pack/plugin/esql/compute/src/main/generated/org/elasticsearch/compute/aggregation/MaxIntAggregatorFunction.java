@@ -116,10 +116,10 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1, driverContext.blockFactory());
+      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = IntBlock.newConstantBlockWith(state.intValue(), 1, driverContext.blockFactory());
+    blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1);
   }
 
   @Override

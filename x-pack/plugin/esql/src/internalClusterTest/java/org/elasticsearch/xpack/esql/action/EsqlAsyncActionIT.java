@@ -40,7 +40,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
  * Runs test scenarios from EsqlActionIT, with an extra level of indirection
  * through the async query and async get APIs.
  */
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class EsqlAsyncActionIT extends EsqlActionIT {
 
     @Override

@@ -115,22 +115,26 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         listener = listener.delegateFailureAndWrap(ActionListener::respondAndRelease);
         if (requestIsAsync(request)) {
-            asyncTaskManagementService.asyncExecute(
-                request,
-                request.waitForCompletionTimeout(),
-                request.keepAlive(),
-                request.keepOnCompletion(),
-                listener
-            );
+            requestExecutor.execute(ActionRunnable.wrap(listener, l -> asyncExecute(request, l)));
         } else {
             // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
             requestExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
         }
     }
 
+    void asyncExecute(EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        asyncTaskManagementService.asyncExecute(
+            request,
+            request.waitForCompletionTimeout(),
+            request.keepAlive(),
+            request.keepOnCompletion(),
+            listener
+        );
+    }
+
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
-        doExecuteForked(task, request, listener);
+        ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)).run();
     }
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {

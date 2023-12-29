@@ -724,6 +724,62 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         );
     }
 
+    public void testToXContentWithObjectCycles() throws Exception {
+        ElasticsearchException root = new ElasticsearchException("root exception");
+
+        ElasticsearchException suppressed1 = new ElasticsearchException("suppressed#1", root);
+
+        ElasticsearchException suppressed2 = new ElasticsearchException("suppressed#2");
+        ElasticsearchException suppressed3 = new ElasticsearchException("suppressed#3");
+        suppressed3.addSuppressed(suppressed2);
+        suppressed2.addSuppressed(suppressed3);
+
+        root.addSuppressed(suppressed1);
+        root.addSuppressed(suppressed2);
+        root.addSuppressed(suppressed3);
+
+        final String expectedJson = """
+            {
+                "type": "exception",
+                "reason": "root exception",
+                "suppressed": [
+                  {
+                    "type": "exception",
+                    "reason": "suppressed#1",
+                    "caused_by": {
+                      "type": "exception",
+                      "reason": "root exception",
+                      "cycle_detected": true
+                    }
+                  },
+                  {
+                    "type": "exception",
+                    "reason": "suppressed#2",
+                    "suppressed": [
+                      {
+                        "type": "exception",
+                        "reason": "suppressed#3",
+                        "suppressed": [
+                          {
+                            "type": "exception",
+                            "reason": "suppressed#2",
+                            "cycle_detected": true
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "exception",
+                    "reason": "suppressed#3",
+                    "cycle_detected": true
+                  }
+                ]
+            }
+            """;
+        assertExceptionAsJson(root, expectedJson);
+    }
+
     public void testFromXContent() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent)

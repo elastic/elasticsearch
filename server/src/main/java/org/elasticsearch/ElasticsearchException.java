@@ -59,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -106,6 +107,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String HEADER = "header";
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
+    private static final String CYCLE_DETECTED = "cycle_detected";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
@@ -343,11 +345,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, new HashSet<>());
+    }
+
+    /**
+     * Equivalent to {@link org.elasticsearch.xcontent.ToXContent#toXContent(XContentBuilder, Params)} except that it detects object cycles
+     * so that it can avoid stackoverflow exceptions.
+     */
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, Set<Throwable> seenExceptions) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this);
+            generateThrowableXContent(builder, params, this, seenExceptions);
         } else {
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause());
+            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause(), seenExceptions);
         }
         return builder;
     }
@@ -360,7 +370,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         String message,
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
-        Throwable cause
+        Throwable cause,
+        Set<Throwable> seenExceptions
     ) throws IOException {
         builder.field(TYPE, type);
         builder.field(REASON, message);
@@ -373,11 +384,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             exception.metadataToXContent(builder, params);
         }
 
+        if (seenExceptions.add(throwable) == false) {
+            builder.field(CYCLE_DETECTED, true);
+            return;
+        }
+
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
             if (cause != null) {
                 builder.field(CAUSED_BY);
                 builder.startObject();
-                generateThrowableXContent(builder, params, cause);
+                generateThrowableXContent(builder, params, cause, seenExceptions);
                 builder.endObject();
             }
         }
@@ -399,7 +415,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.startArray(SUPPRESSED.getPreferredName());
             for (Throwable suppressed : allSuppressed) {
                 builder.startObject();
-                generateThrowableXContent(builder, params, suppressed);
+                generateThrowableXContent(builder, params, suppressed, seenExceptions);
                 builder.endObject();
             }
             builder.endArray();
@@ -552,18 +568,27 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
-     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable)}.
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable, Set)}.
      *
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
      * be parsed back using the {@link #fromXContent(XContentParser)} method.
      */
     public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
+        generateThrowableXContent(builder, params, t, new HashSet<>());
+    }
+
+    /**
+     * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but detects object cycles
+     * so that it can avoid stackoverflow exceptions.
+     */
+    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, Set<Throwable> seenExceptions)
+        throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof ElasticsearchException) {
-            ((ElasticsearchException) t).toXContent(builder, params);
+            ((ElasticsearchException) t).toXContent(builder, params, seenExceptions);
         } else {
-            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
+            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause(), seenExceptions);
         }
     }
 

@@ -210,13 +210,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
                 : request.source().trackTotalHitsUpTo();
             // total hits is null in the response if the tracking of total hits is disabled
-            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            sendSearchResponse(
-                withTotalHits
-                    ? new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1)
-                    : new SearchResponseSections(SearchHits.EMPTY_WITHOUT_TOTAL_HITS, null, null, false, null, null, 1),
-                new AtomicArray<>(0)
-            );
+            var r = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED
+                ? new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1)
+                : new SearchResponseSections(SearchHits.EMPTY_WITHOUT_TOTAL_HITS, null, null, false, null, null, 1);
+            try {
+                sendSearchResponse(r, new AtomicArray<>(0));
+            } finally {
+                r.decRef();
+            }
             return;
         }
         executePhase(this);

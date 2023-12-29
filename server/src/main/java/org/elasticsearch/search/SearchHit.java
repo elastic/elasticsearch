@@ -24,7 +24,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -35,6 +37,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -71,7 +74,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * @see SearchHits
  */
-public final class SearchHit implements Writeable, ToXContentObject {
+public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
 
     private final transient int docId;
 
@@ -115,6 +118,22 @@ public final class SearchHit implements Writeable, ToXContentObject {
 
     private Map<String, SearchHits> innerHits;
 
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            if (innerHits != null) {
+                for (SearchHits h : innerHits.values()) {
+                    h.decRef();
+                }
+                innerHits = null;
+            }
+            if (source instanceof RefCounted r) {
+                r.decRef();
+            }
+            source = null;
+        }
+    });
+
     // used only in tests
     public SearchHit(int docId) {
         this(docId, null);
@@ -148,8 +167,11 @@ public final class SearchHit implements Writeable, ToXContentObject {
         version = in.readLong();
         seqNo = in.readZLong();
         primaryTerm = in.readVLong();
-        source = in.readBytesReference();
+        source = in.readReleasableBytesReference();
         if (source.length() == 0) {
+            if (source instanceof RefCounted r) {
+                r.decRef();
+            }
             source = null;
         }
         if (in.readBoolean()) {
@@ -192,7 +214,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                SearchHits value = new SearchHits(in);
+                SearchHits value = SearchHits.readFrom(in);
                 innerHits.put(key, value);
             }
         } else {
@@ -586,6 +608,26 @@ public final class SearchHit implements Writeable, ToXContentObject {
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
         this.innerHits = innerHits;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 
     public static class Fields {

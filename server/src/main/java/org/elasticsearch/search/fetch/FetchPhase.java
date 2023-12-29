@@ -82,6 +82,7 @@ public final class FetchPhase {
             // Only set the shardResults if building search hits was successful
             if (hits != null) {
                 context.fetchResult().shardResult(hits, profileResult);
+                hits.decRef();
             }
         }
     }

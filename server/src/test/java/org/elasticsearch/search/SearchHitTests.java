@@ -266,7 +266,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
 
         TransportVersion version = TransportVersionUtils.randomVersion(random());
-        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, version);
+        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::readFrom, version);
         SearchShardTarget deserializedTarget = results.getAt(0).getShard();
         assertThat(deserializedTarget, equalTo(target));
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());

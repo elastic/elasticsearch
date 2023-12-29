@@ -18,8 +18,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -32,11 +35,19 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<SearchHit> {
+public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
-    public static final SearchHits EMPTY_WITH_TOTAL_HITS = new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
-    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = new SearchHits(EMPTY, null, 0);
+    public static final SearchHits EMPTY_WITH_TOTAL_HITS = new SearchHits(
+        EMPTY,
+        new TotalHits(0, Relation.EQUAL_TO),
+        0,
+        null,
+        null,
+        null,
+        ALWAYS_REFERENCED
+    );
+    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = new SearchHits(EMPTY, null, 0, null, null, null, ALWAYS_REFERENCED);
 
     private final SearchHit[] hits;
     private final TotalHits totalHits;
@@ -47,6 +58,8 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
     private final String collapseField;
     @Nullable
     private final Object[] collapseValues;
+
+    private final RefCounted refCounted;
 
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
@@ -60,23 +73,46 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
         @Nullable String collapseField,
         @Nullable Object[] collapseValues
     ) {
+        this(hits, totalHits, maxScore, sortFields, collapseField, collapseValues, LeakTracker.wrap(new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {
+                for (int i = 0; i < hits.length; i++) {
+                    hits[i].decRef();
+                    hits[i] = null;
+                }
+            }
+        }));
+    }
+
+    public SearchHits(
+        SearchHit[] hits,
+        @Nullable TotalHits totalHits,
+        float maxScore,
+        @Nullable SortField[] sortFields,
+        @Nullable String collapseField,
+        @Nullable Object[] collapseValues,
+        RefCounted refCounted
+    ) {
         this.hits = hits;
         this.totalHits = totalHits;
         this.maxScore = maxScore;
         this.sortFields = sortFields;
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
+        this.refCounted = refCounted;
     }
 
-    public SearchHits(StreamInput in) throws IOException {
+    public static SearchHits readFrom(StreamInput in) throws IOException {
+        final TotalHits totalHits;
         if (in.readBoolean()) {
             totalHits = Lucene.readTotalHits(in);
         } else {
             // track_total_hits is false
             totalHits = null;
         }
-        maxScore = in.readFloat();
+        final float maxScore = in.readFloat();
         int size = in.readVInt();
+        final SearchHit[] hits;
         if (size == 0) {
             hits = EMPTY;
         } else {
@@ -85,9 +121,10 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
                 hits[i] = new SearchHit(in);
             }
         }
-        sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
-        collapseField = in.readOptionalString();
-        collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+        var collapseField = in.readOptionalString();
+        var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
     @Override
@@ -124,6 +161,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
      * The hits of the search request (based on the search type, and from / size provided).
      */
     public SearchHit[] getHits() {
+        assert hasReferences();
         return this.hits;
     }
 
@@ -161,7 +199,28 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
 
     @Override
     public Iterator<SearchHit> iterator() {
+        assert hasReferences();
         return Iterators.forArray(getHits());
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 
     public static final class Fields {

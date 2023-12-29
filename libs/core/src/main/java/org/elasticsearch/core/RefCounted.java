@@ -74,4 +74,26 @@ public interface RefCounted {
         assert false : AbstractRefCounted.ALREADY_CLOSED_MESSAGE;
         incRef(); // throws an ISE
     }
+
+    RefCounted ALWAYS_REFERENCED = new RefCounted() {
+        @Override
+        public void incRef() {
+
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+    };
 }

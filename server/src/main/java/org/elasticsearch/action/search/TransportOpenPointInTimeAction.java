@@ -252,10 +252,12 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
                                 @Override
                                 protected void doRun() {
-                                    sendSearchResponse(
-                                        new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1),
-                                        results.getAtomicArray()
-                                    );
+                                    var r = new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1);
+                                    try {
+                                        sendSearchResponse(r, results.getAtomicArray());
+                                    } finally {
+                                        r.decRef();
+                                    }
                                 }
 
                                 @Override

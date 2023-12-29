@@ -94,7 +94,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
-        this.hits = new SearchHits(in);
+        this.hits = SearchHits.readFrom(in);
         this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
         this.timedOut = in.readBoolean();
@@ -202,6 +202,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         String pointInTimeId
     ) {
         this.hits = hits;
+        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;

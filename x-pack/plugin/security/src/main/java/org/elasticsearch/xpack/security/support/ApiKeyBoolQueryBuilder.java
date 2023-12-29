@@ -63,6 +63,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
      *
      * @param queryBuilder This represents the query parsed directly from the user input. It is validated
      *                     and transformed (see above).
+     * @param fieldNameVisitor This {@code Consumer} is invoked with all the (index-level) field names referred in the passed-in query.
      * @param authentication The user's authentication object. If present, it will be used to filter the results
      *                       to only include API keys owned by the user.
      * @return A specialised query builder for API keys that is safe to run on the security index.

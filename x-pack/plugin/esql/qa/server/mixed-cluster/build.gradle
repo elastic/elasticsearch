@@ -32,6 +32,8 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'false'
+      // disable relocation until we have retry in ESQL
+      setting 'cluster.routing.rebalance.enable', 'none'
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {

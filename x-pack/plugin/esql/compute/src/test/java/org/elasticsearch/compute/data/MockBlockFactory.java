@@ -66,7 +66,7 @@ public class MockBlockFactory extends BlockFactory {
         this(breaker, bigArrays, null);
     }
 
-    protected MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, BlockFactory parent) {
+    private MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, BlockFactory parent) {
         super(breaker, bigArrays, parent);
     }
 

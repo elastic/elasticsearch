@@ -1191,12 +1191,15 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     protected boolean nullLoaderExpected(MapperService mapper, String fieldName) {
-        TextFieldType type = ((TextFieldType) mapper.fieldType(fieldName));
-        if (type.isSyntheticSource() == false || type.canUseSyntheticSourceDelegate() || type.isStored()) {
-            return false;
+        MappedFieldType type = mapper.fieldType(fieldName);
+        if (type instanceof TextFieldType t) {
+            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegate() || t.isStored()) {
+                return false;
+            }
+            String parentField = mapper.mappingLookup().parentField(fieldName);
+            return parentField == null || nullLoaderExpected(mapper, parentField);
         }
-        String parentField = mapper.mappingLookup().parentField(fieldName);
-        return parentField == null || nullLoaderExpected(mapper, parentField);
+        return false;
     }
 
     @Override

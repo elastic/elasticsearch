@@ -1,0 +1,6 @@
+pr: 103745
+summary: Fix search sort value format
+area: Search
+type: bug
+issues:
+  - 103489

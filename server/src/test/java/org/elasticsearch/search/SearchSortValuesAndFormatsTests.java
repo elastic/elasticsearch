@@ -12,9 +12,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.junit.Before;
 
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,6 +79,17 @@ public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTest
             values[i] = randomSortValue();
             sortValueFormats[i] = DocValueFormat.RAW;
         }
+        return new SearchSortValuesAndFormats(values, sortValueFormats);
+    }
+    public static SearchSortValuesAndFormats sortValueMAxMinInstance() {
+        DocValueFormat.DateTime format = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_millis"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        Object[] values = {Long.MAX_VALUE,Long.MIN_VALUE};
+        DocValueFormat[] sortValueFormats = {format};
+        SearchSortValuesAndFormats searchSortValuesAndFormats = new SearchSortValuesAndFormats(values, sortValueFormats);
         return new SearchSortValuesAndFormats(values, sortValueFormats);
     }
 }

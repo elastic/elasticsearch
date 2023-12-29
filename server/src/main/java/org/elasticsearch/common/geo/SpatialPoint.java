@@ -51,6 +51,10 @@ public class SpatialPoint implements Comparable<SpatialPoint> {
 
     @Override
     public String toString() {
+        return toWKT();
+    }
+
+    public String toWKT() {
         return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
     }
 

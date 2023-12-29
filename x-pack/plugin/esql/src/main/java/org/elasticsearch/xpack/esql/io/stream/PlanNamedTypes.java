@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -1592,29 +1593,45 @@ public final class PlanNamedTypes {
 
     static void writeLiteral(PlanStreamOutput out, Literal literal) throws IOException {
         out.writeNoSource();
-        out.writeGenericValue(mapFromLiteralValue(literal.dataType(), literal.value()));
+        out.writeGenericValue(mapFromLiteralValue(out, literal.dataType(), literal.value()));
         out.writeString(literal.dataType().typeName());
     }
 
     /**
      * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
-     * This mapper allows for addition of new and interesting values without (yet) changing transport version.
-     * This only makes sense during the pre-GA version of ESQL. When we get near GA we want TransportVersion support.
-     * TODO: Implement TransportVersion checks before GA (eg. by adding to StreamInput/StreamOutput directly)
+     * This mapper allows for addition of new and interesting values without (yet) adding to StreamInput/Output.
+     * This makes the most sense during the pre-GA version of ESQL. When we get near GA we might want to push this down.
+     * <p>
+     * For the spatial point type support we need to care about the fact that 8.12.0 uses encoded longs for serializing
+     * while 8.13 uses WKB. We detect if the cluster has 8.12 using an existing known TransportVersion that was added for 8.13.
+     * We do not need more fine-grained checks at this point since ESQL is not supported in Serverless.
      */
-    private static Object mapFromLiteralValue(DataType dataType, Object value) {
+    private static Object mapFromLiteralValue(PlanStreamOutput out, DataType dataType, Object value) {
         if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
             if (value instanceof List<?> list) {
-                return list.stream().map(v -> mapFromLiteralValue(dataType, v)).toList();
+                return list.stream().map(v -> mapFromLiteralValue(out, dataType, v)).toList();
             }
             if (value instanceof BytesRef wkb) {
                 return wkb;
             }
-            if (value instanceof SpatialPoint point) {
-                return pointAsWKB(point);
-            }
-            if (value instanceof Long encoded) {
-                return longAsWKB(dataType, encoded);
+            // Picked an existing transport version that is clearly in between the doc-values and WKB versions of the point literals
+            // This simplification works since ESQL is not supported in serverless, so we're only differentiating between 8.12 and 8.13
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
+                // 8.13.0 uses WKB for serializing point literals
+                if (value instanceof SpatialPoint point) {
+                    return pointAsWKB(point);
+                }
+                if (value instanceof Long encoded) {
+                    return longAsWKB(dataType, encoded);
+                }
+            } else {
+                // 8.12.0 uses encoded longs for serializing point literals
+                if (value instanceof SpatialPoint point) {
+                    return pointAsLong(dataType, point);
+                }
+                if (value instanceof Long encoded) {
+                    return encoded;
+                }
             }
         }
         return value;
@@ -1650,6 +1667,10 @@ public final class PlanNamedTypes {
 
     private static BytesRef longAsWKB(DataType dataType, long encoded) {
         return dataType == GEO_POINT ? GEO.longAsWKB(encoded) : CARTESIAN.longAsWKB(encoded);
+    }
+
+    private static long pointAsLong(DataType dataType, SpatialPoint point) {
+        return dataType == GEO_POINT ? GEO.pointAsLong(point) : CARTESIAN.pointAsLong(point);
     }
 
     static Order readOrder(PlanStreamInput in) throws IOException {

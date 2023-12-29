@@ -140,7 +140,7 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     static BytesRef randomPointAsWKB() {
-        SpatialPoint point = randomGeoPoint();
+        SpatialPoint point = randomBoolean() ? randomGeoPoint() : randomCartesianPoint();
         byte[] wkb = WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN);
         return new BytesRef(wkb);
     }

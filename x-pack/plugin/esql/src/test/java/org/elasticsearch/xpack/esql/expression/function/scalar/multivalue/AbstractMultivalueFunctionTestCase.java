@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
@@ -34,9 +33,6 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
@@ -390,6 +386,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     /**
      * Build many test cases with {@code geo_point} values.
+     * This assumes that the function consumes {@code geo_point} values and produces {@code geo_point} values.
      */
     protected static void geoPoints(
         List<TestCaseSupplier> cases,
@@ -402,6 +399,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     /**
      * Build many test cases with {@code geo_point} values that are converted to another type.
+     * This assumes that the function consumes {@code geo_point} values and produces another type.
      * For example, mv_count() can consume points and produce an integer count.
      */
     protected static void geoPoints(
@@ -411,11 +409,12 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         DataType expectedDataType,
         BiFunction<Integer, Stream<SpatialPoint>, Matcher<Object>> matcher
     ) {
-        points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, ESTestCase::randomGeoPoint, matcher);
+        points(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, ESTestCase::randomGeoPoint, matcher);
     }
 
     /**
      * Build many test cases with {@code cartesian_point} values.
+     * This assumes that the function consumes {@code cartesian_point} values and produces {@code cartesian_point} values.
      */
     protected static void cartesianPoints(
         List<TestCaseSupplier> cases,
@@ -428,6 +427,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     /**
      * Build many test cases with {@code cartesian_point} values that are converted to another type.
+     * This assumes that the function consumes {@code cartesian_point} values and produces another type.
      * For example, mv_count() can consume points and produce an integer count.
      */
     protected static void cartesianPoints(
@@ -437,16 +437,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         DataType expectedDataType,
         BiFunction<Integer, Stream<SpatialPoint>, Matcher<Object>> matcher
     ) {
-        points(
-            cases,
-            name,
-            evaluatorName,
-            EsqlDataTypes.CARTESIAN_POINT,
-            expectedDataType,
-            CARTESIAN,
-            ESTestCase::randomCartesianPoint,
-            matcher
-        );
+        points(cases, name, evaluatorName, EsqlDataTypes.CARTESIAN_POINT, expectedDataType, ESTestCase::randomCartesianPoint, matcher);
     }
 
     /**
@@ -458,7 +449,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         String evaluatorName,
         DataType dataType,
         DataType expectedDataType,
-        SpatialCoordinateTypes coordType,
         Supplier<SpatialPoint> randomPoint,
         BiFunction<Integer, Stream<SpatialPoint>, Matcher<Object>> matcher
     ) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -35,6 +36,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
  * Runs test scenarios from EsqlActionIT, with an extra level of indirection
  * through the async query and async get APIs.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103748")
 public class EsqlAsyncActionIT extends EsqlActionIT {
 
     @Override

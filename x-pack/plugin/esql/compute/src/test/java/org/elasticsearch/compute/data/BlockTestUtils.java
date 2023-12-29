@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -18,7 +17,6 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
-import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
@@ -111,14 +109,5 @@ public class BlockTestUtils {
 
     public static List<Page> deepCopyOf(List<Page> pages, BlockFactory blockFactory) {
         return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
-    }
-
-    public static SpatialPoint randomSpatialPoint() {
-        // For testing purposes we use only SpatialPoint, not GeoPoint, to ensure the equals methods works without knowing the mapping
-        if (randomBoolean()) {
-            return new SpatialPoint(randomGeoPoint());  // Destroy geo type information
-        } else {
-            return randomSpatialPoint();
-        }
     }
 }

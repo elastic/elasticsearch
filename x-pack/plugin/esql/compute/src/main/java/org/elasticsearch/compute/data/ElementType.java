@@ -64,8 +64,6 @@ public enum ElementType {
         } else if (type == String.class || type == BytesRef.class) {
             elementType = BYTES_REF;
         } else if (SpatialPoint.class.isAssignableFrom(type)) {
-            // TODO: Consider cases where we want to back this with POINT (for efficiency) or LONG (for doc-values)
-            // elementType = LONG;
             elementType = BYTES_REF;
         } else if (Geometry.class.isAssignableFrom(type)) {
             elementType = BYTES_REF;

@@ -12,7 +12,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -502,39 +501,6 @@ public abstract class BatchEncoder implements Accountable {
                     e.length -= Double.BYTES;
                 }
             }
-        }
-    }
-
-    protected abstract static class Points extends MVEncoder {
-        protected Points(int batchSize) {
-            super(batchSize);
-        }
-
-        /**
-         * Is there capacity for this many {@code SpatialPoint}s?
-         */
-        protected final boolean hasCapacity(int count) {
-            return bytes.length() + count * Double.BYTES * 2 <= bytesCapacity();
-        }
-
-        /**
-         * Make sure there is capacity for this many {@code double}s, growing
-         * the buffer if needed.
-         */
-        protected final void ensureCapacity(int count) {
-            // TODO some protection against growing to gigabytes or whatever
-            bytes.grow(count * Double.BYTES * 2);
-        }
-
-        /**
-         * Encode a {@code SpatialPoint} and advance to the next position.
-         */
-        protected final void encode(SpatialPoint v) {
-            addingValue();
-            doubleHandle.set(bytes.bytes(), bytes.length(), v.getX());
-            bytes.setLength(bytes.length() + Double.BYTES);
-            doubleHandle.set(bytes.bytes(), bytes.length(), v.getY());
-            bytes.setLength(bytes.length() + Double.BYTES);
         }
     }
 

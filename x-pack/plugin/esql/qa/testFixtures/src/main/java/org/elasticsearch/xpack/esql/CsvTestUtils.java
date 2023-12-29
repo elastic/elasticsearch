@@ -471,13 +471,6 @@ public final class CsvTestUtils {
             };
         }
 
-        private static Type pointBlockType(Type actualType) {
-            if (actualType == CARTESIAN_POINT || actualType == GEO_POINT) {
-                return actualType;
-            }
-            throw new IllegalArgumentException("Unsupported spatial point type: " + actualType);
-        }
-
         Object convert(String value) {
             if (value == null) {
                 return null;

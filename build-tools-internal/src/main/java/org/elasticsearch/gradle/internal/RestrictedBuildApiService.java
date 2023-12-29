@@ -166,7 +166,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:vector-tile:qa:multi-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:watcher:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:watcher:qa:with-security");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:mixed-cluster");
         return map;
     }
 

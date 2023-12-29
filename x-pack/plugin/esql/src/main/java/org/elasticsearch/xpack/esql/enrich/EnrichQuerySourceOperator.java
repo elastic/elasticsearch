@@ -25,7 +25,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 /**
  * Lookup document IDs for the input queries.
@@ -58,7 +57,7 @@ final class EnrichQuerySourceOperator extends SourceOperator {
     }
 
     @Override
-    public Page getOutput() {
+    public Page getOutput() throws IOException {
         if (leafIndex == indexReader.leaves().size()) {
             queryPosition++;
             leafIndex = 0;
@@ -70,19 +69,12 @@ final class EnrichQuerySourceOperator extends SourceOperator {
         if (weight == null) {
             Query query = queryList.getQuery(queryPosition);
             if (query != null) {
-                try {
-                    query = searcher.rewrite(new ConstantScoreQuery(query));
-                    weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                query = searcher.rewrite(new ConstantScoreQuery(query));
+                weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+
             }
         }
-        try {
-            return queryOneLeaf(weight, leafIndex++);
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
+        return queryOneLeaf(weight, leafIndex++);
     }
 
     private Page queryOneLeaf(Weight weight, int leafIndex) throws IOException {

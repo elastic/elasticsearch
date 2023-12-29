@@ -477,26 +477,6 @@ public class TransportSearchActionTests extends ESTestCase {
         return mockTransportServices;
     }
 
-    private static SearchResponse emptySearchResponse() {
-        return new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            InternalAggregations.EMPTY,
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            1,
-            1,
-            0,
-            100,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY,
-            null
-        );
-    }
-
     public void testCCSRemoteReduceMergeFails() throws Exception {
         int numClusters = randomIntBetween(2, 10);
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
@@ -874,12 +854,26 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     private static void resolveWithEmptySearchResponse(Tuple<SearchRequest, ActionListener<SearchResponse>> tuple) {
-        var resp = emptySearchResponse();
-        try {
-            tuple.v2().onResponse(resp);
-        } finally {
-            resp.decRef();
-        }
+        ActionListener.respondAndRelease(
+            tuple.v2(),
+            new SearchResponse(
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
+                InternalAggregations.EMPTY,
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                1,
+                1,
+                0,
+                100,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY,
+                null
+            )
+        );
     }
 
     public void testCollectSearchShards() throws Exception {

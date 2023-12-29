@@ -88,7 +88,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
         @Override
         protected void closeInternal() {
-            // noop for now
+            hits.decRef();
         }
     });
 

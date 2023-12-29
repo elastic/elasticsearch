@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
@@ -64,6 +65,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/103734")
 public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase {
     private static final String CLUSTER_ALIAS = "my_remote_cluster";
 

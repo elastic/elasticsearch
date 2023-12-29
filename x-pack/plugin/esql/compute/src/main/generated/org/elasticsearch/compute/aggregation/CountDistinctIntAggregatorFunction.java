@@ -95,11 +95,11 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();
     CountDistinctIntAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));

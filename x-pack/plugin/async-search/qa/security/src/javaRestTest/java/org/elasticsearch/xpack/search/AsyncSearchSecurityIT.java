@@ -234,7 +234,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         try {
             final Request request = new Request("POST", "/_async_search");
             setRunAsHeader(request, authorizedUser);
-            request.addParameter("wait_for_completion_timeout", "true");
+            request.addParameter("wait_for_completion_timeout", "1s");
             request.addParameter("keep_on_completion", "true");
             if (randomBoolean()) {
                 request.addParameter("index", "index-" + authorizedUser);

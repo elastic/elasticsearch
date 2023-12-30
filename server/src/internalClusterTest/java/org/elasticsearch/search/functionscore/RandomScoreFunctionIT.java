@@ -112,7 +112,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                             CoreMatchers.equalTo(0)
                         );
                         final int hitCount = response.getHits().getHits().length;
-                        final SearchHit[] currentHits = response.getHits().getHits();
+                        final SearchHit[] currentHits = response.getHits().asUnpooled().getHits();
                         ArrayUtil.timSort(currentHits, (o1, o2) -> {
                             // for tie-breaking we have to resort here since if the score is
                             // identical we rely on collection order which might change.

@@ -67,8 +67,18 @@ public final class FetchPhase {
 
         if (docIdsToLoad == null || docIdsToLoad.length == 0) {
             // no individual hits to process, so we shortcut
-            SearchHits hits = new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
-            context.fetchResult().shardResult(hits, null);
+            context.fetchResult()
+                .shardResult(
+                    SearchHits.unpooled(
+                        SearchHits.EMPTY,
+                        context.queryResult().getTotalHits(),
+                        context.queryResult().getMaxScore(),
+                        null,
+                        null,
+                        null
+                    ),
+                    null
+                );
             return;
         }
 
@@ -174,7 +184,7 @@ public final class FetchPhase {
         }
 
         TotalHits totalHits = context.getTotalHits();
-        return new SearchHits(hits, totalHits, context.getMaxScore());
+        return SearchHits.unpooled(hits, totalHits, context.getMaxScore(), null, null, null);
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
@@ -250,7 +260,12 @@ public final class FetchPhase {
         if (id == null) {
             SearchHit hit = new SearchHit(docId, null);
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
-            return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
+            try {
+                return new HitContext(hit.asUnpooled(), subReaderContext, subDocId, Map.of(), source);
+            } finally {
+                // TODO: no need to copy here, lets do this smarter at some point
+                hit.decRef();
+            }
         } else {
             SearchHit hit = new SearchHit(docId, id);
             Source source;
@@ -266,7 +281,12 @@ public final class FetchPhase {
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             }
-            return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source);
+            try {
+                // TODO: no need to copy here, lets do this smarter at some point
+                return new HitContext(hit.asUnpooled(), subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source);
+            } finally {
+                hit.decRef();
+            }
         }
     }
 
@@ -330,7 +350,11 @@ public final class FetchPhase {
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
+        try {
+            return new HitContext(hit.asUnpooled(), subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
+        } finally {
+            hit.decRef();
+        }
     }
 
     interface Profiler {

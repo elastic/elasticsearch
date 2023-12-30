@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Poolable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.transport.LeakTracker;
@@ -35,19 +36,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Iterable<SearchHit> {
+public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Poolable<SearchHits>, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
-    public static final SearchHits EMPTY_WITH_TOTAL_HITS = new SearchHits(
-        EMPTY,
-        new TotalHits(0, Relation.EQUAL_TO),
-        0,
-        null,
-        null,
-        null,
-        ALWAYS_REFERENCED
-    );
-    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = new SearchHits(EMPTY, null, 0, null, null, null, ALWAYS_REFERENCED);
+    public static final SearchHits EMPTY_WITH_TOTAL_HITS = unpooled(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0, null, null, null);
+    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = unpooled(EMPTY, null, 0, null, null, null);
 
     private final SearchHit[] hits;
     private final TotalHits totalHits;
@@ -102,6 +95,26 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         this.refCounted = refCounted;
     }
 
+    public static SearchHits unpooled(
+        SearchHit[] hits,
+        @Nullable TotalHits totalHits,
+        float maxScore,
+        @Nullable SortField[] sortFields,
+        @Nullable String collapseField,
+        @Nullable Object[] collapseValues
+    ) {
+        final SearchHit[] unpooledHits;
+        if (hits.length == 0) {
+            unpooledHits = EMPTY;
+        } else {
+            unpooledHits = new SearchHit[hits.length];
+            for (int i = 0; i < hits.length; i++) {
+                unpooledHits[i] = hits[i].asUnpooled();
+            }
+        }
+        return new SearchHits(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues, ALWAYS_REFERENCED);
+    }
+
     public static SearchHits readFrom(StreamInput in) throws IOException {
         final TotalHits totalHits;
         if (in.readBoolean()) {
@@ -129,6 +142,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         final boolean hasTotalHits = totalHits != null;
         out.writeBoolean(hasTotalHits);
         if (hasTotalHits) {
@@ -221,6 +235,20 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
+    }
+
+    @Override
+    public SearchHits asUnpooled() {
+        assert hasReferences();
+        if (isPooled() == false) {
+            return this;
+        }
+        return unpooled(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+    }
+
+    @Override
+    public boolean isPooled() {
+        return refCounted != ALWAYS_REFERENCED;
     }
 
     public static final class Fields {

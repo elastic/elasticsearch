@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.nio.file.Path;
@@ -33,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -121,18 +125,24 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102455")
-    // junit.framework.AssertionFailedError: Unexpected exception type, expected VerificationException but got
-    // org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper: verification_exception: Found 1 problem
+    // Overridden to allow for not-serializable wrapper.
     @Override
-    public void testOverlappingIndexPatterns() throws Exception {
-        super.testOverlappingIndexPatterns();
+    protected Exception assertVerificationException(String esqlCommand) {
+        var e = expectThrowsAnyOf(List.of(NotSerializableExceptionWrapper.class, VerificationException.class), () -> run(esqlCommand));
+        if (e instanceof NotSerializableExceptionWrapper wrapper) {
+            assertThat(wrapper.unwrapCause().getMessage(), containsString("verification_exception"));
+        }
+        return e;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102455")
+    // Overridden to allow for not-serializable wrapper.
     @Override
-    public void testIndexPatterns() throws Exception {
-        super.testOverlappingIndexPatterns();
+    protected Exception assertParsingException(String esqlCommand) {
+        var e = expectThrowsAnyOf(List.of(NotSerializableExceptionWrapper.class, ParsingException.class), () -> run(esqlCommand));
+        if (e instanceof NotSerializableExceptionWrapper wrapper) {
+            assertThat(wrapper.unwrapCause().getMessage(), containsString("parsing_exception"));
+        }
+        return e;
     }
 
     public static class LocalStateEsqlAsync extends LocalStateCompositeXPackPlugin {

@@ -95,6 +95,15 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         return locale;
     }
 
+    /**
+     * Returns the current time in milliseconds from the time epoch for the execution of this request.
+     * It ensures consistency by using the same value on all nodes involved in the search request.
+     * Note: Currently, it returns {@link System#currentTimeMillis()}, but this value will be serialized between nodes.
+     */
+    public long absoluteStartedTimeInMillis() {
+        return System.currentTimeMillis();
+    }
+
     public String query() {
         return query;
     }

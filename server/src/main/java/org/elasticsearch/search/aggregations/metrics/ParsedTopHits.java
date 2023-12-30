@@ -44,11 +44,12 @@ public class ParsedTopHits extends ParsedAggregation implements TopHits {
     );
     static {
         declareAggregationFields(PARSER);
-        PARSER.declareObject(
-            (topHit, searchHits) -> topHit.searchHits = searchHits,
-            (parser, context) -> SearchHits.fromXContent(parser),
-            new ParseField(SearchHits.Fields.HITS)
-        );
+        PARSER.declareObject((topHit, searchHits) -> topHit.searchHits = searchHits, (parser, context) -> {
+            var pooled = SearchHits.fromXContent(parser);
+            var res = pooled.asUnpooled();
+            pooled.decRef();
+            return res;
+        }, new ParseField(SearchHits.Fields.HITS));
     }
 
     public static ParsedTopHits fromXContent(XContentParser parser, String name) throws IOException {

@@ -54,6 +54,9 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         }
         Option option = new CompletionSuggestion.Entry.Option(docId, text, score, contexts);
         option.setHit(hit);
+        if (hit != null) {
+            hit.decRef();
+        }
         return option;
     }
 

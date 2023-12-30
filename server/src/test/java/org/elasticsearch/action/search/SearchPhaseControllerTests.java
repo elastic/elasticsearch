@@ -292,8 +292,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     profile
                 );
+                final SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                 try {
-                    SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
@@ -346,6 +346,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         assertThat(mergedResponse.profile(), is(anEmptyMap()));
                     }
                 } finally {
+                    mergedResponse.decRef();
                     fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
@@ -410,8 +411,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     false
                 );
+                SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                 try {
-                    SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
@@ -427,6 +428,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length));
                     assertThat(mergedResponse.profile(), is(anEmptyMap()));
                 } finally {
+                    mergedResponse.decRef();
                     fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
@@ -581,7 +583,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
             ProfileResult profileResult = profile && searchHits.size() > 0
                 ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), randomNonNegativeLong(), List.of())
                 : null;
-            fetchSearchResult.shardResult(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore), profileResult);
+            var sHits = new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore);
+            try {
+                fetchSearchResult.shardResult(sHits, profileResult);
+            } finally {
+                sHits.decRef();
+            }
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;

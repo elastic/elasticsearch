@@ -83,7 +83,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                         1.0F
                     );
-                    fetchResult.shardResult(hits, fetchProfile(profiled));
+                    try {
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
+                    } finally {
+                        hits.decRef();
+                    }
                     QueryFetchSearchResult fetchSearchResult = QueryFetchSearchResult.of(queryResult, fetchResult);
                     try {
                         fetchSearchResult.setShardIndex(0);
@@ -223,7 +227,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
                                 1.0F
                             );
                         }
-                        fetchResult.shardResult(hits, fetchProfile(profiled));
+                        try {
+                            fetchResult.shardResult(hits, fetchProfile(profiled));
+                        } finally {
+                            hits.decRef();
+                        }
                         listener.onResponse(fetchResult);
                     } finally {
                         fetchResult.decRef();
@@ -332,7 +340,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
+                            try {
+                                fetchResult.shardResult(hits, fetchProfile(profiled));
+                            } finally {
+                                hits.decRef();
+                            }
                             listener.onResponse(fetchResult);
                         } finally {
                             fetchResult.decRef();
@@ -444,7 +456,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 100F
                             );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
+                            try {
+                                fetchResult.shardResult(hits, fetchProfile(profiled));
+                            } finally {
+                                hits.decRef();
+                            }
                             listener.onResponse(fetchResult);
                         } finally {
                             fetchResult.decRef();
@@ -593,6 +609,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                             );
                         }
                         fetchResult.shardResult(hits, fetchProfile(profiled));
+                        hits.decRef();
                         listener.onResponse(fetchResult);
                     } finally {
                         fetchResult.decRef();
@@ -694,7 +711,11 @@ public class FetchSearchPhaseTests extends ESTestCase {
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
+                            try {
+                                fetchResult.shardResult(hits, fetchProfile(profiled));
+                            } finally {
+                                hits.decRef();
+                            }
                         } else {
                             fail("requestID 123 should not be fetched but was");
                         }

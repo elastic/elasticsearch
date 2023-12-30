@@ -259,6 +259,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        assert hasReferences();
         return Iterators.concat(Iterators.single((b, p) -> b.startObject(Fields.HITS)), Iterators.single((b, p) -> {
             boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
             if (totalHitAsInt) {

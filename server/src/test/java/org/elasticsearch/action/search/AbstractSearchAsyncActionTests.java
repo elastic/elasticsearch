@@ -194,10 +194,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 new IllegalArgumentException()
             );
         }
-        action.sendSearchResponse(
-            new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1),
-            phaseResults.results
-        );
+        var sections = new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1);
+        try {
+            action.sendSearchResponse(sections, phaseResults.results);
+        } finally {
+            sections.decRef();
+        }
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);

@@ -765,6 +765,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        assert hasReferences();
         builder.startObject();
         toInnerXContent(builder, params);
         builder.endObject();
@@ -1089,7 +1090,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
             String name = parser.currentName();
             ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), SearchHits.Fields.HITS);
-            innerHits.put(name, SearchHits.fromXContent(parser));
+            var hits = SearchHits.fromXContent(parser);
+            innerHits.put(name, hits);
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
         return innerHits;

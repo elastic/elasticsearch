@@ -26,7 +26,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -527,23 +526,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
         }
-        return new SearchResponse(
-            hits,
-            aggs,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profile,
-            numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-            clusters,
-            searchContextId
-        );
+        try {
+            return new SearchResponse(
+                hits,
+                aggs,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profile,
+                numReducePhases,
+                scrollId,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                clusters,
+                searchContextId
+            );
+        } finally {
+            hits.decRef();
+        }
     }
 
     @Override
@@ -1402,9 +1405,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
-        SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
         return new SearchResponse(
-            searchHits,
+            SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN, null, null, null),
             InternalAggregations.EMPTY,
             null,
             false,

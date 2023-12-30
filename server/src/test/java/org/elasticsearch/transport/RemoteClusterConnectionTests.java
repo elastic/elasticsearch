@@ -155,26 +155,26 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     } else {
                         searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    SearchResponse searchResponse = new SearchResponse(
-                        searchHits,
-                        InternalAggregations.EMPTY,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1,
-                        null,
-                        1,
-                        1,
-                        0,
-                        100,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    );
                     try {
-                        channel.sendResponse(searchResponse);
+                        channel.sendResponse(
+                            new SearchResponse(
+                                searchHits,
+                                InternalAggregations.EMPTY,
+                                null,
+                                false,
+                                null,
+                                null,
+                                1,
+                                null,
+                                1,
+                                1,
+                                0,
+                                100,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            )
+                        );
                     } finally {
-                        searchResponse.decRef();
                         searchHits.decRef();
                     }
                 }

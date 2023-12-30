@@ -299,11 +299,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Agg with underlying Project (group by on sub-queries)
             if (plan instanceof Aggregate a) {
                 if (child instanceof Project p) {
-                    // var aggs = a.aggregates();
-                    // var lowerProjections = p.projections();
-                    // var newAggs = combineProjections(aggs, lowerProjections);
-                    // var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), lowerProjections, newAggs);
-                    // return new Aggregate(a.source(), p.child(), newGroups, newAggs);
                     return new Aggregate(a.source(), p.child(), a.groupings(), combineProjections(a.aggregates(), p.projections()));
                 }
             }

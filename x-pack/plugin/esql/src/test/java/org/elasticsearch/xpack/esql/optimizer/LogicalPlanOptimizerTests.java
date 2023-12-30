@@ -263,6 +263,62 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[f{r}#7],[SUM(emp_no{f}#15) AS s, COUNT(first_name{f}#16) AS c, first_name{f}#16 AS f]]
+     *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     */
+    public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUsedInAgg() {
+        var plan = plan("""
+            from test
+            | rename emp_no as e, first_name as f
+            | stats s = sum(e), c = count(f) by f
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("s", "c", "f"));
+        Alias as = as(aggs.get(0), Alias.class);
+        var sum = as(as.child(), Sum.class);
+        assertThat(Expressions.name(sum.field()), is("emp_no"));
+        as = as(aggs.get(1), Alias.class);
+        var count = as(as.child(), Count.class);
+        assertThat(Expressions.name(count.field()), is("first_name"));
+
+        as = as(aggs.get(2), Alias.class);
+        assertThat(Expressions.name(as.child()), is("first_name"));
+
+        assertThat(Expressions.names(agg.groupings()), contains("f"));
+    }
+
+    /**
+     * Expects
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[f{r}#7],[SUM(emp_no{f}#15) AS s, first_name{f}#16 AS f]]
+     *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     */
+    public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUnused() {
+        var plan = plan("""
+            from test
+            | rename emp_no as e, first_name as f, last_name as l
+            | stats s = sum(e) by f
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("s", "f"));
+        Alias as = as(aggs.get(0), Alias.class);
+        var aggFunc = as(as.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.field()), is("emp_no"));
+        as = as(aggs.get(1), Alias.class);
+        assertThat(Expressions.name(as.child()), is("first_name"));
+
+        assertThat(Expressions.names(agg.groupings()), contains("f"));
+    }
+
+    /**
+     * Expects
      * EsqlProject[[x{r}#3, y{r}#6]]
      * \_Eval[[emp_no{f}#9 + 2[INTEGER] AS x, salary{f}#14 + 3[INTEGER] AS y]]
      *   \_Limit[10000[INTEGER]]

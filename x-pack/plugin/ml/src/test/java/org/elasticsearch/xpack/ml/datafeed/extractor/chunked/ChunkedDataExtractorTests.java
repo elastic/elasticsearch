@@ -555,7 +555,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         SearchHit[] hits = new SearchHit[(int) totalHits];
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
+        var h = new SearchHit(1);
+        Arrays.fill(hits, h.asUnpooled());
+        h.decRef();
+        SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         List<Aggregation> aggs = new ArrayList<>();
@@ -576,8 +579,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private SearchResponse createNullSearchResponse() {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        SearchHit[] hits = new SearchHit[0];
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
+        SearchHits searchHits = SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         List<Aggregation> aggs = new ArrayList<>();

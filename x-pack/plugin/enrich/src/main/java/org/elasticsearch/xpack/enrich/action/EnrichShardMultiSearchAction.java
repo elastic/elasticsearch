@@ -303,22 +303,26 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
     private static SearchResponse createSearchResponse(TopDocs topDocs, SearchHit[] hits) {
         SearchHits searchHits = new SearchHits(hits, topDocs.totalHits, 0);
-        return new SearchResponse(
-            searchHits,
-            null,
-            null,
-            false,
-            null,
-            null,
-            0,
-            null,
-            1,
-            1,
-            0,
-            1L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        try {
+            return new SearchResponse(
+                searchHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                0,
+                null,
+                1,
+                1,
+                0,
+                1L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
+        } finally {
+            searchHits.decRef();
+        }
     }
 
 }

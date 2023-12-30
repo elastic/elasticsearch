@@ -45,19 +45,22 @@ public class GeoShapeFieldTests extends ESTestCase {
         String[] expected = new String[] { lat + "," + lon };
 
         SearchHit hit = new SearchHitBuilder(42).setSource("{\"geo\":\"POINT (" + lon + " " + lat + ")\"}").build();
+        try {
+            ExtractedField geo = new GeoShapeField("geo");
 
-        ExtractedField geo = new GeoShapeField("geo");
-
-        assertThat(geo.value(hit), equalTo(expected));
-        assertThat(geo.getName(), equalTo("geo"));
-        assertThat(geo.getSearchField(), equalTo("geo"));
-        assertThat(geo.getTypes(), contains("geo_shape"));
-        assertThat(geo.getMethod(), equalTo(ExtractedField.Method.SOURCE));
-        assertThat(geo.supportsFromSource(), is(true));
-        assertThat(geo.newFromSource(), sameInstance(geo));
-        expectThrows(UnsupportedOperationException.class, () -> geo.getDocValueFormat());
-        assertThat(geo.isMultiField(), is(false));
-        expectThrows(UnsupportedOperationException.class, () -> geo.getParentField());
+            assertThat(geo.value(hit), equalTo(expected));
+            assertThat(geo.getName(), equalTo("geo"));
+            assertThat(geo.getSearchField(), equalTo("geo"));
+            assertThat(geo.getTypes(), contains("geo_shape"));
+            assertThat(geo.getMethod(), equalTo(ExtractedField.Method.SOURCE));
+            assertThat(geo.supportsFromSource(), is(true));
+            assertThat(geo.newFromSource(), sameInstance(geo));
+            expectThrows(UnsupportedOperationException.class, () -> geo.getDocValueFormat());
+            assertThat(geo.isMultiField(), is(false));
+            expectThrows(UnsupportedOperationException.class, () -> geo.getParentField());
+        } finally {
+            hit.decRef();
+        }
     }
 
     public void testMissing() {

@@ -138,6 +138,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         EsqlConfiguration configuration = new EsqlConfiguration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,

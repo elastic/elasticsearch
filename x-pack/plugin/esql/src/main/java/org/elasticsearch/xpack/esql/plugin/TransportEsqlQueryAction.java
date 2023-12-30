@@ -137,16 +137,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
     }
 
-    void asyncExecute(EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        asyncTaskManagementService.asyncExecute(
-            request,
-            request.waitForCompletionTimeout(),
-            request.keepAlive(),
-            request.keepOnCompletion(),
-            listener
-        );
-    }
-
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         ActionListener.run(listener, l -> innerExecute(task, request, l));

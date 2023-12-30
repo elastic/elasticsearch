@@ -140,8 +140,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static Batch<LogicalPlan> cleanup() {
         return new Batch<>(
             "Clean Up",
-            // BWC issue
-            // new ReplaceDuplicateAggWithEval(),
+            new ReplaceDuplicateAggWithEval(),
             // pushing down limits again, because ReplaceDuplicateAggWithEval could create new Project nodes that can still be optimized
             new PushDownAndCombineLimits(),
             new ReplaceLimitAndSortAsTopN()

@@ -134,7 +134,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
-        ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)).run();
+        ActionListener.run(listener, l -> doExecuteForked(task, request, l));
     }
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {

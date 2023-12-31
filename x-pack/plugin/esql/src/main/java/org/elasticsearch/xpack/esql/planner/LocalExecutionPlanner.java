@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
@@ -54,7 +56,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -86,7 +87,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
@@ -117,6 +117,7 @@ public class LocalExecutionPlanner {
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final Settings settings;
     private final EsqlConfiguration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
@@ -128,6 +129,7 @@ public class LocalExecutionPlanner {
         CancellableTask parentTask,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        Settings settings,
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
@@ -138,6 +140,7 @@ public class LocalExecutionPlanner {
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.settings = settings;
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
@@ -154,7 +157,8 @@ public class LocalExecutionPlanner {
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas(),
             bigArrays,
-            blockFactory
+            blockFactory,
+            settings
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -165,9 +169,10 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation physicalOperation = plan(node, context);
 
+        final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, configuration.pragmas().statusInterval()),
+                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
                 context.driverParallelism().get()
             )
         );
@@ -316,29 +321,6 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkHandler, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
-        // see https://github.com/elastic/elasticsearch/issues/100807 - handle case where the plan has been fully minimized
-        // to a local relation and the aggregate intermediate data erased. For this scenario, match the output the exchange output
-        // with that of the local relation
-
-        if (child instanceof LocalSourceExec localExec) {
-            var output = exchangeSink.output();
-            var localOutput = localExec.output();
-            if (output.equals(localOutput) == false) {
-                // the outputs are going to be similar except for the bool "seen" flags which are added in below
-                List<Block> blocks = new ArrayList<>(asList(localExec.supplier().get()));
-                if (blocks.size() > 0) {
-                    for (int i = 0, s = output.size(); i < s; i++) {
-                        var out = output.get(i);
-                        if (out.dataType() == DataTypes.BOOLEAN) {
-                            blocks.add(i, BlockFactory.getNonBreakingInstance().newConstantBooleanBlockWith(true, 1));
-                        }
-                    }
-                }
-                var newSupplier = LocalSupplier.of(blocks.toArray(Block[]::new));
-
-                child = new LocalSourceExec(localExec.source(), output, newSupplier);
-            }
-        }
 
         PhysicalOperation source = plan(child, context);
 
@@ -581,20 +563,9 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
-        List<Attribute> childOutput = mvExpandExec.child().output();
         int blockSize = 5000;// TODO estimate row size and use context.pageSize()
-
-        Layout.Builder layout = new Layout.Builder();
-        List<Layout.ChannelSet> inverse = source.layout.inverse();
-        var expandedName = mvExpandExec.expanded().name();
-        for (int index = 0; index < inverse.size(); index++) {
-            if (childOutput.get(index).name().equals(expandedName)) {
-                layout.append(mvExpandExec.expanded());
-            } else {
-                layout.append(inverse.get(index));
-            }
-        }
-
+        Layout.Builder layout = source.layout.builder();
+        layout.replace(mvExpandExec.target().id(), mvExpandExec.expanded().id());
         return source.with(
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
@@ -702,7 +673,8 @@ public class LocalExecutionPlanner {
         Holder<DriverParallelism> driverParallelism,
         QueryPragmas queryPragmas,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        Settings settings
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -726,26 +698,44 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(BigArrays bigArrays, BlockFactory blockFactory, PhysicalOperation physicalOperation, TimeValue statusInterval)
-        implements
-            Function<String, Driver>,
-            Describable {
+    record DriverSupplier(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        PhysicalOperation physicalOperation,
+        TimeValue statusInterval,
+        Settings settings
+    ) implements Function<String, Driver>, Describable {
         @Override
         public Driver apply(String sessionId) {
             SourceOperator source = null;
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            var driverContext = new DriverContext(bigArrays, blockFactory);
+            var localBreakerSettings = new LocalCircuitBreaker.SizeSettings(settings);
+            final var localBreaker = new LocalCircuitBreaker(
+                blockFactory.breaker(),
+                localBreakerSettings.overReservedBytes(),
+                localBreakerSettings.maxOverReservedBytes()
+            );
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
                 sink = physicalOperation.sink(driverContext);
                 success = true;
-                return new Driver(sessionId, driverContext, physicalOperation::describe, source, operators, sink, statusInterval, () -> {});
+                return new Driver(
+                    sessionId,
+                    driverContext,
+                    physicalOperation::describe,
+                    source,
+                    operators,
+                    sink,
+                    statusInterval,
+                    localBreaker
+                );
             } finally {
                 if (false == success) {
-                    Releasables.close(source, () -> Releasables.close(operators), sink);
+                    Releasables.close(source, () -> Releasables.close(operators), sink, localBreaker);
                 }
             }
         }
@@ -799,9 +789,7 @@ public class LocalExecutionPlanner {
 
         @Override
         public String describe() {
-            StringBuilder sb = new StringBuilder();
-            sb.append(driverFactories.stream().map(DriverFactory::describe).collect(joining("\n")));
-            return sb.toString();
+            return driverFactories.stream().map(DriverFactory::describe).collect(joining("\n"));
         }
     }
 }

@@ -27,8 +27,8 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -210,7 +210,7 @@ public final class TokenService {
     static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersions.V_7_2_0;
     static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersions.V_7_2_0;
     static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersions.V_8_2_0;
-    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersions.V_8_500_040;
+    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersions.V_8_500_061;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -438,7 +438,7 @@ public final class TokenService {
                 () -> executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    IndexAction.INSTANCE,
+                    TransportIndexAction.TYPE,
                     indexTokenRequest,
                     ActionListener.wrap(indexResponse -> {
                         if (indexResponse.getResult() == Result.CREATED) {

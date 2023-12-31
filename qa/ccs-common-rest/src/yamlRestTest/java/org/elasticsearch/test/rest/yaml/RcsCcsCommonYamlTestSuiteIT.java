@@ -26,11 +26,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
 import org.junit.AfterClass;
@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.CCS_APIS;
@@ -220,20 +221,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 clusterHosts.toArray(new HttpHost[clusterHosts.size()])
             );
 
-            Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminSearchClient);
-            final Version esVersion = versionVersionTuple.v1();
-            final Version masterVersion = versionVersionTuple.v2();
-            final String os = readOsFromNodesInfo(adminSearchClient);
-
-            searchYamlTestClient = new TestCandidateAwareClient(
-                getRestSpec(),
-                searchClient,
-                hosts,
-                esVersion,
-                masterVersion,
-                os,
-                this::getClientBuilderWithSniffedHosts
-            );
+            searchYamlTestClient = new TestCandidateAwareClient(getRestSpec(), searchClient, hosts, this::getClientBuilderWithSniffedHosts);
 
             configureRemoteCluster();
             // check that we have an established CCS connection
@@ -282,10 +270,22 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient
+        ClientYamlTestClient clientYamlTestClient,
+        final Version esVersion,
+        final Predicate<String> clusterFeaturesPredicate,
+        final String os
     ) {
         // depending on the API called, we either return the client running against the "write" or the "search" cluster here
-        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
+
+        // TODO: reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            esVersion,
+            ESRestTestCase::clusterHasFeature,
+            os
+        ) {
             protected ClientYamlTestClient clientYamlTestClient(String apiName) {
                 if (CCS_APIS.contains(apiName)) {
                     return searchYamlTestClient;

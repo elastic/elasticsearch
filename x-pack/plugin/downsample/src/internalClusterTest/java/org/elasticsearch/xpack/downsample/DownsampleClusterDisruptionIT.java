@@ -203,7 +203,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
             }
         })).start();
         startDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd);
-        waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty());
         ensureStableCluster(cluster.numDataAndMasterNodes());
         assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
     }
@@ -265,7 +265,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         })).start();
 
         startDownsampleTaskDuringDisruption(sourceIndex, targetIndex, config, disruptionStart, disruptionEnd);
-        waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty());
         ensureStableCluster(cluster.numDataAndMasterNodes());
         assertTargetIndex(cluster, sourceIndex, targetIndex, indexedDocs);
     }
@@ -354,7 +354,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         })).start();
 
         startDownsampleTaskDuringDisruption(sourceIndex, downsampleIndex, config, disruptionStart, disruptionEnd);
-        waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty());
         ensureStableCluster(cluster.numDataAndMasterNodes());
         assertTargetIndex(cluster, sourceIndex, downsampleIndex, indexedDocs);
     }
@@ -429,7 +429,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         assertAcked(
             internalCluster().client()
                 .execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
-                .actionGet(TIMEOUT.millis())
+                .actionGet(TIMEOUT)
         );
     }
 

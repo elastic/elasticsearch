@@ -160,12 +160,11 @@ public class PluginsConfig {
         parser.declareStringOrNull(PluginsConfig::setProxy, new ParseField("proxy"));
         parser.declareObjectArrayOrNull(PluginsConfig::setPlugins, descriptorParser, new ParseField("plugins"));
 
-        final XContentParser yamlXContentParser = xContent.createParser(
-            XContentParserConfiguration.EMPTY,
-            Files.newInputStream(configPath)
-        );
-
-        return parser.parse(yamlXContentParser, null);
+        try (
+            XContentParser yamlXContentParser = xContent.createParser(XContentParserConfiguration.EMPTY, Files.newInputStream(configPath))
+        ) {
+            return parser.parse(yamlXContentParser, null);
+        }
     }
 
     /**

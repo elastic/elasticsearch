@@ -11,6 +11,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DocComparator;
 
@@ -34,8 +35,8 @@ public class ShardDocSortField extends SortField {
     }
 
     @Override
-    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
-        final DocComparator delegate = new DocComparator(numHits, getReverse(), false);
+    public FieldComparator<?> getComparator(int numHits, Pruning enableSkipping) {
+        final DocComparator delegate = new DocComparator(numHits, getReverse(), Pruning.NONE);
 
         return new FieldComparator<Long>() {
             @Override

@@ -372,7 +372,10 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(searchRequest);
 
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
+        client(LOCAL_CLUSTER).search(searchRequest, queryFuture.delegateFailure((l, r) -> {
+            r.incRef();
+            l.onResponse(r);
+        }));
         assertBusy(() -> assertTrue(queryFuture.isDone()));
 
         // dfs=true overrides the minimize_roundtrips=true setting and does not minimize roundtrips
@@ -612,7 +615,10 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(searchRequest);
 
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
+        client(LOCAL_CLUSTER).search(searchRequest, queryFuture.delegateFailure((l, r) -> {
+            r.incRef();
+            l.onResponse(r);
+        }));
         assertBusy(() -> assertTrue(queryFuture.isDone()));
 
         if (skipUnavailable == false || minimizeRoundtrips == false) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.heap_attack;
 
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Tests that run ESQL queries that have, in the past, used so much memory they
  * crash Elasticsearch.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103527")
 public class HeapAttackIT extends ESRestTestCase {
     /**
      * This used to fail, but we've since compacted top n so it actually succeeds now.
@@ -113,7 +115,6 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * This groups on 5000 columns which used to throw a {@link StackOverflowError}.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100640")
     public void testGroupOnManyLongs() throws IOException {
         initManyLongs();
         Map<?, ?> map = XContentHelper.convertToMap(
@@ -182,7 +183,6 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * Returns many moderately long strings.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100678")
     public void testManyConcat() throws IOException {
         initManyLongs();
         Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(manyConcat(300).getEntity()), false);
@@ -346,7 +346,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testFetchTooManyMvLongs() throws IOException {
         initMvLongsIndex(500, 100, 1000);
         assertCircuitBreaks(() -> fetchMvLongs());

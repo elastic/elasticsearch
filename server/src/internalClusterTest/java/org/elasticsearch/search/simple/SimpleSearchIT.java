@@ -11,6 +11,7 @@ package org.elasticsearch.search.simple;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -458,10 +459,11 @@ public class SimpleSearchIT extends ESIntegTestCase {
             .get();
 
         String queryJson = "{ \"field\" : { \"value\" : 80315953321748200608 } }";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
-        parser.nextToken();
-        TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
-        assertHitCount(prepareSearch("idx").setQuery(query), 1);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson)) {
+            parser.nextToken();
+            TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
+            assertHitCount(prepareSearch("idx").setQuery(query), 1);
+        }
     }
 
     public void testTooLongRegexInRegexpQuery() throws Exception {
@@ -491,6 +493,37 @@ public class SimpleSearchIT extends ESIntegTestCase {
                     + "] index level setting."
             )
         );
+    }
+
+    public void testStrictlyCountRequest() throws Exception {
+        createIndex("test_count_1");
+        indexRandom(
+            true,
+            prepareIndex("test_count_1").setId("1").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("2").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("3").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("4").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("5").setSource("field", "value"),
+            prepareIndex("test_count_1").setId("6").setSource("field", "value")
+        );
+
+        createIndex("test_count_2");
+        indexRandom(
+            true,
+            prepareIndex("test_count_2").setId("1").setSource("field", "value_2"),
+            prepareIndex("test_count_2").setId("2").setSource("field", "value_2"),
+            prepareIndex("test_count_2").setId("3").setSource("field", "value_2"),
+            prepareIndex("test_count_2").setId("4").setSource("field", "value_2"),
+            prepareIndex("test_count_2").setId("6").setSource("field", "value_2")
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test_count_1", "test_count_2").setTrackTotalHits(true).setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(11L));
+                assertThat(response.getHits().getHits().length, equalTo(0));
+            }
+        );
+
     }
 
     private void assertWindowFails(SearchRequestBuilder search) {

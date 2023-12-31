@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -48,9 +49,11 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
 
     public void testInitializeNewPrimary() {
 
+        var metadata = createMetadata("index-1", null);
         var newPrimary = newShardRouting("index-1", 0, "node-0", true, INITIALIZING);
 
         var simulator = new ClusterInfoSimulator(
+            metadata,
             new ClusterInfoTestBuilder() //
                 .withNode("node-0", new DiskUsageBuilder(1000, 1000))
                 .withNode("node-1", new DiskUsageBuilder(1000, 1000))
@@ -73,9 +76,37 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
 
     public void testInitializeNewPrimaryWithKnownExpectedSize() {
 
+        var metadata = createMetadata("index-1", null);
         var newPrimary = newShardRouting("index-1", 0, null, true, UNASSIGNED).initialize("node-0", null, 100);
 
         var simulator = new ClusterInfoSimulator(
+            metadata,
+            new ClusterInfoTestBuilder() //
+                .withNode("node-0", new DiskUsageBuilder(1000, 1000))
+                .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+                .build()
+        );
+        simulator.simulateShardStarted(newPrimary);
+
+        assertThat(
+            simulator.getClusterInfo(),
+            equalTo(
+                new ClusterInfoTestBuilder() //
+                    .withNode("node-0", new DiskUsageBuilder(1000, 900))
+                    .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+                    .withShard(newPrimary, 100)
+                    .build()
+            )
+        );
+    }
+
+    public void testInitializeNewPrimaryWithKnownShardSizeForecast() {
+
+        var metadata = createMetadata("index-1", 100L);
+        var newPrimary = newShardRouting("index-1", 0, "node-0", true, INITIALIZING);
+
+        var simulator = new ClusterInfoSimulator(
+            metadata,
             new ClusterInfoTestBuilder() //
                 .withNode("node-0", new DiskUsageBuilder(1000, 1000))
                 .withNode("node-1", new DiskUsageBuilder(1000, 1000))
@@ -97,10 +128,12 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
 
     public void testInitializeNewReplica() {
 
+        var metadata = createMetadata("index-1", null);
         var existingPrimary = newShardRouting("index-1", 0, "node-0", true, STARTED);
         var newReplica = newShardRouting("index-1", 0, "node-1", false, INITIALIZING);
 
         var simulator = new ClusterInfoSimulator(
+            metadata,
             new ClusterInfoTestBuilder() //
                 .withNode("node-0", new DiskUsageBuilder(1000, 900))
                 .withNode("node-1", new DiskUsageBuilder(1000, 1000))
@@ -128,9 +161,11 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
         var fromNodeId = "node-0";
         var toNodeId = "node-1";
 
+        var metadata = createMetadata("index-1", null);
         var shard = newShardRouting("index-1", 0, toNodeId, fromNodeId, true, INITIALIZING);
 
         var simulator = new ClusterInfoSimulator(
+            metadata,
             new ClusterInfoTestBuilder() //
                 .withNode(fromNodeId, new DiskUsageBuilder(1000, 900))
                 .withNode(toNodeId, new DiskUsageBuilder(1000, 1000))
@@ -156,9 +191,11 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
         var fromNodeId = "node-0";
         var toNodeId = "node-1";
 
+        var metadata = createMetadata("index-1", null);
         var shard = newShardRouting("index-1", 0, toNodeId, fromNodeId, true, INITIALIZING);
 
         var simulator = new ClusterInfoSimulator(
+            metadata,
             new ClusterInfoTestBuilder() //
                 .withNode(fromNodeId, new DiskUsageBuilder("/data-1", 1000, 500), new DiskUsageBuilder("/data-2", 1000, 750))
                 .withNode(toNodeId, new DiskUsageBuilder("/data-1", 1000, 750), new DiskUsageBuilder("/data-2", 1000, 900))
@@ -205,6 +242,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
             .build();
 
         var simulator = new ClusterInfoSimulator(
+            clusterState.metadata(),
             new ClusterInfoTestBuilder() //
                 .withNode("node-0", new DiskUsageBuilder("/data-1", 1000, 500))
                 .withNode("node-1", new DiskUsageBuilder("/data-1", 1000, 300))
@@ -285,6 +323,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
             .build();
 
         var simulator = new ClusterInfoSimulator(
+            clusterState.metadata(),
             new ClusterInfoTestBuilder() //
                 .withNode("node-0", new DiskUsageBuilder("/data-1", 1000, 100), new DiskUsageBuilder("/data-2", 1000, 500))
                 .withNode("node-1", new DiskUsageBuilder("/data-1", 1000, 100), new DiskUsageBuilder("/data-2", 1000, 300))
@@ -349,6 +388,14 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
         var name = shardRouting.getIndexName();
         metadataBuilder.put(IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0)));
         routingTableBuilder.add(IndexRoutingTable.builder(metadataBuilder.get(name).getIndex()).addShard(shardRouting));
+    }
+
+    private static Metadata createMetadata(String index, @Nullable Long shardSizeInBytesForecast) {
+        IndexMetadata.Builder builder = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0));
+        if (shardSizeInBytesForecast != null) {
+            builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
+        }
+        return Metadata.builder().put(builder.build(), false).build();
     }
 
     private static class ClusterInfoTestBuilder {

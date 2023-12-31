@@ -84,7 +84,7 @@ public class DesiredBalanceComputer {
         final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
-        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
+        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.metadata(), routingAllocation.clusterInfo());
 
         if (routingNodes.size() == 0) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());

@@ -73,7 +73,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = randomTopHitsAggExtractor();
 
         TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
-        Aggregation agg = new InternalTopHits(extractor.name(), 0, 0, null, new SearchHits(null, totalHits, 0.0f), null);
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 0, null, SearchHits.EMPTY_WITH_TOTAL_HITS, null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertNull(extractor.extract(bucket));
     }
@@ -124,6 +124,11 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
                 new DocumentField("_ignored", Collections.singletonList(randomValueOtherThan(value, () -> randomAlphaOfLength(5))))
             )
         );
-        return new SearchHits(new SearchHit[] { searchHit }, totalHits, 0.0f);
+        var pooled = new SearchHits(new SearchHit[] { searchHit }, totalHits, 0.0f);
+        try {
+            return pooled.asUnpooled();
+        } finally {
+            pooled.decRef();
+        }
     }
 }

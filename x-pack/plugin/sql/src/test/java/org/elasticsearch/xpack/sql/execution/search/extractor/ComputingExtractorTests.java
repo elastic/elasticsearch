@@ -83,8 +83,12 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
             double expected = Math.log(value);
             DocumentField field = new DocumentField(fieldName, singletonList(value));
             SearchHit hit = new SearchHit(1, null);
-            hit.setDocumentField(fieldName, field);
-            assertEquals(expected, extractor.process(hit));
+            try {
+                hit.setDocumentField(fieldName, field);
+                assertEquals(expected, extractor.process(hit));
+            } finally {
+                hit.decRef();
+            }
         }
     }
 }

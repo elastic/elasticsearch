@@ -82,10 +82,14 @@ public class ImplicitTiebreakerTests extends ESTestCase {
                 )
             );
             SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            ActionListener.respondAndRelease(
-                l,
-                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
-            );
+            try {
+                ActionListener.respondAndRelease(
+                    l,
+                    new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
+                );
+            } finally {
+                searchHits.decRef();
+            }
         }
 
         @Override
@@ -94,7 +98,9 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id()));
+                    var h = new SearchHit(-1, hitRef.id());
+                    hits.add(h.asUnpooled());
+                    h.decRef();
                 }
                 searchHits.add(hits);
             }

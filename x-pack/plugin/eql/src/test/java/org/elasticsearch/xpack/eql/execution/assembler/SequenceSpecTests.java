@@ -190,7 +190,8 @@ public class SequenceSpecTests extends ESTestCase {
                 // save the timestamp both as docId (int) and as id (string)
                 SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString());
                 searchHit.addDocumentFields(documentFields, Map.of());
-                hits.add(searchHit);
+                hits.add(searchHit.asUnpooled());
+                searchHit.decRef();
             }
         }
 
@@ -220,10 +221,14 @@ public class SequenceSpecTests extends ESTestCase {
                 new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                 0.0f
             );
-            ActionListener.respondAndRelease(
-                l,
-                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
-            );
+            try {
+                ActionListener.respondAndRelease(
+                    l,
+                    new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
+                );
+            } finally {
+                searchHits.decRef();
+            }
         }
 
         @Override
@@ -232,7 +237,9 @@ public class SequenceSpecTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id()));
+                    var h = new SearchHit(-1, hitRef.id());
+                    hits.add(h.asUnpooled());
+                    h.decRef();
                 }
                 searchHits.add(hits);
             }

@@ -156,8 +156,11 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(10));
         searchHit.addDocumentFields(fields, Map.of());
         searchHit.sortValues(searchSortValues.get());
-
-        return searchHit;
+        try {
+            return searchHit.asUnpooled();
+        } finally {
+            searchHit.decRef();
+        }
     }
 
     private Ordinal ordinal(SearchHit hit, boolean withTiebreaker) {

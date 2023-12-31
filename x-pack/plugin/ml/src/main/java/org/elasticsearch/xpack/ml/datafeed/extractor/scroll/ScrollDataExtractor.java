@@ -127,7 +127,7 @@ class ScrollDataExtractor implements DataExtractor {
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             scrollId = searchResponse.getScrollId();
             SearchHit[] hits = searchResponse.getHits().getHits();
-            return processAndConsumeSearchHits(hits.clone());
+            return processAndConsumeSearchHits(hits);
         } finally {
             searchResponse.decRef();
         }
@@ -197,8 +197,7 @@ class ScrollDataExtractor implements DataExtractor {
         SearchHit lastHit = hits[hits.length - 1];
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
         try (SearchHitToJsonProcessor hitProcessor = new SearchHitToJsonProcessor(context.extractedFields, outputStream)) {
-            for (int i = 0; i < hits.length; i++) {
-                SearchHit hit = hits[i];
+            for (SearchHit hit : hits) {
                 if (isCancelled) {
                     Long timestamp = context.extractedFields.timeFieldValue(hit);
                     if (timestamp != null) {
@@ -212,9 +211,6 @@ class ScrollDataExtractor implements DataExtractor {
                     }
                 }
                 hitProcessor.process(hit);
-                // hack to remove the reference from object. This object can be big and consume alot of memory.
-                // We are removing it as soon as we process it.
-                hits[i] = null;
             }
         }
         return outputStream.bytes().streamInput();
@@ -237,7 +233,7 @@ class ScrollDataExtractor implements DataExtractor {
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             scrollId = searchResponse.getScrollId();
-            SearchHit hits[] = searchResponse.getHits().getHits();
+            SearchHit[] hits = searchResponse.getHits().getHits();
             return processAndConsumeSearchHits(hits);
         } finally {
             if (searchResponse != null) {

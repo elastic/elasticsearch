@@ -289,6 +289,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         this.refCounted = refCounted;
     }
 
+    public static SearchHit unpooled(int docId, String id) {
+        final var res = new SearchHit(docId, id);
+        try {
+            return res.asUnpooled();
+        } finally {
+            res.decRef();
+        }
+    }
+
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override

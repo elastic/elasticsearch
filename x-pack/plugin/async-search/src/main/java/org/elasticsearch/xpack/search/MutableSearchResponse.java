@@ -163,7 +163,7 @@ class MutableSearchResponse implements Releasable {
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
         long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
         return new SearchResponse(
-            new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN),
+            SearchHits.unpooled(SearchHits.EMPTY, totalHits, Float.NaN),
             reducedAggs,
             null,
             false,

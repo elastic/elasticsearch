@@ -135,7 +135,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                     for (List<HitReference> ref : refs) {
                         List<SearchHit> hits = new ArrayList<>(ref.size());
                         for (HitReference hitRef : ref) {
-                            hits.add(new SearchHit(-1, hitRef.id()));
+                            hits.add(SearchHit.unpooled(-1, hitRef.id()));
                         }
                         searchHits.add(hits);
                     }
@@ -242,25 +242,30 @@ public class PITAwareQueryClientTests extends ESTestCase {
             );
 
             SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 0.0f);
-            SearchResponse response = new SearchResponse(
-                searchHits,
-                null,
-                null,
-                false,
-                false,
-                null,
-                0,
-                null,
-                2,
-                0,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY,
-                searchRequest.pointInTimeBuilder().getEncodedId()
-            );
-
-            ActionListener.respondAndRelease(listener, (Response) response);
+            try {
+                ActionListener.respondAndRelease(
+                    listener,
+                    (Response) new SearchResponse(
+                        searchHits,
+                        null,
+                        null,
+                        false,
+                        false,
+                        null,
+                        0,
+                        null,
+                        2,
+                        0,
+                        0,
+                        0,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY,
+                        searchRequest.pointInTimeBuilder().getEncodedId()
+                    )
+                );
+            } finally {
+                searchHits.decRef();
+            }
         }
     }
 

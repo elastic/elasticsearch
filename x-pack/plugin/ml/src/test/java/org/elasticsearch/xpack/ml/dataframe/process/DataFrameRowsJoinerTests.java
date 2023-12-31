@@ -311,7 +311,11 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     private static SearchHit newHit(String json) {
         SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10));
         hit.sourceRef(new BytesArray(json));
-        return hit;
+        try {
+            return hit.asUnpooled();
+        } finally {
+            hit.decRef();
+        }
     }
 
     private static DataFrameDataExtractor.Row newTrainingRow(SearchHit hit, String[] values, int checksum) {

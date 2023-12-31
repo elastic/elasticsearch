@@ -123,10 +123,12 @@ public class IndexingStateProcessorTests extends ESTestCase {
     }
 
     public void testStateRead_StateDocumentUpdated() throws IOException {
-        testStateRead(
-            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy"
-        );
+        var hits = new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f);
+        try {
+            testStateRead(hits, ".ml-state-dummy");
+        } finally {
+            hits.decRef();
+        }
     }
 
     public void testStateReadGivenConsecutiveZeroBytes() throws IOException {

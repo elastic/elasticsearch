@@ -293,7 +293,8 @@ public class ClassificationTests extends AbstractXContentSerializingTestCase<Cla
     private static SearchResponse mockSearchResponseWithNonZeroTotalHits() {
         SearchResponse searchResponse = mock(SearchResponse.class);
         SearchHits hits = new SearchHits(SearchHits.EMPTY, new TotalHits(10, TotalHits.Relation.EQUAL_TO), 0);
-        when(searchResponse.getHits()).thenReturn(hits);
+        when(searchResponse.getHits()).thenReturn(hits.asUnpooled());
+        hits.decRef();
         return searchResponse;
     }
 

@@ -309,7 +309,12 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         hitBuilder.addField(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), Collections.singletonList(snapshotId));
         String dateAsString = Long.valueOf(date.getTime()).toString();
         hitBuilder.addField(ModelSnapshot.TIMESTAMP.getPreferredName(), Collections.singletonList(dateAsString));
-        return hitBuilder.build();
+        var res = hitBuilder.build();
+        try {
+            return res.asUnpooled();
+        } finally {
+            res.decRef();
+        }
     }
 
     private void givenClientRequestsSucceed(List<SearchResponse> searchResponses, Map<String, List<ModelSnapshot>> snapshots) {

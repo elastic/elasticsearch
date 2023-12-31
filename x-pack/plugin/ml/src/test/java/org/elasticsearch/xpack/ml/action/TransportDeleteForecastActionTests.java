@@ -87,6 +87,10 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
         );
         SearchHit hit = new SearchHit(0, "");
         hit.addDocumentFields(documentFields, Map.of());
-        return hit;
+        try {
+            return hit.asUnpooled();
+        } finally {
+            hit.decRef();
+        }
     }
 }

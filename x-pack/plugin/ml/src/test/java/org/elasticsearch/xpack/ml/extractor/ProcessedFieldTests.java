@@ -125,11 +125,21 @@ public class ProcessedFieldTests extends ESTestCase {
     }
 
     private static SearchHit makeHit() {
-        return makeHit("bar");
+        var res = makeHit("bar");
+        try {
+            return res.asUnpooled();
+        } finally {
+            res.decRef();
+        }
     }
 
     private static SearchHit makeHit(Object value) {
-        return new SearchHitBuilder(42).addField("a_keyword", value).build();
+        var res = new SearchHitBuilder(42).addField("a_keyword", value).build();
+        try {
+            return res.asUnpooled();
+        } finally {
+            res.decRef();
+        }
     }
 
 }

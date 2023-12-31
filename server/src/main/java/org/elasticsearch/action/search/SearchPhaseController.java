@@ -470,7 +470,7 @@ public final class SearchPhaseController {
             }
         }
         return new SearchHits(
-            hits.toArray(new SearchHit[0]),
+            hits.toArray(SearchHits.EMPTY),
             reducedQueryPhase.totalHits,
             reducedQueryPhase.maxScore,
             sortedTopDocs.sortFields,

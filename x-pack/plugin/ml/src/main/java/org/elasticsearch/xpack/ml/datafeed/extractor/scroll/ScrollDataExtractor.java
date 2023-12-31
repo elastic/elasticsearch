@@ -126,8 +126,8 @@ class ScrollDataExtractor implements DataExtractor {
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             scrollId = searchResponse.getScrollId();
-            SearchHit hits[] = searchResponse.getHits().getHits();
-            return processAndConsumeSearchHits(hits);
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            return processAndConsumeSearchHits(hits.clone());
         } finally {
             searchResponse.decRef();
         }
@@ -184,7 +184,7 @@ class ScrollDataExtractor implements DataExtractor {
     /**
      * IMPORTANT: This is not an idempotent method. This method changes the input array by setting each element to <code>null</code>.
      */
-    private InputStream processAndConsumeSearchHits(SearchHit hits[]) throws IOException {
+    private InputStream processAndConsumeSearchHits(SearchHit[] hits) throws IOException {
 
         if (hits == null || hits.length == 0) {
             hasNext = false;

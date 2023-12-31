@@ -358,10 +358,12 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistQuantilesSync_QuantilesDocumentUpdated() {
-        testPersistQuantilesSync(
-            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy"
-        );
+        var hits = new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f);
+        try {
+            testPersistQuantilesSync(hits, ".ml-state-dummy");
+        } finally {
+            hits.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -397,10 +399,12 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentUpdated() {
-        testPersistQuantilesAsync(
-            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy"
-        );
+        var hits = new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f);
+        try {
+            testPersistQuantilesAsync(hits, ".ml-state-dummy");
+        } finally {
+            hits.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")

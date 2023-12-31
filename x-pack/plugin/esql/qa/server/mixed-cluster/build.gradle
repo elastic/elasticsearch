@@ -26,18 +26,23 @@ restResources {
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion() && bwcVersion.onOrAfter(Version.fromString("8.11.0"))) {
-    /* This project runs the ESQL spec tests against a 4 node cluster where two of the nodes has a different minor.  */
     def baseCluster = testClusters.register(baseName) {
-      versions = [bwcVersion.toString(), bwcVersion.toString(), project.version, project.version]
+      versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 4
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'false'
+      // disable relocation until we have retry in ESQL
+      setting 'cluster.routing.rebalance.enable', 'none'
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
       useCluster baseCluster
       mustRunAfter("precommit")
+      doFirst {
+        baseCluster.get().nextNodeToNextVersion()
+        baseCluster.get().nextNodeToNextVersion()
+      }
       nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
       nonInputProperties.systemProperty('tests.clustername', baseName)
       systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')

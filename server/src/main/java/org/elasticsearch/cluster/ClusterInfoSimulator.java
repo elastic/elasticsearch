@@ -66,7 +66,8 @@ public class ClusterInfoSimulator {
             return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard.shardId(), true));
         } else {
             // initializing new (empty?) primary
-            return shard.getExpectedShardSize();
+            var priorSize = shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard));
+            return priorSize != null ? Math.max(priorSize, shard.getExpectedShardSize()) : shard.getExpectedShardSize();
         }
     }
 

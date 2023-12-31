@@ -28,7 +28,7 @@ import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
-public abstract class CJdbcIntegrationTestCase extends RemoteClusterAwareSqlRestTestCase {
+public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestTestCase {
 
     @After
     public void checkSearchContent() throws Exception {

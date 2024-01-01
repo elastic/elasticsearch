@@ -130,12 +130,12 @@ public interface ChunkedRestResponseBody extends Releasable {
                     );
                     target = null;
                     return result;
-                } catch (Exception e) {
-                    logger.error("failure encoding chunk", e);
+                } catch (Throwable e) {
+                    logger.error("failure encoding chunk of [" + chunkedToXContent + "]", e);
                     throw e;
                 } finally {
                     if (target != null) {
-                        assert false : "failure encoding chunk";
+                        assert false : "failure encoding chunk of [" + chunkedToXContent + "]";
                         IOUtils.closeWhileHandlingException(target);
                         target = null;
                     }

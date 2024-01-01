@@ -289,6 +289,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
         this.refCounted = refCounted;
     }
 
+    public static SearchHit unpooled(int docId) {
+        return unpooled(docId, null);
+    }
+
     public static SearchHit unpooled(int docId, String id) {
         final var res = new SearchHit(docId, id);
         try {

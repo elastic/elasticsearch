@@ -346,7 +346,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = new SearchHit(
+            final var searchHit = SearchHit.unpooled(
                 randomIntBetween(0, Integer.MAX_VALUE),
                 NativeRoleMappingStore.getIdForName(mapping.getName())
             );
@@ -357,14 +357,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             ActionListener.respondAndRelease(
                 listener,
                 new SearchResponse(
-                    new SearchHits(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    ),
+                    SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), randomFloat()),
                     null,
                     null,
                     false,

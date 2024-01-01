@@ -39,8 +39,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Poolable<SearchHits>, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
-    public static final SearchHits EMPTY_WITH_TOTAL_HITS = unpooled(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0, null, null, null);
-    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = unpooled(EMPTY, null, 0, null, null, null);
+    public static final SearchHits EMPTY_WITH_TOTAL_HITS = unpooled(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
+    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = unpooled(EMPTY, null, 0);
 
     private final SearchHit[] hits;
     private final TotalHits totalHits;

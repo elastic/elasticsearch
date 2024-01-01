@@ -197,32 +197,36 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     SearchRequest searchRequest = (SearchRequest) request;
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
-                    ActionListener.respondAndRelease(
-                        listener,
-                        (Response) new SearchResponse(
-                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null,
-                            null,
-                            false,
-                            false,
-                            null,
-                            1,
-                            "_scrollId1",
-                            1,
-                            1,
-                            0,
-                            1,
-                            null,
-                            null
-                        )
-                    );
+                    final var searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
+                    try {
+                        ActionListener.respondAndRelease(
+                            listener,
+                            (Response) new SearchResponse(
+                                searchHits,
+                                null,
+                                null,
+                                false,
+                                false,
+                                null,
+                                1,
+                                "_scrollId1",
+                                1,
+                                1,
+                                0,
+                                1,
+                                null,
+                                null
+                            )
+                        );
+                    } finally {
+                        searchHits.decRef();
+                    }
                 } else if (TransportSearchScrollAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
-                    final SearchHit[] hits = new SearchHit[0];
                     ActionListener.respondAndRelease(
                         listener,
                         (Response) new SearchResponse(
-                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                            SearchHits.EMPTY_WITH_TOTAL_HITS,
                             null,
                             null,
                             false,

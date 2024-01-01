@@ -269,10 +269,13 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                         )
                     )
                     .toArray(SearchHit[]::new);
+                var pooledHits = new SearchHits(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null);
+                var searchHits = pooledHits.asUnpooled();
+                pooledHits.decRef();
                 ActionListener.respondAndRelease(
                     l,
                     new SearchResponse(
-                        new SearchHits(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
+                        searchHits,
                         null,
                         null,
                         false,

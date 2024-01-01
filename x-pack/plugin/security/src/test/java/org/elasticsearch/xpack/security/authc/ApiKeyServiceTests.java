@@ -410,32 +410,37 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                new SearchResponse(
-                    new SearchHits(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
+            var searchHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
+            );
+            try {
+                ActionListener.respondAndRelease(
+                    listener,
+                    new SearchResponse(
+                        searchHits,
                         null,
+                        null,
+                        false,
+                        null,
+                        null,
+                        0,
+                        randomAlphaOfLengthBetween(3, 8),
+                        1,
+                        1,
+                        0,
+                        10,
                         null,
                         null
-                    ),
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    0,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
-                )
-            );
+                    )
+                );
+            } finally {
+                searchHits.decRef();
+            }
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -752,34 +757,22 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
 
         final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
+        final SearchHits pooledHits = new SearchHits(
+            searchHits.toArray(SearchHit[]::new),
+            new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
+            randomFloat(),
+            null,
+            null,
+            null
+        );
+        final var hits = pooledHits.asUnpooled();
+        pooledHits.decRef();
         doAnswer(invocationOnMock -> {
             searchRequest.set(invocationOnMock.getArgument(0));
             final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
-                    new SearchHits(
-                        searchHits.toArray(SearchHit[]::new),
-                        new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    ),
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    0,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
-                )
+                new SearchResponse(hits, null, null, false, null, null, 0, randomAlphaOfLengthBetween(3, 8), 1, 1, 0, 10, null, null)
             );
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());

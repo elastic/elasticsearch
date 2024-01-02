@@ -1160,7 +1160,19 @@ public abstract class Engine implements Closeable {
      *                      request is detected, no flush will have occurred and the listener will be completed with a marker
      *                      indicating no flush and unknown generation.
      */
-    public abstract void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException;
+    public final void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+        try (var ignored = readLock.acquire()) {
+            ensureOpen();
+            flushHoldingLock(force, waitIfOngoing, listener);
+        }
+    }
+
+    /**
+     * The actual implementation of {@link #flush(boolean, boolean, ActionListener)}, which should only be called when holding either {@link
+     * #readLock} (the normal case) or {@link #writeLock} (if this flush is happening because the shard is closing gracefully)
+     */
+    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener)
+        throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -1871,10 +1883,8 @@ public abstract class Engine implements Closeable {
                 try {
                     logger.debug("flushing shard on close - this might take some time to sync files to disk");
                     try {
-                        // TODO we might force a flush in the future since we have the write lock already even though recoveries
-                        // are running.
                         // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                        flush(false, false, ActionListener.noop());
+                        flushHoldingLock(false, false, ActionListener.noop());
                     } catch (AlreadyClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }

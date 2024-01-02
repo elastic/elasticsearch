@@ -17,10 +17,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,6 +34,26 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlSecurityIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test-admin", "x-pack-test-password", "test-admin", false)
+        .user("user1", "x-pack-test-password", "user1", false)
+        .user("user2", "x-pack-test-password", "user2", false)
+        .user("user3", "x-pack-test-password", "user3", false)
+        .user("user4", "x-pack-test-password", "user4", false)
+        .user("user5", "x-pack-test-password", "user5", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {

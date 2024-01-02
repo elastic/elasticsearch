@@ -99,7 +99,6 @@ final class ExpandSearchPhase extends SearchPhase {
                         }
                         hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                         innerHits.mustIncRef();
-                        context.addReleasable(innerHits::decRef);
                     }
                 }
                 onPhaseDone();

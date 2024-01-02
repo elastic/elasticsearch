@@ -315,8 +315,10 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             "api_key_invalidated",
             "creation_time",
             "expiration_time",
+            "metadata_flattened",
             "metadata_flattened." + randomAlphaOfLengthBetween(1, 10),
-            "creator." + randomAlphaOfLengthBetween(1, 10)
+            "creator.principal",
+            "creator.realm"
         );
         assertTrue(predicate.test(allowedField));
 

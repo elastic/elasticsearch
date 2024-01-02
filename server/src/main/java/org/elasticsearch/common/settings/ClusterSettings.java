@@ -460,7 +460,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Node.NODE_EXTERNAL_ID_SETTING,
         Node.NODE_NAME_SETTING,
         Node.NODE_ATTRIBUTES,
-        Node.SHUTDOWN_SEARCH_TIMEOUT_SETTING,
         NodeRoleSettings.NODE_ROLES_SETTING,
         AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
         BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,

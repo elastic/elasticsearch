@@ -159,12 +159,6 @@ public class Node implements Closeable {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> SHUTDOWN_SEARCH_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "async_search.shutdown_grace_period",
-        TimeValue.timeValueMillis(0),
-        Setting.Property.NodeScope
-    );
-
     private final Lifecycle lifecycle = new Lifecycle();
 
     /**
@@ -598,8 +592,9 @@ public class Node implements Closeable {
     public void prepareForClose() {
         HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
         Map<String, Runnable> stoppers = new HashMap<>();
+        TimeValue maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(this.settings());
         stoppers.put("http-server-transport-stop", httpServerTransport::close);
-        stoppers.put("async-search-stop", this::awaitSearchTasksComplete);
+        stoppers.put("async-search-stop", () -> this.awaitSearchTasksComplete(maxTimeout));
         if (terminationHandler != null) {
             stoppers.put("termination-handler-stop", terminationHandler::handleTermination);
         }
@@ -622,7 +617,6 @@ public class Node implements Closeable {
         @SuppressWarnings(value = "rawtypes") // Can't make an array of parameterized types, but it complains if you leave the type out
         CompletableFuture<Void> allStoppers = CompletableFuture.allOf(futures.values().toArray(new CompletableFuture[stoppers.size()]));
 
-        TimeValue maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(this.settings());
         try {
             if (maxTimeout.millis() == 0) {
                 FutureUtils.get(allStoppers);
@@ -636,13 +630,12 @@ public class Node implements Closeable {
                 .filter(entry -> entry.getValue().isDone() == false)
                 .map(Map.Entry::getKey)
                 .toList();
-            logger.info("timed out while waiting for graceful shutdown tasks: " + unfinishedTasks);
+            logger.warn("timed out while waiting for graceful shutdown tasks: " + unfinishedTasks);
         }
     }
 
-    private void awaitSearchTasksComplete() {
+    private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout) {
         TaskManager taskManager = injector.getInstance(TransportService.class).getTaskManager();
-        TimeValue asyncSearchTimeout = SHUTDOWN_SEARCH_TIMEOUT_SETTING.get(this.settings());
         long millisWaited = 0;
         while (true) {
             long searchTasksRemaining = taskManager.getTasks()
@@ -672,7 +665,7 @@ public class Node implements Closeable {
                 }
                 logger.debug(format("waiting for [%s] search tasks to finish, next poll in [%s]", searchTasksRemaining, pollPeriod));
                 try {
-                    Thread.sleep(Math.min(pollPeriod.millis(), (asyncSearchTimeout.millis() - millisWaited)));
+                    Thread.sleep(pollPeriod.millis());
                 } catch (InterruptedException ex) {
                     logger.warn(
                         format(

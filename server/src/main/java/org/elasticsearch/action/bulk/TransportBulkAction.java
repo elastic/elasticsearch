@@ -404,22 +404,28 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             for (String index : autoCreateIndices) {
-                createIndex(index, bulkRequest.timeout(), refs.acquireListener().delegateResponse((l, e) -> {
-                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof IndexNotFoundException indexNotFoundException) {
-                        synchronized (indicesThatCannotBeCreated) {
-                            indicesThatCannotBeCreated.put(index, indexNotFoundException);
-                        }
-                    } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
-                        // fail all requests involving this index, if create didn't work
-                        for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                            DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                bulkRequest.requests.set(i, null);
+                createIndex(index, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CreateIndexResponse createIndexResponse) {}
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof IndexNotFoundException indexNotFoundException) {
+                            synchronized (indicesThatCannotBeCreated) {
+                                indicesThatCannotBeCreated.put(index, indexNotFoundException);
+                            }
+                        } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
+                            // fail all requests involving this index, if create didn't work
+                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                    bulkRequest.requests.set(i, null);
+                                }
                             }
                         }
                     }
-                }).map(response -> null));
+                }, refs.acquire()));
             }
         }
     }

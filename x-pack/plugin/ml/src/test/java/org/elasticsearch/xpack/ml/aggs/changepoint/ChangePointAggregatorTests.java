@@ -340,7 +340,15 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             DoubleStream.generate(() -> 30 + normal.sample()).limit(20)
         ).toArray();
         testChangeType(bucketValues, changeType -> {
-            assertThat(Arrays.toString(bucketValues), changeType, instanceOf(ChangeType.StepChange.class));
+            assertThat(
+                Arrays.toString(bucketValues),
+                changeType,
+                anyOf(
+                    // Due to the random nature of the values generated, either of these could be detected
+                    instanceOf(ChangeType.StepChange.class),
+                    instanceOf(ChangeType.TrendChange.class)
+                )
+            );
             assertThat(changeType.changePoint(), equalTo(20));
         });
     }

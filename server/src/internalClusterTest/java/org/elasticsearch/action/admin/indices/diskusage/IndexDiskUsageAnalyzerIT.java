@@ -66,12 +66,12 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             return Optional.of(config -> new InternalEngine(config) {
                 @Override
-                protected void flushHoldingRef(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
                     final ShardId shardId = config.getShardId();
                     if (failOnFlushShards.contains(shardId)) {
                         listener.onFailure(new EngineException(shardId, "simulated IO"));
                     } else {
-                        super.flushHoldingRef(force, waitIfOngoing, listener);
+                        super.flushHoldingLock(force, waitIfOngoing, listener);
                     }
                 }
             });

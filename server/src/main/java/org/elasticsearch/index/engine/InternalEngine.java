@@ -2170,7 +2170,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected void flushHoldingRef(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         assert isClosed.get() == false; // might be closing, but not closed yet
         ensureOpen();
         if (force && waitIfOngoing == false) {

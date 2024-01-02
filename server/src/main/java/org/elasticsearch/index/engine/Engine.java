@@ -1168,7 +1168,7 @@ public abstract class Engine implements Closeable {
      */
     public final void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         try (var ignored = acquireEnsureOpenRef()) {
-            flushHoldingRef(force, waitIfOngoing, listener);
+            flushHoldingLock(force, waitIfOngoing, listener);
         }
     }
 
@@ -1177,7 +1177,7 @@ public abstract class Engine implements Closeable {
      * the engine remains open, or holding {@code IndexShard#engineMutex} while closing the engine.
      *
      */
-    protected abstract void flushHoldingRef(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener)
+    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener)
         throws EngineException;
 
     /**
@@ -1928,7 +1928,7 @@ public abstract class Engine implements Closeable {
                 logger.debug("flushing shard on close - this might take some time to sync files to disk");
                 try {
                     // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                    flushHoldingRef(false, false, ActionListener.noop());
+                    flushHoldingLock(false, false, ActionListener.noop());
                 } catch (AlreadyClosedException ex) {
                     logger.debug("engine already closed - skipping flushAndClose");
                 }

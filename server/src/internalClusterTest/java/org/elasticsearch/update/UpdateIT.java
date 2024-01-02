@@ -713,8 +713,8 @@ public class UpdateIT extends ESIntegTestCase {
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         final int numberOfThreads = scaledRandomIntBetween(3, 5);
         final int numberOfIdsPerThread = scaledRandomIntBetween(3, 10);
-        final int numberOfUpdatesPerId = 11;// scaledRandomIntBetween(10, 100);
-        final int retryOnConflict = 0;// randomIntBetween(0, 1);
+        final int numberOfUpdatesPerId = scaledRandomIntBetween(10, 100);
+        final int retryOnConflict = randomIntBetween(0, 1);
         final CountDownLatch latch = new CountDownLatch(numberOfThreads);
         final CountDownLatch startLatch = new CountDownLatch(1);
         final List<Throwable> failures = new CopyOnWriteArrayList<>();
@@ -796,10 +796,9 @@ public class UpdateIT extends ESIntegTestCase {
                                     try {
                                         bulkRequestBuilder.add(ur);
                                         ur.decRef();
-                                        bulkRequestBuilder.add(ur).execute(ActionListener.runAfter(new UpdateListener(j).map(br -> {
+                                        bulkRequestBuilder.execute(ActionListener.runAfter(new UpdateListener(j).map(br -> {
                                             final BulkItemResponse ir = br.getItems()[0];
                                             if (ir.isFailed()) {
-                                                // ur.incRef();
                                                 throw ir.getFailure().getCause();
                                             } else {
                                                 return ir.getResponse();

@@ -15,9 +15,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -166,7 +166,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
 
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
         this.nodeClient.execute(
-            ListDanglingIndicesAction.INSTANCE,
+            TransportListDanglingIndicesAction.TYPE,
             new ListDanglingIndicesRequest(indexUUID),
             listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {

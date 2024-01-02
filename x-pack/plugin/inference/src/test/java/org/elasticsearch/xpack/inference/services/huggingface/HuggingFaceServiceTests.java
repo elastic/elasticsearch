@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -24,7 +25,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
@@ -42,10 +43,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
@@ -80,7 +81,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_CreatesAnEmbeddingsModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -102,7 +103,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_CreatesAnElserModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -124,7 +125,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -146,7 +147,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -170,7 +171,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -194,7 +195,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -218,7 +219,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnElserModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -242,7 +243,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -267,7 +268,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -294,7 +295,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -319,7 +320,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -346,7 +347,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -373,7 +374,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnEmbeddingsModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -392,7 +393,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnElserModel() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -411,7 +412,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -431,7 +432,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -453,7 +454,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new HuggingFaceService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -473,7 +474,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -511,7 +512,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsElserRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -549,6 +550,31 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(1));
             assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+        }
+    }
+
+    public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
+        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+
+            String responseJson = """
+                {
+                    "embeddings": [
+                        [
+                            -0.0123
+                        ]
+                    ]
+                {
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1);
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(result, is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1)));
         }
     }
 

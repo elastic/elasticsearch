@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-public class RetryingHttpSender implements Retrier {
+public class RetryingHttpSender implements RequestSender {
     private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
     private final RetrySettings retrySettings;
@@ -47,7 +48,6 @@ public class RetryingHttpSender implements Retrier {
 
     // For testing only
     RetryingHttpSender(
-        // TODO I think this will need to take the http client directly
         HttpClient httpClient,
         ThrottlerManager throttlerManager,
         RetrySettings retrySettings,
@@ -62,14 +62,14 @@ public class RetryingHttpSender implements Retrier {
     }
 
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
-        private final HttpRequestBase request;
+        private Request request;
         private final ResponseHandler responseHandler;
         private final Logger logger;
         private final HttpClientContext context;
 
         InternalRetrier(
             Logger logger,
-            HttpRequestBase request,
+            Request request,
             HttpClientContext context,
             ResponseHandler responseHandler,
             ActionListener<InferenceServiceResults> listener
@@ -91,25 +91,27 @@ public class RetryingHttpSender implements Retrier {
 
         @Override
         public void tryAction(ActionListener<InferenceServiceResults> listener) {
+            var httpRequest = request.createRequest();
+
             ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
                 try {
-                    responseHandler.validateResponse(throttlerManager, logger, request, result);
-                    InferenceServiceResults inferenceResults = responseHandler.parseResult(result);
+                    responseHandler.validateResponse(throttlerManager, logger, httpRequest, result);
+                    InferenceServiceResults inferenceResults = responseHandler.parseResult(request, result);
 
                     listener.onResponse(inferenceResults);
                 } catch (Exception e) {
-                    logException(logger, request, result, responseHandler.getRequestType(), e);
+                    logException(logger, httpRequest, result, responseHandler.getRequestType(), e);
                     listener.onFailure(e);
                 }
             }, e -> {
-                logException(logger, request, responseHandler.getRequestType(), e);
+                logException(logger, httpRequest, responseHandler.getRequestType(), e);
                 listener.onFailure(transformIfRetryable(e));
             });
 
             try {
-                httpClient.send(request, context, responseListener);
+                httpClient.send(httpRequest, context, responseListener);
             } catch (Exception e) {
-                logException(logger, request, responseHandler.getRequestType(), e);
+                logException(logger, httpRequest, responseHandler.getRequestType(), e);
 
                 // TODO should we log?
                 // TODO is this the right exception to return? This is what we were doing for the runnable that the executor would execute
@@ -120,7 +122,8 @@ public class RetryingHttpSender implements Retrier {
 
         @Override
         public boolean shouldRetry(Exception e) {
-            if (e instanceof RetryException retry) {
+            if (e instanceof Retryable retry) {
+                request = retry.rebuildRequest(request);
                 return retry.shouldRetry();
             }
 
@@ -156,7 +159,7 @@ public class RetryingHttpSender implements Retrier {
     @Override
     public void send(
         Logger logger,
-        HttpRequestBase request,
+        Request request,
         HttpClientContext context,
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener

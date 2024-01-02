@@ -17,7 +17,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.junit.After;
 import org.junit.Before;
@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -55,7 +55,7 @@ public class SenderServiceTests extends ESTestCase {
     public void testStart_InitializesTheSender() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
+        var factory = mock(InferenceRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
         try (var service = new TestSenderService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
@@ -75,7 +75,7 @@ public class SenderServiceTests extends ESTestCase {
     public void testStart_CallingStartTwiceKeepsSameSenderReference() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
+        var factory = mock(InferenceRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
         try (var service = new TestSenderService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
@@ -96,7 +96,7 @@ public class SenderServiceTests extends ESTestCase {
     }
 
     private static final class TestSenderService extends SenderService {
-        TestSenderService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+        TestSenderService(SetOnce<InferenceRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
             super(factory, serviceComponents);
         }
 

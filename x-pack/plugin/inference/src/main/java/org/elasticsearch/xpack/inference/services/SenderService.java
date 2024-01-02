@@ -15,7 +15,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.xpack.inference.external.http.batching.BatchingComponents;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.io.IOException;
@@ -26,13 +26,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 public abstract class SenderService<K> implements InferenceService {
-    private final SetOnce<HttpRequestSenderFactory> factory;
+    private final SetOnce<InferenceRequestSenderFactory> factory;
     private final SetOnce<ServiceComponents> serviceComponents;
     private final AtomicReference<Sender<K>> sender = new AtomicReference<>();
     private final Function<BatchingComponents, RequestBatcherFactory<K>> batchFactoryCreator;
 
     public SenderService(
-        SetOnce<HttpRequestSenderFactory> factory,
+        SetOnce<InferenceRequestSenderFactory> factory,
         SetOnce<ServiceComponents> serviceComponents,
         Function<BatchingComponents, RequestBatcherFactory<K>> batchFactoryCreator
     ) {

@@ -12,13 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequest;
-import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequestEntity;
 
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class HuggingFaceInferenceRequestCreator implements RequestCreator<HuggingFaceAccount> {
 
@@ -26,10 +28,19 @@ public class HuggingFaceInferenceRequestCreator implements RequestCreator<Huggin
 
     private final HuggingFaceAccount account;
     private final ResponseHandler responseHandler;
+    private final Truncator truncator;
+    private final Integer tokenLimit;
 
-    public HuggingFaceInferenceRequestCreator(HuggingFaceAccount account, ResponseHandler responseHandler) {
+    public HuggingFaceInferenceRequestCreator(
+        HuggingFaceAccount account,
+        ResponseHandler responseHandler,
+        Truncator truncator,
+        Integer tokenLimit
+    ) {
         this.account = Objects.requireNonNull(account);
         this.responseHandler = Objects.requireNonNull(responseHandler);
+        this.truncator = Objects.requireNonNull(truncator);
+        this.tokenLimit = Objects.requireNonNull(tokenLimit);
     }
 
     @Override
@@ -39,9 +50,10 @@ public class HuggingFaceInferenceRequestCreator implements RequestCreator<Huggin
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var request = new HuggingFaceInferenceRequest(account, new HuggingFaceInferenceRequestEntity(input));
+        var truncatedInput = truncate(input, tokenLimit);
+        var request = new HuggingFaceInferenceRequest(truncator, account, truncatedInput);
 
-        return () -> components.retrier().send(logger, request.createRequest(), context, responseHandler, listener);
+        return () -> components.requestSender().send(logger, request, context, responseHandler, listener);
     }
 
     @Override

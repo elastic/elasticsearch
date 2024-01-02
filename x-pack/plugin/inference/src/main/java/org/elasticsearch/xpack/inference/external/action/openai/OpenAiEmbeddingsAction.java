@@ -13,12 +13,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.batching.OpenAiEmbeddingsRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequestEntity;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
@@ -38,20 +37,16 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
         OpenAiEmbeddingsResponseEntity::fromResponse
     );
 
-    private final OpenAiAccount account;
-    private final OpenAiEmbeddingsModel model;
     private final String errorMessage;
     private final Sender<OpenAiAccount> sender;
+    private final RequestCreator<OpenAiAccount> requestCreator;
 
     public OpenAiEmbeddingsAction(Sender<OpenAiAccount> sender, OpenAiEmbeddingsModel model, ServiceComponents serviceComponents) {
+        Objects.requireNonNull(model);
+
         this.sender = Objects.requireNonNull(sender);
-        this.model = Objects.requireNonNull(model);
-        this.account = new OpenAiAccount(
-            this.model.getServiceSettings().uri(),
-            this.model.getServiceSettings().organizationId(),
-            this.model.getSecretSettings().apiKey()
-        );
-        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri());
+        errorMessage = getErrorMessage(model.getServiceSettings().uri());
+        requestCreator = new OpenAiEmbeddingsRequestCreator(model, EMBEDDINGS_HANDLER, serviceComponents.truncator());
     }
 
     private static String getErrorMessage(@Nullable URI uri) {
@@ -65,15 +60,8 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
-            OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(
-                account,
-                new OpenAiEmbeddingsRequestEntity(input, model.getTaskSettings().model(), model.getTaskSettings().user())
-            );
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
-
-            sender.send(new OpenAiEmbeddingsRequestCreator(model, account, EMBEDDINGS_HANDLER), input, wrappedListener);
-
-            // client.send(request, wrappedListener);
+            sender.send(requestCreator, input, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

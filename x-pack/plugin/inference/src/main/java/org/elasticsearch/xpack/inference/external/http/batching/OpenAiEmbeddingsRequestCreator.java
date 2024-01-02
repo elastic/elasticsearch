@@ -13,14 +13,16 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequestEntity;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class OpenAiEmbeddingsRequestCreator implements RequestCreator<OpenAiAccount> {
 
@@ -29,11 +31,17 @@ public class OpenAiEmbeddingsRequestCreator implements RequestCreator<OpenAiAcco
     private final OpenAiEmbeddingsModel model;
     private final OpenAiAccount account;
     private final ResponseHandler responseHandler;
+    private final Truncator truncator;
 
-    public OpenAiEmbeddingsRequestCreator(OpenAiEmbeddingsModel model, OpenAiAccount account, ResponseHandler responseHandler) {
+    public OpenAiEmbeddingsRequestCreator(OpenAiEmbeddingsModel model, ResponseHandler responseHandler, Truncator truncator) {
         this.model = Objects.requireNonNull(model);
-        this.account = Objects.requireNonNull(account);
+        this.account = new OpenAiAccount(
+            this.model.getServiceSettings().uri(),
+            this.model.getServiceSettings().organizationId(),
+            this.model.getSecretSettings().apiKey()
+        );
         this.responseHandler = Objects.requireNonNull(responseHandler);
+        this.truncator = Objects.requireNonNull(truncator);
     }
 
     @Override
@@ -44,12 +52,11 @@ public class OpenAiEmbeddingsRequestCreator implements RequestCreator<OpenAiAcco
         ActionListener<InferenceServiceResults> listener
     ) {
         logger.warn(Strings.format("OpenAI request input array size: %s", input.size()));
-        var request = new OpenAiEmbeddingsRequest(
-            account,
-            new OpenAiEmbeddingsRequestEntity(input, model.getTaskSettings().model(), model.getTaskSettings().user())
-        );
+        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
 
-        return () -> components.retrier().send(logger, request.createRequest(), context, responseHandler, listener);
+        var request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model.getTaskSettings());
+
+        return () -> components.requestSender().send(logger, request, context, responseHandler, listener);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -24,7 +25,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
@@ -40,10 +41,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -86,7 +87,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -115,7 +116,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -140,7 +141,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -166,7 +167,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -190,7 +191,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -214,7 +215,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -238,7 +239,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -263,7 +264,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModel() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -294,7 +295,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -324,7 +325,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -355,7 +356,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -387,7 +388,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -421,7 +422,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -453,7 +454,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -487,7 +488,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -521,7 +522,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -543,7 +544,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -564,7 +565,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -586,7 +587,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -609,7 +610,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -634,7 +635,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (
             var service = new OpenAiService(
-                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(mock(InferenceRequestSenderFactory.class)),
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
@@ -659,7 +660,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testInfer_ThrowsErrorWhenModelIsNotOpenAiModel() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
+        var factory = mock(InferenceRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
@@ -684,7 +685,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -731,8 +732,44 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
+    public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
+        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 1);
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(result, is(OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 1, 2)));
+        }
+    }
+
     public void testInfer_UnauthorisedResponse() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 

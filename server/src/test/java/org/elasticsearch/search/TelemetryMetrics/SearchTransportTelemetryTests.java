@@ -52,6 +52,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
         return 0;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103781")
     public void testSearchTransportMetricsDfsQueryThenFetch() throws InterruptedException {
         var indexName = "test1";
         createIndex(indexName);

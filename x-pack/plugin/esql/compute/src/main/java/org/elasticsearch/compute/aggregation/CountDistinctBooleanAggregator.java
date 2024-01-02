@@ -13,7 +13,6 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -40,7 +39,7 @@ public class CountDistinctBooleanAggregator {
 
     public static Block evaluateFinal(SingleState state, DriverContext driverContext) {
         long result = ((state.bits & BIT_TRUE) >> 1) + (state.bits & BIT_FALSE);
-        return LongBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantLongBlockWith(result, 1);
     }
 
     public static GroupingState initGrouping(BigArrays bigArrays) {
@@ -61,7 +60,7 @@ public class CountDistinctBooleanAggregator {
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+        LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             long count = (state.bits.get(2 * group) ? 1 : 0) + (state.bits.get(2 * group + 1) ? 1 : 0);
@@ -131,8 +130,8 @@ public class CountDistinctBooleanAggregator {
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2;
             try (
-                var fbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-                var tbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+                var fbitBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
+                var tbitBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())
             ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);

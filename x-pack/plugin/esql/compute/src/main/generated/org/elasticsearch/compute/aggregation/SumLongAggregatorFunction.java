@@ -116,10 +116,10 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1, driverContext.blockFactory());
+      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1, driverContext.blockFactory());
+    blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
   }
 
   @Override

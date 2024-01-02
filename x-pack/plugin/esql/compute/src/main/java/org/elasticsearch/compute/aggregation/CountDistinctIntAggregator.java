@@ -35,7 +35,7 @@ public class CountDistinctIntAggregator {
 
     public static Block evaluateFinal(HllStates.SingleState state, DriverContext driverContext) {
         long result = state.cardinality();
-        return LongBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantLongBlockWith(result, 1);
     }
 
     public static HllStates.GroupingState initGrouping(BigArrays bigArrays, int precision) {
@@ -60,7 +60,7 @@ public class CountDistinctIntAggregator {
     }
 
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 long count = state.cardinality(group);

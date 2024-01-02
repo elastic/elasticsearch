@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -28,11 +27,6 @@ public class BlockFactory {
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
-    private static final BlockFactory NON_BREAKING = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
-
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
@@ -47,18 +41,14 @@ public class BlockFactory {
         this(breaker, bigArrays, maxPrimitiveArraySize, null);
     }
 
-    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
+    protected BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
+        assert breaker instanceof LocalCircuitBreaker == false
+            || (parent != null && ((LocalCircuitBreaker) breaker).parentBreaker() == parent.breaker)
+            : "use local breaker without parent block factory";
         this.breaker = breaker;
         this.bigArrays = bigArrays;
         this.parent = parent;
         this.maxPrimitiveArrayBytes = maxPrimitiveArraySize.getBytes();
-    }
-
-    /**
-     * Returns the Non-Breaking block factory.
-     */
-    public static BlockFactory getNonBreakingInstance() {
-        return NON_BREAKING;
     }
 
     public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {

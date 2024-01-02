@@ -14,7 +14,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,6 +37,15 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
 
     /** Contains the search response, if any **/
     private SearchResponse response;
+
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            if (response != null) {
+                response.decRef();
+            }
+        }
+    });
 
     SearchTemplateResponse() {}
 
@@ -72,6 +84,26 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalBytesReference(source);
         out.writeOptionalWriteable(response);
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 
     public static SearchTemplateResponse fromXContent(XContentParser parser) throws IOException {

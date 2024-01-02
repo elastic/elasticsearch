@@ -525,7 +525,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public int mapperSize() {
-        int size = 0;
+        int size = runtimeFields().size();
         for (Mapper mapper : this) {
             size += mapper.mapperSize();
         }

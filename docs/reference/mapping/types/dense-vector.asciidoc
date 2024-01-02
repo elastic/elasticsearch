@@ -62,7 +62,7 @@ In many cases, a brute-force kNN search is not efficient enough. For this
 reason, the `dense_vector` type supports indexing vectors into a specialized
 data structure to support fast kNN retrieval through the <<search-api-knn, `knn` option>> in the search API
 
-Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similariy of `cosine`.
+Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similarity of `cosine`.
 You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
 Indexing is enabled by default for dense vector fields.

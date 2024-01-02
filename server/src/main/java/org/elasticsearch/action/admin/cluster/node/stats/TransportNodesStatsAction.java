@@ -23,6 +23,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
@@ -80,7 +81,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest, Task task) {
+    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest, TransportChannel unused, Task task) {
         assert task instanceof CancellableTask;
 
         final NodesStatsRequestParameters nodesStatsRequestParameters = nodeStatsRequest.getNodesStatsRequestParameters();

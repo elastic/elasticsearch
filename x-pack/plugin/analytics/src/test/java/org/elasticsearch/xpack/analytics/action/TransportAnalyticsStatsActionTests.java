@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -46,6 +47,7 @@ import static org.mockito.Mockito.when;
 public class TransportAnalyticsStatsActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
+    private TransportChannel channel = mock(TransportChannel.class);
 
     @Before
     public void setup() {
@@ -98,7 +100,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     private ObjectPath run(AnalyticsUsage... nodeUsages) throws IOException {
         AnalyticsStatsAction.Request request = new AnalyticsStatsAction.Request();
         List<AnalyticsStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
-            .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(), null))
+            .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(), channel, null))
             .collect(toList());
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
             new ClusterName("cluster_name"),

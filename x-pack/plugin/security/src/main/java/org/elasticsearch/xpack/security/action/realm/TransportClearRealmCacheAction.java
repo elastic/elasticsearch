@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
@@ -78,7 +79,8 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
     }
 
     @Override
-    protected ClearRealmCacheResponse.Node nodeOperation(ClearRealmCacheRequest.Node nodeRequest, Task task) throws ElasticsearchException {
+    protected ClearRealmCacheResponse.Node nodeOperation(ClearRealmCacheRequest.Node nodeRequest, TransportChannel unused, Task task)
+        throws ElasticsearchException {
         if (nodeRequest.getRealms() == null || nodeRequest.getRealms().length == 0) {
             for (Realm realm : realms) {
                 clearCache(realm, nodeRequest.getUsernames());

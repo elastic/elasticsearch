@@ -39,6 +39,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -117,7 +118,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     }
 
     @Override
-    protected NodeGatewayStartedShards nodeOperation(NodeRequest request, Task task) {
+    protected NodeGatewayStartedShards nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);

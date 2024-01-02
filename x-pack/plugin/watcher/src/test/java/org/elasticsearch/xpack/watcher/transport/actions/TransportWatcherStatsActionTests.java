@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,6 +46,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private TransportWatcherStatsAction action;
+    private TransportChannel channel = mock(TransportChannel.class);
 
     @Before
     public void setupTransportAction() {
@@ -104,8 +106,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
     public void testWatcherStats() throws Exception {
         WatcherStatsRequest request = new WatcherStatsRequest();
         request.includeStats(true);
-        WatcherStatsResponse.Node nodeResponse1 = action.nodeOperation(new WatcherStatsRequest.Node(request), null);
-        WatcherStatsResponse.Node nodeResponse2 = action.nodeOperation(new WatcherStatsRequest.Node(request), null);
+        WatcherStatsResponse.Node nodeResponse1 = action.nodeOperation(new WatcherStatsRequest.Node(request), channel, null);
+        WatcherStatsResponse.Node nodeResponse2 = action.nodeOperation(new WatcherStatsRequest.Node(request), channel, null);
 
         WatcherStatsResponse response = action.newResponse(request, Arrays.asList(nodeResponse1, nodeResponse2), Collections.emptyList());
         assertThat(response.getWatchesCount(), is(40L));

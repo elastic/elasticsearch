@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.analytics.AnalyticsUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
@@ -68,7 +69,11 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected AnalyticsStatsAction.NodeResponse nodeOperation(AnalyticsStatsAction.NodeRequest request, Task task) {
+    protected AnalyticsStatsAction.NodeResponse nodeOperation(
+        AnalyticsStatsAction.NodeRequest request,
+        TransportChannel unused,
+        Task task
+    ) {
         return usage.stats(clusterService.localNode());
     }
 

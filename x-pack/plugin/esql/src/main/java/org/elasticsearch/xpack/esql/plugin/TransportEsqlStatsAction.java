@@ -18,6 +18,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
@@ -91,7 +92,11 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected EsqlStatsResponse.NodeStatsResponse nodeOperation(EsqlStatsRequest.NodeStatsRequest request, Task task) {
+    protected EsqlStatsResponse.NodeStatsResponse nodeOperation(
+        EsqlStatsRequest.NodeStatsRequest request,
+        TransportChannel unused,
+        Task task
+    ) {
         EsqlStatsResponse.NodeStatsResponse statsResponse = new EsqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         statsResponse.setStats(planExecutor.metrics().stats());
         return statsResponse;

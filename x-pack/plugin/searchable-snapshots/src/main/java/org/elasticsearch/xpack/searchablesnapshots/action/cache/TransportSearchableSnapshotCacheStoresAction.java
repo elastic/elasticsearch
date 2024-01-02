@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -87,7 +88,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     }
 
     @Override
-    protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
+    protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
         assert cacheService != null;
         assert Optional.ofNullable(clusterService.state().metadata().index(request.shardId.getIndex()))
             .map(indexMetadata -> SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings()))

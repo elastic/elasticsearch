@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -43,13 +44,16 @@ import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Base class to send a request out to a list of nodes.
+ */
 public abstract class TransportNodesAction<
     NodesRequest extends BaseNodesRequest<NodesRequest>,
     NodesResponse extends BaseNodesResponse<?>,
     NodeRequest extends TransportRequest,
     NodeResponse extends BaseNodeResponse> extends TransportAction<NodesRequest, NodesResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
+    public static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -216,7 +220,18 @@ public abstract class TransportNodesAction<
 
     protected abstract NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException;
 
-    protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
+    /**
+     * Implements the command logic on the node. The given `channel` may be used directly in the implementation, or the return object will
+     * be sent on the same channel: the implementation must do one or the other, never both.
+     *
+     * @param request
+     * @param channel The same transport channel on which returning a non-null response will be sent, but can alternatively be used directly
+     * to send a response (and then the implementation should return a null object).
+     * @param task
+     * @return Returns either a response to send on the TransportChannel, or null. If null, then the node logic handles the sending the
+     * response back on the given channel.
+     */
+    protected abstract @Nullable NodeResponse nodeOperation(NodeRequest request, TransportChannel channel, Task task);
 
     /**
      * resolve node ids to concrete nodes of the incoming request
@@ -230,7 +245,11 @@ public abstract class TransportNodesAction<
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
-            channel.sendResponse(nodeOperation(request, task));
+            var optResponse = nodeOperation(request, channel, task);
+            //// TODO: how can I ensure sendResponse is not called twice? Add counter in TransportChannel?
+            if (optResponse != null) {
+                channel.sendResponse(nodeOperation(request, channel, task));
+            }
         }
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
@@ -76,7 +77,7 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<
     }
 
     @Override
-    protected ClearSecurityCacheResponse.Node nodeOperation(ClearSecurityCacheRequest.Node request, Task task) {
+    protected ClearSecurityCacheResponse.Node nodeOperation(ClearSecurityCacheRequest.Node request, TransportChannel unused, Task task) {
         if (request.getKeys() == null || request.getKeys().length == 0) {
             cacheInvalidatorRegistry.invalidateCache(request.getCacheName());
         } else {

@@ -30,6 +30,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,7 +91,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
     }
 
     @Override
-    protected NodeSnapshotStatus nodeOperation(NodeRequest request, Task task) {
+    protected NodeSnapshotStatus nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
         Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>();
         try {
             final String nodeId = clusterService.localNode().getId();

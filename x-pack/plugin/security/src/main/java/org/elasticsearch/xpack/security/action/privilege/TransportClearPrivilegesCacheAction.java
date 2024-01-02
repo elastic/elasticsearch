@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheRequest;
@@ -76,7 +77,11 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
     }
 
     @Override
-    protected ClearPrivilegesCacheResponse.Node nodeOperation(ClearPrivilegesCacheRequest.Node request, Task task) {
+    protected ClearPrivilegesCacheResponse.Node nodeOperation(
+        ClearPrivilegesCacheRequest.Node request,
+        TransportChannel unused,
+        Task task
+    ) {
         if (request.getApplicationNames() == null || request.getApplicationNames().length == 0) {
             cacheInvalidatorRegistry.invalidateCache("application_privileges");
         } else {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
@@ -71,7 +72,7 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<
     }
 
     @Override
-    protected ClearRolesCacheResponse.Node nodeOperation(ClearRolesCacheRequest.Node request, Task task) {
+    protected ClearRolesCacheResponse.Node nodeOperation(ClearRolesCacheRequest.Node request, TransportChannel unused, Task task) {
         if (request.getNames() == null || request.getNames().length == 0) {
             rolesStore.invalidateAll();
         } else {

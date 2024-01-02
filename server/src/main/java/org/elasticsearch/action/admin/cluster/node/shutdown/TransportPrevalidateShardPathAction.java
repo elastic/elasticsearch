@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -96,7 +97,7 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodePrevalidateShardPathResponse nodeOperation(NodePrevalidateShardPathRequest request, Task task) {
+    protected NodePrevalidateShardPathResponse nodeOperation(NodePrevalidateShardPathRequest request, TransportChannel unused, Task task) {
         Set<ShardId> localShards = new HashSet<>();
         ShardPath shardPath = null;
         // For each shard we only check whether the shard path exists, regardless of whether the content is a valid index or not.

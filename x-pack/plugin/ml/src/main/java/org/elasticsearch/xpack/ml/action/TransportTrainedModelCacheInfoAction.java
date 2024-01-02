@@ -19,6 +19,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction;
@@ -76,7 +77,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
     }
 
     @Override
-    protected CacheInfo nodeOperation(NodeModelCacheInfoRequest nodeModelCacheInfoRequest, Task task) {
+    protected CacheInfo nodeOperation(NodeModelCacheInfoRequest nodeModelCacheInfoRequest, TransportChannel unused, Task task) {
         assert task instanceof CancellableTask;
         return new CacheInfo(
             transportService.getLocalNode(),

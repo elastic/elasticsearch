@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -77,7 +78,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest, Task task) {
+    protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest, TransportChannel unused, Task task) {
         Set<String> metrics = nodeRequest.requestedMetrics();
         return nodeService.info(
             metrics.contains(NodesInfoMetrics.Metric.SETTINGS.metricName()),

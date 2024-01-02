@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -80,7 +81,7 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeFindDanglingIndexResponse nodeOperation(NodeFindDanglingIndexRequest request, Task task) {
+    protected NodeFindDanglingIndexResponse nodeOperation(NodeFindDanglingIndexRequest request, TransportChannel unused, Task task) {
         final DiscoveryNode localNode = transportService.getLocalNode();
         final String indexUUID = request.getIndexUUID();
 

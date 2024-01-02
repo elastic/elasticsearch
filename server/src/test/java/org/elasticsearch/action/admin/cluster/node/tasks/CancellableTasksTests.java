@@ -33,10 +33,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.FakeTcpChannel;
-import org.elasticsearch.transport.TestTransportChannels;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -159,7 +156,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeResponse nodeOperation(CancellableNodeRequest request, Task task) {
+        protected NodeResponse nodeOperation(CancellableNodeRequest request, TransportChannel unused, Task task) {
             assert task instanceof CancellableTask;
             debugDelay("op1");
             if (actionStartedLatch != null) {

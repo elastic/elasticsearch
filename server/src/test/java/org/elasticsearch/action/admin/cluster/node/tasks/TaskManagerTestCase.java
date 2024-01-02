@@ -41,10 +41,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
@@ -167,7 +164,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
+        protected abstract NodeResponse nodeOperation(NodeRequest request, TransportChannel unused, Task task);
     }
 
     public static class TestNode implements Releasable {

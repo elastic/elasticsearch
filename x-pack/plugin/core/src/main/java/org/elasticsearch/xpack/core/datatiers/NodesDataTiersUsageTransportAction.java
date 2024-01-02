@@ -35,6 +35,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -99,7 +100,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeDataTiersUsage nodeOperation(NodeRequest nodeRequest, Task task) {
+    protected NodeDataTiersUsage nodeOperation(NodeRequest nodeRequest, TransportChannel unused, Task task) {
         assert task instanceof CancellableTask;
 
         DiscoveryNode localNode = clusterService.localNode();

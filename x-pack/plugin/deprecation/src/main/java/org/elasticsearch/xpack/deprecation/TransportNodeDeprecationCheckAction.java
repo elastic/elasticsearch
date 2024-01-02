@@ -29,6 +29,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -104,7 +105,11 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request, Task task) {
+    protected NodesDeprecationCheckAction.NodeResponse nodeOperation(
+        NodesDeprecationCheckAction.NodeRequest request,
+        TransportChannel unused,
+        Task task
+    ) {
         return nodeOperation(request, DeprecationChecks.NODE_SETTINGS_CHECKS);
     }
 

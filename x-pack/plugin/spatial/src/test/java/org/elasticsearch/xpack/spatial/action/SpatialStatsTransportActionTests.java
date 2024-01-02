@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -47,6 +48,7 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
     private TransportService transportService;
     private ClusterService clusterService;
     private ThreadPool threadPool;
+    private TransportChannel channel = mock(TransportChannel.class);
 
     @Before
     public void setup() {
@@ -96,7 +98,7 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
     private ObjectPath buildSpatialStatsResponse(SpatialUsage... nodeUsages) throws IOException {
         SpatialStatsAction.Request request = new SpatialStatsAction.Request();
         List<SpatialStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
-            .map(usage -> toAction(usage).nodeOperation(new SpatialStatsAction.NodeRequest(), null))
+            .map(usage -> toAction(usage).nodeOperation(new SpatialStatsAction.NodeRequest(), channel, null))
             .collect(Collectors.toList());
         SpatialStatsAction.Response response = new SpatialStatsAction.Response(new ClusterName("cluster_name"), nodeResponses, emptyList());
         try (XContentBuilder builder = jsonBuilder()) {

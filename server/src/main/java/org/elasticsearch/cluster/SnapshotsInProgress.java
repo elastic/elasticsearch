@@ -947,6 +947,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if ((state == State.INIT || state == State.ABORTED) && shards.isEmpty()) {
                 return true;
             }
+            if (hasInitStateShards) {
+                assert state == State.STARTED : "shouldn't have INIT-state shards in state " + state;
+            }
             final Set<String> indexNames = indices.keySet();
             final Set<String> indexNamesInShards = new HashSet<>();
             shards.entrySet().forEach(s -> {

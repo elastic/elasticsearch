@@ -604,7 +604,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             is(
                 "can relocate primary shard from a node with max index version ["
                     + oldNode.node().getMaxIndexVersion()
-                    + "] to a node with equal-or-newer version ["
+                    + "] to a node with equal-or-newer max index version ["
                     + newNode.node().getMaxIndexVersion()
                     + "]"
             )
@@ -617,7 +617,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             is(
                 "cannot relocate primary shard from a node with max index version ["
                     + newNode.node().getMaxIndexVersion()
-                    + "] to a node with older version ["
+                    + "] to a node with older max index version ["
                     + oldNode.node().getMaxIndexVersion()
                     + "]"
             )
@@ -690,7 +690,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             is(
                 "cannot allocate replica shard to a node with max index version ["
                     + oldNode.node().getMaxIndexVersion()
-                    + "] since this is older than the primary version ["
+                    + "] since this is older than the primary max index version ["
                     + newNode.node().getMaxIndexVersion()
                     + "]"
             )
@@ -712,7 +712,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             is(
                 "can allocate replica shard to a node with max index version ["
                     + newNode.node().getMaxIndexVersion()
-                    + "] since this is equal-or-newer than the primary version ["
+                    + "] since this is equal-or-newer than the primary max index version ["
                     + oldNode.node().getMaxIndexVersion()
                     + "]"
             )

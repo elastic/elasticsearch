@@ -8,7 +8,9 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.Diff;
@@ -18,6 +20,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -50,6 +53,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSerializationTestCase<Custom> {
 
+    private static final ClusterState CLUSTER_STATE_FOR_NODE_SHUTDOWNS = ClusterState.builder(ClusterName.DEFAULT)
+        .putCompatibilityVersions("local", new CompatibilityVersions(TransportVersion.current(), Map.of()))
+        .build();
+
     @Override
     protected Custom createTestInstance() {
         int numberOfSnapshots = randomInt(10);
@@ -69,7 +76,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     }
 
     private ClusterState getClusterStateWithNodeShutdownMetadata(List<String> nodeIdsForRemoval) {
-        return ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
+        return CLUSTER_STATE_FOR_NODE_SHUTDOWNS.copyAndUpdateMetadata(
             mdb -> mdb.putCustom(
                 NodesShutdownMetadata.TYPE,
                 new NodesShutdownMetadata(
@@ -460,7 +467,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             )
         )
             .withUpdatedNodeIdsForRemoval(
-                ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
+                CLUSTER_STATE_FOR_NODE_SHUTDOWNS.copyAndUpdateMetadata(
                     b -> b.putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -596,6 +603,6 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             .allMatch(st -> st.completed() || st == ShardState.ABORTED)) {
             return State.ABORTED;
         }
-        return randomFrom(State.STARTED, State.INIT);
+        return State.STARTED;
     }
 }

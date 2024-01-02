@@ -395,7 +395,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                                 new Snapshot("test-repo", new SnapshotId("snapshot", "uuid")),
                                 randomBoolean(),
                                 randomBoolean(),
-                                SnapshotsInProgress.State.INIT,
+                                SnapshotsInProgress.State.STARTED,
                                 Map.of("index", new IndexId("index", "uuid")),
                                 List.of(),
                                 List.of(),

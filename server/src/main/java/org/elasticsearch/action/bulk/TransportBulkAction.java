@@ -656,7 +656,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     );
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
-                    System.err.println("*** I am here");
                     String name = ia != null ? ia.getName() : docWriteRequest.index();
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);

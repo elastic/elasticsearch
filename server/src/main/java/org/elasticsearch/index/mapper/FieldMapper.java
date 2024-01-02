@@ -442,15 +442,49 @@ public abstract class FieldMapper extends Mapper {
 
         public static class Builder {
 
-            private final Map<String, Function<MapperBuilderContext, FieldMapper>> mapperBuilders = new HashMap<>();
+            private interface FieldMapperOrBuilder {
+                int mapperSize();
+
+                FieldMapper build(MapperBuilderContext context);
+
+                static FieldMapperOrBuilder of(FieldMapper mapper) {
+                    return new FieldMapperOrBuilder() {
+                        @Override
+                        public int mapperSize() {
+                            return mapper.mapperSize();
+                        }
+
+                        @Override
+                        public FieldMapper build(MapperBuilderContext context) {
+                            return mapper;
+                        }
+                    };
+                }
+
+                static FieldMapperOrBuilder of(FieldMapper.Builder builder) {
+                    return new FieldMapperOrBuilder() {
+                        @Override
+                        public int mapperSize() {
+                            return builder.mapperSize();
+                        }
+
+                        @Override
+                        public FieldMapper build(MapperBuilderContext context) {
+                            return builder.build(context);
+                        }
+                    };
+                }
+            }
+
+            private final Map<String, FieldMapperOrBuilder> mapperBuilders = new HashMap<>();
 
             public Builder add(FieldMapper.Builder builder) {
-                mapperBuilders.put(builder.name(), builder::build);
+            mapperBuilders.put(builder.name(), FieldMapperOrBuilder.of(builder));
                 return this;
             }
 
             public Builder add(FieldMapper mapper) {
-                mapperBuilders.put(mapper.simpleName(), context -> mapper);
+                mapperBuilders.put(mapper.simpleName(), FieldMapperOrBuilder.of(mapper));
                 return this;
             }
 
@@ -458,7 +492,7 @@ public abstract class FieldMapper extends Mapper {
                 if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
                     context.addFieldIfPossible(toMerge, () -> add(toMerge));
                 } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context.getMapperBuilderContext());
+                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).build(context.getMapperBuilderContext());
                     add(existing.merge(toMerge, context));
                 }
                 return this;
@@ -475,15 +509,19 @@ public abstract class FieldMapper extends Mapper {
                     FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
                     context = context.createChildContext(mainFieldBuilder.name());
                     int i = 0;
-                    for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
-                        mappers[i++] = entry.getValue().apply(context);
+                    for (Map.Entry<String, FieldMapperOrBuilder> entry : this.mapperBuilders.entrySet()) {
+                        mappers[i++] = entry.getValue().build(context);
                     }
                     return new MultiFields(mappers);
                 }
             }
 
             public int mapperSize() {
-                return mapperBuilders.size();
+                int size = 0;
+                for (FieldMapperOrBuilder mapper : mapperBuilders.values()) {
+                    size += mapper.mapperSize();
+                }
+                return size;
             }
 
             public void clear() {

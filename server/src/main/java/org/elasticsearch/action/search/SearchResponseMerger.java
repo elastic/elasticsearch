@@ -377,7 +377,7 @@ final class SearchResponseMerger implements Releasable {
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 FieldDocAndSearchHit scoreDoc = (FieldDocAndSearchHit) topDocs.scoreDocs[i];
                 searchHits[i] = scoreDoc.searchHit;
-                scoreDoc.searchHit.incRef();
+                scoreDoc.searchHit.mustIncRef();
             }
         }
         SortField[] sortFields = null;

@@ -306,6 +306,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         out.writeFloat(score);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeVInt(rank);

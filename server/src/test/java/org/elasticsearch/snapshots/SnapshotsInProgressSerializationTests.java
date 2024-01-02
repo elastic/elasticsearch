@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSerializationTestCase<Custom> {
 
-    private static final ClusterState CLUSTER_STATE_FOR_NODE_SHUTDOWNS = ClusterState.builder(ClusterName.DEFAULT)
+    public static final ClusterState CLUSTER_STATE_FOR_NODE_SHUTDOWNS = ClusterState.builder(ClusterName.DEFAULT)
         .putCompatibilityVersions("local", new CompatibilityVersions(TransportVersion.current(), Map.of()))
         .build();
 

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.common.regex.Regex;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -20,12 +23,13 @@ public class ApiKeyFieldNameTranslators {
         FIELD_NAME_TRANSLATORS = List.of(
             new ExactFieldNameTranslator(s -> "creator.principal", "username"),
             new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
-            new ExactFieldNameTranslator(Function.identity(), "name"),
+            new ExactFieldNameTranslator(s -> "name", "name"),
             new ExactFieldNameTranslator(s -> "creation_time", "creation"),
             new ExactFieldNameTranslator(s -> "expiration_time", "expiration"),
             new ExactFieldNameTranslator(s -> "api_key_invalidated", "invalidated"),
             new ExactFieldNameTranslator(s -> "invalidation_time", "invalidation"),
-            new PrefixFieldNameTranslator(s -> "metadata_flattened" + s.substring(8), "metadata.")
+            new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"),
+            new PrefixFieldNameTranslator(s -> "metadata_flattened." + s.substring("metadata.".length()), "metadata.")
         );
     }
 
@@ -34,12 +38,25 @@ public class ApiKeyFieldNameTranslators {
      * It throws an exception if the field name is not explicitly allowed.
      */
     public static String translate(String fieldName) {
+        if (Regex.isSimpleMatchPattern(fieldName)) {
+            throw new IllegalArgumentException("Field name pattern not supported");
+        }
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
             if (translator.supports(fieldName)) {
                 return translator.translate(fieldName);
             }
         }
         throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");
+    }
+
+    public static List<String> translatePattern(String pattern) {
+        List<String> translatedPatternMatches = new ArrayList<>();
+        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
+            if (translator.supports(pattern)) {
+                translatedPatternMatches.add(translator.translate(pattern));
+            }
+        }
+        return translatedPatternMatches;
     }
 
     abstract static class FieldNameTranslator {
@@ -62,12 +79,17 @@ public class ApiKeyFieldNameTranslators {
 
         ExactFieldNameTranslator(Function<String, String> translationFunc, String name) {
             super(translationFunc);
+            assert Regex.isSimpleMatchPattern(name) == false : "unsupported pattern as field name";
             this.name = name;
         }
 
         @Override
-        public boolean supports(String fieldName) {
-            return name.equals(fieldName);
+        public boolean supports(String fieldNameOrPattern) {
+            if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
+                return Regex.simpleMatch(fieldNameOrPattern, name);
+            } else {
+                return name.equals(fieldNameOrPattern);
+            }
         }
     }
 
@@ -76,11 +98,16 @@ public class ApiKeyFieldNameTranslators {
 
         PrefixFieldNameTranslator(Function<String, String> translationFunc, String prefix) {
             super(translationFunc);
+            assert Regex.isSimpleMatchPattern(prefix) == false : "unsupported pattern as field name prefix";
             this.prefix = prefix;
         }
 
         @Override
         boolean supports(String fieldName) {
+            // it is not easily possible to translate field names that both start with a prefix AND that match a regex pattern
+            if (Regex.isSimpleMatchPattern(fieldName)) {
+                return false;
+            }
             return fieldName.startsWith(prefix);
         }
     }

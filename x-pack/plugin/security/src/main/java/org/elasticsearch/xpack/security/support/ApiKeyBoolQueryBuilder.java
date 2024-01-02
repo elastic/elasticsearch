@@ -13,12 +13,15 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
@@ -27,6 +30,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
@@ -34,12 +39,15 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     // Field names allowed at the index level
     private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = Set.of(
         "_id",
+        "creator.principal",
+        "creator.realm",
         "doc_type",
         "name",
         "api_key_invalidated",
         "invalidation_time",
         "creation_time",
-        "expiration_time"
+        "expiration_time",
+        "metadata_flattened"
     );
 
     private ApiKeyBoolQueryBuilder() {}
@@ -139,6 +147,15 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                 newQuery.to(query.to()).includeUpper(query.includeUpper());
             }
             return newQuery.boost(query.boost());
+        } else if (qb instanceof MultiMatchQueryBuilder query) {
+            translateFieldPatterns(query.fields());
+            return query;
+        } else if (qb instanceof QueryStringQueryBuilder query) {
+            translateFieldPatterns(query.fields());
+            return query;
+        } else if (qb instanceof SimpleQueryStringBuilder query) {
+            translateFieldPatterns(query.fields());
+            return query;
         } else {
             throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
         }
@@ -160,8 +177,16 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     static boolean isIndexFieldNameAllowed(String fieldName) {
         return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName)
-            || fieldName.startsWith("metadata_flattened.")
-            || fieldName.startsWith("creator.");
+            || fieldName.startsWith("metadata_flattened.");
     }
 
+    static void translateFieldPatterns(Map<String, Float> fields) {
+        Map<String, Float> originalFields = new HashMap<>(fields);
+        fields.clear();
+        for (Map.Entry<String, Float> originalField : originalFields.entrySet()) {
+            for (String translatedFieldName : ApiKeyFieldNameTranslators.translatePattern(originalField.getKey())) {
+                fields.put(translatedFieldName, originalField.getValue());
+            }
+        }
+    }
 }

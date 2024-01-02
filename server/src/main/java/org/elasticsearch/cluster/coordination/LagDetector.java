@@ -339,7 +339,7 @@ public class LagDetector {
 
         @Override
         public void onAfter() {
-            releasable.close();
+            Releasables.closeExpectNoException(releasable);
         }
 
         @Override

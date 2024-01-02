@@ -25,8 +25,22 @@ public class NodesHotThreadsResponseTests extends ESTestCase {
     public void testGetTextChunks() {
         final var node0 = DiscoveryNodeUtils.create("node-0");
         final var node1 = DiscoveryNodeUtils.create("node-1");
-        assertEquals(
-            Strings.format("""
+        final var response = new NodesHotThreadsResponse(
+            ClusterName.DEFAULT,
+            List.of(
+
+                new NodeHotThreads(node0, ReleasableBytesReference.wrap(new BytesArray("""
+                    node 0 line 1
+                    node 0 line 2"""))),
+
+                new NodeHotThreads(node1, ReleasableBytesReference.wrap(new BytesArray("""
+                    node 1 line 1
+                    node 1 line 2""")))
+            ),
+            List.of()
+        );
+        try {
+            assertEquals(Strings.format("""
                 ::: %s
                    node 0 line 1
                    node 0 line 2
@@ -35,23 +49,9 @@ public class NodesHotThreadsResponseTests extends ESTestCase {
                    node 1 line 1
                    node 1 line 2
 
-                """, node0, node1),
-            getTextBodyContent(
-                new NodesHotThreadsResponse(
-                    ClusterName.DEFAULT,
-                    List.of(
-
-                        new NodeHotThreads(node0, ReleasableBytesReference.wrap(new BytesArray("""
-                            node 0 line 1
-                            node 0 line 2"""))),
-
-                        new NodeHotThreads(node1, ReleasableBytesReference.wrap(new BytesArray("""
-                            node 1 line 1
-                            node 1 line 2""")))
-                    ),
-                    List.of()
-                ).getTextChunks()
-            )
-        );
+                """, node0, node1), getTextBodyContent(response.getTextChunks()));
+        } finally {
+            response.decRef();
+        }
     }
 }

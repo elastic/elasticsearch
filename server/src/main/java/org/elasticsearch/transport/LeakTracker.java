@@ -296,6 +296,7 @@ public final class LeakTracker {
 
         private static final Record BOTTOM = new Record();
 
+        private final String threadName = Thread.currentThread().getName();
         private final Record next;
         private final int pos;
 
@@ -311,7 +312,7 @@ public final class LeakTracker {
 
         @Override
         public String toString() {
-            StringBuilder buf = new StringBuilder();
+            StringBuilder buf = new StringBuilder(threadName).append('\n');
             StackTraceElement[] array = getStackTrace();
             // Skip the first three elements since those are just related to the leak tracker.
             for (int i = 3; i < array.length; i++) {

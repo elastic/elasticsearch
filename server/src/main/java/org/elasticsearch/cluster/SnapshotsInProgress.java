@@ -433,6 +433,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * running shard snapshots.
      */
     public SnapshotsInProgress withUpdatedNodeIdsForRemoval(ClusterState clusterState) {
+        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED);
+
         final var updatedNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
 
         final var nodeIdsMarkedForRemoval = getNodesIdsMarkedForRemoval(clusterState);

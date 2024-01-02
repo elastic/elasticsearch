@@ -251,8 +251,12 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/data_stream/lifecycle/put"
                     )
                     .build(),
-                // Endpoint specific action responses. Kibana reads from these to display responses to the user.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.action.responses-*").privileges("read").build(),
+                // Endpoint specific action responses. Kibana reads and writes (for third party agents) to the index
+                // to display action responses to the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.action.responses-*")
+                    .privileges("auto_configure", "read", "write")
+                    .build(),
                 // Endpoint specific actions. Kibana reads and writes to this index to track new actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.actions-*")

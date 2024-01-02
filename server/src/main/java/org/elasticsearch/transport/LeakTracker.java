@@ -77,11 +77,28 @@ public final class LeakTracker {
             return releasable;
         }
         var leak = INSTANCE.track(releasable);
-        return () -> {
-            try {
-                releasable.close();
-            } finally {
-                leak.close(releasable);
+        return new Releasable() {
+            @Override
+            public void close() {
+                try {
+                    releasable.close();
+                } finally {
+                    leak.close(releasable);
+                }
+            }
+
+            @Override
+            public int hashCode() {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to need the hashCode() of a leak-tracking Releasable");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to compare a leak-tracking Releasable for equality");
             }
         };
     }
@@ -117,6 +134,20 @@ public final class LeakTracker {
             @Override
             public boolean hasReferences() {
                 return refCounted.hasReferences();
+            }
+
+            @Override
+            public int hashCode() {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to need the hashCode() of a leak-tracking RefCounted");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to compare a leak-tracking RefCounted for equality");
             }
         };
     }

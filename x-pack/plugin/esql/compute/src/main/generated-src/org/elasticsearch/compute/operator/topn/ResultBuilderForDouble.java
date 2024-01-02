@@ -24,7 +24,7 @@ class ResultBuilderForDouble implements ResultBuilder {
     ResultBuilderForDouble(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = DoubleBlock.newBlockBuilder(initialSize, blockFactory);
+        this.builder = blockFactory.newDoubleBlockBuilder(initialSize);
     }
 
     @Override

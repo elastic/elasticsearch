@@ -72,15 +72,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     /**
      * IDs of nodes which are marked for removal, or which were previously marked for removal and still have running shard snapshots.
      */
-    // When a node is marked for removal it pauses all its shard snapshots as promptly as possible. When each shard snapshot pauses it goes
-    // back to state WAITING to allow the shard to move to a different node where its snapshot can resume. However, if the removal marker is
-    // deleted before the node shuts down then we need to make sure to resume the snapshots of any remaining shards, which we do by moving
-    // all those WAITING shards back to state INIT. The problem is that the data node needs to be able to distinguish an INIT shard whose
-    // snapshot was successfully paused and now needs to be resumed from an INIT shard whose move to state WAITING has not yet been
-    // processed on the master: the latter kind of shard will move back to state WAITING in a subsequent update and so shouldn't be resumed.
-    // The solution is to wait for all the shards on the previously-shutting-down node to finish pausing before resuming any of them. We do
-    // this by tracking the nodes in this field, avoiding moving any shards back to state INIT while the node appears in this set and,
-    // conversely, we only remove nodes from this set when none of their shards are in INIT state.
+    // When a node is marked for removal it pauses all its shard snapshots as promptly as possible. When each shard snapshot pauses it
+    // enters state PAUSED_FOR_NODE_REMOVAL to allow the shard to move to a different node where its snapshot can resume. However, if the
+    // removal marker is deleted before the node shuts down then we need to make sure to resume the snapshots of any remaining shards, which
+    // we do by moving all those PAUSED_FOR_NODE_REMOVAL shards back to state INIT. The problem is that the data node needs to be able to
+    // distinguish an INIT shard whose snapshot was successfully paused and now needs to be resumed from an INIT shard whose move to state
+    // PAUSED_FOR_NODE_REMOVAL has not yet been processed on the master: the latter kind of shard will move back to PAUSED_FOR_NODE_REMOVAL
+    // in a subsequent update and so shouldn't be resumed. The solution is to wait for all the shards on the previously-shutting-down node
+    // to finish pausing before resuming any of them. We do this by tracking the nodes in this field, avoiding moving any shards back to
+    // state INIT while the node appears in this set and, conversely, we only remove nodes from this set when none of their shards are in
+    // INIT state.
     private final Set<String> nodesIdsForRemoval;
 
     public static SnapshotsInProgress get(ClusterState state) {

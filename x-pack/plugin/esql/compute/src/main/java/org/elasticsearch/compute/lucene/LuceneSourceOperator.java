@@ -149,8 +149,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntBlock leaf = null;
                 IntVector docs = null;
                 try {
-                    shard = IntBlock.newConstantBlockWith(scorer.shardIndex(), currentPagePos, blockFactory);
-                    leaf = IntBlock.newConstantBlockWith(scorer.leafReaderContext().ord, currentPagePos, blockFactory);
+                    shard = blockFactory.newConstantIntBlockWith(scorer.shardIndex(), currentPagePos);
+                    leaf = blockFactory.newConstantIntBlockWith(scorer.leafReaderContext().ord, currentPagePos);
                     docs = docsBuilder.build();
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     page = new Page(currentPagePos, new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock());

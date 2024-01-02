@@ -167,24 +167,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     }
 
     /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newIntBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newIntBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantIntBlockWith}
-     */
-    @Deprecated
-    static IntBlock newConstantBlockWith(int value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantIntBlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link IntBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.IntBuilder permits IntBlockBuilder {

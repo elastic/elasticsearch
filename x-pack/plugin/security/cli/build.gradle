@@ -10,8 +10,8 @@ base {
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
-  api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
   testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
     // this is provided by the runtime classpath, from the security project
     exclude group: "com.google.guava", module: "guava"
@@ -31,11 +31,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    // Used in org.bouncycastle.pqc.crypto.qtesla.QTeslaKeyEncodingTests
-    'junit.framework.Assert',
-    'junit.framework.TestCase'
-  )
+  ignoreMissingClasses()
 }
 
 if (BuildParams.inFipsJvm) {

@@ -327,12 +327,15 @@ public class RandomSearchRequestGenerator {
                 }
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput());
-                parser.nextToken();
-                parser.nextToken();
-                parser.nextToken();
-                builder.searchAfter(SearchAfterBuilder.fromXContent(parser).getSortValues());
+                try (
+                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                        .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput())
+                ) {
+                    parser.nextToken();
+                    parser.nextToken();
+                    parser.nextToken();
+                    builder.searchAfter(SearchAfterBuilder.fromXContent(parser).getSortValues());
+                }
             } catch (IOException e) {
                 throw new RuntimeException("Error building search_from", e);
             }

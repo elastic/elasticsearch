@@ -43,6 +43,10 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secrets));
     }
 
+    public HuggingFaceEmbeddingsModel(HuggingFaceEmbeddingsModel model, HuggingFaceServiceSettings serviceSettings) {
+        this(model.getModelId(), model.getTaskType(), model.getConfigurations().getService(), serviceSettings, model.getSecretSettings());
+    }
+
     @Override
     public HuggingFaceServiceSettings getServiceSettings() {
         return (HuggingFaceServiceSettings) super.getServiceSettings();
@@ -61,6 +65,11 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
     @Override
     public SecureString getApiKey() {
         return getSecretSettings().apiKey();
+    }
+
+    @Override
+    public Integer getTokenLimit() {
+        return getServiceSettings().maxInputTokens();
     }
 
     @Override

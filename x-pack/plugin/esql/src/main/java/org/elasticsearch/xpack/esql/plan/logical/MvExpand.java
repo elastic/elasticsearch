@@ -22,7 +22,7 @@ public class MvExpand extends UnaryPlan {
     private final NamedExpression target;
     private final Attribute expanded;
 
-    private final List<Attribute> output;
+    private List<Attribute> output;
 
     private final int limit;
 
@@ -66,6 +66,9 @@ public class MvExpand extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
+        if (output == null) {
+            output = calculateOutput(child().output(), target, expanded);
+        }
         return output;
     }
 

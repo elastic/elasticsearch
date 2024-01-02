@@ -328,14 +328,14 @@ base:integer | exponent:double | s:double
 // end::powID-sqrt-result[]
 ;
 
-powSqrtNeg#[skip:-8.11.99,reason:return type changed in 8.12]
+powSqrtNeg#[skip:-8.12.99,reason:warning message changed in 8.13]
 // tag::powNeg-sqrt[]
 ROW base = -4, exponent = 0.5
 | EVAL s = POW(base, exponent)
 // end::powNeg-sqrt[]
 ;
 warning:Line 2:12: evaluation of [POW(base, exponent)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:12: java.lang.ArithmeticException: invalid result when computing pow
+warning:Line 2:12: java.lang.ArithmeticException: not a finite double number: NaN
 
 // tag::powNeg-sqrt-result[]
 base:integer | exponent:double | s:double
@@ -407,10 +407,10 @@ x:double
 1.0
 ;
 
-powIntULOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
+powIntULOverrun#[skip:-8.12.99,reason:warning message changed in 8.13]
 row x = pow(2, 9223372036854775808);
 warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:9: java.lang.ArithmeticException: invalid result when computing pow
+warning:Line 1:9: java.lang.ArithmeticException: not a finite double number: Infinity
 
 x:double
 null
@@ -1117,4 +1117,35 @@ emp_no:integer | min_plus_max:integer | are_equal:boolean
          10003 |                    6 | false
          10004 |                    7 | false
          10005 |                    3 | false
+;
+
+docsAbs
+//tag::docsAbs[]
+ROW number = -1.0 
+| EVAL abs_number = ABS(number)
+//end::docsAbs[]
+;
+
+//tag::docsAbs-result[]
+number:double  |  abs_number:double
+-1.0           |1.0    
+//end::docsAbs-result[]
+;
+
+docsAbsEmployees
+//tag::docsAbsEmployees[]
+FROM employees
+| KEEP first_name, last_name, height
+| EVAL abs_height = ABS(0.0 - height)
+//end::docsAbsEmployees[]
+| SORT first_name
+| LIMIT 3
+;
+
+//tag::docsAbsEmployees-result[]
+first_name:keyword   |   last_name:keyword | height:double  |  abs_height:double
+Alejandro      |McAlpine       |1.48           |1.48           
+Amabile        |Gomatam        |2.09           |2.09           
+Anneke         |Preusig        |1.56           |1.56     
+//end::docsAbsEmployees-result[]
 ;

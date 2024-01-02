@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -40,7 +40,7 @@ public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final var req = resolveVotingConfigExclusionsRequest(request);
-        return channel -> client.execute(ClearVotingConfigExclusionsAction.INSTANCE, req, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportClearVotingConfigExclusionsAction.TYPE, req, new RestToXContentListener<>(channel));
     }
 
     static ClearVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {

@@ -1,12 +1,11 @@
 {
   "connector_sync_job.update_stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/set-connector-sync-job-stats-api.html",
       "description": "Updates the stats fields in the connector sync job document."
     },
     "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "es.connector_api_feature_flag_enabled",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

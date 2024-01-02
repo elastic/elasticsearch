@@ -333,6 +333,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103790")
     public void testStepChange() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
         double[] bucketValues = DoubleStream.concat(

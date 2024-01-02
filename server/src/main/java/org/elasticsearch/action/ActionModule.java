@@ -105,10 +105,8 @@ import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.delete.TransportDeleteDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.find.TransportFindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
@@ -776,10 +774,10 @@ public class ActionModule extends AbstractModule {
         actions.register(RetentionLeaseActions.REMOVE, RetentionLeaseActions.TransportRemoveAction.class);
 
         // Dangling indices
-        actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);
+        actions.register(TransportListDanglingIndicesAction.TYPE, TransportListDanglingIndicesAction.class);
         actions.register(TransportImportDanglingIndexAction.TYPE, TransportImportDanglingIndexAction.class);
         actions.register(TransportDeleteDanglingIndexAction.TYPE, TransportDeleteDanglingIndexAction.class);
-        actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
+        actions.register(TransportFindDanglingIndexAction.TYPE, TransportFindDanglingIndexAction.class);
 
         // internal actions
         actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);

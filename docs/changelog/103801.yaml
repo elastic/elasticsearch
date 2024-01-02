@@ -1,0 +1,5 @@
+pr: 103801
+summary: Upgrade Bouncy Castle jars for plugin cli
+area: "FIPS, Security"
+type: upgrade
+issues: []

@@ -121,6 +121,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                 indexRequest.setPipeline(pipelineName);
                 indexRequest.source(Map.of(MATCH_FIELD, keys.get(i)));
                 bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
@@ -176,6 +177,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                 )
             );
             client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             client().admin().indices().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();
         }
 
@@ -214,6 +216,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             indexRequest.setPipeline(pipelineName);
             indexRequest.source(Map.of(matchField, "37.386444, -122.083863")); // point within match boundary
             bulkRequest.add(indexRequest);
+            indexRequest.decRef();
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
             assertThat(bulkResponse.getItems().length, equalTo(1));
@@ -245,6 +248,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             IndexRequest indexRequest = new IndexRequest("source-" + i);
             indexRequest.source("key", "key", "value", "val" + i);
             client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             client().admin().indices().refresh(new RefreshRequest("source-" + i)).actionGet();
 
             EnrichPolicy enrichPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source-" + i), "key", List.of("value"));
@@ -268,6 +272,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                 indexRequest.setPipeline("pipeline" + i);
                 indexRequest.source(Map.of("key", "key"));
                 bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
@@ -289,6 +294,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             IndexRequest indexRequest = new IndexRequest(sourceIndexName);
             indexRequest.source("key", "key", "value", "val1");
             client().index(indexRequest).actionGet();
+            indexRequest.decRef();
             client().admin().indices().refresh(new RefreshRequest(sourceIndexName)).actionGet();
         }
 
@@ -327,6 +333,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                 indexRequest.setPipeline(pipelineName);
                 indexRequest.source(Map.of("key", "key"));
                 bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
@@ -367,6 +374,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             .setPipeline(pipelineName)
             .source(Map.of("indirection1", MATCH_FIELD, "indirection2", "users", MATCH_FIELD, keys.get(0)));
         client().index(indexRequest).get();
+        indexRequest.decRef();
         GetResponse getResponse = client().get(new GetRequest("my-index", "1")).actionGet();
         Map<String, Object> source = getResponse.getSourceAsMap();
         Map<?, ?> userEntry = (Map<?, ?>) source.get("users");
@@ -407,6 +415,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                 .setPipeline(pipelineName)
                 .source(Map.of(MATCH_FIELD, "non_existing"));
             Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            indexRequest.decRef();
             assertThat(e.getMessage(), equalTo("field [users] not present as part of path [users]"));
         }
     }
@@ -425,6 +434,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                     Map.of(MATCH_FIELD, key, DECORATE_FIELDS[0], key + "0", DECORATE_FIELDS[1], key + "1", DECORATE_FIELDS[2], key + "2")
                 );
                 client().index(indexRequest).actionGet();
+                indexRequest.decRef();
             }
         }
         client().admin().indices().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();

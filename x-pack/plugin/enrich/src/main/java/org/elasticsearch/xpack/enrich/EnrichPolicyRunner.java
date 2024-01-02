@@ -478,7 +478,7 @@ public class EnrichPolicyRunner implements Runnable {
         reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
 
-        client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new DelegatingActionListener<>(listener) {
+        client.execute(EnrichReindexAction.INSTANCE, reindexRequest, ActionListener.runAfter(new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 // Do we want to fail the request if there were failures during the reindex process?
@@ -533,7 +533,7 @@ public class EnrichPolicyRunner implements Runnable {
                     forceMergeEnrichIndex(destinationIndexName, 1);
                 }
             }
-        });
+        }, reindexRequest::decRef));
     }
 
     private void forceMergeEnrichIndex(final String destinationIndexName, final int attempt) {

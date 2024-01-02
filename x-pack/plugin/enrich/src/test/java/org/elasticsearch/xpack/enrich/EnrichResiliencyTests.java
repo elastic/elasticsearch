@@ -67,12 +67,13 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         String enrichPolicyName = "enrich_policy_" + testSuffix;
         String enrichPipelineName = "enrich_pipeline_" + testSuffix;
         String enrichedIndexName = "enrich_results_" + testSuffix;
-
-        client().index(
-            new IndexRequest(enrichIndexName).source(
+        {
+            IndexRequest indexRequest = new IndexRequest(enrichIndexName).source(
                 JsonXContent.contentBuilder().startObject().field("my_key", "key").field("my_value", "data").endObject()
-            )
-        ).actionGet();
+            );
+            client().index(indexRequest).actionGet();
+            indexRequest.decRef();
+        }
 
         client().admin().indices().refresh(new RefreshRequest(enrichIndexName)).actionGet();
 
@@ -133,7 +134,9 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         try (BulkRequest bulk = new BulkRequest(enrichedIndexName)) {
             bulk.timeout(new TimeValue(10, TimeUnit.SECONDS));
             for (int idx = 0; idx < 50; idx++) {
-                bulk.add(new IndexRequest().source(doc).setPipeline(enrichPipelineName));
+                IndexRequest indexRequest = new IndexRequest().source(doc).setPipeline(enrichPipelineName);
+                bulk.add(indexRequest);
+                indexRequest.decRef();
             }
 
             BulkResponse bulkItemResponses = client().bulk(bulk).actionGet(new TimeValue(30, TimeUnit.SECONDS));
@@ -168,11 +171,13 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         String enrichPipelineName1 = enrichPipelineName + "_1";
         String enrichPipelineName2 = enrichPipelineName + "_2";
 
-        client().index(
-            new IndexRequest(enrichIndexName).source(
+        {
+            IndexRequest indexRequest = new IndexRequest(enrichIndexName).source(
                 JsonXContent.contentBuilder().startObject().field("my_key", "key").field("my_value", "data").endObject()
-            )
-        ).actionGet();
+            );
+            client().index(indexRequest).actionGet();
+            indexRequest.decRef();
+        }
 
         client().admin().indices().refresh(new RefreshRequest(enrichIndexName)).actionGet();
 
@@ -257,7 +262,9 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         try (BulkRequest bulk = new BulkRequest(enrichedIndexName)) {
             bulk.timeout(new TimeValue(10, TimeUnit.SECONDS));
             for (int idx = 0; idx < 50; idx++) {
-                bulk.add(new IndexRequest().source(doc).setPipeline(enrichPipelineName1));
+                IndexRequest indexRequest = new IndexRequest().source(doc).setPipeline(enrichPipelineName1);
+                bulk.add(indexRequest);
+                indexRequest.decRef();
             }
 
             BulkResponse bulkItemResponses = client().bulk(bulk).actionGet(new TimeValue(30, TimeUnit.SECONDS));

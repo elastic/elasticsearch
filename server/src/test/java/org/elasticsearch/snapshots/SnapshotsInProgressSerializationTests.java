@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -56,7 +57,37 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         for (int i = 0; i < numberOfSnapshots; i++) {
             snapshotsInProgress = snapshotsInProgress.withAddedEntry(randomSnapshot());
         }
+
+        final var nodeIdsForRemoval = randomList(3, ESTestCase::randomUUID);
+        if (nodeIdsForRemoval.isEmpty() == false) {
+            snapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(
+                getClusterStateWithNodeShutdownMetadata(nodeIdsForRemoval)
+            );
+        }
+
         return snapshotsInProgress;
+    }
+
+    private ClusterState getClusterStateWithNodeShutdownMetadata(List<String> nodeIdsForRemoval) {
+        return ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
+            mdb -> mdb.putCustom(
+                NodesShutdownMetadata.TYPE,
+                new NodesShutdownMetadata(
+                    nodeIdsForRemoval.stream()
+                        .collect(
+                            Collectors.toMap(
+                                Function.identity(),
+                                nodeId -> SingleNodeShutdownMetadata.builder()
+                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                    .setNodeId(nodeId)
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setReason(getTestName())
+                                    .build()
+                            )
+                        )
+                )
+            )
+        );
     }
 
     private Entry randomSnapshot() {
@@ -173,20 +204,30 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     @Override
     protected Custom mutateInstance(Custom instance) {
         final SnapshotsInProgress snapshotsInProgress = (SnapshotsInProgress) instance;
-        if (snapshotsInProgress.isEmpty()) {
-            // add or remove an entry
-            return snapshotsInProgress.withAddedEntry(randomSnapshot());
+        if (randomBoolean()) {
+            if (snapshotsInProgress.isEmpty()) {
+                // add an entry
+                return snapshotsInProgress.withAddedEntry(randomSnapshot());
+            } else {
+                // mutate or remove an entry
+                final String repo = randomFrom(
+                    snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::repository).collect(Collectors.toSet())
+                );
+                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
+                int index = randomIntBetween(0, forRepo.size() - 1);
+                Entry entry = forRepo.get(index);
+                final List<Entry> updatedEntries = new ArrayList<>(forRepo);
+                if (randomBoolean()) {
+                    updatedEntries.set(index, mutateEntry(entry));
+                } else {
+                    updatedEntries.remove(index);
+                }
+                return snapshotsInProgress.withUpdatedEntriesForRepo(repo, updatedEntries);
+            }
         } else {
-            // mutate an entry
-            final String repo = randomFrom(
-                snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::repository).collect(Collectors.toSet())
+            return snapshotsInProgress.withUpdatedNodeIdsForRemoval(
+                getClusterStateWithNodeShutdownMetadata(randomList(1, 3, ESTestCase::randomUUID))
             );
-            final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
-            int index = randomIntBetween(0, forRepo.size() - 1);
-            Entry entry = forRepo.get(index);
-            final List<Entry> updatedEntries = new ArrayList<>(forRepo);
-            updatedEntries.set(index, mutateEntry(entry));
-            return snapshotsInProgress.withUpdatedEntriesForRepo(repo, updatedEntries);
         }
     }
 

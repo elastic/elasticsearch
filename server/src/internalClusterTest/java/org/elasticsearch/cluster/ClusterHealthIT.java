@@ -46,8 +46,8 @@ public class ClusterHealthIT extends ESIntegTestCase {
                 .prepareHealth()
                 .setLocal(true)
                 .setWaitForEvents(Priority.LANGUID)
-                .setTimeout("30s")
-                .get("10s");
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .get(TimeValue.timeValueSeconds(10));
             logger.info("--> got cluster health on [{}]", node);
             assertFalse("timed out on " + node, health.isTimedOut());
             assertThat("health status on " + node, health.getStatus(), equalTo(ClusterHealthStatus.GREEN));

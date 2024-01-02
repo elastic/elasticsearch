@@ -102,15 +102,6 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     }
 
     /**
-     * Creates a builder that grows as needed.
-     * @deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
-     */
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newBytesRefVectorBuilder(estimatedSize);
-    }
-
-    /**
      * A builder that grows as needed.
      */
     sealed interface Builder extends Vector.Builder permits BytesRefVectorBuilder {

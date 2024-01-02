@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
@@ -25,7 +26,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 
 public class TextFormatterTests extends ESTestCase {
 
-    static BlockFactory blockFactory = BlockFactory.getNonBreakingInstance();
+    static BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     private final List<ColumnInfo> columns = Arrays.asList(
         new ColumnInfo("foo", "keyword"),

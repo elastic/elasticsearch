@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_
  * multiple master-eligible nodes are reporting the same information. The es.ml.is_master attribute in the records
  * indicates which one was actually master, so can be used to deduplicate.
  */
-public class MlMetrics extends AbstractLifecycleComponent implements ClusterStateListener {
+public final class MlMetrics extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlMetrics.class);
 

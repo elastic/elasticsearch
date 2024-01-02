@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockBuilder;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -177,12 +178,12 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
+    protected ByteSizeValue memoryLimitForSimple() {
         /*
          * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker. So 775 is the max on this range.
+         * trip the breaker.
          */
-        return ByteSizeValue.ofBytes(between(1, 775));
+        return ByteSizeValue.ofBytes(775);
     }
 
     public void testRamBytesUsed() {
@@ -369,7 +370,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     private void testCompare(Page page, ElementType elementType, TopNEncoder encoder) {
-        Block nullBlock = BlockFactory.getNonBreakingInstance().newConstantNullBlock(1);
+        Block nullBlock = TestBlockFactory.getNonBreakingInstance().newConstantNullBlock(1);
         Page nullPage = new Page(new Block[] { nullBlock, nullBlock, nullBlock, nullBlock, nullBlock });
 
         for (int b = 0; b < page.getBlockCount(); b++) {

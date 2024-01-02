@@ -294,6 +294,9 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final Set<String> osSet
     ) {
         try {
+            // Ensure the test specific initialization is run by calling it explicitly (@Before annotations on base-derived class may
+            // be called in a different order)
+            initSearchClient();
             // Reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
             var searchOs = readOsFromNodesInfo(adminSearchClient);
             var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);

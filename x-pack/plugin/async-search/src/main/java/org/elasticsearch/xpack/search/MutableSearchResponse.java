@@ -54,7 +54,11 @@ class MutableSearchResponse {
      */
     private Supplier<InternalAggregations> reducedAggsSource = () -> null;
     private int reducePhase;
-    private boolean finalReduce; // TODO: document me
+    // tracks whether the local cluster results have completed (undergone a final reduce)
+    // this is needed since we do partial aggs reductions even for CCS with minimize_roundtrips=true
+    // and in that case we need to know whether to use the partial aggs reduction result or if the
+    // local full cluster results are present (in the SearchResponseMerger)
+    private boolean localFinalReduce;
     /**
      * The response produced by the search API. Once we receive it we stop
      * building our own {@linkplain SearchResponse}s when get async search
@@ -63,7 +67,6 @@ class MutableSearchResponse {
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
-    private SearchResponseMerger searchResponseMerger; // used for CCS minimize_roundtrips
 
     /**
      * Set to true when the final SearchResponse has been received
@@ -90,10 +93,6 @@ class MutableSearchResponse {
         this.totalHits = EMPTY_TOTAL_HITS;
     }
 
-    public void setSearchResponseMerger(SearchResponseMerger searchResponseMerger) {
-        this.searchResponseMerger = searchResponseMerger;
-    }
-
     /**
      * Updates the response with the result of a partial reduction.
      * @param reducedAggs is a strategy for producing the reduced aggs
@@ -117,7 +116,7 @@ class MutableSearchResponse {
         this.totalHits = totalHits;
         this.reducedAggsSource = reducedAggs;
         this.reducePhase = reducePhase;
-        this.finalReduce = finalReduce;
+        this.localFinalReduce = finalReduce;
     }
 
     /**
@@ -207,25 +206,35 @@ class MutableSearchResponse {
             // An error occurred before we got the shard list
             searchResponse = null;
         } else {
-            /*
-             * MP TODO: UPDATE THIS DOCUMENTATION TO MATCH NEW LOGIC
-             * Build the response, reducing aggs if we haven't already and
-             * storing the result of the reduction, so we won't have to reduce
-             * the same aggregation results a second time if nothing has changed.
-             * This does cost memory because we have a reference to the finally
-             * reduced aggs sitting around which can't be GCed until we get an update.
-             */
-            if (searchResponseMerger == null) {
+            // partial results branch
+            SearchResponseMerger searchResponseMerger = task.getSearchResponseMerger();
+            if (searchResponseMerger == null) { // local-only search or CCS MRT=false
+                /*
+                 * Build the response, reducing aggs if we haven't already and
+                 * storing the result of the reduction, so we won't have to reduce
+                 * the same aggregation results a second time if nothing has changed.
+                 * This does cost memory because we have a reference to the finally
+                 * reduced aggs sitting around which can't be GCed until we get an update.
+                 */
                 InternalAggregations reducedAggs = reducedAggsSource.get();
                 reducedAggsSource = () -> reducedAggs;
                 searchResponse = buildResponse(task.getStartTimeNanos(), reducedAggs);
-            } else if (finalReduce == false) {
+            } else if (localFinalReduce == false) {
+                /*
+                 * For CCS MRT=true and the local cluster has reported back only partial results
+                 * (subset of shards), so use SearchResponseMerger to do a merge of any full results that
+                 * have come in from remote clusters and the partial results of the local cluster
+                 */
                 InternalAggregations reducedAggs = reducedAggsSource.get();
                 reducedAggsSource = () -> reducedAggs;
                 // TODO: check that this just returns the partial aggs response passed in if SearchResponseMerger
                 // has no other full SearchResponses
                 searchResponse = searchResponseMerger.getMergedResponse(clusters, buildResponse(task.getStartTimeNanos(), reducedAggs));
             } else {
+                /*
+                 * For CCS MRT=true and the local cluster has reported back only full results (final reduce),
+                 * which are held in the SearchResponseMerger, so just use those results
+                 */
                 searchResponse = searchResponseMerger.getMergedResponse(clusters);
             }
         }

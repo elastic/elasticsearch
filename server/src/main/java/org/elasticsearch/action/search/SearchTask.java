@@ -57,7 +57,10 @@ public class SearchTask extends CancellableTask {
         return progressListener;
     }
 
-    public Supplier<SearchResponseMerger> getSearchResponseMergerSupplier(
+    /**
+     * @return a Supplier that provides SearchResponseMerger. Needed for CCS minimize_roundtrips=true.
+     */
+    protected Supplier<SearchResponseMerger> getSearchResponseMergerSupplier(
         SearchSourceBuilder source,
         TransportSearchAction.SearchTimeProvider timeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder

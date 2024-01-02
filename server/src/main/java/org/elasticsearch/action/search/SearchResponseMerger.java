@@ -98,7 +98,7 @@ public final class SearchResponseMerger implements Releasable {
      * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
-    public void add(SearchResponse searchResponse) {
+    void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponse.mustIncRef();
         searchResponses.add(searchResponse);
@@ -109,15 +109,28 @@ public final class SearchResponseMerger implements Releasable {
     }
 
     /**
-     * Returns the merged response of all SearchResponses received so far. This can be called at any point,
+     * Returns the merged response of all SearchResponses received so far. Can be called at any point,
      * including when only some clusters have finished, in order to get "incremental" partial results.
+     * @param clusters The Clusters object for the search to report on the status of each cluster
+     *                 involved in the cross-cluster search
+     * @return merged response
      */
     public SearchResponse getMergedResponse(Clusters clusters) {
         return getMergedResponse(clusters, null);
     }
 
     /**
-     * TODO: DOCUMENT ME
+     * Returns the merged response of all SearchResponses received so far as well as merging in the
+     * additional SearchResponse provided. Can be called at any point, including when only some clusters
+     * have finished, in order to get "incremental" partial results.
+     * @param clusters The Clusters object for the search to report on the status of each cluster
+     *                 involved in the cross-cluster search
+     * @param additionalResponse An additional SearchResponse not held by the SearchResponseMerger to be
+     *                           merged in with all the responses the SearchResponseMerger currently
+     *                           holds (useful for mergining in partial aggs from the local cluster).
+     *                           This additionalResponse will NOT be retained by the SearchResponseMerger.
+     *                           Use 'add' to have it retain the SearchResponse.
+     * @return merged response
      */
     public SearchResponse getMergedResponse(Clusters clusters, SearchResponse additionalResponse) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,

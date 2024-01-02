@@ -74,7 +74,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
     private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
-    private SearchResponseMerger searchResponseMerger;
+    private SearchResponseMerger searchResponseMerger; // used for CCS minimize_roundtrips
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -136,22 +136,19 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     @Override
-    public Supplier<SearchResponseMerger> getSearchResponseMergerSupplier(
+    protected Supplier<SearchResponseMerger> getSearchResponseMergerSupplier(
         SearchSourceBuilder source,
         TransportSearchAction.SearchTimeProvider timeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder
     ) {
         return () -> {
             searchResponseMerger = SearchTask.createSearchResponseMerger(source, timeProvider, aggReduceContextBuilder);
-            MutableSearchResponse mutableSearchResponse = searchResponse.get();
-            // when a remote-only CCS is done (no local shards), then onListShards is called BEFORE
-            // getSearchResponseMergerSupplier, so check if the MutableSearchResponse has been created
-            // and if so, set the SearchResponseMerger
-            if (mutableSearchResponse != null) {
-                mutableSearchResponse.setSearchResponseMerger(searchResponseMerger);
-            }
             return searchResponseMerger;
         };
+    }
+
+    public SearchResponseMerger getSearchResponseMerger() {
+        return searchResponseMerger;
     }
 
     /**
@@ -464,7 +461,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 clusters,
                 threadPool.getThreadContext()
             );
-            mutableSearchResponse.setSearchResponseMerger(searchResponseMerger); // MP TODO: should we just add this to the ctor?
             searchResponse.compareAndSet(null, mutableSearchResponse);
 
             executeInitListeners();

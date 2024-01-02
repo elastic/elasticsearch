@@ -22,6 +22,14 @@ dependencies {
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 }
 
+configurations.configureEach {
+  resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+    if (details.requested.group == 'org.bouncycastle' && details.requested.name == 'bc-fips') {
+        details.useVersion '1.0.2.4' // to avoid jar hell
+    }
+  }
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'
 }

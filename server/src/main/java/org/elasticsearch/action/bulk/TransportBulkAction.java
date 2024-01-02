@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -390,52 +391,35 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         long startTime
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
+        // Optimizing when there are no prerequisite actions
         if (autoCreateIndices.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
-        } else {
-            final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
+            return;
+        }
+        Runnable executeBulkRunnable = () -> threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+            }
+        });
+        try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             for (String index : autoCreateIndices) {
-                createIndex(index, bulkRequest.timeout(), new ActionListener<>() {
-                    @Override
-                    public void onResponse(CreateIndexResponse result) {
-                        if (counter.decrementAndGet() == 0) {
-                            forkExecuteBulk(listener);
+                createIndex(index, bulkRequest.timeout(), refs.acquireListener().delegateResponse((l, e) -> {
+                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException indexNotFoundException) {
+                        synchronized (indicesThatCannotBeCreated) {
+                            indicesThatCannotBeCreated.put(index, indexNotFoundException);
                         }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof IndexNotFoundException indexNotFoundException) {
-                            synchronized (indicesThatCannotBeCreated) {
-                                indicesThatCannotBeCreated.put(index, indexNotFoundException);
-                            }
-                        } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
-                            // fail all requests involving this index, if create didn't work
-                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                    bulkRequest.requests.set(i, null);
-                                }
+                    } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
+                        // fail all requests involving this index, if create didn't work
+                        for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                            DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                bulkRequest.requests.set(i, null);
                             }
                         }
-                        if (counter.decrementAndGet() == 0) {
-                            forkExecuteBulk(ActionListener.wrap(listener::onResponse, inner -> {
-                                inner.addSuppressed(e);
-                                listener.onFailure(inner);
-                            }));
-                        }
                     }
-
-                    private void forkExecuteBulk(ActionListener<BulkResponse> finalListener) {
-                        threadPool.executor(executorName).execute(new ActionRunnable<>(finalListener) {
-                            @Override
-                            protected void doRun() {
-                                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
-                            }
-                        });
-                    }
-                });
+                }).map(response -> null));
             }
         }
     }

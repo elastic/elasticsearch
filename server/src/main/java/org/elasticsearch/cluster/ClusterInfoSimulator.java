@@ -44,6 +44,10 @@ public class ClusterInfoSimulator {
         this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
     }
 
+    /**
+     * This deducts the sizes for partially initialized shards from the disk space
+     * as later on a full shard size is going to be added when simulating shard starting
+     */
     private static Map<String, DiskUsage> getAdjustedDiskSpace(
         ClusterInfo clusterInfo,
         Function<ClusterInfo, Map<String, DiskUsage>> getter

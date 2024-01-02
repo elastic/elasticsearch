@@ -2,6 +2,7 @@ setup:
   - skip:
       version: " - 8.11.99"
       reason: Introduced in 8.12.0
+
   - do:
       connector.put:
         connector_id: test-connector
@@ -20,7 +21,9 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set: { id: id }
+
   - do:
       connector_sync_job.update_stats:
         connector_sync_job_id: $id
@@ -29,8 +32,15 @@ setup:
           indexed_document_count: 20
           indexed_document_volume: 1000
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { deleted_document_count: 10 }
+  - match: { indexed_document_count: 20 }
+  - match: { indexed_document_volume: 1000 }
 
 ---
 "Update the ingestion stats for a connector sync job - negative deleted document count error":
@@ -40,7 +50,9 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set: { id: id }
+
   - do:
       connector_sync_job.update_stats:
         connector_sync_job_id: $id
@@ -50,7 +62,6 @@ setup:
           indexed_document_volume: 1000
       catch: bad_request
 
-
 ---
 "Update the ingestion stats for a connector sync job - negative indexed document count error":
   - do:
@@ -59,7 +70,9 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set: { id: id }
+
   - do:
       connector_sync_job.update_stats:
         connector_sync_job_id: $id
@@ -69,7 +82,6 @@ setup:
           indexed_document_volume: 1000
       catch: bad_request
 
-
 ---
 "Update the ingestion stats for a connector sync job - negative indexed document volume error":
   - do:
@@ -78,7 +90,9 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set: { id: id }
+
   - do:
       connector_sync_job.update_stats:
         connector_sync_job_id: $id
@@ -96,7 +110,9 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set: { id: id }
+
   - do:
       connector_sync_job.update_stats:
         connector_sync_job_id: $id
@@ -115,7 +131,9 @@ setup:
           id: test-connector
           job_type: full
           trigger_method: on_demand
+
   - set: { id: id }
+
   - do:
       connector_sync_job.update_stats:
         connector_sync_job_id: $id
@@ -125,8 +143,16 @@ setup:
           indexed_document_volume: 1000
           total_document_count: 20
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
 
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { deleted_document_count: 10 }
+  - match: { indexed_document_count: 20 }
+  - match: { indexed_document_volume: 1000 }
+  - match: { total_document_count: 20 }
 
 ---
 "Update the ingestion stats for a connector sync job - with optional last_seen":
@@ -137,6 +163,7 @@ setup:
           job_type: full
           trigger_method: on_demand
   - set: { id: id }
+
   - do:
       connector_sync_job.update_stats:
         connector_sync_job_id: $id
@@ -146,7 +173,16 @@ setup:
           indexed_document_volume: 1000
           last_seen: 2023-12-04T08:45:50.567149Z
 
-  - match: { acknowledged: true }
+  - match: { result: updated }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { deleted_document_count: 10 }
+  - match: { indexed_document_count: 20 }
+  - match: { indexed_document_volume: 1000 }
+  - match: { last_seen: 2023-12-04T08:45:50.567149Z }
 
 ---
 "Update the ingestion stats for a Connector Sync Job - Connector Sync Job does not exist":

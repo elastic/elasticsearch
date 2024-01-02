@@ -70,13 +70,4 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }
-
-    @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
-    }
 }

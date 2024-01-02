@@ -12,6 +12,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
   api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  api "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
   testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
     // this is provided by the runtime classpath, from the security project
     exclude group: "com.google.guava", module: "guava"

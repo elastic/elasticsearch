@@ -363,14 +363,14 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                 IllegalArgumentException.class,
                 () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(-1, 0.0f, false))
             );
-            assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100.0], got -1", e.getMessage());
+            assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got -1", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(101, 0.0f, false))
             );
-            assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100.0], got 101", e.getMessage());
+            assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got 101", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(

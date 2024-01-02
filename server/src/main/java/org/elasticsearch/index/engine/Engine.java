@@ -1881,8 +1881,12 @@ public abstract class Engine implements Closeable {
         return ensureOpenRefs.hasReferences();
     }
 
+    protected final boolean isClosing() {
+        return isClosing.get();
+    }
+
     protected final Releasable acquireEnsureOpenRef() {
-        if (isClosing.get() || ensureOpenRefs.tryIncRef() == false) {
+        if (isClosing() || ensureOpenRefs.tryIncRef() == false) {
             ensureOpen(); // throws "engine is closed" exception if we're actually closed, otherwise ...
             throw new AlreadyClosedException(shardId + " engine is closing", failedEngine.get());
         }

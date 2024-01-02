@@ -41,7 +41,10 @@ public class BlockFactory {
         this(breaker, bigArrays, maxPrimitiveArraySize, null);
     }
 
-    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
+    protected BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
+        assert breaker instanceof LocalCircuitBreaker == false
+            || (parent != null && ((LocalCircuitBreaker) breaker).parentBreaker() == parent.breaker)
+            : "use local breaker without parent block factory";
         this.breaker = breaker;
         this.bigArrays = bigArrays;
         this.parent = parent;

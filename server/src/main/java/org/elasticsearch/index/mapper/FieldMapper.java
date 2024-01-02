@@ -485,6 +485,10 @@ public abstract class FieldMapper extends Mapper {
             public int mapperSize() {
                 return mapperBuilders.size();
             }
+
+            public void clear() {
+                mapperBuilders.clear();
+            }
         }
 
         private final FieldMapper[] mappers;

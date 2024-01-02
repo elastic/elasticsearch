@@ -209,9 +209,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> force allocation of stale copy to node that does not have shard copy");
         Throwable iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareReroute()
-                .add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true))
-                .get()
+            clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true))
         );
         assertThat(iae.getMessage(), equalTo("No data for shard [0] of index [test] found on any node"));
 
@@ -345,9 +343,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String nodeWithoutData = nodeNames.get(0);
         Throwable iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareReroute()
-                .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
-                .get()
+            clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
         );
         assertThat(
             iae.getMessage(),
@@ -365,9 +361,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final int shardId = 0;
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareReroute()
-                .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
-                .get()
+            clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
         );
         assertThat(iae.getMessage(), equalTo("[allocate_stale_primary] primary [" + idxName + "][" + shardId + "] is already assigned"));
     }
@@ -378,7 +372,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String idxName = "test";
         IndexNotFoundException ex = expectThrows(
             IndexNotFoundException.class,
-            () -> clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, 0, dataNode, true)).get()
+            clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, 0, dataNode, true))
         );
         assertThat(ex.getIndex().getName(), equalTo(idxName));
     }

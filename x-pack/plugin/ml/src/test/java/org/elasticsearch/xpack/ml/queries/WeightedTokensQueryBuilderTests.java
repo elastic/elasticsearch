@@ -363,14 +363,14 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                 IllegalArgumentException.class,
                 () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(-1, 0.0f, false))
             );
-            assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got -1", e.getMessage());
+            assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got -1.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(101, 0.0f, false))
             );
-            assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got 101", e.getMessage());
+            assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got 101.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
@@ -405,7 +405,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                       "foo": 0.42
                   },
                   "pruning_config": {
-                    "tokens_freq_ratio_threshold": 4,
+                    "tokens_freq_ratio_threshold": 4.0,
                     "tokens_weight_threshold": 0.4
                     }
                  }
@@ -423,7 +423,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                       "foo": 0.42
                   },
                   "pruning_config": {
-                    "tokens_freq_ratio_threshold": 4,
+                    "tokens_freq_ratio_threshold": 4.0,
                     "tokens_weight_threshold": 0.4,
                     "only_score_pruned_tokens": true
                     }

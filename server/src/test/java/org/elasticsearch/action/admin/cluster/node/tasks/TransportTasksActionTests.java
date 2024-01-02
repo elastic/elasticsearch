@@ -697,7 +697,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         cancellationFuture.actionGet();
         logger.info("Parent task is now cancelled counting down task latch");
         taskLatch.countDown();
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
 
         // Release all node tasks and wait for response
         checkLatch.countDown();
@@ -775,7 +775,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.ensureUnreachable();
         }
 
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
 
         blockedActionLatch.countDown();
         NodesResponse responses = future.get(10, TimeUnit.SECONDS);
@@ -848,7 +848,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.ensureUnreachable();
         }
 
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
     }
 
     public void testTaskLevelActionFailures() throws Exception {

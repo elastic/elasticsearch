@@ -86,22 +86,20 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
             .threadElementsSnapshotCount(request.request.snapshots)
             .ignoreIdleThreads(request.request.ignoreIdleThreads);
         final var out = transportService.newNetworkBytesStream();
+        final var trackedResource = LeakTracker.wrap(out);
         var success = false;
         try {
             try (var writer = new OutputStreamWriter(Streams.flushOnCloseStream(out), StandardCharsets.UTF_8)) {
                 hotThreads.detect(writer);
             }
-            final var result = new NodeHotThreads(
-                clusterService.localNode(),
-                new ReleasableBytesReference(out.bytes(), LeakTracker.wrap(out))
-            );
+            final var result = new NodeHotThreads(clusterService.localNode(), new ReleasableBytesReference(out.bytes(), trackedResource));
             success = true;
             return result;
         } catch (Exception e) {
             throw new ElasticsearchException("failed to detect hot threads", e);
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(out);
+                IOUtils.closeWhileHandlingException(trackedResource);
             }
         }
     }

@@ -49,7 +49,10 @@ public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
                     new LinesIterator(node.getHotThreadsReader()),
                     line -> writer -> writer.append("   ").append(line).append('\n')
                 ),
-                Iterators.single(writer -> writer.append('\n'))
+                Iterators.single(writer -> {
+                    assert hasReferences();
+                    writer.append('\n');
+                })
             )
         );
     }

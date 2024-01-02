@@ -176,8 +176,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     static boolean isIndexFieldNameAllowed(String fieldName) {
-        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName)
-            || fieldName.startsWith("metadata_flattened.");
+        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName) || fieldName.startsWith("metadata_flattened.");
     }
 
     static void translateFieldPatterns(Map<String, Float> fields) {

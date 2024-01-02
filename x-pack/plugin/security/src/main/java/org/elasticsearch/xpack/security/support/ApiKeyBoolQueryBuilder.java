@@ -209,7 +209,11 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         fields.clear();
         for (Map.Entry<String, Float> originalField : originalFields.entrySet()) {
             for (String translatedFieldName : ApiKeyFieldNameTranslators.translatePattern(originalField.getKey())) {
-                fields.put(translatedFieldName, originalField.getValue());
+                if (fields.containsKey(translatedFieldName)) {
+                    fields.put(translatedFieldName, fields.get(translatedFieldName) * originalField.getValue());
+                } else {
+                    fields.put(translatedFieldName, originalField.getValue());
+                }
             }
         }
     }

@@ -30,7 +30,6 @@ public class MvExpand extends UnaryPlan {
         super(source, child);
         this.target = target;
         this.expanded = expanded;
-        this.output = calculateOutput(child.output(), target, expanded);
         this.limit = limit;
     }
 

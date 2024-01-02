@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
@@ -22,7 +23,6 @@ import org.junit.BeforeClass;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Predicate;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -42,8 +42,8 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
         final Set<String> nodesVersions,
-        final Predicate<String> clusterFeaturesPredicate,
-        final String os
+        final TestFeatureService testFeatureService,
+        final Set<String> osSet
     ) {
         /*
          * Since the esVersion is used to skip tests in ESClientYamlSuiteTestCase, we also take into account the
@@ -64,8 +64,8 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
             clientYamlTestClient,
             randomizeContentType(),
             commonVersions,
-            clusterFeaturesPredicate,
-            os
+            testFeatureService,
+            osSet
         );
     }
 

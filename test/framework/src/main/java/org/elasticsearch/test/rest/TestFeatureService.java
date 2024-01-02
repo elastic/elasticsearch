@@ -23,7 +23,7 @@ public class TestFeatureService {
     private final Predicate<String> historicalFeaturesPredicate;
     private final Set<String> clusterStateFeatures;
 
-    TestFeatureService(
+    protected TestFeatureService(
         boolean hasHistoricalFeaturesInformation,
         List<? extends FeatureSpecification> specs,
         Collection<Version> nodeVersions,
@@ -56,7 +56,7 @@ public class TestFeatureService {
         return features != null && features.getValue().contains(featureId);
     }
 
-    boolean clusterHasFeature(String featureId) {
+    public boolean clusterHasFeature(String featureId) {
         if (clusterStateFeatures.contains(featureId)) {
             return true;
         }

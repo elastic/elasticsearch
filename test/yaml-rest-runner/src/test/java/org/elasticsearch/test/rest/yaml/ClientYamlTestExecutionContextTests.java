@@ -11,10 +11,12 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.http.HttpEntity;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -22,6 +24,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.is;
 
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
+
+    private static class MockTestFeatureService extends TestFeatureService {
+
+        MockTestFeatureService() {
+            super(true, List.of(), List.of(), Set.of());
+        }
+
+        @Override
+        public boolean clusterHasFeature(String featureId) {
+            return true;
+        }
+    }
 
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
@@ -31,8 +45,8 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             null,
             randomBoolean(),
             Set.of(version),
-            feature -> true,
-            "os"
+            new MockTestFeatureService(),
+            Set.of("os")
         ) {
             @Override
             ClientYamlTestResponse callApiInternal(
@@ -69,8 +83,8 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             null,
             randomBoolean(),
             Set.of(version),
-            feature -> true,
-            "os"
+            new MockTestFeatureService(),
+            Set.of("os")
         ) {
             @Override
             ClientYamlTestResponse callApiInternal(

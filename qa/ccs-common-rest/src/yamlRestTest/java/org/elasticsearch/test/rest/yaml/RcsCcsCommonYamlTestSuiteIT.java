@@ -30,6 +30,7 @@ import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -44,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.CCS_APIS;
@@ -271,8 +271,8 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
         final Set<String> nodesVersions,
-        final Predicate<String> clusterFeaturesPredicate,
-        final String os
+        final TestFeatureService testFeatureService,
+        final Set<String> osSet
     ) {
         // depending on the API called, we either return the client running against the "write" or the "search" cluster here
 
@@ -282,8 +282,8 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             clientYamlTestClient,
             randomizeContentType(),
             nodesVersions,
-            clusterFeaturesPredicate,
-            os
+            testFeatureService,
+            osSet
         ) {
             protected ClientYamlTestClient clientYamlTestClient(String apiName) {
                 if (CCS_APIS.contains(apiName)) {

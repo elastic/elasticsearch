@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
@@ -61,7 +62,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -144,21 +145,32 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
 
+            var semanticNodeVersions = nodesVersions.stream()
+                .map(ESRestTestCase::parseLegacyVersion)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+            final TestFeatureService testFeatureService = createTestFeatureService(
+                getClusterStateFeatures(adminClient()),
+                semanticNodeVersions
+            );
+
+            logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
+
             clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts);
             restTestExecutionContext = createRestTestExecutionContext(
                 testCandidate,
                 clientYamlTestClient,
                 nodesVersions,
-                ESRestTestCase::clusterHasFeature,
-                os
+                testFeatureService,
+                Set.of(os)
             );
             adminExecutionContext = new ClientYamlTestExecutionContext(
                 testCandidate,
                 clientYamlTestClient,
                 false,
                 nodesVersions,
-                ESRestTestCase::clusterHasFeature,
-                os
+                testFeatureService,
+                Set.of(os)
             );
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
@@ -187,16 +199,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
         final Set<String> nodesVersions,
-        final Predicate<String> clusterFeaturesPredicate,
-        final String os
+        final TestFeatureService testFeatureService,
+        final Set<String> osSet
     ) {
         return new ClientYamlTestExecutionContext(
             clientYamlTestCandidate,
             clientYamlTestClient,
             randomizeContentType(),
             nodesVersions,
-            clusterFeaturesPredicate,
-            os
+            testFeatureService,
+            osSet
         );
     }
 

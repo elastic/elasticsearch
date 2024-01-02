@@ -82,6 +82,7 @@ public class SearchTransportTelemetryTests extends ESIntegTestCase {
         resetMeter();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103810")
     public void testSearchTransportMetricsScroll() throws InterruptedException {
         var indexName = "test3";
         createIndex(indexName);

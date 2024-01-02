@@ -227,9 +227,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             }
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
-                        }, exception -> {
-                            handleUpdateFailureWithRetry(listener, request, exception, retryCount);
-                        })), bulkRequest::decRef),
+                        }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest::decRef),
                         maybeDecRefIndexRequest
                     )
                 );
@@ -267,9 +265,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             );
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
-                        }, exception -> {
-                            handleUpdateFailureWithRetry(listener, request, exception, retryCount);
-                        })), bulkRequest),
+                        }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))), bulkRequest),
                         maybeDecRefIndexRequest
                     )
                 );
@@ -303,9 +299,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         );
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
-                    }, exception -> {
-                        handleUpdateFailureWithRetry(listener, request, exception, retryCount);
-                    })), bulkRequest)
+                    }, exception -> { handleUpdateFailureWithRetry(listener, request, exception, retryCount); })), bulkRequest)
                 );
             }
             case NOOP -> {

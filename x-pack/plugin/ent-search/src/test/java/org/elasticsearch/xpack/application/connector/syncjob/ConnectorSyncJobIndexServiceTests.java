@@ -77,16 +77,18 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     private void createConnector(Connector connector) throws IOException, InterruptedException, ExecutionException, TimeoutException {
-        try (
-            IndexRequest indexRequest = new IndexRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
+        IndexRequest indexRequest = new IndexRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME);
+        try {
+            indexRequest.opType(DocWriteRequest.OpType.INDEX)
                 .id(connector.getConnectorId())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
-        ) {
+                .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
             ActionFuture<DocWriteResponse> index = client().index(indexRequest);
 
             // wait 10 seconds for connector creation
             index.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } finally {
+            indexRequest.decRef();
         }
     }
 

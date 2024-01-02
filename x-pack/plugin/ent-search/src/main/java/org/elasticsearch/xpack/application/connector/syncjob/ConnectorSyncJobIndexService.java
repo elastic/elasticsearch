@@ -99,10 +99,6 @@ public class ConnectorSyncJobIndexService {
                 try {
                     String syncJobId = generateId();
 
-                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(syncJobId)
-                        .opType(DocWriteRequest.OpType.INDEX)
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
                     ConnectorSyncJob syncJob = new ConnectorSyncJob.Builder().setId(syncJobId)
                         .setJobType(jobType)
                         .setTriggerMethod(triggerMethod)
@@ -116,14 +112,27 @@ public class ConnectorSyncJobIndexService {
                         .setDeletedDocumentCount(ZERO)
                         .build();
 
-                    indexRequest.source(syncJob.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
+                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME);
+                    try {
+                        indexRequest.id(syncJobId)
+                            .opType(DocWriteRequest.OpType.INDEX)
+                            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-                    clientWithOrigin.index(
-                        indexRequest,
-                        l.delegateFailureAndWrap(
-                            (ll, indexResponse) -> ll.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId()))
-                        )
-                    );
+                        indexRequest.source(syncJob.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
+
+                        clientWithOrigin.index(
+                            indexRequest,
+                            ActionListener.runAfter(
+                                l.delegateFailureAndWrap(
+                                    (ll, indexResponse) -> ll.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId()))
+                                ),
+                                indexRequest::decRef
+                            )
+                        );
+                    } catch (Exception e) {
+                        indexRequest.decRef();
+                        throw e;
+                    }
                 } catch (IOException e) {
                     l.onFailure(e);
                 }
@@ -176,15 +185,19 @@ public class ConnectorSyncJobIndexService {
         try {
             clientWithOrigin.update(
                 updateRequest,
-                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
+                ActionListener.runAfter(
+                    new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
+                        if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                            l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                            return;
+                        }
+                        l.onResponse(updateResponse);
+                    }),
+                    updateRequest::decRef
+                )
             );
         } catch (Exception e) {
+            updateRequest.decRef();
             listener.onFailure(e);
         }
     }
@@ -249,15 +262,19 @@ public class ConnectorSyncJobIndexService {
         try {
             clientWithOrigin.update(
                 updateRequest,
-                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
+                ActionListener.runAfter(
+                    new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
+                        if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                            l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                            return;
+                        }
+                        l.onResponse(updateResponse);
+                    }),
+                    updateRequest::decRef
+                )
             );
         } catch (Exception e) {
+            updateRequest.decRef();
             listener.onFailure(e);
         }
     }
@@ -393,15 +410,19 @@ public class ConnectorSyncJobIndexService {
         try {
             clientWithOrigin.update(
                 updateRequest,
-                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(syncJobId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(syncJobId));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
+                ActionListener.runAfter(
+                    new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(syncJobId, listener, (l, updateResponse) -> {
+                        if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                            l.onFailure(new ResourceNotFoundException(syncJobId));
+                            return;
+                        }
+                        l.onResponse(updateResponse);
+                    }),
+                    updateRequest::decRef
+                )
             );
         } catch (Exception e) {
+            updateRequest.decRef();
             listener.onFailure(e);
         }
 
@@ -481,15 +502,19 @@ public class ConnectorSyncJobIndexService {
         try {
             clientWithOrigin.update(
                 updateRequest,
-                new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
-                    if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
-                        return;
-                    }
-                    l.onResponse(updateResponse);
-                })
+                ActionListener.runAfter(
+                    new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
+                        if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                            l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                            return;
+                        }
+                        l.onResponse(updateResponse);
+                    }),
+                    updateRequest::decRef
+                )
             );
         } catch (Exception e) {
+            updateRequest.decRef();
             listener.onFailure(e);
         }
     }

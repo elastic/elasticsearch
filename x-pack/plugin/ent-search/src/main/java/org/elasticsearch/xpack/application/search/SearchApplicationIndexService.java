@@ -291,12 +291,18 @@ public class SearchApplicationIndexService {
                     .endObject();
             }
             DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);
-            final IndexRequest indexRequest = new IndexRequest(SEARCH_APPLICATION_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
-                .id(app.name())
-                .opType(opType)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(buffer.bytes(), XContentType.JSON);
-            clientWithOrigin.index(indexRequest, listener);
+            final IndexRequest indexRequest = new IndexRequest(SEARCH_APPLICATION_ALIAS_NAME);
+            try {
+                indexRequest.opType(DocWriteRequest.OpType.INDEX)
+                    .id(app.name())
+                    .opType(opType)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(buffer.bytes(), XContentType.JSON);
+                clientWithOrigin.index(indexRequest, ActionListener.runAfter(listener, indexRequest::decRef));
+            } catch (Exception e) {
+                indexRequest.decRef();
+                throw e;
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }

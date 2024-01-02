@@ -78,8 +78,11 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
         try {
             AnalyticsEvent event = eventFactory.fromRequest(request);
             IndexRequest eventIndexRequest = createIndexRequest(event);
-
-            bulkProcessor.add(eventIndexRequest);
+            try {
+                bulkProcessor.add(eventIndexRequest);
+            } finally {
+                eventIndexRequest.decRef();
+            }
 
             if (dropEvent.compareAndSet(true, false)) {
                 logger.warn("Bulk processor has been flushed. Accepting new events again.");

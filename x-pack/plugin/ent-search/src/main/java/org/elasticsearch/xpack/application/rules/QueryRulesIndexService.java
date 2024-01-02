@@ -232,15 +232,17 @@ public class QueryRulesIndexService {
      * @param listener The action listener to invoke on response/failure.
      */
     public void putQueryRuleset(QueryRuleset queryRuleset, ActionListener<DocWriteResponse> listener) {
+        final IndexRequest indexRequest = new IndexRequest(QUERY_RULES_ALIAS_NAME);
         try {
             validateQueryRuleset(queryRuleset);
-            final IndexRequest indexRequest = new IndexRequest(QUERY_RULES_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
+            indexRequest.opType(DocWriteRequest.OpType.INDEX)
                 .id(queryRuleset.id())
                 .opType(DocWriteRequest.OpType.INDEX)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(queryRuleset.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
-            clientWithOrigin.index(indexRequest, listener);
+            clientWithOrigin.index(indexRequest, ActionListener.runAfter(listener, indexRequest::decRef));
         } catch (Exception e) {
+            indexRequest.decRef();
             listener.onFailure(e);
         }
 

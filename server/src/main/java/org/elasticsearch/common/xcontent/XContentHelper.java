@@ -323,7 +323,7 @@ public class XContentHelper {
 
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes.toBytesRef().bytes));
+        return convertToJson(bytes, reformatJson, prettyPrint, xContentType(bytes));
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {

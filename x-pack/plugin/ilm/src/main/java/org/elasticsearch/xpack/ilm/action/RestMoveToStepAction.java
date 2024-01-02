@@ -35,8 +35,10 @@ public class RestMoveToStepAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String index = restRequest.param("name");
-        XContentParser parser = restRequest.contentParser();
-        TransportMoveToStepAction.Request request = TransportMoveToStepAction.Request.parseRequest(index, parser);
+        TransportMoveToStepAction.Request request;
+        try (XContentParser parser = restRequest.contentParser()) {
+            request = TransportMoveToStepAction.Request.parseRequest(index, parser);
+        }
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(ILMActions.MOVE_TO_STEP, request, new RestToXContentListener<>(channel));

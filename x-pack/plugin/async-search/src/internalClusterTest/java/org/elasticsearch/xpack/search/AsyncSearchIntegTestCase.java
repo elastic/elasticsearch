@@ -193,7 +193,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         assertBusy(() -> {
             try {
                 AsyncSearchResponse resp = getAsyncSearch(id);
-                assertFalse(resp.isRunning());
+                try {
+                    assertFalse(resp.isRunning());
+                } finally {
+                    resp.decRef();
+                }
             } catch (Exception exc) {
                 if (ExceptionsHelper.unwrapCause(exc.getCause()) instanceof ResourceNotFoundException == false) {
                     throw exc;

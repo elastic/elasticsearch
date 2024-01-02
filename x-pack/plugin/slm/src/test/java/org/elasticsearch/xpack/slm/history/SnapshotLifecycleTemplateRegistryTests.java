@@ -65,6 +65,7 @@ import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegis
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -315,6 +316,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         assertTrue(
             registry.validate(createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), policyMap, null))
         );
+    }
+
+    public void testTemplateNameIsVersioned() {
+        assertThat(SLM_TEMPLATE_NAME, endsWith("-" + INDEX_TEMPLATE_VERSION));
     }
 
     // -------------

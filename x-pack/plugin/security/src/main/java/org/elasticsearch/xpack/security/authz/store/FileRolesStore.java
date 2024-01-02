@@ -280,8 +280,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         String roleName = null;
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        try {
-            XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment);
+        try (XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment)) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();

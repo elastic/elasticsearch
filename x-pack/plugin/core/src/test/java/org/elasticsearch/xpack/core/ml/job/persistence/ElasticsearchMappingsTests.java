@@ -362,10 +362,9 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectFieldNames(String mapping) throws IOException {
         BufferedInputStream inputStream = new BufferedInputStream(new ByteArrayInputStream(mapping.getBytes(StandardCharsets.UTF_8)));
-        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream);
         Set<String> fieldNames = new HashSet<>();
         boolean isAfterPropertiesStart = false;
-        try {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream)) {
             XContentParser.Token token = parser.nextToken();
             while (token != null) {
                 switch (token) {

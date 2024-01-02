@@ -42,10 +42,11 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // version 4:converted data stream
     // version 5: add `allow_auto_create` setting
     // version 6: manage by data stream lifecycle
-    public static final int INDEX_TEMPLATE_VERSION = 6;
+    // version 7: version the index template name so we can upgrade existing deployments
+    public static final int INDEX_TEMPLATE_VERSION = 7;
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
-    public static final String SLM_TEMPLATE_NAME = ".slm-history";
+    public static final String SLM_TEMPLATE_NAME = ".slm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
 

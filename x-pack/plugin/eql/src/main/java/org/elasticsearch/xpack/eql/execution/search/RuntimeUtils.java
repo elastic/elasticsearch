@@ -182,7 +182,8 @@ public final class RuntimeUtils {
     }
 
     public static List<SearchHit> searchHits(SearchResponse response) {
-        return Arrays.asList(response.getHits().getHits());
+        // TODO remove unpooled usage
+        return Arrays.asList(response.getHits().asUnpooled().getHits());
     }
 
     /**

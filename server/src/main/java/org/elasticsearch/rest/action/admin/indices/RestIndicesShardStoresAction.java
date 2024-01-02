@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -24,7 +24,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
- * Rest action for {@link IndicesShardStoresAction}
+ * Rest action for {@link TransportIndicesShardStoresAction}
  */
 public class RestIndicesShardStoresAction extends BaseRestHandler {
 
@@ -55,8 +55,10 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
             request.paramAsInt("max_concurrent_shard_requests", indicesShardStoresRequest.maxConcurrentShardRequests())
         );
         indicesShardStoresRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesShardStoresRequest.indicesOptions()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
-            .indices()
-            .shardStores(indicesShardStoresRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            TransportIndicesShardStoresAction.TYPE,
+            indicesShardStoresRequest,
+            new RestChunkedToXContentListener<>(channel)
+        );
     }
 }

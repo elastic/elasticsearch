@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
+import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -102,7 +102,7 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest();
         try {
             reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
-            client().execute(NodesReloadSecureSettingsAction.INSTANCE, reloadReq).get();
+            client().execute(TransportNodesReloadSecureSettingsAction.TYPE, reloadReq).get();
         } finally {
             reloadReq.decRef();
         }

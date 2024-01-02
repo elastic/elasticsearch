@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
+import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -65,7 +66,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/103734")
 public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase {
     private static final String CLUSTER_ALIAS = "my_remote_cluster";
 
@@ -275,14 +275,16 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         }
     }
 
-    private void reloadSecureSettings() throws InterruptedException {
+    private void reloadSecureSettings() {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        clusterAdmin().prepareReloadSecureSettings()
-            .setSecureStorePassword(emptyPassword)
-            .setNodesIds(Strings.EMPTY_ARRAY)
-            .execute(new ActionListener<>() {
+
+        final var request = new NodesReloadSecureSettingsRequest();
+        try {
+            request.nodesIds(Strings.EMPTY_ARRAY);
+            request.setSecureStorePassword(emptyPassword);
+            client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, new ActionListener<>() {
                 @Override
                 public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
                     try {
@@ -305,7 +307,10 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                     latch.countDown();
                 }
             });
-        latch.await();
+        } finally {
+            request.decRef();
+        }
+        safeAwait(latch);
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();
         }

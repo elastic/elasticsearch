@@ -258,9 +258,11 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
-        assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
-        var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
+        Source source = new Source(2, 8, "salary > 1000");
+        var exists = QueryBuilders.existsQuery("salary");
+        assertThat(stat.query(), is(exists));
+        var range = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
+        var expected = QueryBuilders.boolQuery().must(range).must(exists);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 

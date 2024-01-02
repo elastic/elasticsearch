@@ -57,7 +57,7 @@ public class NodeHotThreads extends BaseNodeResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.HOT_THREADS_AS_BYTES)) {
-            bytes.writeTo(out);
+            out.writeBytesReference(bytes);
         } else {
             out.writeString(bytes.utf8ToString());
         }

@@ -212,6 +212,8 @@ public class InboundHandler {
                     + responseHandler
                     + "], error ["
                     + header.isError()
+                    + "], transport version ["
+                    + streamInput.getTransportVersion()
                     + "]; resetting"
             );
             assert ignoreDeserializationErrors : exception;

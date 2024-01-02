@@ -141,7 +141,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         internalCluster().startNodes(1, buildSettings(0, true));
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest("NonExistentUUID", true);
-
         assertThat(
             expectThrows(ExecutionException.class, IllegalArgumentException.class, () -> importDanglingIndex(request)).getMessage(),
             containsString("No dangling index found for UUID [NonExistentUUID]")

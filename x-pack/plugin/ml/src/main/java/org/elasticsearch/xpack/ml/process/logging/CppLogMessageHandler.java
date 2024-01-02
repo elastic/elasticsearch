@@ -291,9 +291,9 @@ public class CppLogMessageHandler implements Closeable {
             }
 
             // get out of here quickly if level isn't of interest
-            if (LOGGER.isEnabled(level) == false) {
-                return;
-            }
+            // if (LOGGER.isEnabled(level) == false) {
+            // return;
+            // }
 
             // log message summarization is disabled for debug
             if (LOGGER.isDebugEnabled() == false) {

@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
@@ -170,18 +169,15 @@ class MutableSearchResponse {
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
-        InternalSearchResponse internal = new InternalSearchResponse(
+        long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
+        return new SearchResponse(
             new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN),
             reducedAggs,
             null,
+            false,
+            false,
             null,
-            false,
-            false,
-            reducePhase
-        );
-        long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
-        return new SearchResponse(
-            internal,
+            reducePhase,
             null,
             totalShards,
             successfulShards,

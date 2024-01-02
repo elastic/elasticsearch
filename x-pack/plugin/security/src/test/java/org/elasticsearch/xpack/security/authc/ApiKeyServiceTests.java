@@ -60,7 +60,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -411,25 +410,31 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            final var internalSearchResponse = new InternalSearchResponse(
-                new SearchHits(
-                    new SearchHit[] { searchHit },
-                    new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                    randomFloat(),
-                    null,
-                    null,
-                    null
-                ),
-                null,
-                null,
-                null,
-                false,
-                null,
-                0
-            );
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(internalSearchResponse, randomAlphaOfLengthBetween(3, 8), 1, 1, 0, 10, null, null)
+                new SearchResponse(
+                    new SearchHits(
+                        new SearchHit[] { searchHit },
+                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                        randomFloat(),
+                        null,
+                        null,
+                        null
+                    ),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    0,
+                    randomAlphaOfLengthBetween(3, 8),
+                    1,
+                    1,
+                    0,
+                    10,
+                    null,
+                    null
+                )
             );
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
@@ -753,22 +758,20 @@ public class ApiKeyServiceTests extends ESTestCase {
             ActionListener.respondAndRelease(
                 listener,
                 new SearchResponse(
-                    new InternalSearchResponse(
-                        new SearchHits(
-                            searchHits.toArray(SearchHit[]::new),
-                            new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
-                            randomFloat(),
-                            null,
-                            null,
-                            null
-                        ),
+                    new SearchHits(
+                        searchHits.toArray(SearchHit[]::new),
+                        new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
+                        randomFloat(),
                         null,
                         null,
-                        null,
-                        false,
-                        null,
-                        0
+                        null
                     ),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    0,
                     randomAlphaOfLengthBetween(3, 8),
                     1,
                     1,
@@ -2243,13 +2246,11 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(realm.getType(), updatedApiKeyDoc.creator.get("realm_type"));
             if (realm.getDomain() != null) {
                 @SuppressWarnings("unchecked")
-                final var actualRealmDomain = RealmDomain.fromXContent(
-                    XContentHelper.mapToXContentParser(
-                        XContentParserConfiguration.EMPTY,
-                        (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain")
-                    )
-                );
-                assertEquals(realm.getDomain(), actualRealmDomain);
+                var m = (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain");
+                try (var p = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, m)) {
+                    final var actualRealmDomain = RealmDomain.fromXContent(p);
+                    assertEquals(realm.getDomain(), actualRealmDomain);
+                }
             } else {
                 assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
             }

@@ -16,7 +16,6 @@ import org.elasticsearch.test.rest.TestFeatureService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,12 +24,7 @@ import static org.hamcrest.Matchers.is;
 
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
-    private static class MockTestFeatureService extends TestFeatureService {
-
-        MockTestFeatureService() {
-            super(true, List.of(), List.of(), Set.of());
-        }
-
+    private static class MockTestFeatureService implements TestFeatureService {
         @Override
         public boolean clusterHasFeature(String featureId) {
             return true;

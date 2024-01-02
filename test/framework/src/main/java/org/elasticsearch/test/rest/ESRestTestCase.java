@@ -331,7 +331,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
             : List.of(new RestTestLegacyFeatures());
 
-        return new TestFeatureService(
+        return new ESRestTestFeatureService(
             hasHistoricalFeaturesInformation,
             providers,
             semanticNodeVersions,

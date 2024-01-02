@@ -27,6 +27,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -44,11 +45,15 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -288,25 +293,48 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final TestFeatureService testFeatureService,
         final Set<String> osSet
     ) {
-        // depending on the API called, we either return the client running against the "write" or the "search" cluster here
-
-        // TODO: reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
-        return new ClientYamlTestExecutionContext(
-            clientYamlTestCandidate,
-            clientYamlTestClient,
-            randomizeContentType(),
-            nodesVersions,
-            testFeatureService,
-            osSet
-        ) {
-            protected ClientYamlTestClient clientYamlTestClient(String apiName) {
-                if (CCS_APIS.contains(apiName)) {
-                    return searchYamlTestClient;
-                } else {
-                    return super.clientYamlTestClient(apiName);
+        try {
+            // Reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
+            var searchOs = readOsFromNodesInfo(adminSearchClient);
+            var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);
+            var semanticNodeVersions = searchNodeVersions.stream()
+                .map(ESRestTestCase::parseLegacyVersion)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+            final TestFeatureService searchTestFeatureService = createTestFeatureService(
+                getClusterStateFeatures(adminSearchClient),
+                semanticNodeVersions
+            );
+            final TestFeatureService combinedTestFeatureService = new TestFeatureService() {
+                @Override
+                public boolean clusterHasFeature(String featureId) {
+                    return testFeatureService.clusterHasFeature(featureId) && searchTestFeatureService.clusterHasFeature(featureId);
                 }
-            }
-        };
+            };
+            final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
+            final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
+                .collect(Collectors.toSet());
+
+            return new ClientYamlTestExecutionContext(
+                clientYamlTestCandidate,
+                clientYamlTestClient,
+                randomizeContentType(),
+                combinedNodeVersions,
+                combinedTestFeatureService,
+                combinedOsSet
+            ) {
+                // depending on the API called, we either return the client running against the "write" or the "search" cluster here
+                protected ClientYamlTestClient clientYamlTestClient(String apiName) {
+                    if (CCS_APIS.contains(apiName)) {
+                        return searchYamlTestClient;
+                    } else {
+                        return super.clientYamlTestClient(apiName);
+                    }
+                }
+            };
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @AfterClass

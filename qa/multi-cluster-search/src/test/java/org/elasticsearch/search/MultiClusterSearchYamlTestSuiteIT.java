@@ -30,7 +30,7 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     private static String remoteEsVersion = null;
 
     @BeforeClass
-    public static void determineRemoteClusterMinimumVersion() {
+    public static void readRemoteClusterVersion() {
         String remoteClusterVersion = System.getProperty("tests.rest.remote_cluster_version");
         if (remoteClusterVersion != null) {
             remoteEsVersion = remoteClusterVersion;
@@ -58,7 +58,8 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
             commonVersions = Collections.unmodifiableSet(versionsCopy);
         }
 
-        // TODO: same for os and features
+        // TODO: same for os and features. Better to do that once this test(s) have been migrated to the new ElasticsearchCluster-based
+        // framework. See CcsCommonYamlTestSuiteIT for example.
         return new ClientYamlTestExecutionContext(
             clientYamlTestCandidate,
             clientYamlTestClient,

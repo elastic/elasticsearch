@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -116,18 +115,24 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 return;
             }
 
-            final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                null,
-                null,
-                false,
-                null,
-                null,
-                1
-            );
             ActionListener.respondAndRelease(
                 nextPhase,
-                new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null)
+                new SearchResponse(
+                    new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    null
+                )
             );
         }
 
@@ -256,15 +261,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         @Override
         protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             ++searchOps;
-            final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                null,
-                null,
-                false,
-                null,
-                null,
-                1
-            );
 
             if (processOps == 3) {
                 awaitForLatch();
@@ -272,7 +268,22 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
             ActionListener.respondAndRelease(
                 nextPhase,
-                new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null)
+                new SearchResponse(
+                    new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    null
+                )
             );
         }
 

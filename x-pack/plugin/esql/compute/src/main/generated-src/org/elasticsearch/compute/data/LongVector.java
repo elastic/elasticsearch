@@ -103,39 +103,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     }
 
     /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize) {
-        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
-     * if you know the size up front because it's faster.
-     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
-     */
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newLongVectorBuilder(estimatedSize);
-    }
-
-    /**
-     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
-     * if you know the size up front because it's faster.
-     * @deprecated use {@link BlockFactory#newLongVectorFixedBuilder}
-     */
-    @Deprecated
-    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        return blockFactory.newLongVectorFixedBuilder(size);
-    }
-
-    /**
      * A builder that grows as needed.
      */
-    sealed interface Builder extends Vector.Builder permits LongVectorBuilder {
+    sealed interface Builder extends Vector.Builder permits LongVectorBuilder, FixedBuilder {
         /**
          * Appends a long to the current entry.
          */
@@ -148,13 +118,11 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     /**
      * A builder that never grows.
      */
-    sealed interface FixedBuilder extends Vector.Builder permits LongVectorFixedBuilder {
+    sealed interface FixedBuilder extends Builder permits LongVectorFixedBuilder {
         /**
          * Appends a long to the current entry.
          */
-        FixedBuilder appendLong(long value);
-
         @Override
-        LongVector build();
+        FixedBuilder appendLong(long value);
     }
 }

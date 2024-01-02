@@ -188,10 +188,16 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, body);
-                                // multiple bodies are supported e.g. in case of bulk provided as a whole string
-                                while (bodyParser.nextToken() != null) {
-                                    apiCallSection.addBody(bodyParser.mapOrdered());
+                                try (
+                                    XContentParser bodyParser = JsonXContent.jsonXContent.createParser(
+                                        XContentParserConfiguration.EMPTY,
+                                        body
+                                    )
+                                ) {
+                                    // multiple bodies are supported e.g. in case of bulk provided as a whole string
+                                    while (bodyParser.nextToken() != null) {
+                                        apiCallSection.addBody(bodyParser.mapOrdered());
+                                    }
                                 }
                             } else {
                                 apiCallSection.addParam(paramName, parser.text());

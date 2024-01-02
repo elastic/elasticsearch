@@ -523,7 +523,15 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             final BulkRequest bulkRequest = new BulkRequest();
             try {
-                iterationResult.getToIndex().forEach(bulkRequest::add);
+                iterationResult.getToIndex().forEach(indexRequest -> {
+                    bulkRequest.add(indexRequest);
+                    /*
+                     * Ordinarily the object that created the indexRequest would be responsible for this decRef call, but since no single
+                     * objects owns the full lifecycle of this index request, and since it is only used right here, we're calling decRef
+                     * here instead of adding more complexity to IterationResult or AsyncTwoPhaseIndexer.
+                     */
+                    indexRequest.decRef();
+                });
                 stats.markEndProcessing();
 
                 // an iteration result might return an empty set of documents to be indexed

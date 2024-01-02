@@ -104,6 +104,7 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
         AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
+        indexRequest.decRef();
         assertThat(auditMessage.getResourceId(), equalTo("foo"));
         assertThat(auditMessage.getMessage(), equalTo("Here is my info"));
         assertThat(auditMessage.getLevel(), equalTo(Level.INFO));
@@ -123,6 +124,7 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
         AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
+        indexRequest.decRef();
         assertThat(auditMessage.getResourceId(), equalTo("bar"));
         assertThat(auditMessage.getMessage(), equalTo("Here is my warning"));
         assertThat(auditMessage.getLevel(), equalTo(Level.WARNING));
@@ -142,6 +144,7 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
         AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
+        indexRequest.decRef();
         assertThat(auditMessage.getResourceId(), equalTo("foobar"));
         assertThat(auditMessage.getMessage(), equalTo("Here is my error"));
         assertThat(auditMessage.getLevel(), equalTo(Level.ERROR));
@@ -163,6 +166,7 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
         AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
+        indexRequest.decRef();
         assertThat(auditMessage.getResourceId(), equalTo("r_id"));
         assertThat(auditMessage.getMessage(), equalTo("Here is my audit"));
         assertThat(auditMessage.getLevel(), equalTo(level));
@@ -195,7 +199,10 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
 
         auditor.info("foobar", "Here is another message");
-        verify(client, times(1)).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        verify(client, times(1)).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
+        IndexRequest indexRequest = indexRequestCaptor.getValue();
+        indexRequest.decRef();
     }
 
     public void testMaxBufferSize() throws Exception {

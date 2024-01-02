@@ -195,8 +195,13 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private IndexRequest indexRequest(ToXContent toXContent) {
         IndexRequest indexRequest = new IndexRequest(auditIndex);
-        indexRequest.source(toXContentBuilder(toXContent));
-        indexRequest.timeout(TimeValue.timeValueSeconds(5));
+        try {
+            indexRequest.source(toXContentBuilder(toXContent));
+            indexRequest.timeout(TimeValue.timeValueSeconds(5));
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
         return indexRequest;
     }
 

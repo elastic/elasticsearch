@@ -222,7 +222,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
             ++processOps;
             if (processOps == 5) {
-                return new IterationResult<>(Stream.of(new IndexRequest()), processOps, true);
+                return new IterationResult<>(Stream.empty(), processOps, true);
             } else if (processOps % 2 == 0) {
                 return new IterationResult<>(Stream.empty(), processOps, false);
             }

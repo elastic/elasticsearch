@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -109,10 +110,11 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
     }
 
     private void indexAndRefresh(String indexName, String id, String field, String value) throws IOException {
-        prepareIndex(indexName).setId(id)
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setId(id)
             .setSource(jsonBuilder().startObject().field(field, value).endObject())
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
     }
 
     public void testTermsEnumIPBasic() throws Exception {
@@ -204,11 +206,11 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk(indexName)) {
             for (int i = 0; i < numDocs; i++) {
                 randomIps[i] = randomIp(randomBoolean());
-                bulkRequestBuilder.add(
-                    prepareIndex(indexName).setSource(
-                        jsonBuilder().startObject().field("ip_addr", NetworkAddress.format(randomIps[i])).endObject()
-                    )
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource(
+                    jsonBuilder().startObject().field("ip_addr", NetworkAddress.format(randomIps[i])).endObject()
                 );
+                bulkRequestBuilder.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
             assertNoFailures(bulkRequestBuilder.get());
         }

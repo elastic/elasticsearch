@@ -117,7 +117,7 @@ public class EvalOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 8000));
+    protected ByteSizeValue memoryLimitForSimple() {
+        return ByteSizeValue.ofKb(4);
     }
 }

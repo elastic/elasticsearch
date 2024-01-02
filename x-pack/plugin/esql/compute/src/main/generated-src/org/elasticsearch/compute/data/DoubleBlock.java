@@ -168,24 +168,6 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     }
 
     /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newDoubleBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newDoubleBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantDoubleBlockWith}
-     */
-    @Deprecated
-    static DoubleBlock newConstantBlockWith(double value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantDoubleBlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link DoubleBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.DoubleBuilder permits DoubleBlockBuilder {

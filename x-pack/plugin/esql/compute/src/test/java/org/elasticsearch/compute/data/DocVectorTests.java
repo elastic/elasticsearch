@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
@@ -61,6 +62,34 @@ public class DocVectorTests extends ComputeTestCase {
         docs.close();
     }
 
+    private static int MAX_BUILD_BREAKS_LIMIT = 1391;
+
+    public void testBuildBreaks() {
+        testBuildBreaks(ByteSizeValue.ofBytes(between(0, MAX_BUILD_BREAKS_LIMIT)));
+    }
+
+    public void testBuildBreaksMax() {
+        testBuildBreaks(ByteSizeValue.ofBytes(MAX_BUILD_BREAKS_LIMIT));
+    }
+
+    private void testBuildBreaks(ByteSizeValue limit) {
+        int size = 100;
+        BlockFactory blockFactory = blockFactory(limit);
+        Exception e = expectThrows(CircuitBreakingException.class, () -> {
+            try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
+                for (int r = 0; r < size; r++) {
+                    builder.appendShard(3 - size % 4);
+                    builder.appendSegment(size % 10);
+                    builder.appendDoc(size);
+                }
+                builder.build().close();
+            }
+        });
+        assertThat(e.getMessage(), equalTo("over test limit"));
+        logger.info("break position", e);
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testShardSegmentDocMap() {
         assertShardSegmentDocMap(
             new int[][] {
@@ -107,7 +136,7 @@ public class DocVectorTests extends ComputeTestCase {
     }
 
     private void assertShardSegmentDocMap(int[][] data, int[][] expected) {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        BlockFactory blockFactory = blockFactory();
         try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, data.length)) {
             for (int r = 0; r < data.length; r++) {
                 builder.appendShard(data[r][0]);
@@ -115,7 +144,9 @@ public class DocVectorTests extends ComputeTestCase {
                 builder.appendDoc(data[r][2]);
             }
             try (DocVector docVector = builder.build().asVector()) {
+                assertThat(blockFactory.breaker().getUsed(), equalTo(docVector.ramBytesUsed()));
                 int[] forwards = docVector.shardSegmentDocMapForwards();
+                assertThat(blockFactory.breaker().getUsed(), equalTo(docVector.ramBytesUsed()));
 
                 int[][] result = new int[docVector.getPositionCount()][];
                 for (int p = 0; p < result.length; p++) {
@@ -135,6 +166,35 @@ public class DocVectorTests extends ComputeTestCase {
                 }
 
                 assertThat(result, equalTo(data));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    // TODO these are really difficult to maintain. can we figure these out of the fly?
+    private static final int MAX_SHARD_SEGMENT_DOC_MAP_BREAKS = 2220;
+
+    public void testShardSegmentDocMapBreaks() {
+        testShardSegmentDocMapBreaks(ByteSizeValue.ofBytes(between(MAX_BUILD_BREAKS_LIMIT + 1, MAX_SHARD_SEGMENT_DOC_MAP_BREAKS)));
+    }
+
+    public void testShardSegmentDocMapBreaksMax() {
+        testShardSegmentDocMapBreaks(ByteSizeValue.ofBytes(MAX_SHARD_SEGMENT_DOC_MAP_BREAKS));
+    }
+
+    private void testShardSegmentDocMapBreaks(ByteSizeValue limit) {
+        int size = 100;
+        BlockFactory blockFactory = blockFactory(limit);
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, size)) {
+            for (int r = 0; r < size; r++) {
+                builder.appendShard(3 - size % 4);
+                builder.appendSegment(size % 10);
+                builder.appendDoc(size);
+            }
+            try (DocBlock docBlock = builder.build()) {
+                Exception e = expectThrows(CircuitBreakingException.class, docBlock.asVector()::shardSegmentDocMapForwards);
+                assertThat(e.getMessage(), equalTo("over test limit"));
+                logger.info("broke at", e);
             }
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
@@ -170,6 +230,42 @@ public class DocVectorTests extends ComputeTestCase {
         assertThat(docs.singleSegmentNonDecreasing(), is(false));
         docs.ramBytesUsed(); // ensure non-singleSegmentNonDecreasing handles nulls in ramByteUsed
         docs.close();
+    }
+
+    public void testFilter() {
+        BlockFactory factory = blockFactory();
+        try (
+            DocVector docs = new DocVector(
+                factory.newConstantIntVector(0, 10),
+                factory.newConstantIntVector(0, 10),
+                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
+                false
+            );
+            DocVector filtered = docs.filter(1, 2, 3);
+            DocVector expected = new DocVector(
+                factory.newConstantIntVector(0, 3),
+                factory.newConstantIntVector(0, 3),
+                factory.newIntArrayVector(new int[] { 1, 2, 3 }, 3),
+                false
+            );
+        ) {
+            assertThat(filtered, equalTo(expected));
+        }
+    }
+
+    public void testFilterBreaks() {
+        BlockFactory factory = blockFactory(ByteSizeValue.ofBytes(between(250, 370)));
+        try (
+            DocVector docs = new DocVector(
+                factory.newConstantIntVector(0, 10),
+                factory.newConstantIntVector(0, 10),
+                factory.newIntArrayVector(new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, 10),
+                false
+            )
+        ) {
+            Exception e = expectThrows(CircuitBreakingException.class, () -> docs.filter(1, 2, 3));
+            assertThat(e.getMessage(), equalTo("over test limit"));
+        }
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {

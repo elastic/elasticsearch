@@ -32,7 +32,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
     static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 100;
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
     private EnumSet<ClusterHealthStatus> statuses = EnumSet.of(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED);
     private int maxConcurrentShardRequests = DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
 

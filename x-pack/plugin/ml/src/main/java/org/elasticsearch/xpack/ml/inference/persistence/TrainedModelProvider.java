@@ -21,8 +21,8 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -85,7 +86,6 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 
 import java.io.IOException;
@@ -206,7 +206,7 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            IndexAction.INSTANCE,
+            TransportIndexAction.TYPE,
             request,
             ActionListener.wrap(indexResponse -> listener.onResponse(true), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
@@ -255,7 +255,7 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            IndexAction.INSTANCE,
+            TransportIndexAction.TYPE,
             createRequest(VocabularyConfig.docId(modelId), vocabularyConfig.getIndex(), vocabulary, allowOverwriting).setRefreshPolicy(
                 WriteRequest.RefreshPolicy.IMMEDIATE
             ),
@@ -303,7 +303,7 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            IndexAction.INSTANCE,
+            TransportIndexAction.TYPE,
             createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc, allowOverwriting),
             ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
@@ -353,7 +353,7 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            IndexAction.INSTANCE,
+            TransportIndexAction.TYPE,
             createRequest(
                 trainedModelMetadata.getDocId(),
                 InferenceIndexConstants.LATEST_INDEX_NAME,

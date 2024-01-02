@@ -206,14 +206,6 @@ public class TokenCountFieldMapper extends FieldMapper {
         return analyzer.name();
     }
 
-    /**
-     * Indicates if position increments are counted.
-     * @return <code>true</code> if position increments are counted
-     */
-    public boolean enablePositionIncrements() {
-        return enablePositionIncrements;
-    }
-
     @Override
     protected String contentType() {
         return CONTENT_TYPE;

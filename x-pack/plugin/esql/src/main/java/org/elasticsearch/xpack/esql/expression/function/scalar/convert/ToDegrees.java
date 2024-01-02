@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -64,8 +65,8 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         return DOUBLE;
     }
 
-    @ConvertEvaluator
+    @ConvertEvaluator(warnExceptions = { ArithmeticException.class })
     static double process(double deg) {
-        return Math.toDegrees(deg);
+        return NumericUtils.asFiniteNumber(Math.toDegrees(deg));
     }
 }

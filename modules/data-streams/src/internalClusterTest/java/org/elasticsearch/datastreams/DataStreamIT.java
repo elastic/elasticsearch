@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -28,6 +29,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -107,6 +110,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -578,7 +582,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareClose(dataStreamName), true);
         verifyResolvability(aliasToDataStream, indicesAdmin().prepareClose(aliasToDataStream), true);
         verifyResolvability(dataStreamName, clusterAdmin().prepareSearchShards(dataStreamName), false);
-        verifyResolvability(dataStreamName, indicesAdmin().prepareShardStores(dataStreamName), false);
+        verifyResolvability(client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(dataStreamName)));
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
         client().execute(CreateDataStreamAction.INSTANCE, request).actionGet();
@@ -622,7 +626,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareOpen(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClose(wildcardExpression), false);
         verifyResolvability(wildcardExpression, clusterAdmin().prepareSearchShards(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, indicesAdmin().prepareShardStores(wildcardExpression), false);
+        verifyResolvability(client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(wildcardExpression)));
     }
 
     public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
@@ -1866,9 +1870,13 @@ public class DataStreamIT extends ESIntegTestCase {
                     multiSearchResponse -> assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false))
                 );
             } else {
-                requestBuilder.get();
+                verifyResolvability(requestBuilder.execute());
             }
         }
+    }
+
+    private static void verifyResolvability(ActionFuture<?> future) {
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     static void indexDocs(String dataStream, int numDocs) {

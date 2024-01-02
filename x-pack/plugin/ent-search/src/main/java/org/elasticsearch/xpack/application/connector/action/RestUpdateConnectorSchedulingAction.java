@@ -39,7 +39,7 @@ public class RestUpdateConnectorSchedulingAction extends BaseRestHandler {
         return channel -> client.execute(
             UpdateConnectorSchedulingAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, UpdateConnectorSchedulingAction.Response::status, r -> null)
+            new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );
     }
 }

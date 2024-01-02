@@ -13,8 +13,8 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -65,7 +64,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public class TransportGetStackTracesAction extends HandledTransportAction<GetStackTracesRequest, GetStackTracesResponse> {
+public class TransportGetStackTracesAction extends TransportAction<GetStackTracesRequest, GetStackTracesResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
 
     public static final Setting<Integer> PROFILING_MAX_STACKTRACE_QUERY_SLICES = Setting.intSetting(
@@ -111,7 +110,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     private final NodeClient nodeClient;
     private final ProfilingLicenseChecker licenseChecker;
-    private final InstanceTypeService instanceTypeService;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Executor responseExecutor;
@@ -130,13 +128,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         ActionFilters actionFilters,
         NodeClient nodeClient,
         ProfilingLicenseChecker licenseChecker,
-        InstanceTypeService instanceTypeService,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager());
         this.nodeClient = nodeClient;
         this.licenseChecker = licenseChecker;
-        this.instanceTypeService = instanceTypeService;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
@@ -225,6 +221,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         client.prepareSearch(request.indices())
             .setTrackTotalHits(false)
             .setSize(0)
+            // take advantage of request cache and keep a consistent order for the same request
+            .setRequestCache(true)
+            .setPreference(String.valueOf(request.hashCode()))
             .setQuery(request.getQuery())
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
@@ -273,6 +272,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
+            // take advantage of request cache and keep a consistent order for the same request
+            .setRequestCache(true)
+            .setPreference(String.valueOf(request.hashCode()))
             .setQuery(request.getQuery())
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
@@ -526,7 +528,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                         if (stackTracePerId.putIfAbsent(id, stacktrace) == null) {
                             totalFrames.addAndGet(stacktrace.frameIds.size());
                             stackFrameIds.addAll(stacktrace.frameIds);
-                            executableIds.addAll(stacktrace.fileIds);
+                            stacktrace.forNativeAndKernelFrames(e -> executableIds.add(e));
                         }
                     }
                 }
@@ -550,7 +552,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             // Do the CO2 and cost calculation in parallel to waiting for frame metadata.
             StopWatch watch = new StopWatch("calculateCO2AndCosts");
             CO2Calculator co2Calculator = new CO2Calculator(
-                instanceTypeService,
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.getCustomCO2PerKWH(),
@@ -559,7 +560,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 responseBuilder.getCustomPerCoreWattARM64()
             );
             CostCalculator costCalculator = new CostCalculator(
-                instanceTypeService,
                 hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.getAWSCostFactor(),
@@ -688,6 +688,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
         private final AtomicInteger expectedSlices;
+        private final AtomicInteger totalInlineFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
 
         private DetailsHandler(
@@ -718,7 +719,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     if (stackFrames.containsKey(frame.getId()) == false) {
                         StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
                         if (stackFrame.isEmpty() == false) {
-                            stackFrames.putIfAbsent(frame.getId(), stackFrame);
+                            if (stackFrames.putIfAbsent(frame.getId(), stackFrame) == null) {
+                                totalInlineFrames.addAndGet(stackFrame.inlineFrameCount());
+                            }
                         } else {
                             log.trace("Stack frame with id [{}] has no properties.", frame.getId());
                         }
@@ -757,6 +760,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
+                builder.addTotalFrames(totalInlineFrames.get());
                 log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
                 log.debug(watch::report);
                 submitListener.onResponse(builder.build());

@@ -71,7 +71,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                     if (failOnFlushShards.contains(shardId)) {
                         listener.onFailure(new EngineException(shardId, "simulated IO"));
                     } else {
-                        super.flush(force, waitIfOngoing, listener);
+                        super.flushHoldingRef(force, waitIfOngoing, listener);
                     }
                 }
             });

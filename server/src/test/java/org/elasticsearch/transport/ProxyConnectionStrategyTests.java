@@ -130,7 +130,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -188,7 +192,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
 
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -263,7 +271,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -328,7 +340,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -388,7 +404,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
 
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -459,7 +479,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -511,7 +535,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 });
 
                 try (
-                    var remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    var remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     var strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -554,7 +582,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,
@@ -672,7 +704,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 );
                 int numOfConnections = randomIntBetween(4, 8);
                 try (
-                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,

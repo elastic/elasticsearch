@@ -30,7 +30,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             if (shardRouting.currentNodeId() == null) {
-                if (shardRouting.recoverySource() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+                if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     // restoring from a snapshot - check that the node can handle the version
                     return isVersionCompatible((SnapshotRecoverySource) shardRouting.recoverySource(), node, allocation);
                 } else {

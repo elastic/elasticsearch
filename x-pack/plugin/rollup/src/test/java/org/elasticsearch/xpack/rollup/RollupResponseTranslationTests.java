@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -562,7 +563,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         // TODO SearchResponse.Clusters is not public, using null for now. Should fix upstream.
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(
             new SearchResponse(
-                null,
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
                 InternalAggregations.from(Collections.singletonList(responses.get(0))),
                 null,
                 false,
@@ -581,7 +582,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         );
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(
             new SearchResponse(
-                null,
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
                 InternalAggregations.from(Collections.singletonList(responses.get(1))),
                 null,
                 false,

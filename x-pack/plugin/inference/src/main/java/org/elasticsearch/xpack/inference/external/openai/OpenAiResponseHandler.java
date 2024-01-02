@@ -35,6 +35,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
@@ -62,7 +63,11 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
 
         // handle error codes
-        if (statusCode >= 500) {
+        if (statusCode == 500) {
+            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+        } else if (statusCode == 503) {
+            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, request, result));
+        } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
             throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));

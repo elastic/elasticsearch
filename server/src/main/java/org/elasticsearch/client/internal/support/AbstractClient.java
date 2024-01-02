@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -724,11 +723,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
             return new ClusterUpdateSettingsRequestBuilder(this);
-        }
-
-        @Override
-        public NodesReloadSecureSettingsRequestBuilder prepareReloadSecureSettings() {
-            return new NodesReloadSecureSettingsRequestBuilder(this);
         }
 
         @Override

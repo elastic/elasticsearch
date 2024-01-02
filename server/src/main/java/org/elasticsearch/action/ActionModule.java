@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgra
 import org.elasticsearch.action.admin.cluster.migration.TransportPostFeatureUpgradeAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateNodeRemovalAction;
@@ -737,7 +736,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportExplainAction.TYPE, TransportExplainAction.class);
         actions.register(TransportClearScrollAction.TYPE, TransportClearScrollAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
-        actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
+        actions.register(TransportNodesReloadSecureSettingsAction.TYPE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
         actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
         actions.register(AnalyzeIndexDiskUsageAction.INSTANCE, TransportAnalyzeIndexDiskUsageAction.class);

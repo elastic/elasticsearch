@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -85,7 +86,9 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             for (int i = 0; i < numDocs; i++) {
                 double value = random().nextDouble();
                 XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("data", value).endObject();
-                bulkRequest.add(new IndexRequest("raw").source(doc));
+                IndexRequest indexRequest = new IndexRequest("raw").source(doc);
+                bulkRequest.add(indexRequest);
+                indexRequest.decRef();
                 histogram.recordValue(value);
                 if ((i + 1) % frq == 0) {
                     client().bulk(bulkRequest);
@@ -106,7 +109,9 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                         .field("counts", counts.toArray(new Integer[counts.size()]))
                         .endObject()
                         .endObject();
-                    prepareIndex("pre_agg").setSource(preAggDoc).get();
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex("pre_agg").setSource(preAggDoc);
+                    indexRequestBuilder.get();
+                    indexRequestBuilder.request().decRef();
                     histogram.reset();
                 }
             }
@@ -198,7 +203,9 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                     .field("data", value)
                     .endObject()
                     .endObject();
-                bulkRequest.add(new IndexRequest("raw").source(doc));
+                IndexRequest indexRequest = new IndexRequest("raw").source(doc);
+                bulkRequest.add(indexRequest);
+                indexRequest.decRef();
                 histogram.add(value);
                 if ((i + 1) % frq == 0) {
                     client().bulk(bulkRequest);
@@ -220,7 +227,9 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                         .endObject()
                         .endObject()
                         .endObject();
-                    prepareIndex("pre_agg").setSource(preAggDoc).get();
+                    IndexRequestBuilder indexRequestBuilder = prepareIndex("pre_agg").setSource(preAggDoc);
+                    indexRequestBuilder.get();
+                    indexRequestBuilder.request().decRef();
                     histogram = TDigestState.create(compression);
                 }
             }

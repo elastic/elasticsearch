@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
@@ -341,18 +340,8 @@ public class MultivalueDedupeTests extends ESTestCase {
         Set<? extends Object> previousValues,
         LongFunction<Object> lookup
     ) {
-        assertHash(b, hashes, hashSize, previousValues, lookup, v -> v);
-    }
-
-    private void assertHash(
-        BasicBlockTests.RandomBlock b,
-        IntBlock hashes,
-        long hashSize,
-        Set<? extends Object> previousValues,
-        LongFunction<Object> lookup,
-        Function<Object, Object> valueMapper
-    ) {
-        Set<Object> allValues = new HashSet<>(previousValues.stream().map(valueMapper).toList());
+        Set<Object> allValues = new HashSet<>();
+        allValues.addAll(previousValues);
         for (int p = 0; p < b.block().getPositionCount(); p++) {
             assertThat(hashes.isNull(p), equalTo(false));
             int count = hashes.getValueCount(p);
@@ -368,9 +357,8 @@ public class MultivalueDedupeTests extends ESTestCase {
             for (int i = start; i < end; i++) {
                 actualValues.add(lookup.apply(hashes.getInt(i) - 1));
             }
-            List<Object> values = v.stream().map(valueMapper).toList();
-            assertThat(new HashSet<>(actualValues), containsInAnyOrder(new HashSet<>(values).toArray()));
-            allValues.addAll(values);
+            assertThat(new HashSet<>(actualValues), containsInAnyOrder(new HashSet<>(v).toArray()));
+            allValues.addAll(v);
         }
 
         Set<Object> hashedValues = new HashSet<>((int) hashSize);

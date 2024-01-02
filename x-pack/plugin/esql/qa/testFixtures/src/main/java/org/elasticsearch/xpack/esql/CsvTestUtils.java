@@ -391,9 +391,6 @@ public final class CsvTestUtils {
             Long.class
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
-        // TODO: support all conversions to LONG, POINT and BYTES_REF for spatial types
-        // GEO_POINT(x -> x == null ? null : GEO.stringAsPoint(x), SpatialPoint.class),
-        // CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.stringAsPoint(x), SpatialPoint.class),
         GEO_POINT(x -> x == null ? null : GEO.stringAsWKB(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.stringAsWKB(x), BytesRef.class);
 
@@ -460,15 +457,11 @@ public final class CsvTestUtils {
         }
 
         private static Type bytesRefBlockType(Type actualType) {
-            return switch (actualType) {
-                case KEYWORD -> KEYWORD;
-                case VERSION -> KEYWORD;
-                case IP -> KEYWORD;
-                case TEXT -> KEYWORD;
-                case GEO_POINT -> GEO_POINT;
-                case CARTESIAN_POINT -> CARTESIAN_POINT;
-                default -> throw new IllegalArgumentException("Unsupported bytes-ref type: " + actualType);
-            };
+            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT) {
+                return actualType;
+            } else {
+                return KEYWORD;
+            }
         }
 
         Object convert(String value) {

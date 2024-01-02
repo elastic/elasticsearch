@@ -9,11 +9,8 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
-
-$else$
-import org.apache.lucene.util.RamUsageEstimator;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Vector implementation that stores a constant $type$ value.

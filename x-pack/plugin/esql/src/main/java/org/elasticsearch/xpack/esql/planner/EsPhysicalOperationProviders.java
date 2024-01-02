@@ -78,12 +78,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             layout.append(attr);
             DataType dataType = attr.dataType();
             String fieldName = attr.name();
-            List<BlockLoader> loaders = BlockReaderFactories.loaders(
-                searchContexts,
-                fieldName,
-                EsqlDataTypes.isUnsupported(dataType),
-                false
-            );
+            List<BlockLoader> loaders = BlockReaderFactories.loaders(searchContexts, fieldName, EsqlDataTypes.isUnsupported(dataType));
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
@@ -174,7 +169,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            BlockReaderFactories.loaders(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType()), true),
+            BlockReaderFactories.loaders(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
             shardContexts,
             groupElementType,
             docChannel,

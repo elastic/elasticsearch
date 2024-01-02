@@ -27,6 +27,7 @@ import java.nio.ByteOrder;
 final class WKBTopNEncoder extends SortableTopNEncoder {
     @Override
     public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+        // TODO: Consider more compact/efficient encoding. Perhaps base64?
         Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes, value.offset, value.length);
         String wkt = WellKnownText.toWKT(geometry);
         return UTF8.encodeBytesRef(BytesRefs.toBytesRef(wkt), bytesRefBuilder);

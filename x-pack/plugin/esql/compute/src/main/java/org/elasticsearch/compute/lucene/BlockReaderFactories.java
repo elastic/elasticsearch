@@ -32,12 +32,7 @@ public final class BlockReaderFactories {
      * @param asUnsupportedSource should the field be loaded as "unsupported"?
      *                            These will always have {@code null} values
      */
-    public static List<BlockLoader> loaders(
-        List<SearchContext> searchContexts,
-        String fieldName,
-        boolean asUnsupportedSource,
-        final boolean forStats
-    ) {
+    public static List<BlockLoader> loaders(List<SearchContext> searchContexts, String fieldName, boolean asUnsupportedSource) {
         List<BlockLoader> loaders = new ArrayList<>(searchContexts.size());
 
         for (SearchContext searchContext : searchContexts) {

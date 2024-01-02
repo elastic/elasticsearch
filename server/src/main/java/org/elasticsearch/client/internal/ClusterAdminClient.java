@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -85,10 +84,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptReque
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
-import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
@@ -167,11 +162,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Update settings in the cluster.
      */
     ClusterUpdateSettingsRequestBuilder prepareUpdateSettings();
-
-    /**
-     * Re initialize each cluster node and pass them the secret store password.
-     */
-    NodesReloadSecureSettingsRequestBuilder prepareReloadSecureSettings();
 
     /**
      * Reroutes allocation of shards. Advance API.
@@ -552,34 +542,4 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get a script from the cluster state
      */
     void getStoredScript(GetStoredScriptRequest request, ActionListener<GetStoredScriptResponse> listener);
-
-    /**
-     * List dangling indices on all nodes.
-     */
-    void listDanglingIndices(ListDanglingIndicesRequest request, ActionListener<ListDanglingIndicesResponse> listener);
-
-    /**
-     * List dangling indices on all nodes.
-     */
-    ActionFuture<ListDanglingIndicesResponse> listDanglingIndices(ListDanglingIndicesRequest request);
-
-    /**
-     * Restore specified dangling indices.
-     */
-    void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Restore specified dangling indices.
-     */
-    ActionFuture<AcknowledgedResponse> importDanglingIndex(ImportDanglingIndexRequest request);
-
-    /**
-     * Delete specified dangling indices.
-     */
-    void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Delete specified dangling indices.
-     */
-    ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
 }

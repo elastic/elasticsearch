@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -49,9 +50,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
     public void testGetOperationsBasedOnGlobalSequenceId() throws Exception {
         client().admin().indices().prepareCreate("index").setSettings(Settings.builder().put("index.number_of_shards", 1)).get();
 
-        prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
-        prepareIndex("index").setId("2").setSource("{}", XContentType.JSON).get();
-        prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
+        indexEmptyDoc("index", "1");
+        indexEmptyDoc("index", "2");
+        indexEmptyDoc("index", "3");
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         long globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -75,9 +76,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(operation.seqNo(), equalTo(2L));
         assertThat(operation.id(), equalTo("3"));
 
-        prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
-        prepareIndex("index").setId("4").setSource("{}", XContentType.JSON).get();
-        prepareIndex("index").setId("5").setSource("{}", XContentType.JSON).get();
+        indexEmptyDoc("index", "3");
+        indexEmptyDoc("index", "4");
+        indexEmptyDoc("index", "5");
 
         shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -110,7 +111,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             .get();
 
         for (int i = 0; i < 32; i++) {
-            prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
+            indexEmptyDoc("index", "1");
             client().prepareDelete("index", "1").get();
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }
@@ -193,6 +194,15 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             assertThat(cause.getMetadataKeys().size(), equalTo(1));
             assertThat(cause.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), notNullValue());
             assertThat(cause.getMetadata(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY), contains("0", "0"));
+        }
+    }
+
+    private void indexEmptyDoc(String index, String id) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setId(id).setSource("{}", XContentType.JSON);
+        try {
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
     }
 

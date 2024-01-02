@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -51,7 +52,9 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         final int numWrites = randomIntBetween(10, 4096);
         for (int i = 0; i < numWrites; i++) {
-            prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         // A number of times, get operations within a range that exists:
@@ -169,7 +172,9 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         final long numWrites = 32;
         for (int i = 0; i < numWrites; i++) {
-            prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId(Integer.toString(i)).setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         final IndexShard indexShard = indexService.getShard(0);
@@ -195,7 +200,9 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
     public void testGetOperationsAlwaysReturnAtLeastOneOp() throws Exception {
         final IndexService indexService = createIndex("index", indexSettings(1, 0).build());
 
-        prepareIndex("index").setId("0").setSource("{}", XContentType.JSON).get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("0").setSource("{}", XContentType.JSON);
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         final IndexShard indexShard = indexService.getShard(0);
         final Translog.Operation[] operations = ShardChangesAction.getOperations(

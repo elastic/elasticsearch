@@ -459,13 +459,6 @@ public interface BlockLoader {
         BytesRefBuilder appendBytesRef(BytesRef value);
     }
 
-    interface PointBuilder extends Builder {
-        /**
-         * Appends a SpatialPoint to the current entry.
-         */
-        PointBuilder appendPoint(SpatialPoint value);
-    }
-
     interface DoubleBuilder extends Builder {
         /**
          * Appends a double to the current entry.

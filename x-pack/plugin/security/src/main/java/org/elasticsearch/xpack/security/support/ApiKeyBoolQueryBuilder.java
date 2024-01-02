@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -148,12 +149,36 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
             return newQuery.boost(query.boost());
         } else if (qb instanceof MultiMatchQueryBuilder query) {
+            if (query.fields().isEmpty()) {
+                query.fields().put("*", 1.0f);
+            }
+            // "lenient false" with "all fields" wildcard is always an error because default fields have mappings
+            // that cannot be accessed with the same query type (e.g. keyword and date); override leniency
+            if (QueryParserHelper.hasAllFieldsWildcard(query.fields().keySet())) {
+                query.lenient(true);
+            }
             translateFieldPatterns(query.fields());
             return query;
         } else if (qb instanceof QueryStringQueryBuilder query) {
+            if (query.fields().isEmpty()) {
+                query.fields().put("*", 1.0f);
+            }
+            // "lenient false" with "all fields" wildcard is always an error because default fields have mappings
+            // that cannot be accessed with the same query type (e.g. keyword and date); override leniency
+            if (QueryParserHelper.hasAllFieldsWildcard(query.fields().keySet())) {
+                query.lenient(true);
+            }
             translateFieldPatterns(query.fields());
             return query;
         } else if (qb instanceof SimpleQueryStringBuilder query) {
+            if (query.fields().isEmpty()) {
+                query.fields().put("*", 1.0f);
+            }
+            // "lenient false" with "all fields" wildcard is always an error because default fields have mappings
+            // that cannot be accessed with the same query type (e.g. keyword and date); override leniency
+            if (QueryParserHelper.hasAllFieldsWildcard(query.fields().keySet())) {
+                query.lenient(true);
+            }
             translateFieldPatterns(query.fields());
             return query;
         } else {

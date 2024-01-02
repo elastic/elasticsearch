@@ -159,12 +159,13 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final DownsampleShardTaskParams params,
         final SearchHit[] lastDownsampledTsidHits
     ) {
+        DownsampleShardTask downsampleShardTask = (DownsampleShardTask) task;
         client.execute(
             DelegatingAction.INSTANCE,
-            new DelegatingAction.Request((DownsampleShardTask) task, lastDownsampledTsidHits, params),
+            new DelegatingAction.Request(downsampleShardTask, lastDownsampledTsidHits, params),
             ActionListener.wrap(empty -> {}, e -> {
                 LOGGER.error("error while delegating", e);
-                markAsFailed(task, e);
+                markAsFailed(downsampleShardTask, e);
             })
         );
     }
@@ -222,7 +223,8 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         });
     }
 
-    private static void markAsFailed(AllocatedPersistentTask task, Exception e) {
+    private static void markAsFailed(DownsampleShardTask task, Exception e) {
+        task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
         task.updatePersistentTaskState(
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
             ActionListener.running(() -> task.markAsFailed(e))

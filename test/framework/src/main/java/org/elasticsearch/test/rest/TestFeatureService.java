@@ -56,7 +56,7 @@ public class TestFeatureService {
         return features != null && features.getValue().contains(featureId);
     }
 
-    boolean clusterHasFeature(String featureId) {
+    public boolean clusterHasFeature(String featureId) {
         if (clusterStateFeatures.contains(featureId)) {
             return true;
         }

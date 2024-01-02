@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,64 +38,5 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return ExecutableSection.XCONTENT_REGISTRY;
-    }
-
-    protected static SkipSectionContext versionOnlyContext(Version version) {
-        return new SkipSectionContext() {
-            @Override
-            public boolean clusterIsRunningOs(String osName) {
-                return false;
-            }
-
-            @Override
-            public boolean clusterHasFeature(String featureId) {
-                return true;
-            }
-
-            @Override
-            public boolean clusterVersionInRange(VersionRange range) {
-                return range.contains(version);
-            }
-
-        };
-    }
-
-    protected static SkipSectionContext neverSkipContext() {
-        return new SkipSectionContext() {
-            @Override
-            public boolean clusterIsRunningOs(String osName) {
-                return false;
-            }
-
-            @Override
-            public boolean clusterHasFeature(String featureId) {
-                return true;
-            }
-
-            @Override
-            public boolean clusterVersionInRange(VersionRange range) {
-                return false;
-            }
-
-        };
-    }
-
-    protected static SkipSectionContext osOnlyContext(String os) {
-        return new SkipSectionContext() {
-            @Override
-            public boolean clusterIsRunningOs(String osName) {
-                return osName.equals(os);
-            }
-
-            @Override
-            public boolean clusterHasFeature(String featureId) {
-                return true;
-            }
-
-            @Override
-            public boolean clusterVersionInRange(VersionRange range) {
-                return false;
-            }
-        };
     }
 }

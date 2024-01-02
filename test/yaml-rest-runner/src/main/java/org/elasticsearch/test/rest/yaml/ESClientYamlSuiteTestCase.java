@@ -37,8 +37,6 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
-import org.elasticsearch.test.rest.yaml.section.SkipSectionContext;
-import org.elasticsearch.test.rest.yaml.section.VersionRange;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -465,34 +463,35 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             );
         }
 
-        var skipContext = new SkipSectionContextAdapter(restTestExecutionContext);
         // skip test if the whole suite (yaml file) is disabled
         assumeFalse(
             testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(skipContext)
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext)
         );
         // skip test if the whole suite (yaml file) is disabled
         assumeFalse(
             testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(skipContext)
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext)
         );
         // skip test if test section is disabled
         assumeFalse(
             testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(skipContext)
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext)
         );
 
         // let's check that there is something to run, otherwise there might be a problem with the test section
-        if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
+        if (testCandidate.getTestSection().getExecutableSections().isEmpty()) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
         assumeFalse(
             "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
-            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().yamlRunnerHasFeature("fips_140")
         );
 
-        final Settings globalTemplateSettings = getGlobalTemplateSettings(testCandidate.getTestSection().getSkipSection().getFeatures());
+        final Settings globalTemplateSettings = getGlobalTemplateSettings(
+            testCandidate.getTestSection().getSkipSection().yamlRunnerHasFeature("default_shards")
+        );
         if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
 
             final XContentBuilder template = jsonBuilder();
@@ -541,8 +540,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    protected Settings getGlobalTemplateSettings(List<String> features) {
-        if (features.contains("default_shards")) {
+    protected Settings getGlobalTemplateSettings(boolean defaultShardsFeature) {
+        if (defaultShardsFeature) {
             return Settings.EMPTY;
         } else {
             return globalTemplateIndexSettings;
@@ -611,29 +610,5 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     public ClientYamlTestCandidate getTestCandidate() {
         return testCandidate;
-    }
-
-    private static class SkipSectionContextAdapter implements SkipSectionContext {
-        private final ClientYamlTestExecutionContext executionContext;
-
-        SkipSectionContextAdapter(ClientYamlTestExecutionContext executionContext) {
-            this.executionContext = executionContext;
-        }
-
-        @Override
-        public boolean clusterIsRunningOs(String osName) {
-            return osName.equals(executionContext.os());
-        }
-
-        @Override
-        public boolean clusterHasFeature(String featureId) {
-            return executionContext.clusterHasFeature(featureId);
-        }
-
-        @Override
-        public boolean clusterVersionInRange(VersionRange range) {
-            return range.contains(executionContext.esVersion());
-        }
-
     }
 }

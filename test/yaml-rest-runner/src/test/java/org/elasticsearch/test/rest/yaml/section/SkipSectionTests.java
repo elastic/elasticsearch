@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.util.Collections;
@@ -26,77 +27,140 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testSkipVersionMultiRange() {
         SkipSection section = new SkipSection(
-            List.of(new VersionSkipCriteria("6.0.0 - 6.1.0, 7.1.0 - 7.5.0")),
+            List.of(SkipCriteria.fromVersionRange("6.0.0 - 6.1.0, 7.1.0 - 7.5.0")),
             Collections.emptyList(),
             "foobar"
         );
 
-        assertFalse(section.skip(versionOnlyContext(Version.CURRENT)));
-        assertFalse(section.skip(versionOnlyContext(Version.fromString("6.2.0"))));
-        assertFalse(section.skip(versionOnlyContext(Version.fromString("7.0.0"))));
-        assertFalse(section.skip(versionOnlyContext(Version.fromString("7.6.0"))));
+        var outOfRangeMockContext = mock(ClientYamlTestExecutionContext.class);
+        when(outOfRangeMockContext.esVersion()).thenReturn(Version.CURRENT)
+            .thenReturn(Version.fromString("6.2.0"))
+            .thenReturn(Version.fromString("7.0.0"))
+            .thenReturn(Version.fromString("7.6.0"));
 
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("6.0.0"))));
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("6.1.0"))));
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("7.1.0"))));
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("7.5.0"))));
+        assertFalse(section.skip(outOfRangeMockContext));
+        assertFalse(section.skip(outOfRangeMockContext));
+        assertFalse(section.skip(outOfRangeMockContext));
+        assertFalse(section.skip(outOfRangeMockContext));
 
-        section = new SkipSection(List.of(new VersionSkipCriteria("-  7.1.0, 7.2.0 - 7.5.0, 8.0.0 -")), Collections.emptyList(), "foobar");
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("7.0.0"))));
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("7.3.0"))));
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("8.0.0"))));
+        var inRangeMockContext = mock(ClientYamlTestExecutionContext.class);
+        when(inRangeMockContext.esVersion()).thenReturn(Version.fromString("6.0.0"))
+            .thenReturn(Version.fromString("6.1.0"))
+            .thenReturn(Version.fromString("7.1.0"))
+            .thenReturn(Version.fromString("7.5.0"));
+
+        assertTrue(section.skip(inRangeMockContext));
+        assertTrue(section.skip(inRangeMockContext));
+        assertTrue(section.skip(inRangeMockContext));
+        assertTrue(section.skip(inRangeMockContext));
+    }
+
+    public void testSkipVersionMultiOpenRange() {
+        var section = new SkipSection(
+            List.of(SkipCriteria.fromVersionRange("-  7.1.0, 7.2.0 - 7.5.0, 8.0.0 -")),
+            Collections.emptyList(),
+            "foobar"
+        );
+
+        var outOfRangeMockContext = mock(ClientYamlTestExecutionContext.class);
+        when(outOfRangeMockContext.esVersion()).thenReturn(Version.CURRENT)
+            .thenReturn(Version.fromString("7.0.1"))
+            .thenReturn(Version.fromString("7.6.0"));
+
+        assertFalse(section.skip(outOfRangeMockContext));
+        assertFalse(section.skip(outOfRangeMockContext));
+
+        var inRangeMockContext = mock(ClientYamlTestExecutionContext.class);
+        when(inRangeMockContext.esVersion()).thenReturn(Version.fromString("7.0.0"))
+            .thenReturn(Version.fromString("7.3.0"))
+            .thenReturn(Version.fromString("8.0.0"));
+
+        assertTrue(section.skip(inRangeMockContext));
+        assertTrue(section.skip(inRangeMockContext));
+        assertTrue(section.skip(inRangeMockContext));
     }
 
     public void testSkipVersion() {
-        SkipSection section = new SkipSection(List.of(new VersionSkipCriteria("6.0.0 - 6.1.0")), Collections.emptyList(), "foobar");
-        assertFalse(section.skip(versionOnlyContext(Version.CURRENT)));
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("6.0.0"))));
+        SkipSection section = new SkipSection(List.of(SkipCriteria.fromVersionRange("6.0.0 - 6.1.0")), Collections.emptyList(), "foobar");
+
+        var mockContext = mock(ClientYamlTestExecutionContext.class);
+        when(mockContext.esVersion()).thenReturn(Version.CURRENT).thenReturn(Version.fromString("6.0.0"));
+
+        assertFalse(section.skip(mockContext));
+        assertTrue(section.skip(mockContext));
     }
 
     public void testSkipVersionWithTestFeatures() {
         SkipSection section = new SkipSection(
-            List.of(new VersionSkipCriteria("6.0.0 - 6.1.0")),
+            List.of(SkipCriteria.fromVersionRange("6.0.0 - 6.1.0")),
             Collections.singletonList("warnings"),
             "foobar"
         );
-        assertFalse(section.skip(versionOnlyContext(Version.CURRENT)));
-        assertTrue(section.skip(versionOnlyContext(Version.fromString("6.0.0"))));
+
+        var mockContext = mock(ClientYamlTestExecutionContext.class);
+        when(mockContext.esVersion()).thenReturn(Version.CURRENT).thenReturn(Version.fromString("6.0.0"));
+
+        assertFalse(section.skip(mockContext));
+        assertTrue(section.skip(mockContext));
     }
 
     public void testSkipTestFeatures() {
-        var section = new SkipSection(List.of(), Collections.singletonList("boom"), "foobar");
-        assertTrue(section.skip(neverSkipContext()));
+        var section = new SkipSection.SkipSectionBuilder().withTestFeature("boom").build();
+        assertTrue(section.skip(mock(ClientYamlTestExecutionContext.class)));
     }
 
-    public void testSkipTestFeaturesWithSkipCriteria() {
-        var section = new SkipSection(List.of(context -> false), Collections.singletonList("boom"), "foobar");
-        assertTrue(section.skip(neverSkipContext()));
+    public void testSkipTestFeaturesOverridesAnySkipCriteria() {
+        var section = new SkipSection.SkipSectionBuilder().withOs("test-os").withTestFeature("boom").build();
+
+        var mockContext = mock(ClientYamlTestExecutionContext.class);
+        when(mockContext.os()).thenReturn("test-os");
+
+        // Skip even if OS is matching
+        assertTrue(section.skip(mockContext));
     }
 
     public void testSkipOs() {
-        var osList = List.of("windows95", "debian-5");
-        SkipSection section = new SkipSection(List.of(new OsSkipCriteria(osList)), Collections.emptyList(), "foobar");
-        assertTrue(section.skip(osOnlyContext("windows95")));
-        assertTrue(section.skip(osOnlyContext("debian-5")));
-        assertFalse(section.skip(osOnlyContext("ms-dos")));
+        SkipSection section = new SkipSection.SkipSectionBuilder().withOs("windows95").withOs("debian-5").build();
+
+        var mockContext = mock(ClientYamlTestExecutionContext.class);
+
+        when(mockContext.os()).thenReturn("debian-5");
+        assertTrue(section.skip(mockContext));
+
+        when(mockContext.os()).thenReturn("windows95");
+        assertTrue(section.skip(mockContext));
+
+        when(mockContext.os()).thenReturn("ms-dos");
+        assertFalse(section.skip(mockContext));
     }
 
     public void testSkipOsWithTestFeatures() {
-        var osList = List.of("windows95", "debian-5");
-        SkipSection section = new SkipSection(List.of(new OsSkipCriteria(osList)), Collections.singletonList("warnings"), "foobar");
-        assertTrue(section.skip(osOnlyContext("windows95")));
-        assertTrue(section.skip(osOnlyContext("debian-5")));
-        assertFalse(section.skip(osOnlyContext("ms-dos")));
+        SkipSection section = new SkipSection.SkipSectionBuilder().withTestFeature("warnings")
+            .withOs("windows95")
+            .withOs("debian-5")
+            .build();
+
+        var mockContext = mock(ClientYamlTestExecutionContext.class);
+        when(mockContext.os()).thenReturn("debian-5");
+        assertTrue(section.skip(mockContext));
+
+        when(mockContext.os()).thenReturn("windows95");
+        assertTrue(section.skip(mockContext));
+
+        when(mockContext.os()).thenReturn("ms-dos");
+        assertFalse(section.skip(mockContext));
     }
 
     public void testMessage() {
         SkipSection section = new SkipSection(
-            List.of(new VersionSkipCriteria("6.0.0 - 6.1.0")),
+            List.of(SkipCriteria.fromVersionRange("6.0.0 - 6.1.0")),
             Collections.singletonList("warnings"),
             "foobar"
         );
@@ -126,7 +190,6 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         var skipSectionBuilder = SkipSection.parseInternal(parser);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
-        assertThat(skipSectionBuilder.testFeatures, hasSize(1));
         assertThat(skipSectionBuilder.testFeatures, contains("regex"));
         assertThat(skipSectionBuilder.reason, nullValue());
     }
@@ -137,7 +200,6 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         var skipSectionBuilder = SkipSection.parseInternal(parser);
         assertThat(skipSectionBuilder, notNullValue());
         assertThat(skipSectionBuilder.version, emptyOrNullString());
-        assertThat(skipSectionBuilder.testFeatures, hasSize(3));
         assertThat(skipSectionBuilder.testFeatures, contains("regex1", "regex2", "regex3"));
         assertThat(skipSectionBuilder.reason, nullValue());
     }

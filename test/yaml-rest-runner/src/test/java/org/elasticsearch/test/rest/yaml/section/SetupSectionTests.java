@@ -109,8 +109,6 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));
         assertThat(setupSection.getSkipSection(), notNullValue());
-        assertThat(setupSection.getSkipSection().skipCriteriaList, hasSize(1));
-        assertThat(setupSection.getSkipSection().skipCriteriaList, contains(instanceOf(VersionSkipCriteria.class)));
         assertThat(setupSection.getSkipSection().skipCriteriaList, contains(hasToString("[6.0.0 - 6.3.0]")));
         assertThat(setupSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(setupSection.getExecutableSections().size(), equalTo(2));

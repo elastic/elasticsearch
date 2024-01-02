@@ -9,6 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.Features;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Represents a skip section that tells whether a specific test section or suite needs to be skipped
@@ -72,12 +74,20 @@ public class SkipSection {
         }
 
         public SkipSection build() {
-            List<SkipCriteria> skipCriteriaList = new ArrayList<>();
-            if (Strings.hasLength(version)) {
-                skipCriteriaList.add(new VersionSkipCriteria(version));
-            }
-            if (operatingSystems.isEmpty() == false) {
-                skipCriteriaList.add(new OsSkipCriteria(operatingSystems));
+            final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList;
+
+            // Check if the test runner supports all YAML framework features (see {@link Features}). If not, default to always skip this
+            // section.
+            if (Features.areAllSupported(testFeatures) == false) {
+                skipCriteriaList = List.of(SkipCriteria.SKIP_ALWAYS);
+            } else {
+                skipCriteriaList = new ArrayList<>();
+                if (Strings.hasLength(version)) {
+                    skipCriteriaList.add(SkipCriteria.fromVersionRange(version));
+                }
+                if (operatingSystems.isEmpty() == false) {
+                    skipCriteriaList.add(SkipCriteria.fromOsList(operatingSystems));
+                }
             }
             return new SkipSection(skipCriteriaList, testFeatures, reason);
         }
@@ -156,7 +166,7 @@ public class SkipSection {
 
     public static final SkipSection EMPTY = new SkipSection();
 
-    final List<SkipCriteria> skipCriteriaList;
+    final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList;
     private final List<String> testFeatures;
     private final String reason;
 
@@ -166,28 +176,26 @@ public class SkipSection {
         this.reason = null;
     }
 
-    SkipSection(List<SkipCriteria> skipCriteriaList, List<String> testFeatures, String reason) {
+    SkipSection(List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList, List<String> testFeatures, String reason) {
         this.skipCriteriaList = skipCriteriaList;
         this.testFeatures = testFeatures;
         this.reason = reason;
     }
 
-    public List<String> getFeatures() {
-        return testFeatures;
+    public boolean yamlRunnerHasFeature(String feature) {
+        return testFeatures.contains(feature);
     }
 
     public String getReason() {
         return reason;
     }
 
-    public boolean skip(SkipSectionContext context) {
+    public boolean skip(ClientYamlTestExecutionContext context) {
         if (isEmpty()) {
             return false;
         }
-        if (Features.areAllSupported(testFeatures) == false) {
-            return true;
-        }
-        return skipCriteriaList.stream().anyMatch(c -> c.skip(context));
+
+        return skipCriteriaList.stream().anyMatch(c -> c.test(context));
     }
 
     public boolean isEmpty() {
@@ -201,7 +209,7 @@ public class SkipSection {
             messageBuilder.append(" reason: [").append(getReason()).append("]");
         }
         if (testFeatures.isEmpty() == false) {
-            messageBuilder.append(" unsupported features ").append(getFeatures());
+            messageBuilder.append(" unsupported features ").append(testFeatures);
         }
         return messageBuilder.toString();
     }

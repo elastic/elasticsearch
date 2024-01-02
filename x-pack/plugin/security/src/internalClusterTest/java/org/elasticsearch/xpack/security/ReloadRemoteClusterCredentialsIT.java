@@ -37,7 +37,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -126,7 +125,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             configureRemoteCluster(remoteAddress);
 
             // Run search to trigger header capturing on the receiving side
-            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
+            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get().decRef();
 
             assertHeadersContainCredentialsThenClear(credentials, capturedHeaders);
 
@@ -135,7 +134,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             writeCredentialsToKeyStore(updatedCredentials);
             reloadSecureSettings();
 
-            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
+            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get().decRef();
 
             assertHeadersContainCredentialsThenClear(updatedCredentials, capturedHeaders);
         }
@@ -245,15 +244,13 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                     capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(
                         new SearchResponse(
-                            new InternalSearchResponse(
-                                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                                InternalAggregations.EMPTY,
-                                null,
-                                null,
-                                false,
-                                null,
-                                1
-                            ),
+                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                            InternalAggregations.EMPTY,
+                            null,
+                            false,
+                            null,
+                            null,
+                            1,
                             null,
                             1,
                             1,

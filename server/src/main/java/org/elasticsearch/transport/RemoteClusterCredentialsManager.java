@@ -25,11 +25,12 @@ public class RemoteClusterCredentialsManager {
 
     private volatile Map<String, SecureString> clusterCredentials;
 
+    @SuppressWarnings("this-escape")
     public RemoteClusterCredentialsManager(Settings settings) {
         updateClusterCredentials(settings);
     }
 
-    public void updateClusterCredentials(Settings settings) {
+    public final void updateClusterCredentials(Settings settings) {
         clusterCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
         logger.debug(
             () -> Strings.format(

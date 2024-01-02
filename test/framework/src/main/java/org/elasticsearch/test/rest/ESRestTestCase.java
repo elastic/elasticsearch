@@ -310,7 +310,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
-            testFeatureService = createTestFeatureService(adminClient, semanticNodeVersions);
+            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }
 
         assert testFeatureService != null;
@@ -321,8 +321,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected static TestFeatureService createTestFeatureService(RestClient adminClient, Set<Version> semanticNodeVersions)
-        throws IOException {
+    protected static TestFeatureService createTestFeatureService(
+        Map<String, Set<String>> clusterStateFeatures,
+        Set<Version> semanticNodeVersions
+    ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
         var providers = hasHistoricalFeaturesInformation
@@ -333,7 +335,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             hasHistoricalFeaturesInformation,
             providers,
             semanticNodeVersions,
-            ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures(adminClient).values())
+            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
         );
     }
 
@@ -2094,7 +2096,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
+    protected static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
         final Request request = new Request("GET", "_cluster/state");
         request.addParameter("filter_path", "nodes_features");
 
@@ -2187,7 +2189,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return fallbackSupplier.get();
     }
 
-    protected static Optional<Version> parseLegacyVersion(String version) {
+    public static Optional<Version> parseLegacyVersion(String version) {
         var semanticVersionMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
         if (semanticVersionMatcher.matches()) {
             return Optional.of(Version.fromString(semanticVersionMatcher.group(1)));

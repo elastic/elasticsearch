@@ -157,7 +157,7 @@ public class AllocationBenchmark {
     }
 
     private int toInt(String v) {
-        return Integer.valueOf(v.trim());
+        return Integer.parseInt(v.trim());
     }
 
     /**

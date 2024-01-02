@@ -130,7 +130,7 @@ public class TermsReduceBenchmark {
                 buckets.add(new StringTerms.Bucket(term, rand.nextInt(10000), subAggs, true, 0L, DocValueFormat.RAW));
             }
 
-            Collections.sort(buckets, (a, b) -> a.compareKey(b));
+            buckets.sort(StringTerms.Bucket::compareKey);
             return new StringTerms(
                 "terms",
                 BucketOrder.key(true),
@@ -196,8 +196,8 @@ public class TermsReduceBenchmark {
             exc -> {}
         );
         CountDownLatch latch = new CountDownLatch(shards.size());
-        for (int i = 0; i < shards.size(); i++) {
-            consumer.consumeResult(shards.get(i), () -> latch.countDown());
+        for (QuerySearchResult shard : shards) {
+            consumer.consumeResult(shard, latch::countDown);
         }
         latch.await();
         SearchPhaseController.ReducedQueryPhase phase = consumer.reduce();

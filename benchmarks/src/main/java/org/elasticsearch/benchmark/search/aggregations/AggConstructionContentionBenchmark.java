@@ -99,6 +99,7 @@ public class AggConstructionContentionBenchmark {
         }
     );
 
+
     private CircuitBreakerService breakerService;
     private BigArrays bigArrays;
     private boolean preallocateBreaker;
@@ -140,6 +141,15 @@ public class AggConstructionContentionBenchmark {
     public void termsSixtySums() throws IOException {
         TermsAggregationBuilder b = new TermsAggregationBuilder("t").field("int_1");
         for (int i = 0; i < 60; i++) {
+            b.subAggregation(new SumAggregationBuilder("s" + i).field("int_" + i));
+        }
+        buildFactories(new AggregatorFactories.Builder().addAggregator(b));
+    }
+
+    @Benchmark
+    public void termsHundredSums() throws IOException {
+        TermsAggregationBuilder b = new TermsAggregationBuilder("t").field("int_1");
+        for (int i = 0; i < 100; i++) {
             b.subAggregation(new SumAggregationBuilder("s" + i).field("int_" + i));
         }
         buildFactories(new AggregatorFactories.Builder().addAggregator(b));

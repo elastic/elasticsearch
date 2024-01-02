@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -115,7 +116,7 @@ public class GitInfo {
                 } else {
                     File refsDir = gitDir.resolve("refs").toFile();
                     if (refsDir.exists()) {
-                        String foundRefs = Arrays.stream(refsDir.listFiles()).map(f -> f.getName()).collect(Collectors.joining("\n"));
+                        String foundRefs = Arrays.stream(Objects.requireNonNull(refsDir.listFiles())).map(File::getName).collect(Collectors.joining("\n"));
                         Logging.getLogger(GitInfo.class).error("Found git refs\n" + foundRefs);
                     } else {
                         Logging.getLogger(GitInfo.class).error("No git refs dir found");
@@ -176,7 +177,7 @@ public class GitInfo {
     /** Find the reponame. */
     public String urlFromOrigin() {
         if (origin == null) {
-            return null; // best effort, the url doesnt really matter, it is just required by maven central
+            return null; // best effort, the url doesn't really matter, it is just required by maven central
         }
         if (origin.startsWith("https")) {
             return origin;
@@ -185,7 +186,7 @@ public class GitInfo {
         if (matcher.matches()) {
             return String.format("https://%s/%s", matcher.group(1), matcher.group(2));
         } else {
-            return origin; // best effort, the url doesnt really matter, it is just required by maven central
+            return origin; // best effort, the url doesn't really matter, it is just required by maven central
         }
     }
 

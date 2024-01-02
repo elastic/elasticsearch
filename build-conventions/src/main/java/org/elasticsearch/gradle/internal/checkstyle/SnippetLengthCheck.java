@@ -39,7 +39,7 @@ public class SnippetLengthCheck extends AbstractFileSetCheck {
 
     @Override
     protected void processFiltered(File file, FileText fileText) throws CheckstyleException {
-        checkFile((line, message) -> log(line, message), max, fileText.toLinesArray());
+        checkFile(this::log, max, fileText.toLinesArray());
     }
 
     static void checkFile(BiConsumer<Integer, String> log, int max, String... lineArray) {

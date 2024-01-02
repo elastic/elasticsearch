@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.PrimitiveIterator;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -260,26 +261,26 @@ public class ValuesSourceReaderBenchmark {
             op.addInput(page);
             switch (name) {
                 case "long" -> {
-                    LongVector values = op.getOutput().<LongBlock>getBlock(1).asVector();
+                    LongVector values = Objects.requireNonNull(op.getOutput()).<LongBlock>getBlock(1).asVector();
                     for (int p = 0; p < values.getPositionCount(); p++) {
                         sum += values.getLong(p);
                     }
                 }
                 case "int" -> {
-                    IntVector values = op.getOutput().<IntBlock>getBlock(1).asVector();
+                    IntVector values = Objects.requireNonNull(op.getOutput()).<IntBlock>getBlock(1).asVector();
                     for (int p = 0; p < values.getPositionCount(); p++) {
                         sum += values.getInt(p);
                     }
                 }
                 case "double" -> {
-                    DoubleVector values = op.getOutput().<DoubleBlock>getBlock(1).asVector();
+                    DoubleVector values = Objects.requireNonNull(op.getOutput()).<DoubleBlock>getBlock(1).asVector();
                     for (int p = 0; p < values.getPositionCount(); p++) {
                         sum += (long) values.getDouble(p);
                     }
                 }
                 case "keyword", "stored_keyword" -> {
                     BytesRef scratch = new BytesRef();
-                    BytesRefVector values = op.getOutput().<BytesRefBlock>getBlock(1).asVector();
+                    BytesRefVector values = Objects.requireNonNull(op.getOutput()).<BytesRefBlock>getBlock(1).asVector();
                     for (int p = 0; p < values.getPositionCount(); p++) {
                         BytesRef r = values.getBytesRef(p, scratch);
                         r.offset++;
@@ -327,11 +328,11 @@ public class ValuesSourceReaderBenchmark {
         boolean foundStoredFieldLoader = false;
         ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) op.status();
         for (Map.Entry<String, Integer> e : status.readersBuilt().entrySet()) {
-            if (e.getKey().indexOf("stored_fields") >= 0) {
+            if (e.getKey().contains("stored_fields")) {
                 foundStoredFieldLoader = true;
             }
         }
-        if (name.indexOf("stored") >= 0) {
+        if (name.contains("stored")) {
             if (foundStoredFieldLoader == false) {
                 throw new AssertionError("expected to use a stored field loader but only had: " + status.readersBuilt());
             }

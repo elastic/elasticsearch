@@ -35,6 +35,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -85,7 +86,7 @@ public class FilterContentBenchmark {
             case "10_field" -> keys.stream().filter(key -> count.getAndIncrement() % 5 == 0).limit(10).collect(Collectors.toSet());
             case "half_field" -> keys.stream().filter(key -> count.getAndIncrement() % 2 == 0).collect(Collectors.toSet());
             case "all_field" -> new HashSet<>(keys);
-            case "wildcard_field" -> new HashSet<>(Arrays.asList("*stats"));
+            case "wildcard_field" -> new HashSet<>(List.of("*stats"));
             case "10_wildcard_field" -> Set.of(
                 "*stats.nodes*",
                 "*stats.ind*",

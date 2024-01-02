@@ -50,7 +50,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final String groupName;
     private final String testName;
     private final Integer lineNumber;
-    private final CsvTestCase testCase;
+    protected final CsvTestCase testCase;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {

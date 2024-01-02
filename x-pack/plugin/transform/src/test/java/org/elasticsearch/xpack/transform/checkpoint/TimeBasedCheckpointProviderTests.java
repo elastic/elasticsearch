@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
@@ -339,15 +338,13 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private static SearchResponse newSearchResponse(long totalHits) {
         return new SearchResponse(
-            new SearchResponseSections(
-                new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0),
-                null,
-                null,
-                false,
-                false,
-                null,
-                0
-            ),
+            new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0),
+            null,
+            null,
+            false,
+            false,
+            null,
+            0,
             null,
             1,
             1,

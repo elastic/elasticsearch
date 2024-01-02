@@ -12,12 +12,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions(Settings nodeSettings) {
+    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         return Stream.of(
             /*
              * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
@@ -65,7 +66,9 @@ final class SystemJvmOptions {
              */
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
             maybeOverrideDockerCgroup(),
-            maybeSetActiveProcessorCount(nodeSettings)
+            maybeSetActiveProcessorCount(nodeSettings),
+            // Pass through distribution type
+            "-Des.distribution.type=" + sysprops.get("es.distribution.type")
         ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 

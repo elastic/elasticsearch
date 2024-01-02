@@ -7,17 +7,19 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.operator.ComputeTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BlockBuilderAppendBlockTests extends ESTestCase {
+public class BlockBuilderAppendBlockTests extends ComputeTestCase {
 
     public void testBasic() {
-        IntBlock src = new IntBlockBuilder(10, BlockFactory.getNonBreakingInstance()).appendInt(1)
+        BlockFactory blockFactory = blockFactory();
+        IntBlock src = blockFactory.newIntBlockBuilder(10)
+            .appendInt(1)
             .appendNull()
             .beginPositionEntry()
             .appendInt(4)
@@ -32,40 +34,48 @@ public class BlockBuilderAppendBlockTests extends ESTestCase {
             .endPositionEntry()
             .build();
         // copy position by position
-        {
-            IntBlock.Builder dst = IntBlock.newBlockBuilder(randomIntBetween(1, 20));
+        try (IntBlock.Builder dst = blockFactory.newIntBlockBuilder(randomIntBetween(1, 20))) {
             for (int i = 0; i < src.getPositionCount(); i++) {
-                dst.appendAllValuesToCurrentPosition(src.filter(i));
+                try (IntBlock filter = src.filter(i)) {
+                    dst.appendAllValuesToCurrentPosition(filter);
+                }
             }
-            assertThat(dst.build(), equalTo(src));
+            try (IntBlock block = dst.build()) {
+                assertThat(block, equalTo(src));
+            }
         }
         // copy all block
-        {
-            IntBlock.Builder dst = IntBlock.newBlockBuilder(randomIntBetween(1, 20));
-            IntBlock block = dst.appendAllValuesToCurrentPosition(src).build();
-            assertThat(block.getPositionCount(), equalTo(1));
-            assertThat(BlockUtils.toJavaObject(block, 0), equalTo(List.of(1, 4, 6, 10, 20, 30, 1)));
+        try (IntBlock.Builder dst = blockFactory.newIntBlockBuilder(randomIntBetween(1, 20))) {
+            try (IntBlock block = dst.appendAllValuesToCurrentPosition(src).build()) {
+                assertThat(block.getPositionCount(), equalTo(1));
+                assertThat(BlockUtils.toJavaObject(block, 0), equalTo(List.of(1, 4, 6, 10, 20, 30, 1)));
+            }
         }
-        {
-            Block dst = randomlyDivideAndMerge(src);
+        try (Block dst = randomlyDivideAndMerge(src)) {
             assertThat(dst.getPositionCount(), equalTo(1));
             assertThat(BlockUtils.toJavaObject(dst, 0), equalTo(List.of(1, 4, 6, 10, 20, 30, 1)));
         }
     }
 
     public void testRandomNullBlock() {
-        IntBlock.Builder src = IntBlock.newBlockBuilder(10);
-        src.appendAllValuesToCurrentPosition(new ConstantNullBlock(between(1, 100)));
+        BlockFactory blockFactory = blockFactory();
+        IntBlock.Builder src = blockFactory.newIntBlockBuilder(10);
+        try (var nullBlock = blockFactory.newConstantNullBlock(between(1, 100))) {
+            src.appendAllValuesToCurrentPosition(nullBlock);
+        }
         src.appendInt(101);
-        src.appendAllValuesToCurrentPosition(new ConstantNullBlock(between(1, 100)));
+        try (var nullBlock = blockFactory.newConstantNullBlock(between(1, 100))) {
+            src.appendAllValuesToCurrentPosition(nullBlock);
+        }
         IntBlock block = src.build();
         assertThat(block.getPositionCount(), equalTo(3));
         assertTrue(block.isNull(0));
         assertThat(block.getInt(1), equalTo(101));
         assertTrue(block.isNull(2));
-        Block flatten = randomlyDivideAndMerge(block);
-        assertThat(flatten.getPositionCount(), equalTo(1));
-        assertThat(BlockUtils.toJavaObject(flatten, 0), equalTo(101));
+        try (Block flatten = randomlyDivideAndMerge(block)) {
+            assertThat(flatten.getPositionCount(), equalTo(1));
+            assertThat(BlockUtils.toJavaObject(flatten, 0), equalTo(101));
+        }
     }
 
     public void testRandom() {
@@ -79,14 +89,17 @@ public class BlockBuilderAppendBlockTests extends ESTestCase {
             0,
             between(0, 16)
         ).block();
-        randomlyDivideAndMerge(block);
+
+        block = randomlyDivideAndMerge(block);
+        block.close();
     }
 
     private Block randomlyDivideAndMerge(Block block) {
         while (block.getPositionCount() > 1 || randomBoolean()) {
             int positionCount = block.getPositionCount();
             int offset = 0;
-            Block.Builder builder = block.elementType().newBlockBuilder(randomIntBetween(1, 100));
+            Block.Builder builder = block.elementType()
+                .newBlockBuilder(randomIntBetween(1, 100), TestBlockFactory.getNonBreakingInstance());
             List<Object> expected = new ArrayList<>();
             while (offset < positionCount) {
                 int length = randomIntBetween(1, positionCount - offset);
@@ -98,7 +111,9 @@ public class BlockBuilderAppendBlockTests extends ESTestCase {
                 Block sub = block.filter(positions);
                 expected.add(extractAndFlattenBlockValues(sub));
                 builder.appendAllValuesToCurrentPosition(sub);
+                sub.close();
             }
+            block.close();
             block = builder.build();
             assertThat(block.getPositionCount(), equalTo(expected.size()));
             for (int i = 0; i < block.getPositionCount(); i++) {

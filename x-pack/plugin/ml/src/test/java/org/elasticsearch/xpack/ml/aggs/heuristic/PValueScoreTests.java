@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.AbstractNXYSignificanceHeuri
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.util.List;
 import java.util.function.Function;
@@ -56,16 +57,14 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(
-            new SearchModule(Settings.EMPTY, List.of(new MachineLearning(Settings.EMPTY))).getNamedXContents()
-        );
+        MachineLearning mlPlugin = MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of(mlPlugin)).getNamedXContents());
     }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, List.of(new MachineLearning(Settings.EMPTY))).getNamedWriteables()
-        );
+        MachineLearning mlPlugin = MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, List.of(mlPlugin)).getNamedWriteables());
     }
 
     public void testPValueScore_WhenAllDocsContainTerm() {

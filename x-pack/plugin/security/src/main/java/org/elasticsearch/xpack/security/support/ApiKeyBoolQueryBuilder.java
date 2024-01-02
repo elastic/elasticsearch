@@ -148,17 +148,6 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
                 newQuery.to(query.to()).includeUpper(query.includeUpper());
             }
             return newQuery.boost(query.boost());
-        } else if (qb instanceof MultiMatchQueryBuilder query) {
-            if (query.fields().isEmpty()) {
-                query.fields().put("*", 1.0f);
-            }
-            // "lenient false" with "all fields" wildcard is always an error because default fields have mappings
-            // that cannot be accessed with the same query type (e.g. keyword and date); override leniency
-            if (QueryParserHelper.hasAllFieldsWildcard(query.fields().keySet())) {
-                query.lenient(true);
-            }
-            translateFieldPatterns(query.fields());
-            return query;
         } else if (qb instanceof QueryStringQueryBuilder query) {
             if (query.fields().isEmpty()) {
                 query.fields().put("*", 1.0f);

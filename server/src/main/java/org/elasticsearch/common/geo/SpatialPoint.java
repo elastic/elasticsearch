@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.geo;
 
-import java.util.Locale;
-
 /**
  * To facilitate maximizing the use of common code between GeoPoint and projected CRS
  * we introduced this ElasticPoint as an interface of commonality.
@@ -55,7 +53,8 @@ public class SpatialPoint implements Comparable<SpatialPoint> {
     }
 
     public String toWKT() {
-        return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
+        // Code designed to mimic WellKnownText.toWKT, with much less stack depth and object creation
+        return "POINT (" + x + " " + y + ")";
     }
 
     @Override

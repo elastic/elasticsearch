@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -133,8 +134,8 @@ public class TextFormatter {
     private static String formatEsqlResultObject(Object obj) {
         // TODO: It would be nicer to override GeoPoint.toString() but that has consequences
         if (obj instanceof SpatialPoint point) {
-            // TODO: For doc-values, it is better to display as (%.7f %.7f), so see if we can know if this comes from doc-values
-            return point.toWKT();
+            // SpatialPoint.toWKT maintains max precision, while ´%f´ conveniently simplifies for display purposes
+            return String.format(Locale.ROOT, "POINT (%f %f)", point.getX(), point.getY());
         }
         return Objects.toString(obj);
     }

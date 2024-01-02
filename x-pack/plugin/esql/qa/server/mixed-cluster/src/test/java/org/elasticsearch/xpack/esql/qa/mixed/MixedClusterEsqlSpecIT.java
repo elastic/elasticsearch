@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.qa.mixed;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103765")
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     static final Version bwcVersion = Version.fromString(System.getProperty("tests.bwc_nodes_version"));

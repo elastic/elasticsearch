@@ -484,7 +484,7 @@ public class AggregatorImplementer {
             .addParameter(DRIVER_CONTEXT, "driverContext");
         if (stateTypeHasSeen) {
             builder.beginControlFlow("if (state.seen() == false)");
-            builder.addStatement("blocks[offset] = $T.constantNullBlock(1, driverContext.blockFactory())", BLOCK);
+            builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1)", BLOCK);
             builder.addStatement("return");
             builder.endControlFlow();
         }
@@ -499,22 +499,13 @@ public class AggregatorImplementer {
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
             case "org.elasticsearch.compute.aggregation.IntState":
-                builder.addStatement(
-                    "blocks[offset] = $T.newConstantBlockWith(state.intValue(), 1, driverContext.blockFactory())",
-                    INT_BLOCK
-                );
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1)");
                 return;
             case "org.elasticsearch.compute.aggregation.LongState":
-                builder.addStatement(
-                    "blocks[offset] = $T.newConstantBlockWith(state.longValue(), 1, driverContext.blockFactory())",
-                    LONG_BLOCK
-                );
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1)");
                 return;
             case "org.elasticsearch.compute.aggregation.DoubleState":
-                builder.addStatement(
-                    "blocks[offset] = $T.newConstantBlockWith(state.doubleValue(), 1, driverContext.blockFactory())",
-                    DOUBLE_BLOCK
-                );
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(state.doubleValue(), 1)");
                 return;
             default:
                 throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);

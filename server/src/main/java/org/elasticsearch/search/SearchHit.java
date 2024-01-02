@@ -687,6 +687,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
     }
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
+        assert innerHits.values().stream().noneMatch(h -> h.hasReferences() == false);
+        assert this.innerHits == null;
         this.innerHits = innerHits;
     }
 

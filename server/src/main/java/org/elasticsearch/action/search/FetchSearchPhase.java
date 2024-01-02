@@ -38,16 +38,11 @@ final class FetchSearchPhase extends SearchPhase {
     private final AggregatedDfs aggregatedDfs;
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer, AggregatedDfs aggregatedDfs, SearchPhaseContext context) {
-        this(
-            resultConsumer,
-            aggregatedDfs,
-            context,
-            (response, queryPhaseResults) -> new ExpandSearchPhase(
-                context,
-                response.hits,
-                () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
-            )
-        );
+        this(resultConsumer, aggregatedDfs, context, (response, queryPhaseResults) -> {
+            response.mustIncRef();
+            context.addReleasable(response::decRef);
+            return new ExpandSearchPhase(context, response.hits, () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults));
+        });
     }
 
     FetchSearchPhase(

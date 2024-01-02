@@ -435,13 +435,17 @@ class DownsampleShardIndexer {
 
         private void indexBucket(XContentBuilder doc) {
             IndexRequestBuilder request = client.prepareIndex(downsampleIndex);
-            request.setSource(doc);
-            if (logger.isTraceEnabled()) {
-                logger.trace("Indexing downsample doc: [{}]", Strings.toString(doc));
+            try {
+                request.setSource(doc);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Indexing downsample doc: [{}]", Strings.toString(doc));
+                }
+                IndexRequest indexRequest = request.request();
+                task.setLastIndexingTimestamp(System.currentTimeMillis());
+                bulkProcessor.addWithBackpressure(indexRequest, () -> abort);
+            } finally {
+                request.request().decRef();
             }
-            IndexRequest indexRequest = request.request();
-            task.setLastIndexingTimestamp(System.currentTimeMillis());
-            bulkProcessor.addWithBackpressure(indexRequest, () -> abort);
         }
 
         @Override

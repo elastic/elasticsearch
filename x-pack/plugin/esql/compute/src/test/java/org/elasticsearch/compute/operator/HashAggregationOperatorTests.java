@@ -95,8 +95,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 32));
+    protected ByteSizeValue memoryLimitForSimple() {
+        return ByteSizeValue.ofKb(1);
     }
-
 }

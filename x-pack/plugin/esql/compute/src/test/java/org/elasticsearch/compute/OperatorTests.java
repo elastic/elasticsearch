@@ -170,35 +170,33 @@ public class OperatorTests extends MapperServiceTestCase {
                     }
                     DocVector docVector = (DocVector) page.getBlock(0).asVector();
                     int positionCount = docVector.getPositionCount();
-                    IntVector shards = docVector.shards();
-                    if (randomBoolean()) {
-                        try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(positionCount)) {
-                            for (int i = 0; i < positionCount; i++) {
-                                builder.appendInt(shards.getInt(i));
-                            }
-                            shards.close();
-                            shards = builder.build();
-                        }
-                    }
-                    IntVector segments = docVector.segments();
-                    if (randomBoolean()) {
-                        try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(positionCount)) {
-                            for (int i = 0; i < positionCount; i++) {
-                                builder.appendInt(segments.getInt(i));
-                            }
-                            segments.close();
-                            segments = builder.build();
-                        }
-                    }
-                    IntVector docs = docVector.docs();
-                    if (randomBoolean()) {
-                        List<Integer> ids = new ArrayList<>(positionCount);
+                    IntVector shards = null;
+                    IntVector segments = null;
+                    IntVector docs = null;
+                    try (
+                        IntVector.Builder shardsBuilder = blockFactory.newIntVectorBuilder(positionCount);
+                        IntVector.Builder segmentsBuilder = blockFactory.newIntVectorBuilder(positionCount);
+                        IntVector.Builder docsBuilder = blockFactory.newIntVectorBuilder(positionCount);
+                    ) {
+                        List<Integer> docIds = new ArrayList<>(positionCount);
                         for (int i = 0; i < positionCount; i++) {
-                            ids.add(docs.getInt(i));
+                            shardsBuilder.appendInt(docVector.shards().getInt(i));
+                            segmentsBuilder.appendInt(docVector.segments().getInt(i));
+                            docIds.add(docVector.docs().getInt(i));
                         }
-                        Collections.shuffle(ids, random());
-                        docs.close();
-                        docs = blockFactory.newIntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
+                        shards = shardsBuilder.build();
+                        segments = segmentsBuilder.build();
+                        Collections.shuffle(docIds, random());
+                        for (Integer d : docIds) {
+                            docsBuilder.appendInt(d);
+                        }
+                        docs = docsBuilder.build();
+                    } finally {
+                        if (docs == null) {
+                            Releasables.closeExpectNoException(docVector, shards, segments);
+                        } else {
+                            Releasables.closeExpectNoException(docVector);
+                        }
                     }
                     Block[] blocks = new Block[page.getBlockCount()];
                     blocks[0] = new DocVector(shards, segments, docs, false).asBlock();

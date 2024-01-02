@@ -31,6 +31,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -92,6 +93,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     if (o.operator().startsWith("LuceneSourceOperator[maxPageSize=" + pageSize())) {
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                         assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));
+                        assertThat(oStatus.processedQueries(), equalTo(Set.of("*:*")));
+                        assertThat(oStatus.processedShards(), equalTo(Set.of("test:0")));
                         assertThat(oStatus.sliceIndex(), lessThanOrEqualTo(oStatus.totalSlices()));
                         assertThat(oStatus.sliceMin(), greaterThanOrEqualTo(0));
                         assertThat(oStatus.sliceMax(), greaterThanOrEqualTo(oStatus.sliceMin()));

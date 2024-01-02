@@ -1,5 +1,5 @@
 pr: 103818
 summary: Upgrade Bouncy Castle jars (except for the FIPS jars)
-area: "FIPS, Security"
+area: "Security"
 type: upgrade
 issues: []

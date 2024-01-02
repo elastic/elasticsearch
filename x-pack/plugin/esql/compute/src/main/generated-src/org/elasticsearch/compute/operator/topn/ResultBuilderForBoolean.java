@@ -24,7 +24,7 @@ class ResultBuilderForBoolean implements ResultBuilder {
     ResultBuilderForBoolean(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = BooleanBlock.newBlockBuilder(initialSize, blockFactory);
+        this.builder = blockFactory.newBooleanBlockBuilder(initialSize);
     }
 
     @Override

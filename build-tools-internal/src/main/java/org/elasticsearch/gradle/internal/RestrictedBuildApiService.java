@@ -123,7 +123,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:correctness");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:mixed-node");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:heap-attack");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:single-node");

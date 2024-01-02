@@ -13,11 +13,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,10 +31,15 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
     private String[] names;
+    // tracks whether the user originally requested any local indices
+    // this info can be lost when the indices(String... indices) method is called
+    // to overwrite the indices array - it can remove local indices when none match
+    private boolean localIndicesRequested = false;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public ResolveClusterActionRequest(String[] names) {
         this.names = names;
+        this.localIndicesRequested = localIndicesPresent(names);
     }
 
     public ResolveClusterActionRequest(StreamInput in) throws IOException {
@@ -46,6 +53,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
             );
         }
         this.names = in.readStringArray();
+        this.localIndicesRequested = localIndicesPresent(names);
     }
 
     @Override
@@ -85,6 +93,10 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         return names;
     }
 
+    public boolean isLocalIndicesRequested() {
+        return localIndicesRequested;
+    }
+
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
@@ -115,5 +127,18 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
                 return "resolve/cluster for " + Arrays.toString(indices());
             }
         };
+    }
+
+    // MP TODO: add test for this
+    private boolean localIndicesPresent(String[] indices) {
+        for (String index : indices) {
+            // ensure that `index` is a remote name and not a date math expression which includes ':' symbol
+            // since date math expression after evaluation should not contain ':' symbol
+            String indexExpression = IndexNameExpressionResolver.resolveDateMathExpression(index);
+            if (indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) < 0) {
+                return true;
+            }
+        }
+        return false;
     }
 }

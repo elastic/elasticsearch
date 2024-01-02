@@ -1762,7 +1762,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             final ShardSnapshotStatus shardState = finishedShardEntry.getValue();
                             final RepositoryShardId repositoryShardId = finishedShardEntry.getKey();
                             if (shardState.state() != ShardState.SUCCESS
-                                || previousEntry.shardsByRepoShardId().containsKey(repositoryShardId) == false) {
+                                || previousEntry.shardsByRepoShardId().containsKey(repositoryShardId) == false
+                                || indexExists(removedEntry, state.metadata(), finishedShardEntry.getKey().indexName()) == false) {
                                 continue;
                             }
                             updatedShardAssignments = maybeAddUpdatedAssignment(
@@ -1779,7 +1780,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             .entrySet()) {
                             final ShardSnapshotStatus shardState = finishedShardEntry.getValue();
                             if (shardState.state() == ShardState.SUCCESS
-                                && previousEntry.shardsByRepoShardId().containsKey(finishedShardEntry.getKey())) {
+                                && previousEntry.shardsByRepoShardId().containsKey(finishedShardEntry.getKey())
+                                && indexExists(removedEntry, state.metadata(), finishedShardEntry.getKey().indexName())) {
                                 updatedShardAssignments = maybeAddUpdatedAssignment(
                                     updatedShardAssignments,
                                     shardState,
@@ -1800,6 +1802,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 .build();
         }
         return readyDeletions(result).v1();
+    }
+
+    private static boolean indexExists(SnapshotsInProgress.Entry snapshotsInProgressEntry, Metadata metadata, String indexName) {
+        final var index = snapshotsInProgressEntry.indexByName(indexName);
+        return index != null && metadata.index(index) != null;
     }
 
     private static void addSnapshotEntry(

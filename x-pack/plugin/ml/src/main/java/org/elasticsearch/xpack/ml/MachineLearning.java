@@ -47,6 +47,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -361,6 +362,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactor
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.ml.mapper.SemanticTextInferenceResultFieldMapper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -2304,5 +2306,13 @@ public class MachineLearning extends Plugin
             return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
         }
         return Map.of();
+    }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(
+            SemanticTextInferenceResultFieldMapper.NAME,
+            SemanticTextInferenceResultFieldMapper.PARSER
+        );
     }
 }

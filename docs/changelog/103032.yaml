@@ -1,0 +1,5 @@
+pr: 103032
+summary: "x-pack/plugin/apm-data: Map some APM fields as flattened and fix error.grouping_name script"
+area: Data streams
+type: enhancement
+issues: []

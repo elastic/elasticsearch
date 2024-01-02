@@ -108,8 +108,13 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         String index1 = "test1";
         String index2 = "test2";
         internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(prepareCreate(index1).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")));
-        assertAcked(prepareCreate(index2).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "2")));
+        for (final var index : List.of(index1, index2)) {
+            final var settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2);
+            if (randomBoolean()) {
+                settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
+            }
+            assertAcked(prepareCreate(index).setSettings(settings));
+        }
         indexRandomData(index1);
         indexRandomData(index2);
         ensureGreen();

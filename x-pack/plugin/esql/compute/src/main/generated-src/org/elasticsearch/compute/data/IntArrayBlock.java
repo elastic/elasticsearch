@@ -8,25 +8,21 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
 import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of int.
+ * Block implementation that stores values in a {@link IntArrayVector}.
  * This class is generated. Do not edit it.
  */
-public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
+final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
 
-    private final int[] values;
+    private final IntArrayVector vector;
 
-    public IntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public IntArrayBlock(
+    IntArrayBlock(
         int[] values,
         int positionCount,
         int[] firstValueIndexes,
@@ -35,7 +31,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
         BlockFactory blockFactory
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this.vector = new IntArrayVector(values, values.length, blockFactory);
     }
 
     @Override
@@ -45,7 +41,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
 
     @Override
     public int getInt(int valueIndex) {
-        return values[valueIndex];
+        return vector.getInt(valueIndex);
     }
 
     @Override
@@ -83,7 +79,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
             incRef();
             return this;
         }
-        // TODO use reference counting to share the values
+        // TODO use reference counting to share the vector
         try (var builder = blockFactory().newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {
                 if (isNull(pos)) {
@@ -100,14 +96,13 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
         }
     }
 
-    public static long ramBytesEstimated(int[] values, int[] firstValueIndexes, BitSet nullsMask) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    private long ramBytesUsedOnlyBlock() {
+        return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+        return ramBytesUsedOnlyBlock() + vector.ramBytesUsed();
     }
 
     @Override
@@ -130,13 +125,20 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-            + ", values="
-            + Arrays.toString(values)
+            + ", vector="
+            + vector
             + ']';
     }
 
     @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        Releasables.closeExpectNoException(vector);
     }
 }

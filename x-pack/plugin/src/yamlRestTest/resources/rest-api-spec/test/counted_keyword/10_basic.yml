@@ -30,6 +30,16 @@ setup:
       indices.refresh: { }
 
 ---
+"Counted keyword is searchable by default":
+  - do:
+      field_caps:
+        index: test-events
+        fields: [ events ]
+
+  - match: { fields.events.counted_keyword.searchable: true }
+  - match: { fields.events.counted_keyword.aggregatable: true }
+
+---
 "Counted Terms agg":
 
   - do:

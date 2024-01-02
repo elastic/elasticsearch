@@ -139,7 +139,7 @@ public final class ExchangeSinkHandler {
                 promised.release();
             }
             onChanged();
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(listener, response);
         }
     }
 

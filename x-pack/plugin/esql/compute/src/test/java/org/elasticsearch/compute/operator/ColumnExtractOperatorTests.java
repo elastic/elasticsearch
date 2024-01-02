@@ -58,7 +58,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
                     BytesRefBlock input = page.getBlock(0);
                     for (int i = 0; i < input.getPositionCount(); i++) {
                         if (input.getBytesRef(i, new BytesRef()).utf8ToString().startsWith("no_")) {
-                            return Block.constantNullBlock(input.getPositionCount(), input.blockFactory());
+                            return input.blockFactory().newConstantNullBlock(input.getPositionCount());
                         }
                     }
                     input.incRef();
@@ -97,15 +97,15 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 32));
+    protected ByteSizeValue memoryLimitForSimple() {
+        return ByteSizeValue.ofKb(15);
     }
 
     public void testAllNullValues() {
         DriverContext driverContext = driverContext();
         BytesRef scratch = new BytesRef();
-        Block input1 = BytesRefBlock.newBlockBuilder(1, driverContext.blockFactory()).appendBytesRef(new BytesRef("can_match")).build();
-        Block input2 = BytesRefBlock.newBlockBuilder(1, driverContext.blockFactory()).appendBytesRef(new BytesRef("no_match")).build();
+        Block input1 = driverContext.blockFactory().newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("can_match")).build();
+        Block input2 = driverContext.blockFactory().newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("no_match")).build();
         List<Page> inputPages = List.of(new Page(input1), new Page(input2));
         List<Page> outputPages = drive(simple(driverContext.bigArrays()).get(driverContext), inputPages.iterator(), driverContext);
         BytesRefBlock output1 = outputPages.get(0).getBlock(1);

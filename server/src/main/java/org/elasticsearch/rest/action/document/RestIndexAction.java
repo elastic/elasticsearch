@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -145,10 +146,14 @@ public class RestIndexAction extends BaseRestHandler {
 
             return channel -> client.index(
                 indexRequest,
-                new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
+                ActionListener.runAfter(
+                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
+                    indexRequest::decRef
+                )
             );
-        } finally {
+        } catch (Exception e) {
             indexRequest.decRef();
+            throw e;
         }
     }
 

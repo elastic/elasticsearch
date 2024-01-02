@@ -128,6 +128,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         if (randomBoolean()) {
             internalCluster().stopNode(originalNode);
+            ensureGreen(indexName);
         }
 
         clearShutdownMetadata(clusterService);

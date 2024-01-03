@@ -325,7 +325,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         );
     }
 
-    public void testInitializeShardFromSearchableSnapshot() {
+    public void testInitializeShardFromPartialSearchableSnapshot() {
 
         var shardSize = 100;
         var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //
@@ -372,7 +372,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         );
     }
 
-    public void testRelocateSearchableSnapshotShard() {
+    public void testRelocatePartialSearchableSnapshotShard() {
 
         var shardSize = 100;
         var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //

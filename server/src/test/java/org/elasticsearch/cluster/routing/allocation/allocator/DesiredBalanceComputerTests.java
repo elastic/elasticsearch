@@ -883,7 +883,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         clusterInfoBuilder.withShard(shardIdFrom(indexMetadata1, 0), true, ByteSizeValue.ofGb(8).getBytes())
             .withShard(shardIdFrom(indexMetadata1, 1), true, ByteSizeValue.ofGb(8).getBytes());
 
-        // index-2 is restored earlier but not allocated according to the desired balance
+        // index-2 is restored earlier but is not started on the desired node yet
         var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         snapshotShardSizes.put(
             new SnapshotShard(snapshot, indexIdFrom(indexMetadata2), shardIdFrom(indexMetadata2, 0)),

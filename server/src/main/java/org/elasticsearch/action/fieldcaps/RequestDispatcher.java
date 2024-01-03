@@ -202,13 +202,14 @@ final class RequestDispatcher {
     }
 
     private void onRequestResponse(List<ShardId> shardIds, FieldCapabilitiesNodeResponse nodeResponse) {
+        Set<String> indexNames = new HashSet<>();
         for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
-            if (indexResponse.canMatch()) {
-                // if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
+            if (indexResponse.canMatch()) { // TODO-MP
                 onIndexResponse.accept(indexResponse);
-                // }
+                indexNames.add(indexResponse.getIndexName());
             }
         }
+        indexNames.forEach(indexSelectors::remove);
 
         for (ShardId unmatchedShardId : nodeResponse.getUnmatchedShardIds()) {
             final IndexSelector indexSelector = indexSelectors.get(unmatchedShardId.getIndexName());

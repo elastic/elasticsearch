@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -145,9 +146,8 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             MappedFieldType ft = context.getFieldType(field);
-            boolean acceptedFieldType = filter.test(ft);
-            boolean hasValue = indexShard == null || indexShard.fieldHasValue(ft.name());
-            if (acceptedFieldType && (hasValue || includeFieldsWithNoValue)) {
+            boolean includeField = includeFieldsWithNoValue || indexShard.fieldHasValue(ft.name()) || ft instanceof ConstantFieldType;
+            if (filter.test(ft) && includeField) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

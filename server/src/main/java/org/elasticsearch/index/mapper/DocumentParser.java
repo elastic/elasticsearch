@@ -608,8 +608,7 @@ public final class DocumentParser {
                 // Anything that is NOT a number or anything that IS a number but not mapped to `float` should NOT be mapped to dense_vector
                 || mappers.stream()
                     .anyMatch(
-                        m -> m instanceof NumberFieldMapper == false
-                            || ((NumberFieldMapper) m).type() != NumberFieldMapper.NumberType.FLOAT
+                        m -> m instanceof NumberFieldMapper == false || ((NumberFieldMapper) m).type() != NumberFieldMapper.NumberType.FLOAT
                     )) {
                 return;
             }

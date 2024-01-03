@@ -182,7 +182,11 @@ public class ILMHistoryStore implements Closeable {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             item.toXContent(builder, ToXContent.EMPTY_PARAMS);
             IndexRequest request = new IndexRequest(ILM_HISTORY_DATA_STREAM).source(builder).opType(DocWriteRequest.OpType.CREATE);
-            processor.add(request);
+            try {
+                processor.add(request);
+            } finally {
+                request.decRef();
+            }
         } catch (Exception e) {
             logger.error(() -> format("failed to send ILM history item to index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item), e);
         }

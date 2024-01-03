@@ -92,6 +92,9 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             reqs.add(prepareIndex(indexName).setSource("terms", keyword, "metric", metric));
         }
         indexRandom(true, true, reqs);
+        for (IndexRequestBuilder indexRequestBuilder : reqs) {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     @Override

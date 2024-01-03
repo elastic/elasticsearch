@@ -414,9 +414,12 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             IndexRequest indexRequest = new IndexRequest("my-index").id("1")
                 .setPipeline(pipelineName)
                 .source(Map.of(MATCH_FIELD, "non_existing"));
-            Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest));
-            indexRequest.decRef();
-            assertThat(e.getMessage(), equalTo("field [users] not present as part of path [users]"));
+            try {
+                Exception e = expectThrows(IllegalArgumentException.class, client().index(indexRequest));
+                assertThat(e.getMessage(), equalTo("field [users] not present as part of path [users]"));
+            } finally {
+                indexRequest.decRef();
+            }
         }
     }
 

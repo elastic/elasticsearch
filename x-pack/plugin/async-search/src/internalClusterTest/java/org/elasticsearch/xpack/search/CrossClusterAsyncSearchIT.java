@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -1672,7 +1673,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             if (i == numDocs - 1) {
                 ts = LATEST_TIMESTAMP;
             }
-            client.prepareIndex(index).setSource("f", "v", "@timestamp", ts).get();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(index);
+            try {
+                indexRequestBuilder.setSource("f", "v", "@timestamp", ts).get();
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;

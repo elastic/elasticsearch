@@ -285,6 +285,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
     private volatile long indexingTimeBeforeShardStartedInNanos;
+
+    // A subscribable listener active during shard recovery. Queues listeners until recovery either succeeds or fails.
     private final SubscribableListener<Void> waitForEngineOrClosedShardListeners = new SubscribableListener<>();
 
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
@@ -4222,9 +4224,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers a listener for an event when the shard opens the engine or is the shard is closed
+     * Registers a listener to run when the shard either opens the engine during recovery or is closed after failing recovery.
      */
-    public void waitForEngineOrClosedShard(ActionListener<Void> listener) {
+    public void waitForShardRecovery(ActionListener<Void> listener) {
         waitForEngineOrClosedShardListeners.addListener(listener);
     }
 
@@ -4232,7 +4234,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Registers a listener for an event when the shard advances to the provided primary term and segment generation
      */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
-        waitForEngineOrClosedShard(
+        waitForShardRecovery(
             listener.delegateFailureAndWrap(
                 (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
             )

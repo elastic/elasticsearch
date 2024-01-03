@@ -23,6 +23,7 @@ import java.util.List;
  *      - A request can have multiple input but they should all be associated with a single request when onResponse is called for that listener
  *      - We'll need to track a range within the array for that
  */
+// TODO rename to Batcher
 public interface RequestBatcher<GroupingKey> extends Iterable<Runnable> {
     void add(BatchableRequest<GroupingKey> request);
 

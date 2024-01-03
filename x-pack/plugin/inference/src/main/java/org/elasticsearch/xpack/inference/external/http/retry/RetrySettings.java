@@ -38,6 +38,7 @@ public class RetrySettings {
 
     private final InternalSettings internalSettings;
 
+    // TODO this should take the cluster service and dynamically update the settings
     public RetrySettings(Settings settings) {
         var initialDelay = RETRY_INITIAL_DELAY_SETTING.get(settings);
         var maxDelayBound = RETRY_MAX_DELAY_BOUND_SETTING.get(settings);

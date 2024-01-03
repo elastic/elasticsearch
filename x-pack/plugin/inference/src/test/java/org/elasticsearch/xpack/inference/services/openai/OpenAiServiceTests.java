@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactoryTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -657,11 +659,12 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testInfer_ThrowsErrorWhenModelIsNotOpenAiModel() throws IOException {
         var sender = mock(Sender.class);
 
         var factory = mock(InferenceRequestSenderFactory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
+        when(factory.createSender(anyString(), any())).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
@@ -675,7 +678,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
             );
 
-            verify(factory, times(1)).createSender(anyString());
+            verify(factory, times(1)).createSender(anyString(), any());
             verify(sender, times(1)).start();
         }
 
@@ -685,7 +688,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest() throws IOException {
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings(threadPool, clientManager);
 
         try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -733,7 +736,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings(threadPool, clientManager);
 
         try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -769,7 +772,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testInfer_UnauthorisedResponse() throws IOException {
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings(threadPool, clientManager);
 
         try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 

@@ -7,20 +7,24 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.batching.BatchingComponents;
+import org.elasticsearch.xpack.inference.external.http.batching.OpenAiEmbeddingsRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.batching.OpenAiRequestBatcherFactory;
+import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -54,35 +58,40 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testQueueSize_IsEmpty() {
-        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class), threadPool, null);
+        var service = createWithoutLatch();
 
         assertThat(service.queueSize(), is(0));
     }
 
     public void testQueueSize_IsOne() {
-        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class), threadPool, null);
-        service.send(mock(HttpRequestBase.class), null, new PlainActionFuture<>());
+        var service = createWithoutLatch();
+        service.send(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), null, new PlainActionFuture<>());
 
         assertThat(service.queueSize(), is(1));
     }
 
     public void testExecute_ThrowsUnsupported() {
-        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class), threadPool, null);
-        var noopTask = mock(RequestTask.class);
+        var service = createWithoutLatch();
+        Runnable noopTask = () -> {};
 
         var thrownException = expectThrows(UnsupportedOperationException.class, () -> service.execute(noopTask));
         assertThat(thrownException.getMessage(), is("use send instead"));
     }
 
     public void testIsTerminated_IsFalse() {
-        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class), threadPool, null);
+        var service = createWithoutLatch();
 
         assertFalse(service.isTerminated());
     }
 
     public void testIsTerminated_IsTrue() throws InterruptedException {
         var latch = new CountDownLatch(1);
-        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class), threadPool, latch);
+        var service = new HttpRequestExecutorService<>(
+            getTestName(),
+            threadPool,
+            latch,
+            new OpenAiRequestBatcherFactory(mock(BatchingComponents.class))
+        );
 
         service.shutdown();
         service.start();
@@ -91,16 +100,21 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isTerminated());
     }
 
-    public void testIsTerminated_AfterStopFromSeparateThread() throws Exception {
+    public void testIsTerminated_AfterStopFromSeparateThread() {
         var waitToShutdown = new CountDownLatch(1);
+        var requestSender = mock(RequestSender.class);
 
-        var mockHttpClient = mock(HttpClient.class);
         doAnswer(invocation -> {
             waitToShutdown.countDown();
             return Void.TYPE;
-        }).when(mockHttpClient).send(any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
-        var service = new HttpRequestExecutorService(getTestName(), mockHttpClient, threadPool, null);
+        var service = new HttpRequestExecutorService<>(
+            getTestName(),
+            threadPool,
+            null,
+            new OpenAiRequestBatcherFactory(new BatchingComponents(requestSender, threadPool))
+        );
 
         Future<?> executorTermination = threadPool.generic().submit(() -> {
             try {
@@ -113,8 +127,8 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
             }
         });
 
-        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-        service.send(mock(HttpRequestBase.class), null, listener);
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        service.send(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), null, listener);
 
         service.start();
 
@@ -129,12 +143,12 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testSend_AfterShutdown_Throws() {
-        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, null);
+        var service = createWithoutLatch();
 
         service.shutdown();
 
-        var listener = new PlainActionFuture<HttpResult>();
-        service.send(mock(HttpRequestBase.class), null, listener);
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.send(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -145,11 +159,17 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testSend_Throws_WhenQueueIsFull() {
-        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, 1, null);
+        var service = new HttpRequestExecutorService<>(
+            getTestName(),
+            threadPool,
+            1,
+            null,
+            new OpenAiRequestBatcherFactory(mock(BatchingComponents.class))
+        );
 
-        service.send(mock(HttpRequestBase.class), null, new PlainActionFuture<>());
-        var listener = new PlainActionFuture<HttpResult>();
-        service.send(mock(HttpRequestBase.class), null, listener);
+        service.send(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), null, new PlainActionFuture<>());
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.send(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -160,19 +180,24 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testTaskThrowsError_CallsOnFailure() throws Exception {
-        var httpClient = mock(HttpClient.class);
+        var requestSender = mock(RequestSender.class);
 
-        var service = new HttpRequestExecutorService(getTestName(), httpClient, threadPool, null);
+        var service = new HttpRequestExecutorService<>(
+            getTestName(),
+            threadPool,
+            null,
+            new OpenAiRequestBatcherFactory(new BatchingComponents(requestSender, threadPool))
+        );
 
         doAnswer(invocation -> {
             service.shutdown();
             throw new IllegalArgumentException("failed");
-        }).when(httpClient).send(any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
-        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
         var request = createHttpPost(0, "a", "b");
-        service.send(request, null, listener);
+        service.send(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), null, listener);
         service.start();
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -182,7 +207,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testShutdown_AllowsMultipleCalls() {
-        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class), threadPool, null);
+        var service = createWithoutLatch();
 
         service.shutdown();
         service.shutdown();
@@ -194,10 +219,10 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testSend_CallsOnFailure_WhenRequestTimesOut() {
-        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, null);
+        var service = createWithoutLatch();
 
-        var listener = new PlainActionFuture<HttpResult>();
-        service.send(mock(HttpRequestBase.class), TimeValue.timeValueNanos(1), listener);
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.send(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), TimeValue.timeValueNanos(1), listener);
 
         var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -208,10 +233,10 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testSend_NotifiesTasksOfShutdown() {
-        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, null);
+        var service = createWithoutLatch();
 
-        var listener = new PlainActionFuture<HttpResult>();
-        service.send(mock(HttpRequestBase.class), null, listener);
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.send(mock(OpenAiEmbeddingsRequestCreator.class), List.of("abc"), null, listener);
         service.shutdown();
         service.start();
 
@@ -227,10 +252,16 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
 
     public void testQueueTake_Throwing_DoesNotCauseServiceToTerminate() throws InterruptedException {
         @SuppressWarnings("unchecked")
-        BlockingQueue<HttpTask> queue = mock(LinkedBlockingQueue.class);
-        when(queue.take()).thenThrow(new ElasticsearchException("failed")).thenReturn(new ShutdownTask());
+        BlockingQueue<Task<OpenAiAccount>> queue = mock(LinkedBlockingQueue.class);
+        when(queue.take()).thenThrow(new ElasticsearchException("failed")).thenReturn(new ShutdownTask<>());
 
-        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, queue, null);
+        var service = new HttpRequestExecutorService<>(
+            getTestName(),
+            threadPool,
+            queue,
+            null,
+            new OpenAiRequestBatcherFactory(mock(BatchingComponents.class))
+        );
 
         service.start();
 
@@ -240,10 +271,16 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
 
     public void testQueueTake_ThrowingInterruptedException_TerminatesService() throws Exception {
         @SuppressWarnings("unchecked")
-        BlockingQueue<HttpTask> queue = mock(LinkedBlockingQueue.class);
+        BlockingQueue<Task<OpenAiAccount>> queue = mock(LinkedBlockingQueue.class);
         when(queue.take()).thenThrow(new InterruptedException("failed"));
 
-        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), threadPool, queue, null);
+        var service = new HttpRequestExecutorService<>(
+            getTestName(),
+            threadPool,
+            queue,
+            null,
+            new OpenAiRequestBatcherFactory(mock(BatchingComponents.class))
+        );
 
         Future<?> executorTermination = threadPool.generic().submit(() -> {
             try {
@@ -257,5 +294,14 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
 
         assertTrue(service.isTerminated());
         verify(queue, times(1)).take();
+    }
+
+    private HttpRequestExecutorService<OpenAiAccount> createWithoutLatch() {
+        return new HttpRequestExecutorService<>(
+            getTestName(),
+            threadPool,
+            null,
+            new OpenAiRequestBatcherFactory(mock(BatchingComponents.class))
+        );
     }
 }

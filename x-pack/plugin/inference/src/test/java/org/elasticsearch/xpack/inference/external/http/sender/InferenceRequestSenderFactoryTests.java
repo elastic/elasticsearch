@@ -8,27 +8,35 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.batching.HuggingFaceInferenceRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.batching.HuggingFaceRequestBatcherFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
+import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
+import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -74,58 +82,78 @@ public class InferenceRequestSenderFactoryTests extends ESTestCase {
     }
 
     public void testCreateSender_SendsRequestAndReceivesResponse() throws Exception {
-        var senderFactory = createSenderFactory(clientManager, threadRef);
+        // var senderFactory = createSenderFactory(clientManager, threadRef);
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", HuggingFaceRequestBatcherFactory::new)) {
             sender.start();
 
-            int responseCode = randomIntBetween(200, 203);
-            String body = randomAlphaOfLengthBetween(2, 8096);
-            webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+            String responseJson = """
+                [
+                    {
+                        ".": 0.133155956864357
+                    }
+                ]
+                """;
 
-            String paramKey = randomAlphaOfLength(3);
-            String paramValue = randomAlphaOfLength(3);
-            var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            sender.send(
+                new HuggingFaceInferenceRequestCreator(
+                    new HuggingFaceAccount(model.getUri(), model.getApiKey()),
+                    new AlwaysRetryingResponseHandler("test", (result) -> null),
+                    TruncatorTests.createTruncator(),
+                    100
+                ),
+                List.of("abc"),
+                listener
+            );
 
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            sender.send(httpPost, null, listener);
-
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
-            assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
+            listener.actionGet(TIMEOUT);
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.getURI().getPath()));
-            assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(getUrl(webServer)));
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+            );
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testHttpRequestSender_Throws_WhenCallingSendBeforeStart() throws Exception {
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(AssertionError.class, () -> sender.send(mock(HttpRequestBase.class), listener));
+        try (var sender = senderFactory.createSender("test_service", HuggingFaceRequestBatcherFactory::new)) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                AssertionError.class,
+                () -> sender.send(mock(RequestCreator.class), List.of("abc"), listener)
+            );
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testHttpRequestSender_Throws_WhenATimeoutOccurs() throws Exception {
         var mockManager = mock(HttpClientManager.class);
         when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
 
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new InferenceRequestSenderFactory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            mockManager,
+            mockClusterServiceEmpty()
+        );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", HuggingFaceRequestBatcherFactory::new)) {
             assertThat(sender, instanceOf(InferenceRequestSenderFactory.InferenceRequestSender.class));
             // hack to get around the sender interface so we can set the timeout directly
-            var httpSender = (InferenceRequestSenderFactory.InferenceRequestSender) sender;
+            var httpSender = (InferenceRequestSenderFactory.InferenceRequestSender<HuggingFaceAccount>) sender;
             httpSender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
             sender.start();
 
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            sender.send(mock(HttpRequestBase.class), TimeValue.timeValueNanos(1), listener);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            sender.send(mock(RequestCreator.class), List.of("abc"), TimeValue.timeValueNanos(1), listener);
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -136,17 +164,22 @@ public class InferenceRequestSenderFactoryTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testHttpRequestSenderWithTimeout_Throws_WhenATimeoutOccurs() throws Exception {
         var mockManager = mock(HttpClientManager.class);
         when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
 
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new InferenceRequestSenderFactory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            mockManager,
+            mockClusterServiceEmpty()
+        );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender("test_service", HuggingFaceRequestBatcherFactory::new)) {
             sender.start();
 
-            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            sender.send(mock(HttpRequestBase.class), TimeValue.timeValueNanos(1), listener);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            sender.send(mock(RequestCreator.class), List.of("abc"), TimeValue.timeValueNanos(1), listener);
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -157,6 +190,7 @@ public class InferenceRequestSenderFactoryTests extends ESTestCase {
         }
     }
 
+    // TODO remove
     private static InferenceRequestSenderFactory createSenderFactory(HttpClientManager clientManager, AtomicReference<Thread> threadRef) {
         var mockExecutorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -172,6 +206,34 @@ public class InferenceRequestSenderFactoryTests extends ESTestCase {
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(mockThreadPool.schedule(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
 
-        return new InferenceRequestSenderFactory(mockThreadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        return new InferenceRequestSenderFactory(
+            new ServiceComponents(mockThreadPool, mock(ThrottlerManager.class), Settings.EMPTY, TruncatorTests.createTruncator()),
+            clientManager,
+            mockClusterServiceEmpty()
+        );
+    }
+
+    public static InferenceRequestSenderFactory createFactoryWithEmptySettings(ThreadPool threadPool, HttpClientManager clientManager) {
+        return new InferenceRequestSenderFactory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            clientManager,
+            mockClusterServiceEmpty()
+        );
+    }
+
+    /**
+     * This initializes the factory with a {@link ServiceComponents} that contains the specified settings. This does not affect
+     * the initialized {@link org.elasticsearch.cluster.service.ClusterService}.
+     */
+    public static InferenceRequestSenderFactory createFactoryWithSettings(
+        ThreadPool threadPool,
+        HttpClientManager clientManager,
+        Settings settings
+    ) {
+        return new InferenceRequestSenderFactory(
+            ServiceComponentsTests.createWithSettings(threadPool, settings),
+            clientManager,
+            mockClusterServiceEmpty()
+        );
     }
 }

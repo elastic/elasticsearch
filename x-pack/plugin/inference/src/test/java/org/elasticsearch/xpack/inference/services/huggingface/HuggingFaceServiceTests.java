@@ -26,8 +26,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactoryTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
@@ -474,9 +476,14 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings(threadPool, clientManager);
 
-        try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+        try (
+            var service = new HuggingFaceService(
+                new SetOnce<>(senderFactory),
+                new SetOnce<>(ServiceComponentsTests.createWithEmptySettings(threadPool))
+            )
+        ) {
 
             String responseJson = """
                 {
@@ -512,7 +519,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsElserRequest() throws IOException {
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings(threadPool, clientManager);
 
         try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
@@ -554,7 +561,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
-        var senderFactory = new InferenceRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings(threadPool, clientManager);
 
         try (var service = new HuggingFaceService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 

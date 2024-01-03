@@ -62,10 +62,7 @@ public class InferenceRequestSenderFactory {
         );
     }
 
-    public <K> InferenceRequestSender<K> createSender(
-        String serviceName,
-        Function<BatchingComponents, RequestBatcherFactory<K>> factoryCreator
-    ) {
+    public <K> Sender<K> createSender(String serviceName, Function<BatchingComponents, RequestBatcherFactory<K>> factoryCreator) {
         return new InferenceRequestSender<>(
             serviceName,
             serviceComponents.threadPool(),
@@ -113,7 +110,7 @@ public class InferenceRequestSenderFactory {
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService<>(serviceName, manager.getHttpClient(), threadPool, startCompleted, batcherFactory);
+            service = new HttpRequestExecutorService<>(serviceName, threadPool, startCompleted, batcherFactory);
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);

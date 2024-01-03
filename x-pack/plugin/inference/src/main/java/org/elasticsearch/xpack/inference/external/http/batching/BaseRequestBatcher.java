@@ -19,6 +19,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
+// TODO rename to RequestBatcher
 class BaseRequestBatcher<GroupingKey> implements RequestBatcher<GroupingKey> {
     private final HashMap<GroupingKey, Entry<GroupingKey>> entries = new LinkedHashMap<>();
 

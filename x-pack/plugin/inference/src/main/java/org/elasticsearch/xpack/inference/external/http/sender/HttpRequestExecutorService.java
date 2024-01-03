@@ -18,7 +18,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
@@ -60,8 +59,6 @@ class HttpRequestExecutorService<K> implements ExecutorService {
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final HttpClientContext httpContext;
-    // TODO: I don't think this will need the http client anymore
-    private final HttpClient httpClient;
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final RequestBatcherFactory<K> batcherFactory;
@@ -69,24 +66,22 @@ class HttpRequestExecutorService<K> implements ExecutorService {
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(
         String serviceName,
-        HttpClient httpClient,
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
         RequestBatcherFactory<K> batcherFactory
     ) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch, batcherFactory);
+        this(serviceName, threadPool, new LinkedBlockingQueue<>(), startupLatch, batcherFactory);
     }
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(
         String serviceName,
-        HttpClient httpClient,
         ThreadPool threadPool,
         int capacity,
         @Nullable CountDownLatch startupLatch,
         RequestBatcherFactory<K> batcherFactory
     ) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch, batcherFactory);
+        this(serviceName, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch, batcherFactory);
     }
 
     /**
@@ -95,14 +90,12 @@ class HttpRequestExecutorService<K> implements ExecutorService {
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(
         String serviceName,
-        HttpClient httpClient,
         ThreadPool threadPool,
         BlockingQueue<Task<K>> queue,
         @Nullable CountDownLatch startupLatch,
         RequestBatcherFactory<K> batcherFactory
     ) {
         this.serviceName = Objects.requireNonNull(serviceName);
-        this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.batcherFactory = Objects.requireNonNull(batcherFactory);
         this.httpContext = HttpClientContext.create();
@@ -298,43 +291,6 @@ class HttpRequestExecutorService<K> implements ExecutorService {
             notifyRequestsOfShutdown();
         }
     }
-
-    // /**
-    // * Send the request at some point in the future.
-    // * @param request the http request to send
-    // * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
-    // * listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
-    // * If null, then the request will wait forever
-    // * @param listener an {@link ActionListener<HttpResult>} for the response or failure
-    // */
-    // public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
-    // RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
-    //
-    // if (isShutdown()) {
-    // EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-    // format("Failed to enqueue task because the http executor service [%s] has already shutdown", serviceName),
-    // true
-    // );
-    //
-    // task.onRejection(rejected);
-    // return;
-    // }
-    //
-    // boolean added = queue.offer(task);
-    // if (added == false) {
-    // EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-    // format("Failed to execute task because the http executor service [%s] queue is full", serviceName),
-    // false
-    // );
-    //
-    // task.onRejection(rejected);
-    // } else if (isShutdown()) {
-    // // It is possible that a shutdown and notification request occurred after we initially checked for shutdown above
-    // // If the task was added after the queue was already drained it could sit there indefinitely. So let's check again if
-    // // we shut down and if so we'll redo the notification
-    // notifyRequestsOfShutdown();
-    // }
-    // }
 
     /**
      * This method is not supported. Use {@link #send} instead.

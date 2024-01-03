@@ -20,7 +20,7 @@
       ]
     },
     "body":{
-      "description":"The filter conditions for stacktraces",
+      "description":"The filter conditions for the flamegraph",
       "required":true
     }
   }

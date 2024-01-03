@@ -196,7 +196,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
         } finally {
-            indexRequestBuilder.request().decRef();
             indexingCompletedLatch.countDown();
         }
     }
@@ -234,7 +233,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]")
             );
         } finally {
-            indexRequestBuilder.request().decRef();
             indexingCompletedLatch.countDown();
         }
     }

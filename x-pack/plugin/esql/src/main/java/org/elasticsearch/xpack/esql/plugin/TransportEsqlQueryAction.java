@@ -63,6 +63,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
 
     @Inject
+    @SuppressWarnings("this-escape")
     public TransportEsqlQueryAction(
         TransportService transportService,
         ActionFilters actionFilters,

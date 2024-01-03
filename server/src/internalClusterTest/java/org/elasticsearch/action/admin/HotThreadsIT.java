@@ -14,20 +14,17 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -120,72 +117,84 @@ public class HotThreadsIT extends ESIntegTestCase {
     public void testIgnoreIdleThreads() {
         assumeTrue("no support for hot_threads on FreeBSD", Constants.FREE_BSD == false);
 
-        final var toRelease = new ArrayList<Releasable>(2);
-        try {
-            // First time, don't ignore idle threads:
-            final NodesHotThreadsResponse firstResponse = client().execute(
-                TransportNodesHotThreadsAction.TYPE,
-                new NodesHotThreadsRequest().ignoreIdleThreads(false).threads(Integer.MAX_VALUE)
-            ).actionGet(10, TimeUnit.SECONDS);
-            toRelease.add(firstResponse::decRef);
+        final Matcher<String> containsCachedTimeThreadRunMethod = containsString(
+            "org.elasticsearch.threadpool.ThreadPool$CachedTimeThread.run"
+        );
 
-            final Matcher<String> containsCachedTimeThreadRunMethod = containsString(
-                "org.elasticsearch.threadpool.ThreadPool$CachedTimeThread.run"
-            );
+        // First time, don't ignore idle threads:
+        final var totSizeAll = safeAwait(
+            SubscribableListener.<Integer>newForked(
+                l -> client().execute(
+                    TransportNodesHotThreadsAction.TYPE,
+                    new NodesHotThreadsRequest().ignoreIdleThreads(false).threads(Integer.MAX_VALUE),
+                    l.map(response -> {
+                        try {
+                            int length = 0;
+                            for (NodeHotThreads node : response.getNodesMap().values()) {
+                                length += node.getHotThreads().length();
+                                assertThat(node.getHotThreads(), containsCachedTimeThreadRunMethod);
+                            }
+                            return length;
+                        } finally {
+                            response.decRef();
+                        }
+                    })
+                )
+            )
+        );
 
-            int totSizeAll = 0;
-            for (NodeHotThreads node : firstResponse.getNodesMap().values()) {
-                totSizeAll += node.getHotThreads().length();
-                assertThat(node.getHotThreads(), containsCachedTimeThreadRunMethod);
-            }
+        // Second time, do ignore idle threads:
+        final var request = new NodesHotThreadsRequest().threads(Integer.MAX_VALUE);
+        // Make sure default is true:
+        assertTrue(request.ignoreIdleThreads());
+        final var totSizeIgnoreIdle = safeAwait(
+            SubscribableListener.<Integer>newForked(l -> client().execute(TransportNodesHotThreadsAction.TYPE, request, l.map(response -> {
+                try {
+                    int length = 0;
+                    for (NodeHotThreads node : response.getNodesMap().values()) {
+                        length += node.getHotThreads().length();
+                        assertThat(node.getHotThreads(), not(containsCachedTimeThreadRunMethod));
+                    }
+                    return length;
+                } finally {
+                    response.decRef();
+                }
+            })))
+        );
 
-            // Second time, do ignore idle threads:
-            final var request = new NodesHotThreadsRequest().threads(Integer.MAX_VALUE);
-            // Make sure default is true:
-            assertTrue(request.ignoreIdleThreads());
-            final NodesHotThreadsResponse secondResponse = client().execute(TransportNodesHotThreadsAction.TYPE, request)
-                .actionGet(10, TimeUnit.SECONDS);
-            toRelease.add(secondResponse::decRef);
-
-            int totSizeIgnoreIdle = 0;
-            for (NodeHotThreads node : secondResponse.getNodesMap().values()) {
-                totSizeIgnoreIdle += node.getHotThreads().length();
-                assertThat(node.getHotThreads(), not(containsCachedTimeThreadRunMethod));
-            }
-
-            // The filtered stacks should be smaller than unfiltered ones:
-            assertThat(totSizeIgnoreIdle, lessThan(totSizeAll));
-        } finally {
-            Releasables.close(toRelease);
-        }
+        // The filtered stacks should be smaller than unfiltered ones:
+        assertThat(totSizeIgnoreIdle, lessThan(totSizeAll));
     }
 
     public void testTimestampAndParams() {
-
-        final NodesHotThreadsResponse response = client().execute(TransportNodesHotThreadsAction.TYPE, new NodesHotThreadsRequest())
-            .actionGet(10, TimeUnit.SECONDS);
-        try {
-
-            if (Constants.FREE_BSD) {
-                for (NodeHotThreads node : response.getNodesMap().values()) {
-                    assertThat(node.getHotThreads(), containsString("hot_threads is not supported"));
-                }
-            } else {
-                for (NodeHotThreads node : response.getNodesMap().values()) {
-                    assertThat(
-                        node.getHotThreads(),
-                        allOf(
-                            containsString("Hot threads at"),
-                            containsString("interval=500ms"),
-                            containsString("busiestThreads=3"),
-                            containsString("ignoreIdleThreads=true")
-                        )
-                    );
-                }
-            }
-        } finally {
-            response.decRef();
-        }
+        safeAwait(
+            SubscribableListener.<Void>newForked(
+                l -> client().execute(TransportNodesHotThreadsAction.TYPE, new NodesHotThreadsRequest(), l.map(response -> {
+                    try {
+                        if (Constants.FREE_BSD) {
+                            for (NodeHotThreads node : response.getNodesMap().values()) {
+                                assertThat(node.getHotThreads(), containsString("hot_threads is not supported"));
+                            }
+                        } else {
+                            for (NodeHotThreads node : response.getNodesMap().values()) {
+                                assertThat(
+                                    node.getHotThreads(),
+                                    allOf(
+                                        containsString("Hot threads at"),
+                                        containsString("interval=500ms"),
+                                        containsString("busiestThreads=3"),
+                                        containsString("ignoreIdleThreads=true")
+                                    )
+                                );
+                            }
+                        }
+                        return null;
+                    } finally {
+                        response.decRef();
+                    }
+                }))
+            )
+        );
     }
 
     @TestLogging(reason = "testing logging at various levels", value = "org.elasticsearch.action.admin.HotThreadsIT:TRACE")

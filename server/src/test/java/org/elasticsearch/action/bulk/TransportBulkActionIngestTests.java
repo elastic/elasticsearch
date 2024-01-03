@@ -61,6 +61,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
@@ -472,7 +473,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 responseCalled.set(true);
                 assertSame(bulkResponse, response);
             });
-            ActionTestUtils.execute(action, null, bulkRequest, listener);
+            // We're going to use the same bulk request twice, so we want to know when we're done with it:
+            CountDownLatch executionLatch = new CountDownLatch(2);
+            ActionTestUtils.execute(action, null, bulkRequest, ActionListener.runAfter(listener, executionLatch::countDown));
 
             // should not have executed ingest locally
             verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
@@ -492,13 +495,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
             // now make sure ingest nodes are rotated through with a subsequent request
             reset(transportService);
-            ActionTestUtils.execute(action, null, bulkRequest, listener);
+            ActionTestUtils.execute(action, null, bulkRequest, ActionListener.runAfter(listener, executionLatch::countDown));
             verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
             if (usedNode1) {
                 assertSame(remoteNode2, node.getValue());
             } else {
                 assertSame(remoteNode1, node.getValue());
             }
+            remoteResponseHandler.getValue().handleResponse(bulkResponse); // call the listener for the remote node
+            executionLatch.await();
         }
     }
 

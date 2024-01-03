@@ -23,6 +23,10 @@ public final class BlockRamUsageEstimator {
 
     /** Returns the size in bytes used by the bitset. Otherwise, returns 0 if null. Not exact, but good enough */
     public static long sizeOfBitSet(@Nullable BitSet bitset) {
-        return bitset == null ? 0 : BITSET_BASE_RAM_USAGE + (bitset.size() / Byte.SIZE);
+        return bitset == null ? 0 : sizeOfBitSet(bitset.size());
+    }
+
+    public static long sizeOfBitSet(long size) {
+        return BITSET_BASE_RAM_USAGE + (size / Byte.SIZE);
     }
 }

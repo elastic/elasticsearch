@@ -91,6 +91,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -1346,7 +1347,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     void syncFlush(IndexWriter writer, InternalEngine engine, String syncId) throws IOException {
-        try (var ignored = engine.acquireEnsureOpenRef()) {
+        try (ReleasableLock ignored = engine.readLock.acquire()) {
             Map<String, String> userData = new HashMap<>();
             writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
             userData.put(Engine.SYNC_COMMIT_ID, syncId);

@@ -8,20 +8,31 @@
 package org.elasticsearch.xpack.ml.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.Collections;
 
 public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_semantic_text_inference";
     public static final String NAME = "_semantic_text_inference";
     public static final String SPARSE_VECTOR_SUBFIELD_NAME = "sparse_embedding";
+    public static final String TEXT_SUBFIELD_NAME = "text";
     public static final TypeParser PARSER = new FixedTypeParser(c -> new SemanticTextInferenceResultFieldMapper());
 
     // TODO: Need to query this as a nested field type?
@@ -50,6 +61,114 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
 
     private SemanticTextInferenceResultFieldMapper() {
         super(SemanticTextInferenceFieldType.INSTANCE);
+    }
+
+    @Override
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_OBJECT, got " + parser.currentToken());
+        }
+
+        parseInferenceResults(context);
+    }
+
+    private static void parseInferenceResults(DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
+        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false);
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new DocumentParsingException(parser.getTokenLocation(), "Expected a FIELD_NAME, got " + token);
+            }
+        }
+
+        parseFieldInferenceResults(context, mapperBuilderContext);
+    }
+
+    private static void parseFieldInferenceResults(
+        DocumentParserContext context,
+        MapperBuilderContext mapperBuilderContext) throws IOException {
+
+        String fieldName = context.parser().currentName();
+        Mapper mapper = context.getMapper(fieldName);
+        if (mapper == null || SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false) {
+            throw new DocumentParsingException(context.parser().getTokenLocation(),
+                "Field [%s] is not registered as a %s field type".formatted(fieldName, SemanticTextFieldMapper.CONTENT_TYPE));
+        }
+
+        parseFieldInferenceResultsArray(context, mapperBuilderContext, fieldName);
+    }
+
+    private static void parseFieldInferenceResultsArray(
+        DocumentParserContext context,
+        MapperBuilderContext mapperBuilderContext,
+        String fieldName) throws IOException {
+
+        XContentParser parser = context.parser();
+        NestedObjectMapper nestedObjectMapper = createNestedObjectMapper(context, mapperBuilderContext, fieldName);
+        context.path().add(fieldName);
+
+        try {
+            if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
+                throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_ARRAY, got " + parser.currentToken());
+            }
+
+            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
+                DocumentParserContext nestedContext = context
+                    .createChildContext(nestedObjectMapper)
+                    .createNestedContext(nestedObjectMapper);
+
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_OBJECT, got " + parser.currentToken());
+                }
+
+                for (token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+                    if (token != XContentParser.Token.FIELD_NAME) {
+                        throw new DocumentParsingException(parser.getTokenLocation(),
+                            "Expected a FIELD_NAME, got " + parser.currentToken());
+                    }
+
+                    String currentName = parser.currentName();
+                    context.path().add(currentName);
+                    try {
+                        // TODO: Test how this code handles extra fields
+                        FieldMapper childNestedMapper = (FieldMapper) nestedObjectMapper.getMapper(currentName);
+                        if (childNestedMapper == null) {
+                            throw new DocumentParsingException(parser.getTokenLocation(), "Unexpected field name: " + currentName);
+                        }
+                        parser.nextToken();
+                        childNestedMapper.parse(nestedContext);
+                    } finally {
+                        context.path().remove();
+                    }
+                }
+            }
+        } finally {
+            context.path().remove();
+        }
+    }
+
+    private static NestedObjectMapper createNestedObjectMapper(
+        DocumentParserContext context,
+        MapperBuilderContext mapperBuilderContext,
+        String fieldName) {
+
+        // TODO: Use keyword field type for text?
+        SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(SPARSE_VECTOR_SUBFIELD_NAME);
+        TextFieldMapper.Builder textMapperBuilder = new TextFieldMapper.Builder(
+            TEXT_SUBFIELD_NAME,
+            context.indexSettings().getIndexVersionCreated(),
+            context.indexAnalyzers()
+        ).index(false).store(false);
+
+        NestedObjectMapper.Builder nestedBuilder = new NestedObjectMapper.Builder(
+            fieldName,
+            context.indexSettings().getIndexVersionCreated()
+        );
+        nestedBuilder.add(sparseVectorMapperBuilder).add(textMapperBuilder);
+
+        return nestedBuilder.build(mapperBuilderContext);
     }
 
     @Override

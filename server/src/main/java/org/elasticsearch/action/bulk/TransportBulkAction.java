@@ -32,6 +32,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -406,131 +407,52 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         long startTime
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
+        // Optimizing when there are no prerequisite actions
         if (autoCreateIndices.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
-        } else {
-            final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size() + dataStreamsToBeRolledOver.size());
+            return;
+        }
+        Runnable executeBulkRunnable = () -> threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+            }
+        });
+        try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             for (String index : autoCreateIndices) {
-                createIndex(
-                    index,
-                    bulkRequest.timeout(),
-                    new PrerequisiteActionListener<>(
-                        counter,
-                        responses,
-                        task,
-                        bulkRequest,
-                        executorName,
-                        listener,
-                        indicesThatCannotBeCreated,
-                        startTime
-                    ) {
+                createIndex(index, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CreateIndexResponse createIndexResponse) {}
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                            if (cause instanceof IndexNotFoundException indexNotFoundException) {
-                                synchronized (indicesThatCannotBeCreated) {
-                                    indicesThatCannotBeCreated.put(index, indexNotFoundException);
-                                }
-                            } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
-                                failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof IndexNotFoundException indexNotFoundException) {
+                            synchronized (indicesThatCannotBeCreated) {
+                                indicesThatCannotBeCreated.put(index, indexNotFoundException);
                             }
-                            super.onFailure(e);
+                        } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
+                            // fail all requests involving this index, if create didn't work
+                            failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
                         }
                     }
-                );
-            }
-            for (String dataStream : dataStreamsToBeRolledOver) {
-                rolloverDataStream(
-                    dataStream,
-                    bulkRequest.timeout(),
-                    new PrerequisiteActionListener<>(
-                        counter,
-                        responses,
-                        task,
-                        bulkRequest,
-                        executorName,
-                        listener,
-                        indicesThatCannotBeCreated,
-                        startTime
-                    ) {
+                }, refs.acquire()));
+                for (String dataStream : dataStreamsToBeRolledOver) {
+                    rolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
 
                         @Override
                         public void onResponse(RolloverResponse result) {
                             assert result.isRolledOver()
                                 : "An successful unconditional rollover should always result in a rolled over data stream";
-                            super.onResponse(result);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             failRequestsWhenPrerequisiteActionFailed(dataStream, bulkRequest, responses, e);
-                            super.onFailure(e);
                         }
-                    }
-                );
-            }
-        }
-    }
-
-    /**
-     * This listener is expecting the response of a prerequisite action, currently an index creation or a data stream
-     * rollover, and executes the bulk request if it's the last one.
-     */
-    private class PrerequisiteActionListener<T> implements ActionListener<T> {
-        final AtomicInteger actionsInProgressCount;
-        final AtomicArray<BulkItemResponse> responses;
-        final Task task;
-        final BulkRequest bulkRequest;
-        final String executorName;
-        final ActionListener<BulkResponse> listener;
-        final Map<String, IndexNotFoundException> indicesThatCannotBeCreated;
-        final long startTime;
-
-        PrerequisiteActionListener(
-            AtomicInteger actionsInProgressCount,
-            AtomicArray<BulkItemResponse> responses,
-            Task task,
-            BulkRequest bulkRequest,
-            String executorName,
-            ActionListener<BulkResponse> listener,
-            Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
-            long startTime
-        ) {
-            this.actionsInProgressCount = actionsInProgressCount;
-            this.responses = responses;
-            this.task = task;
-            this.bulkRequest = bulkRequest;
-            this.executorName = executorName;
-            this.listener = listener;
-            this.indicesThatCannotBeCreated = indicesThatCannotBeCreated;
-            this.startTime = startTime;
-        }
-
-        @Override
-        public void onResponse(T result) {
-            if (actionsInProgressCount.decrementAndGet() == 0) {
-                forkExecuteBulk(listener);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (actionsInProgressCount.decrementAndGet() == 0) {
-                forkExecuteBulk(ActionListener.wrap(listener::onResponse, inner -> {
-                    inner.addSuppressed(e);
-                    listener.onFailure(inner);
-                }));
-            }
-        }
-
-        private void forkExecuteBulk(ActionListener<BulkResponse> finalListener) {
-            threadPool.executor(executorName).execute(new ActionRunnable<>(finalListener) {
-                @Override
-                protected void doRun() {
-                    executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+                    }, refs.acquire()));
                 }
-            });
+            }
         }
     }
 

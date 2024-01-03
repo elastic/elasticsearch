@@ -92,6 +92,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103808")
     public void testDeploymentSurvivesRestart() throws Exception {
         @UpdateForV9 // upgrade will always be from v8, condition can be removed
         var originalClusterAtLeastV8 = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_8_0_0)).orElse(true);

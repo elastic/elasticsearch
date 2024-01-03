@@ -187,6 +187,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
      * Return the hit as the provided position.
      */
     public SearchHit getAt(int position) {
+        assert hasReferences();
         return hits[position];
     }
 

@@ -212,12 +212,12 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(searchResponse1.getTotalShards()).thenReturn(1);
         BytesArray source = new BytesArray("{}");
         {
-            SearchHit hit = new SearchHit(0, "first_foo");
+            SearchHit hit = SearchHit.unpooled(0, "first_foo");
             hit.version(1L);
             hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
             hit.sourceRef(source);
             when(searchResponse1.getHits()).thenReturn(
-                new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
+                SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
             );
         }
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
@@ -234,14 +234,14 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             if (request.scrollId().equals("_scrollId")) {
                 // First return a scroll response with a single hit and then with no hits
-                var hit = new SearchHit(0, "second_foo");
+                var hit = SearchHit.unpooled(0, "second_foo");
                 hit.version(1L);
                 hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
                 hit.sourceRef(source);
                 ActionListener.respondAndRelease(
                     listener,
                     new SearchResponse(
-                        new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
+                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
                         null,
                         null,
                         false,

@@ -1231,17 +1231,17 @@ public class HistogramIT extends ESIntegTestCase {
     public void testInvalidBounds() {
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("empty_bucket_idx").addAggregation(
+            prepareSearch("empty_bucket_idx").addAggregation(
                 histogram("histo").field(SINGLE_VALUED_FIELD_NAME).hardBounds(new DoubleBounds(0.0, 10.0)).extendedBounds(3, 20)
-            ).get()
+            )
         );
         assertThat(e.toString(), containsString("Extended bounds have to be inside hard bounds, hard bounds"));
 
         e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("empty_bucket_idx").addAggregation(
+            prepareSearch("empty_bucket_idx").addAggregation(
                 histogram("histo").field(SINGLE_VALUED_FIELD_NAME).hardBounds(new DoubleBounds(3.0, null)).extendedBounds(0, 20)
-            ).get()
+            )
         );
         assertThat(e.toString(), containsString("Extended bounds have to be inside hard bounds, hard bounds"));
     }

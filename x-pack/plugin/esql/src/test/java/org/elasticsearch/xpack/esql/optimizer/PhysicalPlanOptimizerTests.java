@@ -84,6 +84,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -104,7 +106,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -510,6 +512,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES + KEYWORD_EST));
     }
 
+    /**
+     * Expects
+     * EvalExec[[agg_emp{r}#4 + 7[INTEGER] AS x]]
+     * \_LimitExec[500[INTEGER]]
+     *   \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],FINAL,16]
+     *     \_ExchangeExec[[sum{r}#18, seen{r}#19],true]
+     *       \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],PARTIAL,8]
+     *         \_FieldExtractExec[emp_no{f}#8]
+     *           \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#34], limit[], sort[] estimatedRowSize[8]
+     */
     public void testQueryWithAggregation() {
         var plan = physicalPlan("""
             from test
@@ -526,8 +538,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
+        assertThat(query.query(), is(existsQuery("emp_no")));
     }
 
+    /**
+     * Expects
+     * EvalExec[[agg_emp{r}#4 + 7[INTEGER] AS x]]
+     * \_LimitExec[500[INTEGER]]
+     *   \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],FINAL,16]
+     *     \_ExchangeExec[[sum{r}#18, seen{r}#19],true]
+     *       \_AggregateExec[[],[SUM(emp_no{f}#8) AS agg_emp],PARTIAL,8]
+     *         \_FieldExtractExec[emp_no{f}#8]
+     *           \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#34], limit[], sort[] estimatedRowSize[8]
+     */
     public void testQueryWithAggAfterEval() {
         var plan = physicalPlan("""
             from test
@@ -543,10 +569,35 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(agg.estimatedRowSize(), equalTo(Long.BYTES * 2));
         var exchange = asRemoteExchange(agg.child());
         var aggregate = as(exchange.child(), AggregateExec.class);
-        // sum is long a long, x isn't calculated until the agg above
+        // sum is long, x isn't calculated until the agg above
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
+        assertThat(query.query(), is(existsQuery("emp_no")));
+    }
+
+    public void testQueryForStatWithMultiAgg() {
+        var plan = physicalPlan("""
+            from test
+            | stats agg_1 = sum(emp_no), agg_2 = min(salary)
+            """);
+
+        var stats = statsWithIndexedFields("emp_no", "salary");
+        var optimized = optimizedPlan(plan, stats);
+        var topLimit = as(optimized, LimitExec.class);
+        var agg = as(topLimit.child(), AggregateExec.class);
+        var exchange = asRemoteExchange(agg.child());
+        var aggregate = as(exchange.child(), AggregateExec.class);
+        // sum is long, x isn't calculated until the agg above
+        var extract = as(aggregate.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("emp_no", "salary"));
+
+        var query = source(extract.child());
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
+        assertThat(query.query(), is(boolQuery().should(existsQuery("emp_no")).should(existsQuery("salary"))));
     }
 
     public void testQueryWithNull() {
@@ -1337,8 +1388,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertEquals(WildcardQueryBuilder.class, query.getClass());
-        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) query);
+        assertEquals(SingleValueQuery.Builder.class, query.getClass());
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(WildcardQueryBuilder.class));
+        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) ((SingleValueQuery.Builder) query).next());
         assertEquals("first_name", wildcard.fieldName());
         assertEquals("*foo*", wildcard.value());
     }
@@ -1402,8 +1454,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertEquals(RegexpQueryBuilder.class, query.getClass());
-        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) query);
+        assertEquals(SingleValueQuery.Builder.class, query.getClass());
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(RegexpQueryBuilder.class));
+        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) ((SingleValueQuery.Builder) query).next());
         assertEquals("first_name", wildcard.fieldName());
         assertEquals(".*foo.*", wildcard.value());
     }
@@ -1424,8 +1477,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertThat(query, instanceOf(BoolQueryBuilder.class));
-        var boolQuery = (BoolQueryBuilder) query;
+        assertThat(query, instanceOf(SingleValueQuery.Builder.class));
+        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) ((SingleValueQuery.Builder) query).next();
         List<QueryBuilder> mustNot = boolQuery.mustNot();
         assertThat(mustNot.size(), is(1));
         assertThat(mustNot.get(0), instanceOf(RegexpQueryBuilder.class));
@@ -2024,6 +2078,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         l = localRelationshipAlignment(l);
         // System.out.println("* Localized DataNode Plan\n" + l);
         return l;
+    }
+
+    static SearchStats statsWithIndexedFields(String... names) {
+        return new EsqlTestUtils.TestSearchStats() {
+            private final Set<String> indexedFields = Set.of(names);
+
+            @Override
+            public boolean isIndexed(String field) {
+                return indexedFields.contains(field);
+            }
+        };
     }
 
     static PhysicalPlan localRelationshipAlignment(PhysicalPlan l) {

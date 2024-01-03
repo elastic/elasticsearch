@@ -822,9 +822,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * todo
-     * @param requireDataStream
-     * @return
+     * Set whether this IndexRequest requires a data stream. The data stream may be pre-existing or to-be-created.
      */
     public IndexRequest setRequireDataStream(boolean requireDataStream) {
         this.requireDataStream = requireDataStream;

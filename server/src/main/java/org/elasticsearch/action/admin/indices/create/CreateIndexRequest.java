@@ -458,9 +458,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * todo
-     * @param requireDataStream
-     * @return
+     * Set whether this CreateIndexRequest requires a data stream. The data stream may be pre-existing or to-be-created.
      */
     public CreateIndexRequest requireDataStream(boolean requireDataStream) {
         this.requireDataStream = requireDataStream;

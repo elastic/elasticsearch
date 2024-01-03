@@ -872,7 +872,7 @@ public class InternalEngine extends Engine {
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
         boolean getFromSearcher
     ) {
-        assert isNotDrainedForClose();
+        assert isDrainedForClose() == false;
         assert get.realtime();
         final VersionValue versionValue;
         try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
@@ -1941,7 +1941,7 @@ public class InternalEngine extends Engine {
     }
 
     private NoOpResult innerNoOp(final NoOp noOp) throws IOException {
-        assert isNotDrainedForClose();
+        assert isDrainedForClose() == false;
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
@@ -2593,7 +2593,7 @@ public class InternalEngine extends Engine {
     @Override
     protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
-            assert isNotDrainedForClose() == false || failEngineLock.isHeldByCurrentThread()
+            assert isDrainedForClose() || failEngineLock.isHeldByCurrentThread()
                 : "Either all operations must have been drained or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();

@@ -1877,8 +1877,8 @@ public abstract class Engine implements Closeable {
      */
     protected abstract void closeNoLock(String reason, CountDownLatch closedLatch);
 
-    protected final boolean isNotDrainedForClose() {
-        return ensureOpenRefs.hasReferences();
+    protected final boolean isDrainedForClose() {
+        return ensureOpenRefs.hasReferences() == false;
     }
 
     protected final boolean isClosing() {

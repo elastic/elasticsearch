@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.FilteredSearchExecutionContext;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
@@ -24,14 +25,11 @@ import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
@@ -148,42 +146,8 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
             return newQuery.boost(query.boost());
         } else if (qb instanceof QueryStringQueryBuilder query) {
-            // this overrides the empty fields as well as the default field logic in order to instead fill in all the
-            // allowed fields for API Key querying and nothing more
-            if (query.fields().isEmpty()) {
-                if (query.defaultField() == null) {
-                    query.fields().put("*", 1.0f);
-                } else {
-                    for (String translatedFieldName : ApiKeyFieldNameTranslators.translatePattern(query.defaultField())) {
-                        query.fields().put(translatedFieldName, 1.0f);
-                    }
-                    query.defaultField(null);
-                }
-            }
-            if (query.defaultField() != null) {
-                throw new IllegalArgumentException("cannot use [fields] parameter in conjunction with [default_field]");
-            }
-            // "lenient=false" with "all_fields" wildcard will almost certainly return an error,
-            // because index fields have different mappings, which makes parsing the same query
-            // field by such different mapping rules to likely cause errors
-            if (QueryParserHelper.hasAllFieldsWildcard(query.fields().keySet())) {
-                query.lenient(true);
-            }
-            translateFieldPatterns(query.fields());
             return query;
         } else if (qb instanceof SimpleQueryStringBuilder query) {
-            // this overrides the empty fields logic in order to expand the wildcard to only the allowed fields
-            // for API Key querying and nothing more
-            if (query.fields().isEmpty()) {
-                query.fields().put("*", 1.0f);
-            }
-            // "lenient=false" with "all_fields" wildcard will almost certainly return an error,
-            // because index fields have different mappings, which makes parsing the same query
-            // field by such different mapping rules to likely cause errors
-            if (QueryParserHelper.hasAllFieldsWildcard(query.fields().keySet())) {
-                query.lenient(true);
-            }
-            translateFieldPatterns(query.fields());
             return query;
         } else {
             throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
@@ -192,8 +156,14 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        context.setAllowedFields(ApiKeyBoolQueryBuilder::isIndexFieldNameAllowed);
-        return super.doToQuery(context);
+        SearchExecutionContext translatingSearchExecutionContext = new FilteredSearchExecutionContext(context) {
+            @Override
+            public Set<String> getMatchingFieldNames(String pattern) {
+                return ApiKeyFieldNameTranslators.translatePattern(pattern);
+            }
+        };
+        translatingSearchExecutionContext.setAllowedFields(ApiKeyBoolQueryBuilder::isIndexFieldNameAllowed);
+        return super.doToQuery(translatingSearchExecutionContext);
     }
 
     @Override
@@ -206,19 +176,5 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     static boolean isIndexFieldNameAllowed(String fieldName) {
         return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName) || fieldName.startsWith("metadata_flattened.");
-    }
-
-    static void translateFieldPatterns(Map<String, Float> fields) {
-        Map<String, Float> originalFields = new HashMap<>(fields);
-        fields.clear();
-        for (Map.Entry<String, Float> originalField : originalFields.entrySet()) {
-            for (String translatedFieldName : ApiKeyFieldNameTranslators.translatePattern(originalField.getKey())) {
-                if (fields.containsKey(translatedFieldName)) {
-                    fields.put(translatedFieldName, fields.get(translatedFieldName) * originalField.getValue());
-                } else {
-                    fields.put(translatedFieldName, originalField.getValue());
-                }
-            }
-        }
     }
 }

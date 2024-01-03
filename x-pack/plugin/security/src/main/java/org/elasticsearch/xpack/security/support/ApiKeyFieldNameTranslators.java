@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.security.support;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -52,8 +54,8 @@ public class ApiKeyFieldNameTranslators {
     /**
      * Translates the query level field name pattern to index level field names that match the pattern.
      */
-    public static List<String> translatePattern(String pattern) {
-        List<String> translatedPatternMatches = new ArrayList<>();
+    public static Set<String> translatePattern(String pattern) {
+        Set<String> translatedPatternMatches = new HashSet<>();
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
             if (translator.supports(pattern)) {
                 translatedPatternMatches.add(translator.translate(pattern));

@@ -14,7 +14,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -58,6 +58,6 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
         req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
         req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
-        return channel -> client.admin().cluster().allocationExplain(req, new RestChunkedToXContentListener<>(channel));
+        return channel -> client.admin().cluster().allocationExplain(req, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

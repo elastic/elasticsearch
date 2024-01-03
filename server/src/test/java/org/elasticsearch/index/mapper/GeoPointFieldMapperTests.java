@@ -20,6 +20,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -31,6 +32,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -604,7 +606,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), encode(v.v2()), this::mapping);
+                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), asWKB(v.v2()), this::mapping);
                 }
                 List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
                 List<Object> in = values.stream().map(Tuple::v1).toList();
@@ -612,7 +614,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 List<GeoPoint> outList = values.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<Long> outBlockList = outList.stream().map(this::encode).toList();
+                List<BytesRef> outBlockList = outList.stream().map(this::asWKB).toList();
                 Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
                 return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
@@ -645,6 +647,10 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                         yield Map.of("coordinates", coords, "type", "point");
                     }
                 };
+            }
+
+            private BytesRef asWKB(GeoPoint point) {
+                return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
             }
 
             private long encode(GeoPoint point) {

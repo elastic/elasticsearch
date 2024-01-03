@@ -13,16 +13,12 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -186,19 +182,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
             if (v instanceof SpatialPoint point) {
                 BytesRef wkb = new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
                 ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(wkb);
-            } else if (v instanceof String wkt) {
-                try {
-                    // TODO: figure out why this is not already happening in the GeoPointFieldMapper
-                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
-                    if (geometry instanceof Point point) {
-                        BytesRef wkb = new BytesRef(WellKnownBinary.toWKB(point, ByteOrder.LITTLE_ENDIAN));
-                        ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(wkb);
-                    } else {
-                        throw new IllegalArgumentException("Cannot convert geometry into point:: " + geometry.type());
-                    }
-                } catch (IOException | ParseException e) {
-                    throw new IllegalArgumentException("Failed to parse point geometry: " + e.getMessage(), e);
-                }
+            } else if (v instanceof byte[] wkb) {
+                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(wkb));
             } else {
                 throw new IllegalArgumentException("Unsupported source type for point: " + v.getClass().getSimpleName());
             }

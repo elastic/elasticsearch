@@ -233,7 +233,6 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, contains("foo", "bar"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103813")
     public void testRunTasksUpToTimeInOrder() {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         // The queue does _not_ have to be a clean slate before test
@@ -255,7 +254,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         IntStream.range(0, randomIntBetween(0, 10))
             .forEach(
                 i -> taskQueue.scheduleAt(
-                    randomLongBetween(cutoffTimeInMillis + 1, 2 * cutoffTimeInMillis),
+                    randomLongBetween(cutoffTimeInMillis + 1, 2 * cutoffTimeInMillis + 1),
                     () -> seenNumbers.add(i + nRunnableTasks + nDeferredTasksUpToCutoff)
                 )
             );

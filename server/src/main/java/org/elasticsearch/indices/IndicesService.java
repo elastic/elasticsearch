@@ -647,8 +647,7 @@ public class IndicesService extends AbstractLifecycleComponent
             public void afterIndexCreated(IndexService indexService) {
 
                 indexService.shardIds().forEach(shardId -> {
-                    IndexShard indexShard = indexService.getShardOrNull(shardId);
-                    if (indexShard == null) return; // TODO-MP log?
+                    IndexShard indexShard = indexService.getShard(shardId);
                     Engine engine = indexShard.getEngineOrNull();
                     if (engine == null) return; // TODO-MP log?
                     Engine.Searcher hasValueSearcher = engine.acquireSearcher("field_has_value");

@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.io.IOException;
 import java.util.Map;
 
+// TODO: Update javadoc
 /**
  *  A {@link FieldMapper} for semantic text fields. These fields have a model id reference, that is used for performing inference
  * at ingestion and query time.

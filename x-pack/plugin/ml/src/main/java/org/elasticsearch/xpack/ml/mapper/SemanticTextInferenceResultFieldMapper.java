@@ -28,6 +28,64 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 
+// TODO: fill in blanks in javadoc
+/**
+ * A mapper for the {@code _semantic_text_inference} field.
+ * <br>
+ * <br>
+ * This mapper works in tandem with {@link SemanticTextFieldMapper semantic_text} fields to index inference results.
+ * The inference results for {@code semantic_text} fields are written to {@code _source} by ______ like so:
+ * <br>
+ * <br>
+ * <pre>
+ * {
+ *     "_source": {
+ *         "my_semantic_text_field": "these are not the droids you're looking for",
+ *         "_semantic_text_inference": {
+ *             "my_semantic_text_field": {
+ *                 [
+ *                     {
+ *                         "sparse_embedding": {
+ *                             "lucas": 0.05212344,
+ *                             "ty": 0.041213956,
+ *                             "dragon": 0.50991,
+ *                             "type": 0.23241979,
+ *                             "dr": 1.9312073,
+ *                             "##o": 0.2797593
+ *                         },
+ *                         "text": "these are not the droids you're looking for"
+ *                     }
+ *                 ]
+ *             }
+ *         }
+ *     }
+ * }
+ * </pre>
+ *
+ * This mapper parses the contents of the {@code _semantic_text_inference} field and indexes it as if the mapping were configured like so:
+ * <br>
+ * <br>
+ * <pre>
+ * {
+ *     "mappings": {
+ *         "properties": {
+ *             "my_semantic_text_field": {
+ *                 "type": "nested",
+ *                 "properties": {
+ *                     "sparse_embedding": {
+ *                         "type": "sparse_vector"
+ *                     },
+ *                     "text": {
+ *                         "type": "text",
+ *                         "index": false
+ *                     }
+ *                 }
+ *             }
+ *         }
+ *     }
+ * }
+ * </pre>
+ */
 public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_semantic_text_inference";
     public static final String NAME = "_semantic_text_inference";
@@ -77,13 +135,12 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         XContentParser parser = context.parser();
         MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false);
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new DocumentParsingException(parser.getTokenLocation(), "Expected a FIELD_NAME, got " + token);
             }
-        }
 
-        parseFieldInferenceResults(context, mapperBuilderContext);
+            parseFieldInferenceResults(context, mapperBuilderContext);
+        }
     }
 
     private static void parseFieldInferenceResults(
@@ -107,7 +164,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
 
         XContentParser parser = context.parser();
         NestedObjectMapper nestedObjectMapper = createNestedObjectMapper(context, mapperBuilderContext, fieldName);
-        context.path().add(fieldName);
+        context.path().add(fieldName); // TODO: Need path manipulation?
 
         try {
             if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
@@ -132,7 +189,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
                     String currentName = parser.currentName();
                     context.path().add(currentName);
                     try {
-                        // TODO: Test how this code handles extra fields
+                        // TODO: Test how this code handles extra/missing fields
                         FieldMapper childNestedMapper = (FieldMapper) nestedObjectMapper.getMapper(currentName);
                         if (childNestedMapper == null) {
                             throw new DocumentParsingException(parser.getTokenLocation(), "Unexpected field name: " + currentName);

@@ -97,8 +97,12 @@ public class ValuesSourceReaderBenchmark {
                     for (String name : ValuesSourceReaderBenchmark.class.getField("name").getAnnotationsByType(Param.class)[0].value()) {
                         benchmark.layout = layout;
                         benchmark.name = name;
-                        benchmark.setupPages();
-                        benchmark.benchmark();
+                        try {
+                            benchmark.setupPages();
+                            benchmark.benchmark();
+                        } catch (Exception e) {
+                            throw new AssertionError("error initializing [" + layout + "/" + name + "]", e);
+                        }
                     }
                 }
             } finally {
@@ -127,7 +131,8 @@ public class ValuesSourceReaderBenchmark {
     }
 
     private static ElementType elementType(String name) {
-        switch (WhereAndBaseName.fromName(name).name) {
+        name = WhereAndBaseName.fromName(name).name;
+        switch (name) {
             case "long":
                 return ElementType.LONG;
             case "int":
@@ -170,7 +175,7 @@ public class ValuesSourceReaderBenchmark {
             }
             ft.freeze();
             return new KeywordFieldMapper.KeywordFieldType(
-                name,
+                w.name,
                 ft,
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,

@@ -1243,6 +1243,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         testBlockLoader(true);
     }
 
+    // Removed 'final' to silence this test in GeoPointFieldMapperTests (should bring back final when we fix that test)
     public void testBlockLoaderFromRowStrideReader() throws IOException {
         testBlockLoader(false);
     }

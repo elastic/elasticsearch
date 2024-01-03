@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -348,11 +347,6 @@ public interface BlockLoader {
          * Build a builder to load {@link BytesRef}s without any loading constraints.
          */
         BytesRefBuilder bytesRefs(int expectedCount);
-
-        /**
-         * Build a builder to load {@link SpatialPoint}s backed by WKB in BytesRefBlock.
-         */
-        BytesRefBuilder geometries(int expectedCount);
 
         /**
          * Build a builder to load doubles as loaded from doc values.

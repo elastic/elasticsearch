@@ -12,13 +12,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -144,7 +140,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.geometries(expectedCount);
+            return factory.bytesRefs(expectedCount);
         }
 
         @Override
@@ -179,13 +175,10 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         protected void append(BlockLoader.Builder builder, Object v) {
-            if (v instanceof SpatialPoint point) {
-                BytesRef wkb = new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
-                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(wkb);
-            } else if (v instanceof byte[] wkb) {
+            if (v instanceof byte[] wkb) {
                 ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(wkb));
             } else {
-                throw new IllegalArgumentException("Unsupported source type for point: " + v.getClass().getSimpleName());
+                throw new IllegalArgumentException("Unsupported source type for spatial geometry: " + v.getClass().getSimpleName());
             }
         }
 

@@ -58,18 +58,6 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.BytesRefBuilder geometries(int expectedCount) {
-                class GeometriesBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
-                    @Override
-                    public GeometriesBuilder appendBytesRef(BytesRef value) {
-                        add(BytesRef.deepCopyOf(value));
-                        return this;
-                    }
-                }
-                return new GeometriesBuilder();
-            }
-
-            @Override
             public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
                 return doubles(expectedCount);
             }

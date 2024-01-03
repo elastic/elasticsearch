@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Geometry;
@@ -24,7 +25,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
@@ -212,21 +212,21 @@ public final class BlockUtils {
         switch (type) {
             case LONG -> ((LongBlock.Builder) builder).appendLong((Long) val);
             case INT -> ((IntBlock.Builder) builder).appendInt((Integer) val);
-            case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(spatialToBytesRef(val));
+            case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(toBytesRef(val));
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
 
-    private static BytesRef spatialToBytesRef(Object val) {
+    private static BytesRef toBytesRef(Object val) {
         if (val instanceof SpatialPoint point) {
             return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
         }
         if (val instanceof Geometry geometry) {
             return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
         }
-        return toBytesRef(val);
+        return BytesRefs.toBytesRef(val);
     }
 
     public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
@@ -242,7 +242,7 @@ public final class BlockUtils {
             case NULL -> blockFactory.newConstantNullBlock(size);
             case LONG -> blockFactory.newConstantLongBlockWith((long) val, size);
             case INT -> blockFactory.newConstantIntBlockWith((int) val, size);
-            case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(spatialToBytesRef(val), size);
+            case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");

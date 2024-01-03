@@ -1,0 +1,6 @@
+pr: 103858
+summary: Cache `ObjectMappers` to prevent continual recursion during dynamic mapper
+  building
+area: Mapping
+type: bug
+issues: []

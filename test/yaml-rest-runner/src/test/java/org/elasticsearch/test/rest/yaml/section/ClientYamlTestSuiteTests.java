@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
@@ -28,10 +27,8 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -154,11 +151,6 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             equalTo("for newer versions the index name is always returned")
         );
 
-        var expectedVersionRangeString = Strings.format("[6.0.0 - %s]", Version.CURRENT);
-        assertThat(
-            restTestSuite.getTestSections().get(1).getSkipSection().skipCriteriaList,
-            contains(hasToString(expectedVersionRangeString))
-        );
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));
         doSection = (DoSection) restTestSuite.getTestSections().get(1).getExecutableSections().get(0);

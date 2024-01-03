@@ -205,24 +205,24 @@ public class SkipSection {
 
     public static final SkipSection EMPTY = new SkipSection();
 
-    final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList;
-    private final List<String> testFeatures;
+    private final List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList;
+    private final List<String> yamlRunnerFeatures;
     private final String reason;
 
     private SkipSection() {
         this.skipCriteriaList = new ArrayList<>();
-        this.testFeatures = new ArrayList<>();
+        this.yamlRunnerFeatures = new ArrayList<>();
         this.reason = null;
     }
 
-    SkipSection(List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList, List<String> testFeatures, String reason) {
+    SkipSection(List<Predicate<ClientYamlTestExecutionContext>> skipCriteriaList, List<String> yamlRunnerFeatures, String reason) {
         this.skipCriteriaList = skipCriteriaList;
-        this.testFeatures = testFeatures;
+        this.yamlRunnerFeatures = yamlRunnerFeatures;
         this.reason = reason;
     }
 
     public boolean yamlRunnerHasFeature(String feature) {
-        return testFeatures.contains(feature);
+        return yamlRunnerFeatures.contains(feature);
     }
 
     public String getReason() {
@@ -247,8 +247,8 @@ public class SkipSection {
         if (reason != null) {
             messageBuilder.append(" reason: [").append(getReason()).append("]");
         }
-        if (testFeatures.isEmpty() == false) {
-            messageBuilder.append(" unsupported features ").append(testFeatures);
+        if (yamlRunnerFeatures.isEmpty() == false) {
+            messageBuilder.append(" unsupported features ").append(yamlRunnerFeatures);
         }
         return messageBuilder.toString();
     }

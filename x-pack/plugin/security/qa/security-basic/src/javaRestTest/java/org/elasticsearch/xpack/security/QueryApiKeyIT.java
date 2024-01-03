@@ -359,8 +359,22 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
     }
 
-    public void testQueryStringQuery() {
+    public void testQueryStringQuery() throws Exception {
+        final List<String> apiKeyIds = new ArrayList<>(4);
+        apiKeyIds.add(createApiKey("k0", Map.of("letter", "a", "symbol", "2"), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("k1", Map.of("letter", "b", "symbol", "2"), API_KEY_USER_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("k2", Map.of("letter", "c", "symbol", "1"), API_KEY_ADMIN_AUTH_HEADER).v1());
+        apiKeyIds.add(createApiKey("k3", Map.of("letter", "d", "symbol", "1"), API_KEY_USER_AUTH_HEADER).v1());
 
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
+            {"query": {"query_string": {"query": "k*" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
+        });
+
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
+            {"query": {"query_string": {"query": "invalidated: false" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
+        });
     }
 
     public void testExistsQuery() throws IOException, InterruptedException {

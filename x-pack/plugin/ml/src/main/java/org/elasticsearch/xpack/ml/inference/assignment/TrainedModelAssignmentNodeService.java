@@ -209,7 +209,9 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             try {
                 deploymentManager.startDeployment(loadingTask, listener);
                 // This needs to be synchronous here in the utility thread to keep queueing order
+                logger.info("before get deployed task");
                 TrainedModelDeploymentTask deployedTask = listener.actionGet();
+                logger.info("after get deployed task");
                 // kicks off asynchronous cluster state update
                 handleLoadSuccess(deployedTask);
             } catch (Exception ex) {

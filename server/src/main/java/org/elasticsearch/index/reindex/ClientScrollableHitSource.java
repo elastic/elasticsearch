@@ -158,7 +158,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
         ClientHit(SearchHit delegate) {
             this.delegate = delegate.asUnpooled(); // TODO: use pooled version here
-            source = delegate.hasSource() ? delegate.getSourceRef() : null;
+            source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
         }
 
         @Override

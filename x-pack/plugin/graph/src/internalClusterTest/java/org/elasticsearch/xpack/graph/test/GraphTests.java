@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -88,9 +89,10 @@ public class GraphTests extends ESSingleNodeTestCase {
         for (DocTemplate dt : socialNetTemplate) {
             for (int i = 0; i < dt.numDocs; i++) {
                 // Supply a doc ID for deterministic routing of docs to shards
-                prepareIndex("test").setId("doc#" + numDocs)
-                    .setSource("decade", dt.decade, "people", dt.people, "description", dt.description)
-                    .get();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("doc#" + numDocs)
+                    .setSource("decade", dt.decade, "people", dt.people, "description", dt.description);
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
                 numDocs++;
             }
         }

@@ -12,10 +12,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.IndexShard;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
@@ -42,8 +47,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             new String[] { "-nested" },
             Strings.EMPTY_ARRAY,
             f -> true,
-            null,// TODO-MP change with IndexShard
-            true  // TODO-MP check if correct
+            getMockIndexShard(),
+            true
         );
 
         assertNotNull(response.get("field1"));
@@ -70,8 +75,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 new String[] { "+metadata" },
                 Strings.EMPTY_ARRAY,
                 f -> true,
-                null,// TODO-MP change with IndexShard
-                true  // TODO-MP check if correct
+                getMockIndexShard(),
+                true
             );
             assertNotNull(response.get("_index"));
             assertNull(response.get("field1"));
@@ -83,8 +88,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
                 f -> true,
-                null,// TODO-MP change with IndexShard
-                true  // TODO-MP check if correct
+                getMockIndexShard(),
+                true
             );
             assertNull(response.get("_index"));
             assertNotNull(response.get("field1"));
@@ -116,8 +121,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             new String[] { "-multifield" },
             Strings.EMPTY_ARRAY,
             f -> true,
-            null,// TODO-MP change with IndexShard
-            true  // TODO-MP check if correct
+            getMockIndexShard(),
+            true
         );
         assertNotNull(response.get("field1"));
         assertNull(response.get("field1.keyword"));
@@ -147,8 +152,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             new String[] { "-parent" },
             Strings.EMPTY_ARRAY,
             f -> true,
-            null,// TODO-MP change with IndexShard
-            true  // TODO-MP check if correct
+            getMockIndexShard(),
+            true
         );
         assertNotNull(response.get("parent.field1"));
         assertNotNull(response.get("parent.field2"));
@@ -175,8 +180,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 Strings.EMPTY_ARRAY,
                 Strings.EMPTY_ARRAY,
                 securityFilter,
-                null,// TODO-MP change with IndexShard
-                true  // TODO-MP check if correct
+                getMockIndexShard(),
+                true
             );
 
             assertNotNull(response.get("permitted1"));
@@ -191,8 +196,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
                 securityFilter,
-                null,// TODO-MP change with IndexShard
-                true  // TODO-MP check if correct
+                getMockIndexShard(),
+                true
             );
 
             assertNotNull(response.get("permitted1"));
@@ -219,12 +224,19 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             Strings.EMPTY_ARRAY,
             new String[] { "text", "keyword" },
             f -> true,
-            null,// TODO-MP change with IndexShard
-            true  // TODO-MP check if correct
+            getMockIndexShard(),
+            true
         );
         assertNotNull(response.get("field1"));
         assertNull(response.get("field2"));
         assertNotNull(response.get("field3"));
         assertNull(response.get("_index"));
     }
+
+    private IndexShard getMockIndexShard() {
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.fieldHasValue(anyString())).thenReturn(randomBoolean());
+        return indexShard;
+    }
+
 }

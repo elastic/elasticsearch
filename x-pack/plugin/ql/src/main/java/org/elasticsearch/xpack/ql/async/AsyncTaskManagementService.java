@@ -273,6 +273,7 @@ public class AsyncTaskManagementService<
             asyncTaskIndexService.createResponseForEQL(
                 searchTask.getExecutionId().getDocId(),
                 searchTask.getOriginHeaders(),
+                threadPool.getThreadContext().getResponseHeaders(), // includes ESQL warnings
                 storedResponse,
                 ActionListener.wrap(
                     // We should only unregister after the result is saved

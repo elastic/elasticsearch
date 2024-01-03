@@ -22,6 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,6 +39,9 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,8 +52,12 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RestEsqlTestCase extends ESRestTestCase {
 
@@ -56,9 +65,17 @@ public class RestEsqlTestCase extends ESRestTestCase {
     // tests (like EsqlSpecTestCase), so test data (like index name) needs not collide and cleanup must be done locally.
     private static final String TEST_INDEX_NAME = "rest-esql-test";
 
+    private static final Logger LOGGER = LogManager.getLogger(RestEsqlTestCase.class);
+
+    public static boolean shouldLog() {
+        return true; // TODO: change to false
+    }
+
     public static class RequestObjectBuilder {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
+
+        private Boolean keepOnCompletion = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -92,6 +109,16 @@ public class RestEsqlTestCase extends ESRestTestCase {
         public RequestObjectBuilder waitForCompletion(TimeValue timeout) throws IOException {
             builder.field("wait_for_completion_timeout", timeout);
             return this;
+        }
+
+        public RequestObjectBuilder keepOnCompletion(boolean value) throws IOException {
+            keepOnCompletion = value;
+            builder.field("keep_on_completion", value);
+            return this;
+        }
+
+        Boolean keepOnCompletion() {
+            return keepOnCompletion;
         }
 
         public RequestObjectBuilder keepAlive(TimeValue timeout) throws IOException {
@@ -440,6 +467,10 @@ public class RestEsqlTestCase extends ESRestTestCase {
         return runEsql(requestObject, List.of(), randomBoolean());
     }
 
+    public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject) throws IOException {
+        return runEsqlSync(requestObject, List.of());
+    }
+
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, boolean async) throws IOException {
         return runEsql(requestObject, List.of(), async);
     }
@@ -450,12 +481,13 @@ public class RestEsqlTestCase extends ESRestTestCase {
 
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings, boolean async)
         throws IOException {
-        if (async) {
-            // deliberately short to frequently trigger going async
-            requestObject.waitForCompletion(TimeValue.timeValueMillis(1));
-        }
+        return runEsqlAsync(requestObject, expectedWarnings);
+        // return async ? runEsqlAsync(requestObject, expectedWarnings) : runEsqlSync(requestObject, expectedWarnings);
+    }
+
+    public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
         requestObject.build();
-        Request request = prepareRequest(async);
+        Request request = prepareRequest(false);
         String mediaType = attachBody(requestObject, request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -470,29 +502,112 @@ public class RestEsqlTestCase extends ESRestTestCase {
         request.setOptions(options);
 
         HttpEntity entity = performRequest(request, expectedWarnings);
+        return entityToMap(entity, requestObject.contentType());
+    }
 
-        if (async) {
-            // async may not return results immediately, so may need an async get
-            try (InputStream content = entity.getContent()) {
-                XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-                assertEquals(requestObject.contentType(), xContentType);
-                var json = XContentHelper.convertToMap(xContentType.xContent(), content, false);
-                if (json.containsKey("id")) {
-                    String id = (String) json.get("id");
-                    assertThat(json.get("is_running"), is(true));
-                    Request getRequest = new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s");
-                    getRequest.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
-                    getRequest.addParameter("pretty", "true");        // Improves error reporting readability
-                    getRequest.setOptions(options);
-                    entity = performRequest(getRequest, expectedWarnings);
-                }
-            }
+    public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
+        addAsyncParameters(requestObject);
+        requestObject.build();
+        Request request = prepareRequest(true);
+        String mediaType = attachBody(requestObject, request);
+
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
+        options.addHeader("Content-Type", mediaType);
+
+        if (randomBoolean()) {
+            options.addHeader("Accept", mediaType);
+        } else {
+            request.addParameter("format", requestObject.contentType().queryParameter());
+        }
+        request.setOptions(options);
+
+        if (shouldLog()) {
+            LOGGER.info("REQUEST=" + request);
         }
 
+        Response response = performRequest(request);
+        HttpEntity entity = response.getEntity();
+
+        Object initialColumns = null;
+        Object initialValues = null;
+        var json = entityToMap(entity, requestObject.contentType());
+        checkKeepOnCompletion(requestObject, json);
+        String id = (String) json.get("id");
+
+        if (id == null) {
+            // no id returned from an async call, must have completed immediately and without keep_on_completion
+            assertThat(requestObject.keepOnCompletion(), either(nullValue()).or(is(false)));
+            assertThat((boolean) json.get("is_running"), is(false));
+            assertWarnings(response, expectedWarnings);
+            json.remove("is_running"); // remove this to not mess up later map assertions
+            return Collections.unmodifiableMap(json);
+        } else {
+            // async may not return results immediately, so may need an async get
+            assertThat(id, is(not(emptyOrNullString())));
+            if ((boolean) json.get("is_running") == false) {
+                // must have completed immediately so keep_on_completion must be true
+                assertThat(requestObject.keepOnCompletion(), is(true));
+                assertWarnings(response, expectedWarnings);
+                // we already have the results, but let's remember them so that we can compare to async get
+                initialColumns = json.get("columns");
+                initialValues = json.get("values");
+            } else {
+                // did not return results immediately, so we will need an async get
+                assertThat(json.get("columns"), is(equalTo(List.<Map<String, String>>of()))); // no partial results
+                assertThat(json.get("pages"), nullValue());
+            }
+            // issue a second request to "async get" the results
+            Request getRequest = prepareAsyncGetRequest(id);
+            getRequest.setOptions(options);
+            response = performRequest(getRequest);
+            entity = response.getEntity();
+        }
+
+        var result = entityToMap(entity, requestObject.contentType());
+
+        // assert initial contents, if any, are the same as async get contents
+        if (initialColumns != null) {
+            assertEquals(initialColumns, result.get("columns"));
+            assertEquals(initialValues, result.get("values"));
+        }
+
+        assertWarnings(response, expectedWarnings);
+        return removeAsyncProperties(result);
+    }
+
+    // Removes async properties, otherwise consuming assertions would need to handle sync and async differences
+    static Map<String, Object> removeAsyncProperties(Map<String, Object> map) {
+        Map<String, Object> copy = new HashMap<>(map);
+        assertThat(copy.remove("is_running"), equalTo(false));
+        // assertThat((String) copy.remove("id"), is(not(emptyOrNullString()))); TODO: tighten up when id is returned
+        copy.remove("id");
+        return Collections.unmodifiableMap(copy);
+    }
+
+    static Map<String, Object> entityToMap(HttpEntity entity, XContentType expectedContentType) throws IOException {
         try (InputStream content = entity.getContent()) {
             XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-            assertEquals(requestObject.contentType(), xContentType);
-            return XContentHelper.convertToMap(xContentType.xContent(), content, false, null, Set.of("is_running"));
+            assertEquals(expectedContentType, xContentType);
+            var map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
+            if (shouldLog()) {
+                LOGGER.info("RESPONSE entity=" + map);
+            }
+            return map;
+        }
+    }
+
+    static void addAsyncParameters(RequestObjectBuilder requestObject) throws IOException {
+        // deliberately short in order to frequently trigger return without results
+        requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
+        requestObject.keepOnCompletion(true); // TODO: randomBoolean());
+        requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
+    }
+
+    // If keep_on_completion is set then an id must always be present, regardless of the value of any other property.
+    static void checkKeepOnCompletion(RequestObjectBuilder requestObject, Map<String, Object> json) {
+        if (requestObject.keepOnCompletion()) {
+            assertThat((String) json.get("id"), not(emptyOrNullString()));
         }
     }
 
@@ -528,6 +643,13 @@ public class RestEsqlTestCase extends ESRestTestCase {
         return request;
     }
 
+    private static Request prepareAsyncGetRequest(String id) {
+        Request request = new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s");
+        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
+        request.addParameter("pretty", "true");        // Improves error reporting readability
+        return request;
+    }
+
     private static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
         String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
         try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
@@ -537,10 +659,25 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static HttpEntity performRequest(Request request, List<String> allowedWarnings) throws IOException {
+        return assertWarnings(performRequest(request), allowedWarnings);
+    }
+
+    private static Response performRequest(Request request) throws IOException {
         Response response = client().performRequest(request);
+        if (shouldLog()) {
+            LOGGER.info("RESPONSE=" + response);
+            LOGGER.info("RESPONSE headers=" + Arrays.toString(response.getHeaders()));
+        }
         assertEquals(200, response.getStatusLine().getStatusCode());
+        return response;
+    }
+
+    private static HttpEntity assertWarnings(Response response, List<String> allowedWarnings) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
+        LOGGER.info("RESPONSE (1))=" + response);
+        LOGGER.info("RESPONSE warnings=" + warnings);
         warnings.removeAll(mutedWarnings());
+        LOGGER.info("RESPONSE warnings (after muted)=" + warnings);
         assertMap(warnings, matchesList(allowedWarnings));
         return response.getEntity();
     }

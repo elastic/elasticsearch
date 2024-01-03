@@ -70,7 +70,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         RequestObjectBuilder builder = new RequestObjectBuilder().query("from test-index | limit 1 | keep f");
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder, false));
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
     }
 

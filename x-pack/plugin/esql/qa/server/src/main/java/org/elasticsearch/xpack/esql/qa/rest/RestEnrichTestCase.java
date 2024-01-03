@@ -21,6 +21,7 @@ import java.util.Map;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.containsString;
 
 public class RestEnrichTestCase extends ESRestTestCase {
@@ -126,7 +127,7 @@ public class RestEnrichTestCase extends ESRestTestCase {
     public void testNonExistentEnrichPolicy() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"))
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"), List.of())
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -137,7 +138,7 @@ public class RestEnrichTestCase extends ESRestTestCase {
     public void testNonExistentEnrichPolicy_KeepField() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris | keep number"))
+            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris | keep number"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),

@@ -532,7 +532,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 unmatched.clear();
                                 failures.clear();
                                 allResponses.add(response);
-                                break;
+                                // break;
                             } else {
                                 unmatched.add(shardId);
                             }

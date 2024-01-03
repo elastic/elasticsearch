@@ -146,7 +146,7 @@ class FieldCapabilitiesFetcher {
             }
             MappedFieldType ft = context.getFieldType(field);
             boolean acceptedFieldType = filter.test(ft);
-            boolean hasValue = indexShard == null || indexShard.fieldHasValue(field);
+            boolean hasValue = indexShard == null || indexShard.fieldHasValue(ft.name());
             if (acceptedFieldType && (hasValue || includeFieldsWithNoValue)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,

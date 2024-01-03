@@ -62,6 +62,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final EnrichLookupService enrichLookupService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
 
+    @SuppressWarnings("this-escape")
     @Inject
     @SuppressWarnings("this-escape")
     public TransportEsqlQueryAction(

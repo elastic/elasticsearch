@@ -204,11 +204,12 @@ final class RequestDispatcher {
     private void onRequestResponse(List<ShardId> shardIds, FieldCapabilitiesNodeResponse nodeResponse) {
         for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
             if (indexResponse.canMatch()) {
-                if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
-                    onIndexResponse.accept(indexResponse);
-                }
+                // if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
+                onIndexResponse.accept(indexResponse);
+                // }
             }
         }
+
         for (ShardId unmatchedShardId : nodeResponse.getUnmatchedShardIds()) {
             final IndexSelector indexSelector = indexSelectors.get(unmatchedShardId.getIndexName());
             if (indexSelector != null) {

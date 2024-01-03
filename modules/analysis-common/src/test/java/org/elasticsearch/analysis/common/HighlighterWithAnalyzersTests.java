@@ -8,6 +8,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.Operator;
@@ -109,7 +110,9 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .putList("analysis.analyzer.search_autocomplete.filter", "lowercase", "wordDelimiter")
                 )
         );
-        prepareIndex("test").setId("1").setSource("name", "ARCOTEL Hotels Deutschland").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("name", "ARCOTEL Hotels Deutschland");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
         assertResponse(
             prepareSearch("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
@@ -151,7 +154,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         );
 
         ensureGreen();
-        prepareIndex("test").setId("1")
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1")
             .setSource(
                 "body",
                 "Test: http://www.facebook.com http://elasticsearch.org "
@@ -159,8 +162,9 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                     + "a test for highlighting feature Test: http://www.facebook.com "
                     + "http://elasticsearch.org http://xing.com http://cnn.com http://quora.com "
                     + "http://twitter.com this is a test for highlighting feature"
-            )
-            .get();
+            );
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
         assertResponse(
             prepareSearch().setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
@@ -211,7 +215,10 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         );
         ensureGreen();
 
-        prepareIndex("test").setId("0").setSource("field1", "The quick brown fox jumps over the lazy dog").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("0")
+            .setSource("field1", "The quick brown fox jumps over the lazy dog");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
         refresh();
         for (String highlighterType : new String[] { "plain", "fvh", "unified" }) {
             logger.info("--> highlighting (type=" + highlighterType + ") and searching on field1");
@@ -248,10 +255,23 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
 
         ensureGreen();
 
-        prepareIndex("first_test_index").setId("0")
-            .setSource("field0", "The quick brown fox jumps over the lazy dog", "field1", "The quick brown fox jumps over the lazy dog")
-            .get();
-        prepareIndex("first_test_index").setId("1").setSource("field1", "The quick browse button is a fancy thing, right bro?").get();
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("first_test_index").setId("0")
+                .setSource(
+                    "field0",
+                    "The quick brown fox jumps over the lazy dog",
+                    "field1",
+                    "The quick brown fox jumps over the lazy dog"
+                );
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("first_test_index").setId("1")
+                .setSource("field1", "The quick browse button is a fancy thing, right bro?");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
         refresh();
         logger.info("--> highlighting and searching on field0");
 
@@ -324,20 +344,31 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                     "type=text,analyzer=synonym"
                 )
         );
-        prepareIndex("second_test_index").setId("0")
-            .setSource(
-                "type",
-                "type2",
-                "field4",
-                "The quick brown fox jumps over the lazy dog",
-                "field3",
-                "The quick brown fox jumps over the lazy dog"
-            )
-            .get();
-        prepareIndex("second_test_index").setId("1")
-            .setSource("type", "type2", "field4", "The quick browse button is a fancy thing, right bro?")
-            .get();
-        prepareIndex("second_test_index").setId("2").setSource("type", "type2", "field4", "a quick fast blue car").get();
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("second_test_index").setId("0")
+                .setSource(
+                    "type",
+                    "type2",
+                    "field4",
+                    "The quick brown fox jumps over the lazy dog",
+                    "field3",
+                    "The quick brown fox jumps over the lazy dog"
+                );
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("second_test_index").setId("1")
+                .setSource("type", "type2", "field4", "The quick browse button is a fancy thing, right bro?");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
+        {
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("second_test_index").setId("2")
+                .setSource("type", "type2", "field4", "a quick fast blue car");
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
+        }
         refresh();
 
         assertResponse(

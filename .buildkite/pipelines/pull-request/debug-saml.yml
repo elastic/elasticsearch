@@ -1,0 +1,28 @@
+steps:
+  - label: "debug-saml-tests-{{matrix}}"
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed :x-pack:qa:saml-idp-tests:cleanJavaRestTest :x-pack:qa:saml-idp-tests:javaRestTest  --no-build-cache
+    timeout_in_minutes: 300
+    matrix:
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "7"
+      - "8"
+      - "9"
+      - "11"
+      - "12"
+      - "13"
+      - "14"
+      - "15"
+      - "16"
+      - "17"
+      - "18"
+      - "19"
+      - "20"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

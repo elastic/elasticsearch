@@ -27,15 +27,12 @@ import java.util.Map;
 
 public class ResolveClusterActionRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
-    // only allow querying against open, non-hidden indices
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
-
     private String[] names;
     // tracks whether the user originally requested any local indices
     // this info can be lost when the indices(String... indices) method is called
     // to overwrite the indices array - it can remove local indices when none match
     private boolean localIndicesRequested = false;
-    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     public ResolveClusterActionRequest(String[] names) {
         this.names = names;
@@ -99,6 +96,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
 
     @Override
     public IndicesOptions indicesOptions() {
+        System.err.println("JJJ RCAR: indicesOptions");
         return indicesOptions;
     }
 

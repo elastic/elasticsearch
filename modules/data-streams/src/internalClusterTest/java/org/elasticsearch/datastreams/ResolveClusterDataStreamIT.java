@@ -57,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -103,7 +104,7 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
         boolean skipUnavailable1 = (Boolean) testClusterInfo.get("remote1.skip_unavailable");
         boolean skipUnavailable2 = true;
 
-        // test all clusters against datastream (present only on local and remote1)
+        // test all clusters against data streams (present only on local and remote1)
         {
             String[] indexExpressions = new String[] {
                 localDataStream,
@@ -133,9 +134,10 @@ public class ResolveClusterDataStreamIT extends AbstractMultiClustersTestCase {
             ResolveClusterInfo remote2 = clusterInfo.get(REMOTE_CLUSTER_2);
             assertThat(remote2.isConnected(), equalTo(true));
             assertThat(remote2.getSkipUnavailable(), equalTo(skipUnavailable2));
-            assertThat(remote2.getMatchingIndices(), equalTo(false));
-            assertNotNull(remote2.getBuild().version());
-            assertNull(remote2.getError());
+            assertNull(remote2.getMatchingIndices());
+            assertNull(remote2.getBuild());
+            assertNotNull(remote2.getError());
+            assertThat(remote2.getError(), containsString("no such index [" + remoteDataStream1 + "]"));
 
             ResolveClusterInfo local = clusterInfo.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             assertThat(local.isConnected(), equalTo(true));

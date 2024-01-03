@@ -19,5 +19,6 @@
 
   - match: {my_remote_cluster.connected: true}
   - match: {my_remote_cluster.skip_unavailable: false}
-  - match: {my_remote_cluster.matching_indices: false}
-  - exists: my_remote_cluster.version.number
+  - match: {my_remote_cluster.error: "no such index [doesnotexist]"}
+  - is_false: my_remote_cluster.matching_indices  # should be absent from response
+  - is_false: my_remote_cluster.version           # should be absent from response

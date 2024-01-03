@@ -91,6 +91,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         assert task instanceof CancellableTask;
         final CancellableTask resolveClusterTask = (CancellableTask) task;
         ClusterState clusterState = clusterService.state();
+        System.err.println("JJJ: indicesOptions: " + request.indicesOptions());
         Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
         OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
@@ -168,6 +169,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             releaseResourcesOnCancel.run();
                             return;
                         }
+                        System.err.println(">>> HHHHH failure FAILURE: " + failure.getClass() + "; " + failure);
                         if (notConnectedError(failure)) {
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
                         } else if (ExceptionsHelper.unwrap(
@@ -175,6 +177,9 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             ElasticsearchSecurityException.class
                         ) instanceof ElasticsearchSecurityException ese) {
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, ese.getMessage()));
+                        } else if (ExceptionsHelper.unwrap(failure, IndexNotFoundException.class) instanceof IndexNotFoundException infe) {
+                            System.err.println(">>>> HHH INDEX NOT FOUND!!! <<<<<<<<<<<<<<<");
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, infe.getMessage()));
                         } else {
                             Throwable cause = ExceptionsHelper.unwrapCause(failure);
                             // when querying an older cluster that does not have the _resolve/cluster endpoint,
@@ -265,19 +270,16 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         List<ResolveIndexAction.ResolvedIndex> indices = new ArrayList<>();
         List<ResolveIndexAction.ResolvedAlias> aliases = new ArrayList<>();
         List<ResolveIndexAction.ResolvedDataStream> dataStreams = new ArrayList<>();
-        try {
-            ResolveIndexAction.TransportAction.resolveIndices(
-                localIndices,
-                clusterState,
-                indexNameExpressionResolver,
-                indices,
-                aliases,
-                dataStreams
-            );
 
-        } catch (IndexNotFoundException e) {
-            return false;
-        }
+        // this throws IndexNotFoundException if any (non-wildcard) index in the localIndices list is not present
+        ResolveIndexAction.TransportAction.resolveIndices(
+            localIndices,
+            clusterState,
+            indexNameExpressionResolver,
+            indices,
+            aliases,
+            dataStreams
+        );
 
         return indices.size() > 0 || aliases.size() > 0 || dataStreams.size() > 0;
     }

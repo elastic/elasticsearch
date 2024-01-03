@@ -1,123 +1,123 @@
 ---
 setup:
   - do:
-      indices.create:
-        index: test1
-        body:
-          mappings:
-            properties:
-              text:
-                type:     text
-              keyword:
-                type:     keyword
-              number:
-                type:     double
-              geo:
-                type:     geo_point
-              misc:
-                type:     text
-              object:
-                type: object
+        indices.create:
+          index: test1
+          body:
+              mappings:
                 properties:
-                  nested1 :
-                    type : text
-                    index: false
-                  nested2:
-                    type: float
-                    doc_values: false
-              level1:
-                type: nested
-                properties:
-                  level2:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  misc:
+                    type:     text
+                  object:
                     type: object
                     properties:
-                      leaf1:
-                        type: text
+                      nested1 :
+                        type : text
                         index: false
+                      nested2:
+                        type: float
+                        doc_values: false
+                  level1:
+                    type: nested
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
 
   - do:
-      indices.create:
-        index: test2
-        body:
-          mappings:
-            properties:
-              text:
-                type:     text
-              keyword:
-                type:     keyword
-              number:
-                type:     double
-              date:
-                type:     date
-              geo:
-                type:     geo_point
-              object:
-                type: object
+        indices.create:
+          index: test2
+          body:
+              mappings:
                 properties:
-                  nested1 :
-                    type : text
-                    index: true
-                  nested2:
-                    type: float
-                    doc_values: true
-              level1:
-                type: nested
-                properties:
-                  level2:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  date:
+                    type:     date
+                  geo:
+                    type:     geo_point
+                  object:
                     type: object
                     properties:
-                      leaf1:
-                        type: text
-                        index: false
+                      nested1 :
+                        type : text
+                        index: true
+                      nested2:
+                        type: float
+                        doc_values: true
+                  level1:
+                    type: nested
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
   - do:
-      indices.create:
-        index: test3
-        body:
-          mappings:
-            properties:
-              text:
-                type:     text
-              keyword:
-                type:     keyword
-              number:
-                type:     long
-              date:
-                type:     date
-              non_indexed_date:
-                type:     date
-                index:    false
-              non_indexed_keyword:
-                type:     keyword
-                index:    false
-              non_indexed_boolean:
-                type:     boolean
-                index:    false
-              non_indexed_ip:
-                type:     ip
-                index:    false
-              non_indexed_geo_point:
-                type:     geo_point
-                index:    false
-              geo:
-                type:     keyword
-              object:
-                type: nested
+        indices.create:
+          index: test3
+          body:
+              mappings:
                 properties:
-                  nested1 :
-                    type : long
-                    index: false
-                  nested2:
-                    type: keyword
-                    doc_values: false
-              level1:
-                type: object
-                properties:
-                  level2:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     long
+                  date:
+                    type:     date
+                  non_indexed_date:
+                    type:     date
+                    index:    false
+                  non_indexed_keyword:
+                    type:     keyword
+                    index:    false
+                  non_indexed_boolean:
+                    type:     boolean
+                    index:    false
+                  non_indexed_ip:
+                    type:     ip
+                    index:    false
+                  non_indexed_geo_point:
+                    type:     geo_point
+                    index:    false
+                  geo:
+                    type:     keyword
+                  object:
+                    type: nested
+                    properties:
+                      nested1 :
+                        type : long
+                        index: false
+                      nested2:
+                        type: keyword
+                        doc_values: false
+                  level1:
                     type: object
                     properties:
-                      leaf1:
-                        type: text
-                        index: false
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
 
 ---
 "Get simple field caps":
@@ -180,13 +180,13 @@ setup:
 "Get date_nanos field caps":
 
   - do:
-      indices.create:
-        index: test_nanos
-        body:
-          mappings:
-            properties:
-              date_nanos:
-                type:     date_nanos
+        indices.create:
+          index: test_nanos
+          body:
+              mappings:
+                properties:
+                  date_nanos:
+                    type:     date_nanos
 
   - do:
       field_caps:

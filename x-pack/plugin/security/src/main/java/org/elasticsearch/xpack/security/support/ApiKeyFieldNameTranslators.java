@@ -28,14 +28,14 @@ public class ApiKeyFieldNameTranslators {
             new ExactFieldNameTranslator(s -> "expiration_time", "expiration"),
             new ExactFieldNameTranslator(s -> "api_key_invalidated", "invalidated"),
             new ExactFieldNameTranslator(s -> "invalidation_time", "invalidation"),
-            new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"),
+            new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"), // allows querying on all metadata values as keywords
             new PrefixFieldNameTranslator(s -> "metadata_flattened." + s.substring("metadata.".length()), "metadata.")
         );
     }
 
     /**
-     * Translate the query level field name to index level field names.
-     * It throws an exception if the field name is not explicitly allowed.
+     * Translates the query level field name to index level field names.
+     * It throws an exception if the field name is not allowed to be queried.
      */
     public static String translate(String fieldName) {
         if (Regex.isSimpleMatchPattern(fieldName)) {
@@ -49,6 +49,9 @@ public class ApiKeyFieldNameTranslators {
         throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query");
     }
 
+    /**
+     * Translates the query level field name pattern to index level field names that match the pattern.
+     */
     public static List<String> translatePattern(String pattern) {
         List<String> translatedPatternMatches = new ArrayList<>();
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {

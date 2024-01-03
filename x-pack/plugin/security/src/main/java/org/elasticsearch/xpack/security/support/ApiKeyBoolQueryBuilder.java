@@ -151,8 +151,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             if (query.fields().isEmpty()) {
                 query.fields().put("*", 1.0f);
             }
-            // "lenient false" with "all fields" wildcard is always an error because default fields have mappings
-            // that cannot be accessed with the same query type (e.g. keyword and date); override leniency
+            // "lenient=false" with "all_fields" wildcard will almost certainly return an error,
+            // because index fields have different mappings, which makes parsing the same query
+            // field by such different mapping rules to likely cause errors
             if (QueryParserHelper.hasAllFieldsWildcard(query.fields().keySet())) {
                 query.lenient(true);
             }
@@ -162,8 +163,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             if (query.fields().isEmpty()) {
                 query.fields().put("*", 1.0f);
             }
-            // "lenient false" with "all fields" wildcard is always an error because default fields have mappings
-            // that cannot be accessed with the same query type (e.g. keyword and date); override leniency
+            // "lenient=false" with "all_fields" wildcard will almost certainly return an error,
+            // because index fields have different mappings, which makes parsing the same query
+            // field by such different mapping rules to likely cause errors
             if (QueryParserHelper.hasAllFieldsWildcard(query.fields().keySet())) {
                 query.lenient(true);
             }

@@ -1260,8 +1260,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
+        // TODO if we're not using synthetic source use a different sort of example. Or something.
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
-        // TODO when synthetic _source is disabled disable doc values.
         XContentBuilder mapping = syntheticSource ? syntheticSourceFieldMapping(example.mapping) : fieldMapping(example.mapping);
         MapperService mapper = createMapperService(mapping);
         testBlockLoader(columnReader, example, mapper, "field");

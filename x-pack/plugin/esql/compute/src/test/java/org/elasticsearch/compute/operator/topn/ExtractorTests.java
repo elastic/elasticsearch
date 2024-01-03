@@ -72,9 +72,14 @@ public class ExtractorTests extends ESTestCase {
                             () -> randomList(2, 10, () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))))
                         )
                     );
-                    cases.add(valueTestCase("single point", e, TopNEncoder.WKB, TopNEncoderTests::randomPointAsWKB));
+                    cases.add(valueTestCase("single point", e, TopNEncoder.DEFAULT_UNSORTABLE, TopNEncoderTests::randomPointAsWKB));
                     cases.add(
-                        valueTestCase("many points", e, TopNEncoder.WKB, () -> randomList(2, 10, TopNEncoderTests::randomPointAsWKB))
+                        valueTestCase(
+                            "many points",
+                            e,
+                            TopNEncoder.DEFAULT_UNSORTABLE,
+                            () -> randomList(2, 10, TopNEncoderTests::randomPointAsWKB)
+                        )
                     );
                 }
                 case DOC -> cases.add(
@@ -169,7 +174,7 @@ public class ExtractorTests extends ESTestCase {
     }
 
     public void testInKey() {
-        assumeFalse("can't sort on _doc", testCase.type == ElementType.DOC);
+        assumeFalse("can't sort with un-sortable encoder", testCase.encoder == TopNEncoder.DEFAULT_UNSORTABLE);
         Block value = testCase.value.get();
 
         BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();

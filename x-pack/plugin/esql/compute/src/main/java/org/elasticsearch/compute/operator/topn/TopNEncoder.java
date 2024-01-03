@@ -40,10 +40,6 @@ public interface TopNEncoder {
      * An encoder for semver versions.
      */
     VersionTopNEncoder VERSION = new VersionTopNEncoder();
-    /**
-     * An encoder for UTF-8 text.
-     */
-    WKBTopNEncoder WKB = new WKBTopNEncoder();
 
     /**
      * Placeholder encoder for unsupported data types.

@@ -30,7 +30,6 @@ public class TopNEncoderTests extends ESTestCase {
             new Object[] { TopNEncoder.DEFAULT_SORTABLE },
             new Object[] { TopNEncoder.UTF8 },
             new Object[] { TopNEncoder.VERSION },
-            new Object[] { TopNEncoder.WKB },
             new Object[] { TopNEncoder.IP },
             new Object[] { TopNEncoder.DEFAULT_UNSORTABLE }
         );
@@ -110,7 +109,7 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     public void testPointAsWKB() {
-        assumeTrue("unsupported", encoder == TopNEncoder.WKB);
+        assumeTrue("unsupported", encoder == TopNEncoder.DEFAULT_UNSORTABLE);
         roundTripBytesRef(randomPointAsWKB());
     }
 

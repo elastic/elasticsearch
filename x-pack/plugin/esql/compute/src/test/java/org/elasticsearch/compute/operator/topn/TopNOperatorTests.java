@@ -989,7 +989,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                             }
                             default -> {
                                 // use the right BytesRef encoder (don't touch the bytes)
-                                encoders.add(TopNEncoder.WKB);
+                                encoders.add(DEFAULT_UNSORTABLE);
                                 // create a valid geo_point
                                 yield (blockType) -> randomPointAsWKB();
                             }

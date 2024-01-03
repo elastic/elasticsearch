@@ -34,6 +34,15 @@ public class SkipSection {
         List<String> testFeatures = new ArrayList<>();
         List<String> operatingSystems = new ArrayList<>();
 
+        enum XPackRequested {
+            NOT_SPECIFIED,
+            YES,
+            NO,
+            MISMATCHED
+        }
+
+        XPackRequested xpackRequested = XPackRequested.NOT_SPECIFIED;
+
         public SkipSectionBuilder withVersion(String version) {
             this.version = version;
             return this;
@@ -49,13 +58,23 @@ public class SkipSection {
             return this;
         }
 
+        public void withXPack(boolean xpackRequired) {
+            if (xpackRequired && xpackRequested == XPackRequested.NO ||
+                xpackRequired == false && xpackRequested == XPackRequested.YES) {
+                xpackRequested = XPackRequested.MISMATCHED;
+            } else {
+                xpackRequested = xpackRequired ? XPackRequested.YES : XPackRequested.NO;
+            }
+        }
+
         public SkipSectionBuilder withOs(String osName) {
             this.operatingSystems.add(osName);
             return this;
         }
 
         void validate(XContentLocation contentLocation) {
-            if ((Strings.hasLength(version) == false) && testFeatures.isEmpty() && operatingSystems.isEmpty()) {
+            if ((Strings.hasLength(version) == false) && testFeatures.isEmpty() && operatingSystems.isEmpty() &&
+                xpackRequested == XPackRequested.NOT_SPECIFIED) {
                 throw new ParsingException(
                     contentLocation,
                     "at least one criteria (version, test features, os) is mandatory within a skip section"
@@ -71,6 +90,9 @@ public class SkipSection {
             if (operatingSystems.isEmpty() == false && testFeatures.contains("skip_os") == false) {
                 throw new ParsingException(contentLocation, "if os is specified, feature skip_os must be set");
             }
+            if (xpackRequested == XPackRequested.MISMATCHED) {
+                throw new ParsingException(contentLocation, "either `xpack` or `no_xpack` can be present, not both");
+            }
         }
 
         public SkipSection build() {
@@ -82,6 +104,9 @@ public class SkipSection {
                 skipCriteriaList = List.of(SkipCriteria.SKIP_ALWAYS);
             } else {
                 skipCriteriaList = new ArrayList<>();
+                if (xpackRequested == XPackRequested.YES || xpackRequested == XPackRequested.NO) {
+                    skipCriteriaList.add(SkipCriteria.fromClusterModules(xpackRequested == XPackRequested.YES));
+                }
                 if (Strings.hasLength(version)) {
                     skipCriteriaList.add(SkipCriteria.fromVersionRange(version));
                 }
@@ -112,6 +137,19 @@ public class SkipSection {
         return parseInternal(parser).build();
     }
 
+    private static void parseFeature(String feature, SkipSectionBuilder builder) {
+        // #31403 introduced YAML test "features" to indicate if the cluster being tested has xpack installed (`xpack`)
+        // or if it does *not* have xpack installed (`no_xpack`). These are not test runner features, so now that we have
+        // "modular" skip criteria let's separate them. Eventually, these should move to their own skip section.
+        if (feature.equals("xpack")) {
+            builder.withXPack(true);
+        } else if (feature.equals("no_xpack")) {
+            builder.withXPack(false);
+        } else {
+            builder.withTestFeature(feature);
+        }
+    }
+
     // package private for tests
     static SkipSectionBuilder parseInternal(XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
@@ -137,7 +175,7 @@ public class SkipSection {
                 } else if ("reason".equals(currentFieldName)) {
                     builder.withReason(parser.text());
                 } else if ("features".equals(currentFieldName)) {
-                    builder.withTestFeature(parser.text());
+                    parseFeature(parser.text(), builder);
                 } else if ("os".equals(currentFieldName)) {
                     builder.withOs(parser.text());
                 } else {
@@ -149,7 +187,7 @@ public class SkipSection {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        builder.withTestFeature(parser.text());
+                        parseFeature(parser.text(), builder);
                     }
                 } else if ("os".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {

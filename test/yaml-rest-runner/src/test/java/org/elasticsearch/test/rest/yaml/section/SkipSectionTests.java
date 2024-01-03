@@ -15,11 +15,14 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -192,6 +195,36 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         assertThat(skipSectionBuilder.version, emptyOrNullString());
         assertThat(skipSectionBuilder.testFeatures, contains("regex"));
         assertThat(skipSectionBuilder.reason, nullValue());
+        assertThat(skipSectionBuilder.xpackRequested, is(SkipSection.SkipSectionBuilder.XPackRequested.NOT_SPECIFIED));
+    }
+
+    public void testParseXPackFeature() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "features:     xpack");
+
+        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        assertThat(skipSectionBuilder, notNullValue());
+        assertThat(skipSectionBuilder.version, emptyOrNullString());
+        assertThat(skipSectionBuilder.testFeatures, empty());
+        assertThat(skipSectionBuilder.reason, nullValue());
+        assertThat(skipSectionBuilder.xpackRequested, is(SkipSection.SkipSectionBuilder.XPackRequested.YES));
+    }
+
+    public void testParseNoXPackFeature() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "features:     no_xpack");
+
+        var skipSectionBuilder = SkipSection.parseInternal(parser);
+        assertThat(skipSectionBuilder, notNullValue());
+        assertThat(skipSectionBuilder.version, emptyOrNullString());
+        assertThat(skipSectionBuilder.testFeatures, empty());
+        assertThat(skipSectionBuilder.reason, nullValue());
+        assertThat(skipSectionBuilder.xpackRequested, is(SkipSection.SkipSectionBuilder.XPackRequested.NO));
+    }
+
+    public void testParseBothXPackFeatures() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "features:     [xpack, no_xpack]");
+
+        var e = expectThrows(ParsingException.class, () -> SkipSection.parseInternal(parser));
+        assertThat(e.getMessage(), containsString("either `xpack` or `no_xpack` can be present, not both"));
     }
 
     public void testParseSkipSectionFeaturesNoVersion() throws Exception {

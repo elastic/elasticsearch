@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.util.List;
@@ -38,5 +39,15 @@ public class SkipCriteria {
 
     static Predicate<ClientYamlTestExecutionContext> fromOsList(List<String> operatingSystems) {
         return context -> operatingSystems.stream().anyMatch(osName -> osName.equals(context.os()));
+    }
+
+    static Predicate<ClientYamlTestExecutionContext> fromClusterModules(boolean xpackRequired) {
+        // TODO: change ESRestTestCase.hasXPack() to be context-specific
+        return context -> {
+            if (xpackRequired) {
+                return ESRestTestCase.hasXPack() == false;
+            }
+            return ESRestTestCase.hasXPack();
+        };
     }
 }

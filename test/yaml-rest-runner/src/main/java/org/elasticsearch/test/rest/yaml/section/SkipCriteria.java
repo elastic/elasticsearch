@@ -15,6 +15,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class SkipCriteria {
@@ -54,5 +55,13 @@ public class SkipCriteria {
             }
             return ESRestTestCase.hasXPack();
         };
+    }
+
+    static Predicate<ClientYamlTestExecutionContext> fromClusterFeatures(
+        Set<String> requiredClusterFeatures,
+        Set<String> skipClusterFeatures
+    ) {
+        return context -> skipClusterFeatures.stream().anyMatch(context::clusterHasFeature)
+            || requiredClusterFeatures.stream().allMatch(context::clusterHasFeature) == false;
     }
 }

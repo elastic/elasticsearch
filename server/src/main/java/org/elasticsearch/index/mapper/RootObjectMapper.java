@@ -79,22 +79,26 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
+            clearObjectMapperCache();
             this.dynamicDateTimeFormatters = new Explicit<>(dateTimeFormatters.toArray(new DateFormatter[0]), true);
             return this;
         }
 
         public Builder dynamicTemplates(Collection<DynamicTemplate> templates) {
+            clearObjectMapperCache();
             this.dynamicTemplates = new Explicit<>(templates.toArray(new DynamicTemplate[0]), true);
             return this;
         }
 
         @Override
         public RootObjectMapper.Builder add(Mapper.Builder builder) {
+            clearObjectMapperCache();
             super.add(builder);
             return this;
         }
 
         public RootObjectMapper.Builder addRuntimeField(RuntimeField runtimeField) {
+            clearObjectMapperCache();
             this.runtimeFields.put(runtimeField.name(), runtimeField);
             return this;
         }
@@ -105,7 +109,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public RootObjectMapper build(MapperBuilderContext context) {
+        protected RootObjectMapper doBuild(MapperBuilderContext context) {
             return new RootObjectMapper(
                 name,
                 enabled,

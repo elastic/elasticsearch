@@ -90,13 +90,13 @@ public class ObjectMapper extends Mapper {
             this.subobjects = subobjects;
         }
 
-        public Builder enabled(boolean enabled) {
+        public final Builder enabled(boolean enabled) {
             this.enabled = Explicit.explicitBoolean(enabled);
             clearObjectMapperCache();
             return this;
         }
 
-        public Builder dynamic(Dynamic dynamic) {
+        public final Builder dynamic(Dynamic dynamic) {
             this.dynamic = dynamic;
             clearObjectMapperCache();
             return this;
@@ -180,12 +180,8 @@ public class ObjectMapper extends Mapper {
             return mappers;
         }
 
-        @Override
-        public ObjectMapper build(MapperBuilderContext context) {
-            if (objectMapperCache != null) {
-                return objectMapperCache;
-            }
-            objectMapperCache = new ObjectMapper(
+        protected ObjectMapper doBuild(MapperBuilderContext context) {
+            return new ObjectMapper(
                 name,
                 context.buildFullName(name),
                 enabled,
@@ -193,10 +189,18 @@ public class ObjectMapper extends Mapper {
                 dynamic,
                 buildMappers(context.createChildContext(name))
             );
+        }
+
+        @Override
+        public final ObjectMapper build(MapperBuilderContext context) {
+            if (objectMapperCache != null) {
+                return objectMapperCache;
+            }
+            objectMapperCache = doBuild(context);
             return objectMapperCache;
         }
 
-        private void clearObjectMapperCache() {
+        protected void clearObjectMapperCache() {
             objectMapperCache = null;
         }
     }

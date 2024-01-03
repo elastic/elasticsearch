@@ -38,17 +38,19 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         Builder includeInRoot(boolean includeInRoot) {
+            clearObjectMapperCache();
             this.includeInRoot = Explicit.explicitBoolean(includeInRoot);
             return this;
         }
 
         Builder includeInParent(boolean includeInParent) {
+            clearObjectMapperCache();
             this.includeInParent = Explicit.explicitBoolean(includeInParent);
             return this;
         }
 
         @Override
-        public NestedObjectMapper build(MapperBuilderContext context) {
+        protected NestedObjectMapper doBuild(MapperBuilderContext context) {
             boolean parentIncludedInRoot = this.includeInRoot.value();
             if (context instanceof NestedMapperBuilderContext nc) {
                 // we're already inside a nested mapper, so adjust our includes

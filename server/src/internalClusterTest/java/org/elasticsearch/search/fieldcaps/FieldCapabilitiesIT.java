@@ -260,11 +260,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testWithUnmapped() {
-        FieldCapabilitiesResponse response = client().prepareFieldCaps()
-            .setFields("new_field", "old_field")
-            .setIncludeUnmapped(true)
-            .setIncludeFieldsWithNoValue(true) // TODO-MP: check this
-            .get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("new_field", "old_field").setIncludeUnmapped(true).get();
         assertIndices(response, "old_index", "new_index");
 
         assertEquals(2, response.get().size());

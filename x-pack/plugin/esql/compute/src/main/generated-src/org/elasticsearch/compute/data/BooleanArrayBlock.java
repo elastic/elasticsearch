@@ -103,16 +103,20 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
             return vector.asBlock();
         }
 
+        // The following line is correct because positions with multi-values are never null.
+        int expandedPositionCount = vector.getPositionCount();
+        long bitSetRamUsedEstimate = BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount);
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
+
         BooleanArrayBlock expanded = new BooleanArrayBlock(
             vector,
-            vector.getPositionCount(),
+            expandedPositionCount,
             null,
-            // TODO: we probably need to adjust the breaker before computing the shifted null mask
             shiftNullsToExpandedPositions(),
             MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             blockFactory()
         );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate, true);
         // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
         vector.incRef();
         return expanded;

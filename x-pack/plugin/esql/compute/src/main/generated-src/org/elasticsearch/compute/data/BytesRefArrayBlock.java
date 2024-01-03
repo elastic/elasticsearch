@@ -143,7 +143,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

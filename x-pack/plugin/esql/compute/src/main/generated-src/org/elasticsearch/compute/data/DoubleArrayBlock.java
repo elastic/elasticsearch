@@ -138,7 +138,7 @@ final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     @Override
     public void closeInternal() {
-        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }
 }

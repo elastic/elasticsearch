@@ -58,6 +58,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
@@ -515,7 +516,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             try (Translog.Snapshot snapshot = getTranslog().newSnapshot(localCheckpoint + 1, Long.MAX_VALUE)) {
                 return translogRecoveryRunner.run(this, snapshot);
@@ -525,7 +527,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
             int numNoOpsAdded = 0;
@@ -565,7 +568,8 @@ public class InternalEngine extends Engine {
     @Override
     public void recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo, ActionListener<Void> listener) {
         ActionListener.run(listener, l -> {
-            try (var ignored = acquireEnsureOpenRef()) {
+            try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
                 if (pendingTranslogRecovery.get() == false) {
                     throw new IllegalStateException("Engine has already been recovered");
                 }
@@ -836,7 +840,8 @@ public class InternalEngine extends Engine {
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     ) {
         assert assertGetUsesIdField(get);
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             if (get.realtime()) {
                 var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, true);
                 assert result != null : "real-time get result must not be null";
@@ -856,7 +861,8 @@ public class InternalEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         assert assertGetUsesIdField(get);
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, false);
         }
     }
@@ -872,7 +878,7 @@ public class InternalEngine extends Engine {
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
         boolean getFromSearcher
     ) {
-        assert isDrainedForClose() == false;
+        assert readLock.isHeldByCurrentThread();
         assert get.realtime();
         final VersionValue versionValue;
         try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
@@ -1134,7 +1140,8 @@ public class InternalEngine extends Engine {
     public IndexResult index(Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         final boolean doThrottle = index.origin().isRecovery() == false;
-        try (var ignored1 = acquireEnsureOpenRef()) {
+        try (ReleasableLock releasableLock = readLock.acquire()) {
+            ensureOpen();
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             int reservedDocs = 0;
             try (
@@ -1600,7 +1607,8 @@ public class InternalEngine extends Engine {
         final DeleteResult deleteResult;
         int reservedDocs = 0;
         // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
+        try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = versionMap.acquireLock(delete.uid().bytes())) {
+            ensureOpen();
             lastWriteNanos = delete.startTime();
             final DeletionStrategy plan = deletionStrategyForOperation(delete);
             reservedDocs = plan.reservedDocs;
@@ -1927,7 +1935,8 @@ public class InternalEngine extends Engine {
     @Override
     public NoOpResult noOp(final NoOp noOp) throws IOException {
         final NoOpResult noOpResult;
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
             try {
@@ -1941,7 +1950,7 @@ public class InternalEngine extends Engine {
     }
 
     private NoOpResult innerNoOp(final NoOp noOp) throws IOException {
-        assert isDrainedForClose() == false;
+        assert readLock.isHeldByCurrentThread();
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
@@ -2171,7 +2180,6 @@ public class InternalEngine extends Engine {
 
     @Override
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-        assert isClosed.get() == false; // might be closing, but not closed yet
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -2287,7 +2295,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
             translog.rollGeneration();
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
@@ -2305,7 +2314,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public void trimUnreferencedTranslogFiles() throws EngineException {
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
             translog.trimUnreferencedReaders();
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -2327,7 +2337,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException {
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
             translog.trimOperations(belowTerm, aboveSeqNo);
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -2513,8 +2524,7 @@ public class InternalEngine extends Engine {
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
             engineFailed = true;
-        } else if (failedEngine.get() == null && isClosing() == false && isClosed.get() == false) {
-            // we are closed but the engine is not failed yet?
+        } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
             throw new AssertionError("Unexpected AlreadyClosedException", ex);
@@ -2566,7 +2576,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
-        try (var ignored = acquireEnsureOpenRef()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
 
             // fill in the merges flag
@@ -2593,8 +2603,8 @@ public class InternalEngine extends Engine {
     @Override
     protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
-            assert isDrainedForClose() || failEngineLock.isHeldByCurrentThread()
-                : "Either all operations must have been drained or the engine must be currently be failing itself";
+            assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
+                : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
                 this.versionMap.clear();
                 if (internalReaderManager != null) {

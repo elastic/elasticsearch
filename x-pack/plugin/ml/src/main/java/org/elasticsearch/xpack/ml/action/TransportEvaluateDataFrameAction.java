@@ -82,13 +82,11 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
         ActionListener<EvaluateDataFrameAction.Response> listener
     ) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        ActionListener<List<Void>> resultsListener = ActionListener.wrap(unused -> {
-            EvaluateDataFrameAction.Response response = new EvaluateDataFrameAction.Response(
-                request.getEvaluation().getName(),
-                request.getEvaluation().getResults()
-            );
-            listener.onResponse(response);
-        }, listener::onFailure);
+        ActionListener<List<Void>> resultsListener = listener.delegateFailureAndWrap(
+            (delegate, unused) -> delegate.onResponse(
+                new EvaluateDataFrameAction.Response(request.getEvaluation().getName(), request.getEvaluation().getResults())
+            )
+        );
 
         // Create an immutable collection of parameters to be used by evaluation metrics.
         EvaluationParameters parameters = new EvaluationParameters(maxBuckets.get());

@@ -1158,28 +1158,33 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")) };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
-
-        AssertionError error = expectThrows(
-            AssertionError.class,
-            () -> TransportShardBulkAction.performOnPrimary(
-                bulkShardRequest,
-                shard,
-                updateHelper,
-                threadPool::absoluteTimeInMillis,
-                (update, shardId, listener) -> fail("the master should not be contacted as the operation yielded a noop mapping update"),
-                listener -> listener.onResponse(null),
-                ActionTestUtils.assertNoFailureListener(result -> {}),
-                threadPool,
-                Names.WRITE
-            )
-        );
-        assertThat(
-            error.getMessage(),
-            equalTo(
-                "On retry, this indexing request resulted in another noop mapping update."
-                    + " Failing the indexing operation to prevent an infinite retry loop."
-            )
-        );
+        try {
+            AssertionError error = expectThrows(
+                AssertionError.class,
+                () -> TransportShardBulkAction.performOnPrimary(
+                    bulkShardRequest,
+                    shard,
+                    updateHelper,
+                    threadPool::absoluteTimeInMillis,
+                    (update, shardId, listener) -> fail(
+                        "the master should not be contacted as the operation yielded a noop mapping update"
+                    ),
+                    listener -> listener.onResponse(null),
+                    ActionTestUtils.assertNoFailureListener(result -> {}),
+                    threadPool,
+                    Names.WRITE
+                )
+            );
+            assertThat(
+                error.getMessage(),
+                equalTo(
+                    "On retry, this indexing request resulted in another noop mapping update."
+                        + " Failing the indexing operation to prevent an infinite retry loop."
+                )
+            );
+        } finally {
+            bulkShardRequest.decRef();
+        }
     }
 
     public void testNoopMappingUpdateSuccessOnRetry() throws Exception {

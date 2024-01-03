@@ -23,6 +23,9 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     @Override
     IntBlock asBlock();
 
+    /**
+     * Creates a new vector containing only the values at the given positions.
+     */
     @Override
     IntVector filter(int... positions);
 

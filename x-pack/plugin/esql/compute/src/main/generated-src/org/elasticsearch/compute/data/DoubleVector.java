@@ -23,6 +23,9 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     @Override
     DoubleBlock asBlock();
 
+    /**
+     * Creates a new vector containing only the values at the given positions.
+     */
     @Override
     DoubleVector filter(int... positions);
 

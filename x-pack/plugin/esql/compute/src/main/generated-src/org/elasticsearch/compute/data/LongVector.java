@@ -23,6 +23,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     @Override
     LongBlock asBlock();
 
+    /**
+     * Creates a new vector containing only the values at the given positions.
+     */
     @Override
     LongVector filter(int... positions);
 

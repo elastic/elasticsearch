@@ -44,6 +44,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         return ElementType.DOC;
     }
 
+    // TODO: use refCounting to avoid deep copies
     @Override
     public Block filter(int... positions) {
         return new DocBlock(asVector().filter(positions));

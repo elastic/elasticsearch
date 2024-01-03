@@ -41,6 +41,9 @@ $endif$
     @Override
     $Type$Block asBlock();
 
+    /**
+     * Creates a new vector containing only the values at the given positions.
+     */
     @Override
     $Type$Vector filter(int... positions);
 

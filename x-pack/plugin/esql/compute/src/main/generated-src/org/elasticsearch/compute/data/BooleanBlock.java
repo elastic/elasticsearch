@@ -18,7 +18,7 @@ import java.io.IOException;
  * Block that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock, FilterBooleanBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.

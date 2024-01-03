@@ -18,7 +18,7 @@ import java.io.IOException;
  * Block that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock {
+public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock, FilterIntBlock {
 
     /**
      * Retrieves the int value stored at the given value index.

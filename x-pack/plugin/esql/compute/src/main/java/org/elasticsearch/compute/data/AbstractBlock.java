@@ -75,7 +75,7 @@ abstract class AbstractBlock extends AbstractNonThreadSafeRefCounted implements 
     }
 
     @Override
-    public final int getPositionCount() {
+    public int getPositionCount() {
         return positionCount;
     }
 

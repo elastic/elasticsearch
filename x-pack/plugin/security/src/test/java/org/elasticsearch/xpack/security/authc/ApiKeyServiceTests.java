@@ -119,6 +119,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -497,7 +498,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .realmRef(new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)))
             .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
-        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareIndex(anyString())).thenAnswer((Answer<IndexRequestBuilder>) invocation -> new IndexRequestBuilder(client));
         when(client.prepareBulk()).thenAnswer(invocation -> new BulkRequestBuilder(client));
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(inv -> {

@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -143,30 +144,36 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
         final ServiceAccountToken token = ServiceAccountToken.newToken(accountId, request.getTokenName());
         try (XContentBuilder builder = newDocument(authentication, token)) {
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(docIdForToken(token.getQualifiedName()))
-                .setSource(builder)
-                .setOpType(OpType.CREATE)
-                .setRefreshPolicy(request.getRefreshPolicy())
-                .request();
-            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+            final IndexRequestBuilder indexRequestBuilder = client.prepareIndex(SECURITY_MAIN_ALIAS);
+            try {
+                IndexRequest indexRequest = indexRequestBuilder.setId(docIdForToken(token.getQualifiedName()))
+                    .setSource(builder)
+                    .setOpType(OpType.CREATE)
+                    .setRefreshPolicy(request.getRefreshPolicy())
+                    .request();
+                final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
 
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                executeAsyncWithOrigin(
-                    client,
-                    SECURITY_ORIGIN,
-                    BulkAction.INSTANCE,
-                    bulkRequest,
-                    ActionListener.releaseAfter(
-                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
-                            assert DocWriteResponse.Result.CREATED == response.getResult()
-                                : "an successful response of an OpType.CREATE request must have result of CREATED";
-                            listener.onResponse(CreateServiceAccountTokenResponse.created(token.getTokenName(), token.asBearerString()));
-                        }, listener::onFailure)),
-                        bulkRequest
-                    )
-                );
-            });
+                securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+                    executeAsyncWithOrigin(
+                        client,
+                        SECURITY_ORIGIN,
+                        BulkAction.INSTANCE,
+                        bulkRequest,
+                        ActionListener.releaseAfter(
+                            TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
+                                assert DocWriteResponse.Result.CREATED == response.getResult()
+                                    : "an successful response of an OpType.CREATE request must have result of CREATED";
+                                listener.onResponse(
+                                    CreateServiceAccountTokenResponse.created(token.getTokenName(), token.asBearerString())
+                                );
+                            }, listener::onFailure)),
+                            bulkRequest
+                        )
+                    );
+                });
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         } catch (IOException e) {
             listener.onFailure(e);
         }

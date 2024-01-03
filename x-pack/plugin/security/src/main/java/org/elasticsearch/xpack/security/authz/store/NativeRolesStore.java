@@ -19,6 +19,7 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
@@ -281,31 +282,36 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(getIdForRole(roleName))
-                .setSource(xContentBuilder)
-                .setRefreshPolicy(request.getRefreshPolicy())
-                .request();
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                indexRequest,
-                new ActionListener<DocWriteResponse>() {
-                    @Override
-                    public void onResponse(DocWriteResponse indexResponse) {
-                        final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                        logger.trace("Created role: [{}]", indexRequest);
-                        clearRoleCache(roleName, listener, created);
-                    }
+            final IndexRequestBuilder indexRequestBuilder = client.prepareIndex(SECURITY_MAIN_ALIAS);
+            try {
+                IndexRequest indexRequest = indexRequestBuilder.setId(getIdForRole(roleName))
+                    .setSource(xContentBuilder)
+                    .setRefreshPolicy(request.getRefreshPolicy())
+                    .request();
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    indexRequest,
+                    ActionListener.runAfter(new ActionListener<DocWriteResponse>() {
+                        @Override
+                        public void onResponse(DocWriteResponse indexResponse) {
+                            final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            logger.trace("Created role: [{}]", indexRequest);
+                            clearRoleCache(roleName, listener, created);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(() -> "failed to put role [" + roleName + "]", e);
-                        listener.onFailure(e);
-                    }
-                },
-                client::index
-            );
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error(() -> "failed to put role [" + roleName + "]", e);
+                            listener.onFailure(e);
+                        }
+                    }, indexRequest::decRef),
+                    client::index
+                );
+            } catch (Exception e) {
+                indexRequestBuilder.request().decRef();
+                throw e;
+            }
         });
     }
 

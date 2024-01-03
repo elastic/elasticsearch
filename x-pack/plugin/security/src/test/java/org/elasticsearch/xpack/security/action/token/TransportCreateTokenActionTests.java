@@ -126,8 +126,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).multiGet(any(MultiGetRequest.class), anyActionListener());
-        when(client.prepareIndex(nullable(String.class))).thenReturn(new IndexRequestBuilder(client));
-        when(client.prepareUpdate(any(String.class), any(String.class))).thenReturn(new UpdateRequestBuilder(client));
+        when(client.prepareIndex(nullable(String.class))).thenAnswer(invocation -> new IndexRequestBuilder(client));
+        when(client.prepareUpdate(any(String.class), any(String.class))).thenAnswer(invocation -> new UpdateRequestBuilder(client));
         doAnswer(invocationOnMock -> {
             idxReqReference.set((IndexRequest) invocationOnMock.getArguments()[1]);
             @SuppressWarnings("unchecked")

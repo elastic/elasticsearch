@@ -595,7 +595,7 @@ public class ProfileServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 
-        when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(new IndexRequestBuilder(client, SECURITY_PROFILE_ALIAS));
+        when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenAnswer(invocation -> new IndexRequestBuilder(client, SECURITY_PROFILE_ALIAS));
 
         final RuntimeException expectedException = new RuntimeException("expected");
         doAnswer(invocation -> {

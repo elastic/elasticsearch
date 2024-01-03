@@ -284,8 +284,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        when(client.prepareIndex(nullable(String.class))).thenReturn(new IndexRequestBuilder(client));
-        when(client.prepareUpdate(nullable(String.class), nullable(String.class))).thenReturn(new UpdateRequestBuilder(client));
+        when(client.prepareIndex(nullable(String.class))).thenAnswer(invocation -> new IndexRequestBuilder(client));
+        when(client.prepareUpdate(nullable(String.class), nullable(String.class))).thenAnswer(
+            invocation -> new UpdateRequestBuilder(client)
+        );
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];

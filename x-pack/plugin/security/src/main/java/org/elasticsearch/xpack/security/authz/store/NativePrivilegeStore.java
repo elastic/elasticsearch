@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -382,7 +383,12 @@ public class NativePrivilegeStore {
 
         try {
             for (ApplicationPrivilegeDescriptor privilege : privileges) {
-                bulkRequestBuilder.add(preparePutPrivilege(privilege));
+                IndexRequest indexRequest = preparePutPrivilege(privilege);
+                try {
+                    bulkRequestBuilder.add(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
         } catch (IOException e) {
             listener.onFailure(e);
@@ -409,10 +415,13 @@ public class NativePrivilegeStore {
         try {
             final String name = privilege.getName();
             final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
-            return client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(toDocId(privilege.getApplication(), name))
-                .setSource(xContentBuilder)
-                .request();
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(SECURITY_MAIN_ALIAS);
+            try {
+                return indexRequestBuilder.setId(toDocId(privilege.getApplication(), name)).setSource(xContentBuilder).request();
+            } catch (Exception e) {
+                indexRequestBuilder.request().decRef();
+                throw e;
+            }
         } catch (IOException e) {
             logger.warn("Failed to build application privilege {} - {}", Strings.toString(privilege), e.toString());
             throw e;

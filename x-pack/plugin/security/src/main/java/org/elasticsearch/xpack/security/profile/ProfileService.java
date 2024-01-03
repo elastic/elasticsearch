@@ -23,6 +23,8 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -699,43 +701,46 @@ public class ProfileService {
         // attempt to create a doc with the same ID and cause version conflict which is handled.
         final ProfileDocument profileDocument = ProfileDocument.fromSubjectWithUid(subject, uid);
         final String docId = uidToDocId(profileDocument.uid());
-        final BulkRequest bulkRequest = toSingleItemBulkRequest(
-            client.prepareIndex(SECURITY_PROFILE_ALIAS)
-                .setId(docId)
+        IndexRequestBuilder indexRequestBuilder = client.prepareIndex(SECURITY_PROFILE_ALIAS);
+        try {
+            IndexRequest indexRequest = indexRequestBuilder.setId(docId)
                 .setSource(wrapProfileDocument(profileDocument))
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                .request()
-        );
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                getActionOrigin(),
-                BulkAction.INSTANCE,
-                bulkRequest,
-                ActionListener.releaseAfter(
-                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                        assert docId.equals(indexResponse.getId());
-                        final VersionedDocument versionedDocument = new VersionedDocument(
-                            profileDocument,
-                            indexResponse.getPrimaryTerm(),
-                            indexResponse.getSeqNo()
-                        );
-                        listener.onResponse(versionedDocument.toProfile(Set.of()));
-                    }, e -> {
-                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                            // Document already exists with the specified ID, get the document with the ID
-                            // and check whether it is the right profile for the subject
-                            getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    })),
-                    bulkRequest
+                .request();
+            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+            profileIndex.prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    getActionOrigin(),
+                    BulkAction.INSTANCE,
+                    bulkRequest,
+                    ActionListener.releaseAfter(
+                        TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                            assert docId.equals(indexResponse.getId());
+                            final VersionedDocument versionedDocument = new VersionedDocument(
+                                profileDocument,
+                                indexResponse.getPrimaryTerm(),
+                                indexResponse.getSeqNo()
+                            );
+                            listener.onResponse(versionedDocument.toProfile(Set.of()));
+                        }, e -> {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                                // Document already exists with the specified ID, get the document with the ID
+                                // and check whether it is the right profile for the subject
+                                getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        })),
+                        bulkRequest
+                    )
                 )
-            )
-        );
+            );
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
     // Package private for test
@@ -871,13 +876,13 @@ public class ProfileService {
             return;
         }
 
-        doUpdate(
-            buildUpdateRequest(
-                newProfileDocument.uid(),
-                wrapProfileDocumentWithoutApplicationData(newProfileDocument),
-                RefreshPolicy.WAIT_UNTIL
-            ),
-            ActionListener.wrap(updateResponse -> {
+        UpdateRequest updateRequest = buildUpdateRequest(
+            newProfileDocument.uid(),
+            wrapProfileDocumentWithoutApplicationData(newProfileDocument),
+            RefreshPolicy.WAIT_UNTIL
+        );
+        try {
+            doUpdate(updateRequest, ActionListener.runAfter(ActionListener.wrap(updateResponse -> {
                 listener.onResponse(
                     new VersionedDocument(newProfileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo()).toProfile(
                         Set.of()
@@ -904,8 +909,11 @@ public class ProfileService {
                 } else {
                     listener.onFailure(updateException);
                 }
-            })
-        );
+            }), updateRequest::decRef));
+        } catch (Exception e) {
+            updateRequest.decRef();
+            throw e;
+        }
     }
 
     // If the profile content does not change and it is recently updated within last 30 seconds, do not update it again
@@ -932,17 +940,21 @@ public class ProfileService {
         long ifSeqNo
     ) {
         final String docId = uidToDocId(uid);
-        final UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(SECURITY_PROFILE_ALIAS, docId)
-            .setDoc(builder)
-            .setRefreshPolicy(refreshPolicy);
+        final UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(SECURITY_PROFILE_ALIAS, docId);
+        try {
+            updateRequestBuilder.setDoc(builder).setRefreshPolicy(refreshPolicy);
 
-        if (ifPrimaryTerm >= 0) {
-            updateRequestBuilder.setIfPrimaryTerm(ifPrimaryTerm);
+            if (ifPrimaryTerm >= 0) {
+                updateRequestBuilder.setIfPrimaryTerm(ifPrimaryTerm);
+            }
+            if (ifSeqNo >= 0) {
+                updateRequestBuilder.setIfSeqNo(ifSeqNo);
+            }
+            return updateRequestBuilder.request();
+        } catch (Exception e) {
+            updateRequestBuilder.request().decRef();
+            throw e;
         }
-        if (ifSeqNo >= 0) {
-            updateRequestBuilder.setIfSeqNo(ifSeqNo);
-        }
-        return updateRequestBuilder.request();
     }
 
     // Package private for testing

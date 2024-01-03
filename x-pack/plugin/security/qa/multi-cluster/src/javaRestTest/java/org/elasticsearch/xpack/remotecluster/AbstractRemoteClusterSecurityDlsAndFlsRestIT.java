@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -172,12 +173,17 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     ) {
         try {
             assertOK(searchResponse);
-            final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
-                .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
+            var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
+            try {
+                final var searchResult = Arrays.stream(response.getHits().getHits())
+                    .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
 
-            assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
-            for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder(expectedFields));
+                assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
+                for (String remoteIndex : expectedRemoteIndices) {
+                    assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder(expectedFields));
+                }
+            } finally {
+                response.decRef();
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -195,13 +201,18 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     ) {
         try {
             assertOK(searchResponse);
-            final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
-                .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
+            var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
+            try {
+                final var searchResult = Arrays.stream(response.getHits().getHits())
+                    .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
 
-            assertThat(searchResult.keySet(), equalTo(expectedRemoteIndicesAndFields.keySet()));
-            for (String remoteIndex : expectedRemoteIndicesAndFields.keySet()) {
-                Set<String> expectedFields = expectedRemoteIndicesAndFields.get(remoteIndex);
-                assertThat(searchResult.get(remoteIndex).keySet(), equalTo(expectedFields));
+                assertThat(searchResult.keySet(), equalTo(expectedRemoteIndicesAndFields.keySet()));
+                for (String remoteIndex : expectedRemoteIndicesAndFields.keySet()) {
+                    Set<String> expectedFields = expectedRemoteIndicesAndFields.get(remoteIndex);
+                    assertThat(searchResult.get(remoteIndex).keySet(), equalTo(expectedFields));
+                }
+            } finally {
+                response.decRef();
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -211,7 +222,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     protected void assertSearchResponseContainsEmptyResult(Response response) {
         try {
             assertOK(response);
-            SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            SearchResponse searchResponse = SearchResponseUtils.responseAsSearchResponse(response);
             try {
                 assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
             } finally {

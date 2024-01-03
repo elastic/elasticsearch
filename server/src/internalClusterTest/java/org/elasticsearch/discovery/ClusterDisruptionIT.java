@@ -109,7 +109,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     public void testAckedIndexing() throws Exception {
 
         final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;
-        final String timeout = seconds + "s";
+        final TimeValue timeout = TimeValue.timeValueSeconds(seconds);
 
         final List<String> nodes = startCluster(rarely() ? 5 : 3);
 

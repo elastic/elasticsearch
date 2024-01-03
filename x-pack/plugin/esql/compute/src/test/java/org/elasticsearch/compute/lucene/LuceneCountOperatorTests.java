@@ -11,7 +11,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -27,15 +26,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -44,7 +39,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LuceneCountOperatorTests extends AnyOperatorTestCase {
@@ -89,10 +83,8 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = mockSearchContext(reader);
-        SearchExecutionContext ectx = mock(SearchExecutionContext.class);
-        when(ctx.getSearchExecutionContext()).thenReturn(ectx);
-        when(ectx.getIndexReader()).thenReturn(reader);
+        SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader);
+        when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
         final Query query;
         if (enableShortcut && randomBoolean()) {
             query = new MatchAllDocsQuery();
@@ -183,27 +175,6 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         // We can't verify the limit
         if (size <= limit) {
             assertThat(totalCount, equalTo((long) size));
-        }
-    }
-
-    /**
-     * Creates a mock search context with the given index reader.
-     * The returned mock search context can be used to test with {@link LuceneOperator}.
-     */
-    public static SearchContext mockSearchContext(IndexReader reader) {
-        try {
-            ContextIndexSearcher searcher = new ContextIndexSearcher(
-                reader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                TrivialQueryCachingPolicy.NEVER,
-                true
-            );
-            SearchContext searchContext = mock(SearchContext.class);
-            when(searchContext.searcher()).thenReturn(searcher);
-            return searchContext;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 }

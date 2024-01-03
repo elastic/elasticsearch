@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -39,6 +40,10 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     NodesReloadSecureSettingsRequest.NodeRequest,
     NodesReloadSecureSettingsResponse.NodeResponse> {
 
+    public static final ActionType<NodesReloadSecureSettingsResponse> TYPE = ActionType.localOnly(
+        "cluster:admin/nodes/reload_secure_settings"
+    );
+
     private static final Logger logger = LogManager.getLogger(TransportNodesReloadSecureSettingsAction.class);
 
     private final Environment environment;
@@ -54,7 +59,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         PluginsService pluginService
     ) {
         super(
-            NodesReloadSecureSettingsAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -122,6 +127,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             keystore.decrypt(request.hasPassword() ? request.getSecureSettingsPassword().getChars() : new char[0]);
             // add the keystore to the original node settings object
             final Settings settingsWithKeystore = Settings.builder().put(environment.settings(), false).setSecureSettings(keystore).build();
+            clusterService.getClusterSettings().validate(settingsWithKeystore, true);
+
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
             pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {

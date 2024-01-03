@@ -28,9 +28,9 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils;
 
 import java.util.ArrayList;
 import java.util.function.Supplier;
@@ -108,7 +108,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
             INFERENCE_ORIGIN,
             InferenceAction.INSTANCE,
             new InferenceAction.Request(TaskType.ANY, request.getModelId(), request.getInputs(), request.getTaskSettings()),
-            ActionListener.wrap(r -> listener.onResponse(translateInferenceServiceResponse(r.getResults())), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(translateInferenceServiceResponse(r.getResults())))
         );
     }
 

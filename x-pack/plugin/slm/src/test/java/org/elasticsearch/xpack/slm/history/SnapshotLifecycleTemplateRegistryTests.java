@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegis
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -317,6 +318,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         );
     }
 
+    public void testTemplateNameIsVersioned() {
+        assertThat(SLM_TEMPLATE_NAME, endsWith("-" + INDEX_TEMPLATE_VERSION));
+    }
+
     // -------------
 
     /**
@@ -365,7 +370,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
             final PutComposableIndexTemplateAction.Request putRequest = (PutComposableIndexTemplateAction.Request) request;
             assertThat(putRequest.name(), equalTo(SLM_TEMPLATE_NAME));
-            assertThat(putRequest.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo(SLM_POLICY_NAME));
             assertThat(putRequest.indexTemplate().version(), equalTo((long) INDEX_TEMPLATE_VERSION));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);

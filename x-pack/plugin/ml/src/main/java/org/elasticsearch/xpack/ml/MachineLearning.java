@@ -46,6 +46,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -65,6 +66,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -72,6 +74,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -186,6 +189,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -316,16 +321,13 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
-import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerFeature;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -359,6 +361,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.ml.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -370,6 +373,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
+import org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -476,7 +480,8 @@ public class MachineLearning extends Plugin
         PersistentTaskPlugin,
         SearchPlugin,
         ShutdownAwarePlugin,
-        ExtensiblePlugin {
+        ExtensiblePlugin,
+        MapperPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
@@ -886,7 +891,7 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RescorerSpec<?>> getRescorers() {
-        if (enabled && LearningToRankRescorerFeature.isEnabled()) {
+        if (enabled && machineLearningExtension.get().isLearningToRankEnabled()) {
             return List.of(
                 new RescorerSpec<>(
                     LearningToRankRescorerBuilder.NAME,
@@ -906,6 +911,7 @@ public class MachineLearning extends Plugin
         Environment environment = services.environment();
         NamedXContentRegistry xContentRegistry = services.xContentRegistry();
         IndexNameExpressionResolver indexNameExpressionResolver = services.indexNameExpressionResolver();
+        TelemetryProvider telemetryProvider = services.telemetryProvider();
 
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
@@ -1047,7 +1053,7 @@ public class MachineLearning extends Plugin
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
             memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
-            pyTorchProcessFactory = (task, executorService, onProcessCrash) -> new BlackHolePyTorchProcess();
+            pyTorchProcessFactory = (task, executorService, afterInputStreamClose, onProcessCrash) -> new BlackHolePyTorchProcess();
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(
             normalizerProcessFactory,
@@ -1247,6 +1253,14 @@ public class MachineLearning extends Plugin
             machineLearningExtension.get().isNlpEnabled()
         );
 
+        MlMetrics mlMetrics = new MlMetrics(
+            telemetryProvider.getMeterRegistry(),
+            clusterService,
+            settings,
+            autodetectProcessManager,
+            dataFrameAnalyticsManager
+        );
+
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),
@@ -1278,7 +1292,8 @@ public class MachineLearning extends Plugin
             trainedModelAllocationClusterServiceSetOnce.get(),
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
-            new MachineLearningExtensionHolder(machineLearningExtension.get())
+            new MachineLearningExtensionHolder(machineLearningExtension.get()),
+            mlMetrics
         );
     }
 
@@ -1716,6 +1731,11 @@ public class MachineLearning extends Plugin
                 TextExpansionQueryBuilder.NAME,
                 TextExpansionQueryBuilder::new,
                 TextExpansionQueryBuilder::fromXContent
+            ),
+            new QuerySpec<QueryBuilder>(
+                WeightedTokensQueryBuilder.NAME,
+                WeightedTokensQueryBuilder::new,
+                WeightedTokensQueryBuilder::fromXContent
             )
         );
     }
@@ -1797,7 +1817,7 @@ public class MachineLearning extends Plugin
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
         // LTR Combine with Inference named content provider when feature flag is removed
-        if (LearningToRankRescorerFeature.isEnabled()) {
+        if (machineLearningExtension.get().isLearningToRankEnabled()) {
             namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
         }
         return namedXContent;
@@ -1885,7 +1905,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
         // LTR Combine with Inference named content provider when feature flag is removed
-        if (LearningToRankRescorerFeature.isEnabled()) {
+        if (machineLearningExtension.get().isLearningToRankEnabled()) {
             namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         }
         return namedWriteables;
@@ -2287,5 +2307,13 @@ public class MachineLearning extends Plugin
         if (enabled) {
             mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
         }
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        if (SemanticTextFeature.isEnabled()) {
+            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+        }
+        return Map.of();
     }
 }

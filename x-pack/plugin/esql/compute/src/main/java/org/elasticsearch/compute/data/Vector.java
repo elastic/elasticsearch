@@ -8,15 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
  * A dense Vector of single values.
  */
-public interface Vector extends Accountable, Releasable {
+public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
-     * {@return Returns a Block view over this vector.}
+     * {@return Returns a new Block containing this vector.}
      */
     Block asBlock();
 

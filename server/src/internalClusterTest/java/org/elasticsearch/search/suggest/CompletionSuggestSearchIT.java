@@ -425,7 +425,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex(INDEX).setId("1")
+            prepareIndex(INDEX).setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -436,7 +436,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         assertThat(e.getCause().getMessage(), equalTo("weight must be an integer, but was [2.5]"));
     }
@@ -485,7 +484,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex(INDEX).setId("1")
+            prepareIndex(INDEX).setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -496,7 +495,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         assertThat(e.getCause().toString(), containsString("thisIsNotValid"));
     }
@@ -508,7 +506,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex(INDEX).setId("1")
+            prepareIndex(INDEX).setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -519,7 +517,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         assertThat(e.getCause().toString(), containsString(weight));
     }
@@ -997,7 +994,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD)).get()
+            prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD))
         );
         assertThat(e.status().getStatus(), is(400));
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
@@ -1336,7 +1333,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         String string = "foo" + (char) 0x00 + "bar";
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> prepareIndex(INDEX).setId("1")
+            prepareIndex(INDEX).setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .startObject(FIELD)
@@ -1347,7 +1344,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         assertThat(e.getMessage(), containsString("failed to parse"));
     }
@@ -1376,9 +1372,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(INDEX).addAggregation(
+            prepareSearch(INDEX).addAggregation(
                 AggregationBuilders.terms("suggest_agg").field(FIELD).collectMode(randomFrom(SubAggCollectionMode.values()))
-            ).get()
+            )
         );
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
     }

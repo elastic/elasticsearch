@@ -34,7 +34,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
@@ -2145,13 +2145,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
         assertThat(
             remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(IndicesShardStoresAction.NAME)
+                .allowedIndicesMatcher(TransportIndicesShardStoresAction.TYPE.name())
                 .test(mockIndexAbstraction(randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES))),
             is(true)
         );
         assertThat(
             remoteMonitoringCollectorRole.indices()
-                .allowedIndicesMatcher(IndicesShardStoresAction.NAME)
+                .allowedIndicesMatcher(TransportIndicesShardStoresAction.TYPE.name())
                 .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
             is(true)
         );
@@ -2266,7 +2266,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             IndicesStatsAction.NAME,
             IndicesSegmentsAction.NAME,
             GetSettingsAction.NAME,
-            IndicesShardStoresAction.NAME,
+            TransportIndicesShardStoresAction.TYPE.name(),
             RecoveryAction.NAME
         );
         for (final String indexMonitoringActionName : indexMonitoringActionNamesList) {

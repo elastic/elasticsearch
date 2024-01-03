@@ -2179,7 +2179,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -2188,77 +2188,75 @@ public class InternalEngine extends Engine {
             );
         }
         final long generation;
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            if (flushLock.tryLock() == false) {
-                // if we can't get the lock right away we block if needed otherwise barf
-                if (waitIfOngoing == false) {
-                    logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
-                    listener.onResponse(FlushResult.NO_FLUSH);
-                    return;
-                }
-                logger.trace("waiting for in-flight flush to finish");
-                flushLock.lock();
-                logger.trace("acquired flush lock after blocking");
-            } else {
-                logger.trace("acquired flush lock immediately");
-            }
-
-            try {
-                // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
-                // newly created commit points to a different translog generation (can free translog),
-                // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
-                boolean hasUncommittedChanges = hasUncommittedChanges();
-                if (hasUncommittedChanges
-                    || force
-                    || shouldPeriodicallyFlush()
-                    || getProcessedLocalCheckpoint() > Long.parseLong(
-                        lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-                    )) {
-                    ensureCanFlush();
-                    Translog.Location commitLocation = getTranslogLastWriteLocation();
-                    try {
-                        translog.rollGeneration();
-                        logger.trace("starting commit for flush; commitTranslog=true");
-                        long lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
-                        // Pre-emptively recording the upcoming segment generation so that the live version map archive records
-                        // the correct segment generation for doc IDs that go to the archive while a flush is happening. Otherwise,
-                        // if right after committing the IndexWriter new docs get indexed/updated and a refresh moves them to the archive,
-                        // we clear them from the archive once we see that segment generation on the search shards, but those changes
-                        // were not included in the commit since they happened right after it.
-                        preCommitSegmentGeneration.set(lastCommittedSegmentInfos.getGeneration() + 1);
-                        commitIndexWriter(indexWriter, translog);
-                        logger.trace("finished commit for flush");
-                        // we need to refresh in order to clear older version values
-                        refresh("version_table_flush", SearcherScope.INTERNAL, true);
-                        translog.trimUnreferencedReaders();
-                        // Use the timestamp from when the flush started, but only update it in case of success, so that any exception in
-                        // the above lines would not lead the engine to think that it recently flushed, when it did not.
-                        this.lastFlushTimestamp = lastFlushTimestamp;
-                    } catch (AlreadyClosedException e) {
-                        failOnTragicEvent(e);
-                        throw e;
-                    } catch (Exception e) {
-                        throw new FlushFailedEngineException(shardId, e);
-                    }
-                    refreshLastCommittedSegmentInfos();
-                    generation = lastCommittedSegmentInfos.getGeneration();
-                    flushListener.afterFlush(generation, commitLocation);
-                } else {
-                    generation = lastCommittedSegmentInfos.getGeneration();
-                }
-            } catch (FlushFailedEngineException ex) {
-                maybeFailEngine("flush", ex);
-                listener.onFailure(ex);
+        if (flushLock.tryLock() == false) {
+            // if we can't get the lock right away we block if needed otherwise barf
+            if (waitIfOngoing == false) {
+                logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
+                listener.onResponse(FlushResult.NO_FLUSH);
                 return;
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            } finally {
-                flushLock.unlock();
-                logger.trace("released flush lock");
             }
+            logger.trace("waiting for in-flight flush to finish");
+            flushLock.lock();
+            logger.trace("acquired flush lock after blocking");
+        } else {
+            logger.trace("acquired flush lock immediately");
         }
+
+        try {
+            // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
+            // newly created commit points to a different translog generation (can free translog),
+            // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
+            boolean hasUncommittedChanges = hasUncommittedChanges();
+            if (hasUncommittedChanges
+                || force
+                || shouldPeriodicallyFlush()
+                || getProcessedLocalCheckpoint() > Long.parseLong(
+                    lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                )) {
+                ensureCanFlush();
+                Translog.Location commitLocation = getTranslogLastWriteLocation();
+                try {
+                    translog.rollGeneration();
+                    logger.trace("starting commit for flush; commitTranslog=true");
+                    long lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
+                    // Pre-emptively recording the upcoming segment generation so that the live version map archive records
+                    // the correct segment generation for doc IDs that go to the archive while a flush is happening. Otherwise,
+                    // if right after committing the IndexWriter new docs get indexed/updated and a refresh moves them to the archive,
+                    // we clear them from the archive once we see that segment generation on the search shards, but those changes
+                    // were not included in the commit since they happened right after it.
+                    preCommitSegmentGeneration.set(lastCommittedSegmentInfos.getGeneration() + 1);
+                    commitIndexWriter(indexWriter, translog);
+                    logger.trace("finished commit for flush");
+                    // we need to refresh in order to clear older version values
+                    refresh("version_table_flush", SearcherScope.INTERNAL, true);
+                    translog.trimUnreferencedReaders();
+                    // Use the timestamp from when the flush started, but only update it in case of success, so that any exception in
+                    // the above lines would not lead the engine to think that it recently flushed, when it did not.
+                    this.lastFlushTimestamp = lastFlushTimestamp;
+                } catch (AlreadyClosedException e) {
+                    failOnTragicEvent(e);
+                    throw e;
+                } catch (Exception e) {
+                    throw new FlushFailedEngineException(shardId, e);
+                }
+                refreshLastCommittedSegmentInfos();
+                generation = lastCommittedSegmentInfos.getGeneration();
+                flushListener.afterFlush(generation, commitLocation);
+            } else {
+                generation = lastCommittedSegmentInfos.getGeneration();
+            }
+        } catch (FlushFailedEngineException ex) {
+            maybeFailEngine("flush", ex);
+            listener.onFailure(ex);
+            return;
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        } finally {
+            flushLock.unlock();
+            logger.trace("released flush lock");
+        }
+
         // We don't have to do this here; we do it defensively to make sure that even if wall clock time is misbehaving
         // (e.g., moves backwards) we will at least still sometimes prune deleted tombstones:
         if (engineConfig.isEnableGcDeletes()) {

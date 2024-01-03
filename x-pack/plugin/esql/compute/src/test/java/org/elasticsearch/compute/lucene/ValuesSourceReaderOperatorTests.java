@@ -1465,6 +1465,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testManyShards() throws IOException {
+        initMapping();
         int shardCount = between(2, 10);
         int size = between(100, 1000);
         Directory[] dirs = new Directory[shardCount];

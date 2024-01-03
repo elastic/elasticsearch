@@ -1,0 +1,30 @@
+{
+  "indices.resolve_cluster":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-resolve-index-api.html",
+      "description":"Resolves the specified index expressions to return information about each cluster, including the local cluster, if included."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_resolve/cluster/{name}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of cluster:index names or wildcard expressions"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

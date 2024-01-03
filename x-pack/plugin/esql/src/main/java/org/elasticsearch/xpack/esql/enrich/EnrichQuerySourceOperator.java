@@ -94,7 +94,7 @@ final class EnrichQuerySourceOperator extends SourceOperator {
         if (scorer == null) {
             return null;
         }
-        IntVector docs = null, segments = null, shards = null;
+        IntVector docs = null, segments = null, shards = null, positions = null;
         boolean success = false;
         try (IntVector.Builder docsBuilder = blockFactory.newIntVectorBuilder(1)) {
             scorer.score(new DocCollector(docsBuilder), leafReaderContext.reader().getLiveDocs());
@@ -102,12 +102,13 @@ final class EnrichQuerySourceOperator extends SourceOperator {
             final int positionCount = docs.getPositionCount();
             segments = blockFactory.newConstantIntVector(leafIndex, positionCount);
             shards = blockFactory.newConstantIntVector(0, positionCount);
-            var positions = blockFactory.newConstantIntBlockWith(queryPosition, positionCount);
+            positions = blockFactory.newConstantIntVector(queryPosition, positionCount);
+            Page page = new Page(new DocVector(shards, segments, docs, true).asBlock(), positions.asBlock());
             success = true;
-            return new Page(new DocVector(shards, segments, docs, true).asBlock(), positions);
+            return page;
         } finally {
             if (success == false) {
-                Releasables.close(docs, shards, segments);
+                Releasables.close(docs, shards, segments, positions);
             }
         }
     }

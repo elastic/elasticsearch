@@ -60,26 +60,26 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     void testEmpty(BlockFactory bf) {
-        assertZeroPositionsAndRelease(bf.newIntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(IntBlock.newBlockBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newIntArrayBlock(new int[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(bf.newIntBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newIntArrayVector(new int[] {}, 0));
         assertZeroPositionsAndRelease(bf.newIntVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newLongArrayBlock(new long[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(LongBlock.newBlockBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newLongArrayBlock(new long[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(bf.newLongBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newLongArrayVector(new long[] {}, 0));
         assertZeroPositionsAndRelease(bf.newLongVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newDoubleArrayBlock(new double[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(DoubleBlock.newBlockBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newDoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(bf.newDoubleBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newDoubleArrayVector(new double[] {}, 0));
         assertZeroPositionsAndRelease(bf.newDoubleVectorBuilder(0).build());
         assertZeroPositionsAndRelease(
-            bf.newBytesRefArrayBlock(new BytesRefArray(0, bf.bigArrays()), 0, new int[] {}, new BitSet(), randomOrdering())
+            bf.newBytesRefArrayBlock(new BytesRefArray(0, bf.bigArrays()), 0, new int[] { 0 }, new BitSet(), randomOrdering())
         );
-        assertZeroPositionsAndRelease(BytesRefBlock.newBlockBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newBytesRefBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newBytesRefArrayVector(new BytesRefArray(0, bf.bigArrays()), 0));
         assertZeroPositionsAndRelease(bf.newBytesRefVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newBooleanArrayBlock(new boolean[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(BooleanBlock.newBlockBuilder(0, bf).build());
+        assertZeroPositionsAndRelease(bf.newBooleanArrayBlock(new boolean[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(bf.newBooleanBlockBuilder(0).build());
         assertZeroPositionsAndRelease(bf.newBooleanArrayVector(new boolean[] {}, 0));
         assertZeroPositionsAndRelease(bf.newBooleanVectorBuilder(0).build());
     }
@@ -172,7 +172,7 @@ public class BasicBlockTests extends ESTestCase {
             IntBlock block;
             if (randomBoolean()) {
                 final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-                try (IntBlock.Builder blockBuilder = IntBlock.newBlockBuilder(builderEstimateSize, blockFactory)) {
+                try (IntBlock.Builder blockBuilder = blockFactory.newIntBlockBuilder(builderEstimateSize)) {
                     IntStream.range(0, positionCount).forEach(blockBuilder::appendInt);
                     block = blockBuilder.build();
                 }
@@ -187,7 +187,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(pos, is(block.getInt(pos)));
             assertSingleValueDenseBlock(block);
 
-            try (IntBlock.Builder blockBuilder = IntBlock.newBlockBuilder(1, blockFactory)) {
+            try (IntBlock.Builder blockBuilder = blockFactory.newIntBlockBuilder(1)) {
                 IntBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
                 assertThat(copy, equalTo(block));
                 releaseAndAssertBreaker(block, copy);
@@ -196,12 +196,12 @@ public class BasicBlockTests extends ESTestCase {
             if (positionCount > 1) {
                 assertNullValues(
                     positionCount,
-                    size -> IntBlock.newBlockBuilder(size, blockFactory),
-                    (bb, value) -> bb.appendInt(value),
+                    blockFactory::newIntBlockBuilder,
+                    IntBlock.Builder::appendInt,
                     position -> position,
                     IntBlock.Builder::build,
                     (randomNonNullPosition, b) -> {
-                        assertThat((int) randomNonNullPosition, is(b.getInt(randomNonNullPosition.intValue())));
+                        assertThat(randomNonNullPosition, is(b.getInt(randomNonNullPosition.intValue())));
                     }
                 );
             }
@@ -265,8 +265,8 @@ public class BasicBlockTests extends ESTestCase {
             if (positionCount > 1) {
                 assertNullValues(
                     positionCount,
-                    size -> LongBlock.newBlockBuilder(size, blockFactory),
-                    (bb, value) -> bb.appendLong(value),
+                    blockFactory::newLongBlockBuilder,
+                    LongBlock.Builder::appendLong,
                     position -> (long) position,
                     LongBlock.Builder::build,
                     (randomNonNullPosition, b) -> {
@@ -332,8 +332,8 @@ public class BasicBlockTests extends ESTestCase {
             if (positionCount > 1) {
                 assertNullValues(
                     positionCount,
-                    size -> DoubleBlock.newBlockBuilder(size, blockFactory),
-                    (bb, value) -> bb.appendDouble(value),
+                    blockFactory::newDoubleBlockBuilder,
+                    DoubleBlock.Builder::appendDouble,
                     position -> (double) position,
                     DoubleBlock.Builder::build,
                     (randomNonNullPosition, b) -> {
@@ -412,8 +412,8 @@ public class BasicBlockTests extends ESTestCase {
         if (positionCount > 1) {
             assertNullValues(
                 positionCount,
-                size -> BytesRefBlock.newBlockBuilder(size, blockFactory),
-                (bb, value) -> bb.appendBytesRef(value),
+                blockFactory::newBytesRefBlockBuilder,
+                BytesRefBlock.Builder::appendBytesRef,
                 position -> values[position],
                 BytesRefBlock.Builder::build,
                 (randomNonNullPosition, b) -> assertThat(
@@ -528,7 +528,7 @@ public class BasicBlockTests extends ESTestCase {
             if (positionCount > 1) {
                 assertNullValues(
                     positionCount,
-                    size -> BooleanBlock.newBlockBuilder(size, blockFactory),
+                    size -> blockFactory.newBooleanBlockBuilder(size),
                     (bb, value) -> bb.appendBoolean(value),
                     position -> position % 10 == 0,
                     BooleanBlock.Builder::build,
@@ -566,7 +566,7 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
-            Block block = Block.constantNullBlock(positionCount, blockFactory);
+            Block block = blockFactory.newConstantNullBlock(positionCount);
             assertTrue(block.areAllValuesNull());
             assertThat(block, instanceOf(BooleanBlock.class));
             assertThat(block, instanceOf(IntBlock.class));
@@ -1240,13 +1240,14 @@ public class BasicBlockTests extends ESTestCase {
     private Block randomArrayBlock() {
         int positionCount = randomIntBetween(0, 100);
         int arrayType = randomIntBetween(0, 4);
+        int[] firstValueIndexes = IntStream.range(0, positionCount + 1).toArray();
 
         return switch (arrayType) {
             case 0 -> {
                 boolean[] values = new boolean[positionCount];
                 Arrays.fill(values, randomBoolean());
 
-                yield blockFactory.newBooleanArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+                yield blockFactory.newBooleanArrayBlock(values, positionCount, firstValueIndexes, new BitSet(), randomOrdering());
             }
             case 1 -> {
                 BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
@@ -1254,25 +1255,25 @@ public class BasicBlockTests extends ESTestCase {
                     values.append(new BytesRef(randomByteArrayOfLength(between(1, 20))));
                 }
 
-                yield blockFactory.newBytesRefArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+                yield blockFactory.newBytesRefArrayBlock(values, positionCount, firstValueIndexes, new BitSet(), randomOrdering());
             }
             case 2 -> {
                 double[] values = new double[positionCount];
                 Arrays.fill(values, 1.0);
 
-                yield blockFactory.newDoubleArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+                yield blockFactory.newDoubleArrayBlock(values, positionCount, firstValueIndexes, new BitSet(), randomOrdering());
             }
             case 3 -> {
                 int[] values = new int[positionCount];
                 Arrays.fill(values, 1);
 
-                yield blockFactory.newIntArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+                yield blockFactory.newIntArrayBlock(values, positionCount, firstValueIndexes, new BitSet(), randomOrdering());
             }
             default -> {
                 long[] values = new long[positionCount];
                 Arrays.fill(values, 1L);
 
-                yield blockFactory.newLongArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+                yield blockFactory.newLongArrayBlock(values, positionCount, firstValueIndexes, new BitSet(), randomOrdering());
             }
         };
     }

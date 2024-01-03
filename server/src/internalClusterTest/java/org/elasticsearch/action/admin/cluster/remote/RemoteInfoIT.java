@@ -38,9 +38,7 @@ public class RemoteInfoIT extends AbstractMultiClustersTestCase {
         final String nodeWithoutRemoteClientRole = localCluster.startNode(NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE)));
         final IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> localCluster.client(nodeWithoutRemoteClientRole)
-                .execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
-                .actionGet()
+            localCluster.client(nodeWithoutRemoteClientRole).execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
         );
         assertThat(
             error.getMessage(),

@@ -60,7 +60,7 @@ public class CountDistinctBytesRefAggregator {
     }
 
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 long count = state.cardinality(group);

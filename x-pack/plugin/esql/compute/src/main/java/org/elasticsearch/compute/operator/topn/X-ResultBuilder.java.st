@@ -34,7 +34,7 @@ $else$
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
 $endif$
         this.inKey = inKey;
-        this.builder = $Type$Block.newBlockBuilder(initialSize, blockFactory);
+        this.builder = blockFactory.new$Type$BlockBuilder(initialSize);
     }
 
     @Override

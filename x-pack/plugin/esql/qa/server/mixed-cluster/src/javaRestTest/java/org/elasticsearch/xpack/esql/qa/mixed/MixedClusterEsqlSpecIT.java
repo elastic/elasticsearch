@@ -7,18 +7,28 @@
 
 package org.elasticsearch.xpack.esql.qa.mixed;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.Version;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.junit.ClassRule;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103765")
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 
-    static final Version bwcVersion = Version.fromString(System.getProperty("tests.bwc_nodes_version"));
-    static final Version newVersion = Version.fromString(System.getProperty("tests.new_nodes_version"));
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
     public MixedClusterEsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber, testCase);
@@ -26,7 +36,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) {
+        super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, bwcVersion));
-        assumeTrue("Test " + testName + " is skipped on " + newVersion, isEnabled(testName, newVersion));
     }
 }

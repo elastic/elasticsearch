@@ -130,7 +130,7 @@ public final class IdpTestContainer extends DockerEnvironmentAwareTestContainer 
                     .withStatement(
                         new SingleArgumentStatement(
                             "HEALTHCHECK",
-                            "CMD curl -f -s --http0.9 http://localhost:4443 " + "--connect-timeout 30 --max-time 20 --output - > /dev/null"
+                            "CMD curl -f -s --http0.9 http://localhost:4443 " + "--connect-timeout 40 --max-time 60 --output - > /dev/null"
                         )
                     )
                     // .expose(4443)

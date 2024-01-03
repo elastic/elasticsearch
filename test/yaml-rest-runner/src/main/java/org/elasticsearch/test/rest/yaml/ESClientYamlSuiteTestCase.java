@@ -15,7 +15,6 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -61,10 +60,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext.getEsVersion;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -144,6 +141,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final Set<String> nodesVersions = getCachedNodesVersions();
             final String os = readOsFromNodesInfo(adminClient());
 
+            logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
+
             var semanticNodeVersions = nodesVersions.stream()
                 .map(ESRestTestCase::parseLegacyVersion)
                 .flatMap(Optional::stream)
@@ -199,32 +198,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         ClientYamlTestClient clientYamlTestClient,
         final Set<String> nodesVersions,
         final TestFeatureService testFeatureService,
-        final Set<String> osList
-    ) {
-        return createRestTestExecutionContext(
-            clientYamlTestCandidate,
-            clientYamlTestClient,
-            getEsVersion(nodesVersions),
-            testFeatureService::clusterHasFeature,
-            osList.iterator().next()
-        );
-    }
-
-    @Deprecated
-    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
-        ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient,
-        final Version esVersion,
-        final Predicate<String> clusterFeaturesPredicate,
-        final String os
+        final Set<String> osSet
     ) {
         return new ClientYamlTestExecutionContext(
             clientYamlTestCandidate,
             clientYamlTestClient,
             randomizeContentType(),
-            esVersion,
-            clusterFeaturesPredicate,
-            os
+            nodesVersions,
+            testFeatureService,
+            osSet
         );
     }
 

@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.security;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
+import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -37,7 +39,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -126,7 +127,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             configureRemoteCluster(remoteAddress);
 
             // Run search to trigger header capturing on the receiving side
-            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
+            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get().decRef();
 
             assertHeadersContainCredentialsThenClear(credentials, capturedHeaders);
 
@@ -135,7 +136,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
             writeCredentialsToKeyStore(updatedCredentials);
             reloadSecureSettings();
 
-            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get();
+            client().search(new SearchRequest(CLUSTER_ALIAS + ":index-a")).get().decRef();
 
             assertHeadersContainCredentialsThenClear(updatedCredentials, capturedHeaders);
         }
@@ -245,15 +246,13 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                     capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(
                         new SearchResponse(
-                            new InternalSearchResponse(
-                                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                                InternalAggregations.EMPTY,
-                                null,
-                                null,
-                                false,
-                                null,
-                                1
-                            ),
+                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                            InternalAggregations.EMPTY,
+                            null,
+                            false,
+                            null,
+                            null,
+                            1,
                             null,
                             1,
                             1,
@@ -276,37 +275,37 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         }
     }
 
-    private void reloadSecureSettings() throws InterruptedException {
+    private void reloadSecureSettings() {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-        clusterAdmin().prepareReloadSecureSettings()
-            .setSecureStorePassword(emptyPassword)
-            .setNodesIds(Strings.EMPTY_ARRAY)
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                    try {
-                        assertThat(nodesReloadResponse, notNullValue());
-                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                        assertThat(nodesMap.size(), equalTo(1));
-                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                            assertThat(nodeResponse.reloadException(), nullValue());
-                        }
-                    } catch (final AssertionError e) {
-                        reloadSettingsError.set(e);
-                    } finally {
-                        latch.countDown();
-                    }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+        final var request = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
+        request.setSecureStorePassword(emptyPassword);
+        client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                try {
+                    assertThat(nodesReloadResponse, notNullValue());
+                    final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                    assertThat(nodesMap.size(), equalTo(1));
+                    for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                        assertThat(nodeResponse.reloadException(), nullValue());
+                    }
+                } catch (final AssertionError e) {
+                    reloadSettingsError.set(e);
+                } finally {
                     latch.countDown();
                 }
-            });
-        latch.await();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                latch.countDown();
+            }
+        });
+        safeAwait(latch);
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();
         }

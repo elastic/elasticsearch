@@ -182,6 +182,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
+        this(shardId, nowInMillis, aliasFilter, null);
+    }
+
+    public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter, String clusterAlias) {
         this(
             OriginalIndices.NONE,
             shardId,
@@ -195,7 +199,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             true,
             null,
             nowInMillis,
-            null,
+            clusterAlias,
             null,
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,

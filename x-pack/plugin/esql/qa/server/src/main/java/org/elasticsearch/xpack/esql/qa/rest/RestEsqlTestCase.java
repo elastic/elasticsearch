@@ -373,7 +373,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
     public void testErrorMessageForInvalidTypeInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]"))
+            () -> runEsqlSync(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -523,7 +523,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         request.setOptions(options);
 
         if (shouldLog()) {
-            LOGGER.info("REQUEST=" + request);
+            LOGGER.info("REQUEST={}", request);
         }
 
         Response response = performRequest(request);
@@ -591,7 +591,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(expectedContentType, xContentType);
             var map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
             if (shouldLog()) {
-                LOGGER.info("RESPONSE entity=" + map);
+                LOGGER.info("RESPONSE entity={}", map);
             }
             return map;
         }
@@ -665,8 +665,8 @@ public class RestEsqlTestCase extends ESRestTestCase {
     private static Response performRequest(Request request) throws IOException {
         Response response = client().performRequest(request);
         if (shouldLog()) {
-            LOGGER.info("RESPONSE=" + response);
-            LOGGER.info("RESPONSE headers=" + Arrays.toString(response.getHeaders()));
+            LOGGER.info("RESPONSE={}", response);
+            LOGGER.info("RESPONSE headers={}", Arrays.toString(response.getHeaders()));
         }
         assertEquals(200, response.getStatusLine().getStatusCode());
         return response;

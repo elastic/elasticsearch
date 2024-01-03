@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -153,7 +154,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
             assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
             client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-            assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+            assertHitCount(client().search(new SearchRequest(enrichedIndexName)), successfulItems);
         }
     }
 
@@ -277,7 +278,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
             assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
             client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-            assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+            assertHitCount(client().search(new SearchRequest(enrichedIndexName)), successfulItems);
         }
     }
 }

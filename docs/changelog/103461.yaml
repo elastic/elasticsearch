@@ -1,0 +1,5 @@
+pr: 103461
+summary: Add support for Well Known Binary (WKB) in the fields API for spatial fields
+area: Geo
+type: enhancement
+issues: []

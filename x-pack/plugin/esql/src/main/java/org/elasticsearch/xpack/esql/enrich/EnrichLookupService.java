@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -369,7 +369,7 @@ public class EnrichLookupService {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
             request.incRef();
-            ActionListener<LookupResponse> listener = ActionListener.runBefore(new OwningChannelActionListener<>(channel), request::decRef);
+            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
             doLookup(
                 request.sessionId,
                 (CancellableTask) task,
@@ -378,7 +378,7 @@ public class EnrichLookupService {
                 request.matchField,
                 request.inputPage,
                 request.extractFields,
-                listener.map(LookupResponse::new)
+                listener.delegateFailureAndWrap((l, outPage) -> ActionListener.respondAndRelease(l, new LookupResponse(outPage)))
             );
         }
     }

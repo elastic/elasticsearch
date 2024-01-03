@@ -811,7 +811,7 @@ public class ApiKeyService {
         final Authentication authentication,
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
-    ) {
+    ) throws IOException {
         if (apiKeyDoc.version != targetDocVersion.id) {
             return false;
         }
@@ -832,12 +832,11 @@ public class ApiKeyService {
                 return false;
             }
             @SuppressWarnings("unchecked")
-            final var currentRealmDomain = RealmDomain.fromXContent(
-                XContentHelper.mapToXContentParser(
-                    XContentParserConfiguration.EMPTY,
-                    (Map<String, Object>) currentCreator.get("realm_domain")
-                )
-            );
+            var m = (Map<String, Object>) currentCreator.get("realm_domain");
+            final RealmDomain currentRealmDomain;
+            try (var parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, m)) {
+                currentRealmDomain = RealmDomain.fromXContent(parser);
+            }
             if (sourceRealm.getDomain().equals(currentRealmDomain) == false) {
                 return false;
             }

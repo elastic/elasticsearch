@@ -319,7 +319,7 @@ public class TransportBulkActionTests extends ESTestCase {
             threadPool.startForcingRejections();
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
-            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            expectThrows(EsRejectedExecutionException.class, future);
         } finally {
             threadPool.stopForcingRejections();
         }
@@ -331,7 +331,7 @@ public class TransportBulkActionTests extends ESTestCase {
             bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
-            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            expectThrows(EsRejectedExecutionException.class, future);
             assertTrue(bulkAction.indexCreated);
         } finally {
             threadPool.stopForcingRejections();

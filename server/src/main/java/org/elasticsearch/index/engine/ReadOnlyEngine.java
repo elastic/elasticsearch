@@ -527,9 +527,11 @@ public class ReadOnlyEngine extends Engine {
     ) {
         ActionListener.run(listener, l -> {
             try (var ignored = acquireEnsureOpenRef()) {
-                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
-            } catch (final Exception e) {
-                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+                try {
+                    translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
+                } catch (final Exception e) {
+                    throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+                }
             }
             l.onResponse(null);
         });

@@ -63,7 +63,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 request.shardStatuses("green", "red"); // newly-created shards are in yellow health so this matches none of them
                 final var future = new PlainActionFuture<IndicesShardStoresResponse>();
                 action.execute(
-                    new CancellableTask(1, "transport", IndicesShardStoresAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+                    new CancellableTask(1, "transport", TransportIndicesShardStoresAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
                     request,
                     future
                 );
@@ -85,7 +85,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 request.shardStatuses(randomFrom("yellow", "all")); // newly-created shards are in yellow health so this matches all of them
                 final var future = new PlainActionFuture<IndicesShardStoresResponse>();
                 action.execute(
-                    new CancellableTask(1, "transport", IndicesShardStoresAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+                    new CancellableTask(1, "transport", TransportIndicesShardStoresAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
                     request,
                     future
                 );
@@ -122,7 +122,14 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
         runTest(new TestHarness() {
             @Override
             void runTest() {
-                final var task = new CancellableTask(1, "transport", IndicesShardStoresAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
+                final var task = new CancellableTask(
+                    1,
+                    "transport",
+                    TransportIndicesShardStoresAction.TYPE.name(),
+                    "",
+                    TaskId.EMPTY_TASK_ID,
+                    Map.of()
+                );
                 final var request = new IndicesShardStoresRequest();
                 request.shardStatuses(randomFrom("yellow", "all"));
                 final var future = new PlainActionFuture<IndicesShardStoresResponse>();
@@ -144,7 +151,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 request.shardStatuses(randomFrom("yellow", "all"));
                 final var future = new PlainActionFuture<IndicesShardStoresResponse>();
                 action.execute(
-                    new CancellableTask(1, "transport", IndicesShardStoresAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+                    new CancellableTask(1, "transport", TransportIndicesShardStoresAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
                     request,
                     future
                 );

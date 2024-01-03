@@ -206,10 +206,7 @@ public class GetActionIT extends ESIntegTestCase {
         DocWriteResponse indexResponse = index("index1", "id", Collections.singletonMap("foo", "bar"));
         assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().prepareGet("alias1", "_alias_id").get()
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, client().prepareGet("alias1", "_alias_id"));
         assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
     }
 
@@ -549,13 +546,13 @@ public class GetActionIT extends ESIntegTestCase {
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get()
+            client().prepareGet(indexOrAlias(), "1").setStoredFields("field1")
         );
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
 
         flush();
 
-        exc = expectThrows(IllegalArgumentException.class, () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get());
+        exc = expectThrows(IllegalArgumentException.class, client().prepareGet(indexOrAlias(), "1").setStoredFields("field1"));
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
     }
 
@@ -829,7 +826,7 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetRemoteIndex() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> client().prepareGet("cluster:index", "id").get());
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, client().prepareGet("cluster:index", "id"));
         assertEquals(
             "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
             iae.getMessage()

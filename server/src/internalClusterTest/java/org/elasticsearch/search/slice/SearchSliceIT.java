@@ -225,7 +225,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         for (int id = 0; id < numSlice; id++) {
             int numSliceResults = 0;
 
-            SearchRequestBuilder request = prepareSearch("test").slice(new SliceBuilder(sliceField, id, numSlice))
+            SearchRequestBuilder request = prepareSearch().slice(new SliceBuilder(sliceField, id, numSlice))
                 .setPointInTime(new PointInTimeBuilder(pointInTimeId))
                 .addSort(SortBuilders.fieldSort(sortField))
                 .setSize(randomIntBetween(10, 100));
@@ -264,10 +264,10 @@ public class SearchSliceIT extends ESIntegTestCase {
         setupIndex(0, 1);
         SearchPhaseExecutionException exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("test").setQuery(matchAllQuery())
+            prepareSearch("test").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .slice(new SliceBuilder("invalid_random_int", 0, 10))
-                .get()
+
         );
         Throwable rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(IllegalArgumentException.class));
@@ -275,10 +275,9 @@ public class SearchSliceIT extends ESIntegTestCase {
 
         exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("test").setQuery(matchAllQuery())
+            prepareSearch("test").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .slice(new SliceBuilder("invalid_random_kw", 0, 10))
-                .get()
         );
         rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(IllegalArgumentException.class));
@@ -289,7 +288,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         setupIndex(0, 1);
         SearchPhaseExecutionException exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10)).get()
+            prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10))
         );
         Throwable rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(SearchException.class));

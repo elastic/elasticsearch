@@ -76,7 +76,7 @@ public class AsyncOperatorTests extends ESTestCase {
         final DriverContext driverContext;
         if (randomBoolean()) {
             localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
-            BlockFactory localFactory = new BlockFactory(localBreaker, globalBlockFactory.bigArrays());
+            BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
             driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
         } else {
             driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
@@ -213,7 +213,7 @@ public class AsyncOperatorTests extends ESTestCase {
         final DriverContext driverContext;
         if (randomBoolean()) {
             localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
-            BlockFactory localFactory = new BlockFactory(localBreaker, globalBlockFactory.bigArrays());
+            BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
             driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
         } else {
             driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);

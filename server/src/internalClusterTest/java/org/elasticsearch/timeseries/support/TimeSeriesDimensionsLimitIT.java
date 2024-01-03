@@ -55,7 +55,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             "@timestamp",
             Instant.now().toEpochMilli()
         );
-        final Exception ex = expectThrows(DocumentParsingException.class, indexRequestBuilder::get);
+        final Exception ex = expectThrows(DocumentParsingException.class, indexRequestBuilder);
         indexRequestBuilder.request().decRef();
         assertThat(
             ex.getCause().getMessage(),
@@ -92,7 +92,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             "@timestamp",
             startTime + 1
         );
-        final Exception ex = expectThrows(DocumentParsingException.class, indexRequestBuilder2::get);
+        final Exception ex = expectThrows(DocumentParsingException.class, indexRequestBuilder2);
         indexRequestBuilder2.request().decRef();
         assertThat(ex.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1025]."));
     }
@@ -179,7 +179,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1024));
         }
         IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setSource(source);
-        final Exception ex = expectThrows(DocumentParsingException.class, indexRequestBuilder::get);
+        final Exception ex = expectThrows(DocumentParsingException.class, indexRequestBuilder);
         indexRequestBuilder.request().decRef();
         assertEquals("_tsid longer than [32766] bytes [33903].", ex.getCause().getMessage());
     }

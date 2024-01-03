@@ -986,11 +986,11 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("index2").setQuery(
+            prepareSearch("index2").setQuery(
                 nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
                     new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")
                 )
-            ).get()
+            )
         );
         assertThat(
             e.getCause().getMessage(),
@@ -998,11 +998,11 @@ public class InnerHitsIT extends ESIntegTestCase {
         );
         e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("index2").setQuery(
+            prepareSearch("index2").setQuery(
                 nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
                     new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")
                 )
-            ).get()
+            )
         );
         assertThat(
             e.getCause().getMessage(),

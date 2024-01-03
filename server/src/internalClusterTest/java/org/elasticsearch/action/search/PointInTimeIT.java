@@ -84,7 +84,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
         refresh("test");
         String pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
-        assertResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), resp1 -> {
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp1 -> {
             assertThat(resp1.pointInTimeId(), equalTo(pitId));
             assertHitCount(resp1, numDocs);
         });
@@ -100,13 +100,13 @@ public class PointInTimeIT extends ESIntegTestCase {
         if (randomBoolean()) {
             final int delDocCount = deletedDocs;
             assertNoFailuresAndResponse(
-                prepareSearch("test").setPreference(null).setQuery(new MatchAllQueryBuilder()),
+                prepareSearch("test").setQuery(new MatchAllQueryBuilder()),
                 resp2 -> assertHitCount(resp2, numDocs - delDocCount)
             );
         }
         try {
             assertNoFailuresAndResponse(
-                prepareSearch().setPreference(null).setQuery(new MatchAllQueryBuilder()).setPointInTime(new PointInTimeBuilder(pitId)),
+                prepareSearch().setQuery(new MatchAllQueryBuilder()).setPointInTime(new PointInTimeBuilder(pitId)),
                 resp3 -> {
                     assertHitCount(resp3, numDocs);
                     assertThat(resp3.pointInTimeId(), equalTo(pitId));
@@ -132,7 +132,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         String pitId = openPointInTime(new String[] { "*" }, TimeValue.timeValueMinutes(2));
         try {
             int moreDocs = randomIntBetween(10, 50);
-            assertNoFailuresAndResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs);
                 assertNotNull(resp.pointInTimeId());
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
@@ -144,7 +144,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 refresh();
             });
             assertNoFailuresAndResponse(prepareSearch(), resp -> assertHitCount(resp, numDocs + moreDocs));
-            assertNoFailuresAndResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs);
                 assertNotNull(resp.pointInTimeId());
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
@@ -213,7 +213,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         refresh();
         String pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
         try {
-            assertNoFailuresAndResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs);
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
             });
@@ -233,7 +233,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 }
                 refresh();
             }
-            assertNoFailuresAndResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs);
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
             });
@@ -246,7 +246,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                     .collect(Collectors.toSet());
                 assertThat(assignedNodes, everyItem(not(in(excludedNodes))));
             }, 30, TimeUnit.SECONDS);
-            assertNoFailuresAndResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs);
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
             });
@@ -264,7 +264,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
         refresh();
         String pit = openPointInTime(new String[] { "index" }, TimeValue.timeValueSeconds(5));
-        assertNoFailuresAndResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)), resp1 -> {
+        assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pit)), resp1 -> {
             assertHitCount(resp1, index1);
             if (rarely()) {
                 try {
@@ -281,7 +281,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         });
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get()
+            prepareSearch().setPointInTime(new PointInTimeBuilder(pit))
         );
         for (ShardSearchFailure failure : e.shardFailures()) {
             assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(SearchContextMissingException.class));
@@ -307,7 +307,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         String pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
         try {
             assertNoFailuresAndResponse(
-                prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)),
+                prepareSearch().setPointInTime(new PointInTimeBuilder(pit)),
                 resp -> assertHitCount(resp, index1 + index2)
             );
             indicesAdmin().prepareDelete("index-1").get();
@@ -316,21 +316,15 @@ public class PointInTimeIT extends ESIntegTestCase {
             }
 
             // Allow partial search result
-            assertResponse(
-                prepareSearch().setPreference(null).setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pit)),
-                resp -> {
-                    assertFailures(resp);
-                    assertHitCount(resp, index2);
-                }
-            );
+            assertResponse(prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pit)), resp -> {
+                assertFailures(resp);
+                assertHitCount(resp, index2);
+            });
 
             // Do not allow partial search result
             expectThrows(
                 ElasticsearchException.class,
-                () -> prepareSearch().setPreference(null)
-                    .setAllowPartialSearchResults(false)
-                    .setPointInTime(new PointInTimeBuilder(pit))
-                    .get()
+                prepareSearch().setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pit))
             );
         } finally {
             closePointInTime(pit);
@@ -366,7 +360,6 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertResponse(
                 prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setPreference(null)
                     .setPreFilterShardSize(randomIntBetween(2, 3))
                     .setMaxConcurrentShardRequests(randomIntBetween(1, 2))
                     .setPointInTime(new PointInTimeBuilder(pitId)),
@@ -423,20 +416,17 @@ public class PointInTimeIT extends ESIntegTestCase {
         refresh();
         String pitId = openPointInTime(new String[] { "test-*" }, TimeValue.timeValueMinutes(2));
         try {
-            assertNoFailuresAndResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertHitCount(resp, numDocs1 + numDocs2);
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
             });
 
             internalCluster().restartNode(assignedNodeForIndex1);
-            assertResponse(
-                prepareSearch().setPreference(null).setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pitId)),
-                resp -> {
-                    assertFailures(resp);
-                    assertThat(resp.pointInTimeId(), equalTo(pitId));
-                    assertHitCount(resp, numDocs2);
-                }
-            );
+            assertResponse(prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertFailures(resp);
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                assertHitCount(resp, numDocs2);
+            });
         } finally {
             closePointInTime(pitId);
         }
@@ -487,10 +477,7 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testCloseInvalidPointInTime() {
-        expectThrows(
-            Exception.class,
-            () -> client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest("")).actionGet()
-        );
+        expectThrows(Exception.class, client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest("")));
         List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(TransportClosePointInTimeAction.TYPE.name()).get().getTasks();
         assertThat(tasks, empty());
     }

@@ -337,7 +337,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         IndexShard indexShard = indexService.getShard(0);
         AtomicBoolean running = new AtomicBoolean(true);
         CountDownLatch startGun = new CountDownLatch(1);
-        Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        final int permitCount = 100;
+        Semaphore semaphore = new Semaphore(permitCount);
         ShardRouting routing = TestShardRouting.newShardRouting(
             indexShard.shardId(),
             randomAlphaOfLength(5),
@@ -365,21 +366,20 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setSource("field", "value")
                             .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
                         try {
-                            indexRequestBuilder.execute(new ActionListener<DocWriteResponse>() {
-                                @Override
-                                public void onResponse(DocWriteResponse indexResponse) {
-                                    semaphore.release();
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    semaphore.release();
-                                }
-                            });
-                        } finally {
+                            indexRequestBuilder.execute(
+                                ActionListener.runBefore(
+                                    ActionListener.running(semaphore::release),
+                                    () -> indexRequestBuilder.request().decRef()
+                                )
+                            );
+                        } catch (Exception e) {
                             indexRequestBuilder.request().decRef();
+                            throw e;
                         }
                     }
+                    prepareIndex("index").setSource("field", "value")
+                        .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()))
+                        .execute(ActionListener.running(semaphore::release));
                 }
             }
         };
@@ -447,7 +447,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         } finally {
             running.set(false);
             thread.join();
-            semaphore.acquire(Integer.MAX_VALUE);
+            semaphore.acquire(permitCount);
         }
 
         assertEquals(0, service.getActiveContexts());

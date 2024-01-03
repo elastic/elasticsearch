@@ -65,13 +65,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testSearchNullIndex() {
-        expectThrows(NullPointerException.class, () -> prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
-
-        expectThrows(
-            NullPointerException.class,
-            () -> prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get()
-        );
-
+        expectThrows(NullPointerException.class, () -> prepareSearch((String) null));
+        expectThrows(NullPointerException.class, () -> prepareSearch((String[]) null));
     }
 
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
@@ -461,10 +456,11 @@ public class SimpleSearchIT extends ESIntegTestCase {
         indexRequestBuilder.request().decRef();
 
         String queryJson = "{ \"field\" : { \"value\" : 80315953321748200608 } }";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
-        parser.nextToken();
-        TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
-        assertHitCount(prepareSearch("idx").setQuery(query), 1);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson)) {
+            parser.nextToken();
+            TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
+            assertHitCount(prepareSearch("idx").setQuery(query), 1);
+        }
     }
 
     public void testTooLongRegexInRegexpQuery() throws Exception {
@@ -478,7 +474,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         }
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", regexp.toString())).get()
+            prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", regexp.toString()))
         );
         assertThat(
             e.getRootCause().getMessage(),
@@ -528,7 +524,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     private void assertWindowFails(SearchRequestBuilder search) {
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> search.get());
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, search);
         assertThat(
             e.toString(),
             containsString(
@@ -541,7 +537,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     private void assertRescoreWindowFails(int windowSize) {
         SearchRequestBuilder search = prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(windowSize));
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> search.get());
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, search);
         assertThat(
             e.toString(),
             containsString(

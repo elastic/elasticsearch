@@ -133,7 +133,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk-missing-index-type.json");
         try (BulkRequestBuilder bulkBuilder = client().prepareBulk()) {
             bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-            ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class, bulkBuilder::get);
+            ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class, bulkBuilder);
 
             assertThat(ex.validationErrors(), containsInAnyOrder("index is missing", "index is missing", "index is missing"));
         }

@@ -989,7 +989,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD)).get()
+            prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD))
         );
         assertThat(e.status().getStatus(), is(400));
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
@@ -1364,9 +1364,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(INDEX).addAggregation(
+            prepareSearch(INDEX).addAggregation(
                 AggregationBuilders.terms("suggest_agg").field(FIELD).collectMode(randomFrom(SubAggCollectionMode.values()))
-            ).get()
+            )
         );
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
     }

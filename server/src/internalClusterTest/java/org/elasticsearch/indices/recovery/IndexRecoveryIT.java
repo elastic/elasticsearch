@@ -1746,12 +1746,12 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .getNodes()
                         .get(0)
                         .getIndices();
-                    assertThat(nodeIndicesStats.getStore().getReservedSize().getBytes(), equalTo(0L));
+                    assertThat(nodeIndicesStats.getStore().reservedSizeInBytes(), equalTo(0L));
                     assertThat(
                         nodeIndicesStats.getShardStats(clusterState.metadata().index(indexName).getIndex())
                             .stream()
                             .flatMap(s -> Arrays.stream(s.getShards()))
-                            .map(s -> s.getStats().getStore().getReservedSize().getBytes())
+                            .map(s -> s.getStats().getStore().reservedSizeInBytes())
                             .toList(),
                         everyItem(equalTo(StoreStats.UNKNOWN_RESERVED_BYTES))
                     );
@@ -1767,8 +1767,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                             .get(0)
                             .getIndices()
                             .getStore()
-                            .getReservedSize()
-                            .getBytes(),
+                            .reservedSizeInBytes(),
                         greaterThan(0L)
                     );
                 }
@@ -1786,7 +1785,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .get()
                 .getNodes()
                 .stream()
-                .mapToLong(n -> n.getIndices().getStore().getReservedSize().getBytes())
+                .mapToLong(n -> n.getIndices().getStore().reservedSizeInBytes())
                 .sum(),
             equalTo(0L)
         );

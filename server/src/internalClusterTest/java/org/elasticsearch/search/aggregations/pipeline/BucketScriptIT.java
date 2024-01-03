@@ -660,10 +660,10 @@ public class BucketScriptIT extends ESIntegTestCase {
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-            createParser(content),
-            "seriesArithmetic"
-        );
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg;
+        try (var parser = createParser(content)) {
+            bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(parser, "seriesArithmetic");
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("idx", "idx_unmapped").addAggregation(
@@ -706,10 +706,10 @@ public class BucketScriptIT extends ESIntegTestCase {
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-            createParser(content),
-            "seriesArithmetic"
-        );
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg;
+        try (var parser = createParser(content)) {
+            bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(parser, "seriesArithmetic");
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("idx", "idx_unmapped").addAggregation(
@@ -764,10 +764,10 @@ public class BucketScriptIT extends ESIntegTestCase {
             .field("lang", CustomScriptPlugin.NAME)
             .endObject()
             .endObject();
-        BucketScriptPipelineAggregationBuilder bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-            createParser(content),
-            "seriesArithmetic"
-        );
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg;
+        try (var parser = createParser(content)) {
+            bucketScriptAgg = BucketScriptPipelineAggregationBuilder.PARSER.parse(parser, "seriesArithmetic");
+        }
 
         assertNoFailuresAndResponse(
             prepareSearch("idx", "idx_unmapped").addAggregation(

@@ -120,7 +120,9 @@ public class UpdateRequestTests extends ESTestCase {
     public void testFromXContent() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "1");
         // simple script
-        request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject().field("script", "script1").endObject()));
+        try (var parser = createParser(XContentFactory.jsonBuilder().startObject().field("script", "script1").endObject())) {
+            request.fromXContent(parser);
+        }
         Script script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -130,11 +132,13 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params, equalTo(emptyMap()));
 
         // simple verbose script
-        request.fromXContent(
-            createParser(
+        try (
+            var parser = createParser(
                 XContentFactory.jsonBuilder().startObject().startObject("script").field("source", "script1").endObject().endObject()
             )
-        );
+        ) {
+            request.fromXContent(parser);
+        }
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -146,8 +150,8 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with params
         request = new UpdateRequest("test", "1");
-        request.fromXContent(
-            createParser(
+        try (
+            var parser = createParser(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("script")
@@ -158,7 +162,9 @@ public class UpdateRequestTests extends ESTestCase {
                     .endObject()
                     .endObject()
             )
-        );
+        ) {
+            request.fromXContent(parser);
+        }
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -171,8 +177,8 @@ public class UpdateRequestTests extends ESTestCase {
         request.decRef();
 
         request = new UpdateRequest("test", "1");
-        request.fromXContent(
-            createParser(
+        try (
+            var parser = createParser(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("script")
@@ -183,7 +189,9 @@ public class UpdateRequestTests extends ESTestCase {
                     .endObject()
                     .endObject()
             )
-        );
+        ) {
+            request.fromXContent(parser);
+        }
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -197,8 +205,8 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with params and upsert
         request = new UpdateRequest("test", "1");
-        request.fromXContent(
-            createParser(
+        try (
+            var parser = createParser(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("script")
@@ -215,7 +223,9 @@ public class UpdateRequestTests extends ESTestCase {
                     .endObject()
                     .endObject()
             )
-        );
+        ) {
+            request.fromXContent(parser);
+        }
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -235,8 +245,8 @@ public class UpdateRequestTests extends ESTestCase {
         request.decRef();
 
         request = new UpdateRequest("test", "1");
-        request.fromXContent(
-            createParser(
+        try (
+            var parser = createParser(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("upsert")
@@ -253,7 +263,9 @@ public class UpdateRequestTests extends ESTestCase {
                     .endObject()
                     .endObject()
             )
-        );
+        ) {
+            request.fromXContent(parser);
+        }
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -270,8 +282,8 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with doc
         request = new UpdateRequest("test", "1");
-        request.fromXContent(
-            createParser(
+        try (
+            var parser = createParser(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("doc")
@@ -282,7 +294,9 @@ public class UpdateRequestTests extends ESTestCase {
                     .endObject()
                     .endObject()
             )
-        );
+        ) {
+            request.fromXContent(parser);
+        }
         Map<String, Object> doc = request.doc().sourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map<String, Object>) doc.get("compound")).get("field2").toString(), equalTo("value2"));
@@ -291,24 +305,31 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testUnknownFieldParsing() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "1");
-        XContentParser contentParser = createParser(XContentFactory.jsonBuilder().startObject().field("unknown_field", "test").endObject());
-
-        XContentParseException ex = expectThrows(XContentParseException.class, () -> request.fromXContent(contentParser));
-        assertEquals("[1:2] [UpdateRequest] unknown field [unknown_field]", ex.getMessage());
+        try (
+            XContentParser contentParser = createParser(
+                XContentFactory.jsonBuilder().startObject().field("unknown_field", "test").endObject()
+            )
+        ) {
+            XContentParseException ex = expectThrows(XContentParseException.class, () -> request.fromXContent(contentParser));
+            assertEquals("[1:2] [UpdateRequest] unknown field [unknown_field]", ex.getMessage());
+        }
         request.decRef();
 
         UpdateRequest request2 = new UpdateRequest("test", "1");
-        XContentParser unknownObject = createParser(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .field("script", "ctx.op = ctx._source.views == params.count ? 'delete' : 'none'")
-                .startObject("params")
-                .field("count", 1)
-                .endObject()
-                .endObject()
-        );
-        ex = expectThrows(XContentParseException.class, () -> request2.fromXContent(unknownObject));
-        assertEquals("[1:76] [UpdateRequest] unknown field [params]", ex.getMessage());
+        try (
+            XContentParser unknownObject = createParser(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("script", "ctx.op = ctx._source.views == params.count ? 'delete' : 'none'")
+                    .startObject("params")
+                    .field("count", 1)
+                    .endObject()
+                    .endObject()
+            )
+        ) {
+            XContentParseException ex = expectThrows(XContentParseException.class, () -> request2.fromXContent(unknownObject));
+            assertEquals("[1:76] [UpdateRequest] unknown field [params]", ex.getMessage());
+        }
         request2.decRef();
     }
 
@@ -577,9 +598,10 @@ public class UpdateRequestTests extends ESTestCase {
         ShardId shardId = new ShardId("test", "", 0);
         GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"body\": \"foo\"}"), null, null);
 
-        UpdateRequest request = new UpdateRequest("test", "1").fromXContent(
-            createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))
-        );
+        UpdateRequest request;
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))) {
+            request = new UpdateRequest("test", "1").fromXContent(parser);
+        }
 
         UpdateHelper.Result result = UpdateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
 
@@ -594,17 +616,18 @@ public class UpdateRequestTests extends ESTestCase {
         request.decRef();
         ((IndexRequest) result.action()).decRef();
 
-        // Change the request to be a different doc
-        request = new UpdateRequest("test", "1").fromXContent(
-            createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))
-        );
-        result = UpdateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))) {
+            // Change the request to be a different doc
+            request = new UpdateRequest("test", "1").fromXContent(parser);
+            result = UpdateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
 
-        assertThat(result.action(), instanceOf(IndexRequest.class));
-        assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
-        assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("bar"));
-        request.decRef();
-        ((IndexRequest) result.action()).decRef();
+            assertThat(result.action(), instanceOf(IndexRequest.class));
+            assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
+            assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("bar"));
+            request.decRef();
+            ((IndexRequest) result.action()).decRef();
+        }
+
     }
 
     public void testUpdateScript() throws Exception {
@@ -656,12 +679,12 @@ public class UpdateRequestTests extends ESTestCase {
             update {[test][1], doc_as_upsert[false], script[Script{type=inline, lang='mock', idOrCode='ctx._source.body = "foo"', \
             options={}, params={}}], scripted_upsert[false], detect_noop[true]}"""));
         request.decRef();
-        request = new UpdateRequest("test", "1").fromXContent(
-            createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))
-        );
-        assertThat(request.toString(), equalTo("""
-            update {[test][1], doc_as_upsert[false], doc[index {[null][null], source[{"body":"bar"}]}], \
-            scripted_upsert[false], detect_noop[true]}"""));
-        request.decRef();
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))) {
+            request = new UpdateRequest("test", "1").fromXContent(parser);
+            assertThat(request.toString(), equalTo("""
+                update {[test][1], doc_as_upsert[false], doc[index {[null][null], source[{"body":"bar"}]}], \
+                scripted_upsert[false], detect_noop[true]}"""));
+            request.decRef();
+        }
     }
 }

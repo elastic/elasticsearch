@@ -60,8 +60,10 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
@@ -72,8 +74,6 @@ import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPack
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
@@ -289,7 +289,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     .execute(ActionListener.wrap(stats -> {
                         IndexStats indexStats = stats.getIndices().get(InferenceIndexConstants.nativeDefinitionStore());
                         if (indexStats != null
-                            && indexStats.getTotal().getStore().getSizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
+                            && indexStats.getTotal().getStore().sizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
                             finalResponseListener.onFailure(
                                 new ElasticsearchStatusException(
                                     "Native model store has exceeded the maximum acceptable size of {}, "
@@ -583,24 +583,27 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         NamedXContentRegistry namedXContentRegistry,
         DeprecationHandler deprecationHandler
     ) throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-        XContentParser sourceParser = XContentType.JSON.xContent()
-            .createParser(
-                XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
-                BytesReference.bytes(xContentBuilder).streamInput()
-            );
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+            XContentParser sourceParser = XContentType.JSON.xContent()
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
+                    BytesReference.bytes(xContentBuilder).streamInput()
+                )
+        ) {
 
-        XContentParser.Token token = sourceParser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
-        token = sourceParser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
-        String currentName = sourceParser.currentName();
+            XContentParser.Token token = sourceParser.nextToken();
+            assert token == XContentParser.Token.START_OBJECT;
+            token = sourceParser.nextToken();
+            assert token == XContentParser.Token.FIELD_NAME;
+            String currentName = sourceParser.currentName();
 
-        InferenceConfig inferenceConfig = sourceParser.namedObject(LenientlyParsedInferenceConfig.class, currentName, null);
-        // consume the end object token
-        token = sourceParser.nextToken();
-        assert token == XContentParser.Token.END_OBJECT;
-        return inferenceConfig;
+            InferenceConfig inferenceConfig = sourceParser.namedObject(LenientlyParsedInferenceConfig.class, currentName, null);
+            // consume the end object token
+            token = sourceParser.nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
+            return inferenceConfig;
+        }
     }
 
 }

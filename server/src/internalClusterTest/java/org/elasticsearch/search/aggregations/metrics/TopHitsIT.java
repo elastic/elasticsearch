@@ -1002,11 +1002,11 @@ public class TopHitsIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("idx").addAggregation(
+            prepareSearch("idx").addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(topHits("hits").from(100).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)))
-            ).get()
+            )
         );
         assertThat(
             e.getCause().getMessage(),
@@ -1014,11 +1014,11 @@ public class TopHitsIT extends ESIntegTestCase {
         );
         e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("idx").addAggregation(
+            prepareSearch("idx").addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(topHits("hits").from(10).size(100).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)))
-            ).get()
+            )
         );
         assertThat(
             e.getCause().getMessage(),

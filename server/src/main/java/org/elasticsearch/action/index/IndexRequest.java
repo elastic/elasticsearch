@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -79,7 +81,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
         Releasable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_500_049;
+    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_500_061;
 
     /**
      * Max length of the source document to include into string()
@@ -163,11 +165,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
-        pipeline = in.readOptionalString();
+        pipeline = readPipelineName(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            finalPipeline = in.readOptionalString();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
+            finalPipeline = readPipelineName(in);
             isPipelineResolved = in.readBoolean();
         }
         isRetry = in.readBoolean();
@@ -214,6 +214,22 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest>
         super(NO_SHARD_ID);
         this.index = index;
         this.refCounted = LeakTracker.wrap(new IndexRequestRefCounted());
+    }
+
+    private static final StringLiteralDeduplicator pipelineNameDeduplicator = new StringLiteralDeduplicator();
+
+    // reads pipeline name from the stream and deduplicates it to save heap on large bulk requests
+    @Nullable
+    private static String readPipelineName(StreamInput in) throws IOException {
+        final String read = in.readOptionalString();
+        if (read == null) {
+            return null;
+        }
+        if (IngestService.NOOP_PIPELINE_NAME.equals(read)) {
+            // common path of no pipeline set
+            return IngestService.NOOP_PIPELINE_NAME;
+        }
+        return pipelineNameDeduplicator.deduplicate(read);
     }
 
     @Override

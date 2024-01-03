@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -35,8 +36,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
@@ -61,6 +62,7 @@ import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.ParsedScrollId;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -102,6 +104,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
@@ -111,7 +114,12 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1233,6 +1241,72 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testSearchPITAgainstIndex() {
+        RoleDescriptor role = new RoleDescriptor(
+            "search_index",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("test search user", role.getName()));
+
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
+
+        final ClusterState clusterState = mockMetadataWithIndex(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+
+        PointInTimeBuilder pit = new PointInTimeBuilder(createEncodedPIT(indexMetadata.getIndex()));
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(pit))
+            .allowPartialSearchResults(false);
+        final ShardSearchRequest shardRequest = new ShardSearchRequest(
+            new OriginalIndices(new String[] { indexName }, searchRequest.indicesOptions()),
+            searchRequest,
+            new ShardId(indexMetadata.getIndex(), 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            System.currentTimeMillis(),
+            null
+        );
+        this.setFakeOriginatingAction = false;
+        authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest, true, () -> {
+            verify(rolesStore).getRoles(Mockito.same(authentication), Mockito.any());
+            IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            // Successful search action authorization should set a parent authorization header.
+            assertThat(securityContext.getParentAuthorization().action(), equalTo(TransportSearchAction.TYPE.name()));
+            // Within the action handler, execute a child action (the query phase of search)
+            authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, false, () -> {
+                // This child action triggers a second interaction with the role store (which is cached)
+                verify(rolesStore, times(2)).getRoles(Mockito.same(authentication), Mockito.any());
+                // But it does not create a new IndicesAccessControl
+                assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
+                // The parent authorization header should only be present for direct child actions
+                // and not be carried over for a child of a child actions.
+                // Meaning, only query phase action should be pre-authorized in this case and potential sub-actions should not.
+                assertThat(securityContext.getParentAuthorization(), nullValue());
+            });
+        });
+        assertThat(searchRequest.indices().length, equalTo(0));
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(searchRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(SearchTransportService.QUERY_ACTION_NAME),
+            eq(shardRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testScrollRelatedRequestsAllowed() {
         RoleDescriptor role = new RoleDescriptor(
             "a_all",
@@ -2049,7 +2123,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         requests.add(
             new Tuple<>(
-                IndicesShardStoresAction.NAME,
+                TransportIndicesShardStoresAction.TYPE.name(),
                 new IndicesShardStoresRequest().indices(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
             )
         );
@@ -2132,7 +2206,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(new Tuple<>(RecoveryAction.NAME, new RecoveryRequest().indices(SECURITY_MAIN_ALIAS)));
         requests.add(new Tuple<>(IndicesSegmentsAction.NAME, new IndicesSegmentsRequest().indices(SECURITY_MAIN_ALIAS)));
         requests.add(new Tuple<>(GetSettingsAction.NAME, new GetSettingsRequest().indices(SECURITY_MAIN_ALIAS)));
-        requests.add(new Tuple<>(IndicesShardStoresAction.NAME, new IndicesShardStoresRequest().indices(SECURITY_MAIN_ALIAS)));
+        requests.add(
+            new Tuple<>(TransportIndicesShardStoresAction.TYPE.name(), new IndicesShardStoresRequest().indices(SECURITY_MAIN_ALIAS))
+        );
 
         for (final Tuple<String, ? extends TransportRequest> requestTuple : requests) {
             final String action = requestTuple.v1();
@@ -3575,6 +3651,26 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {
         return ArgumentMatchers.argThat(new RBACAuthorizationInfoRoleMatcher(expectedRoles));
+    }
+
+    private static class TestSearchPhaseResult extends SearchPhaseResult {
+        final DiscoveryNode node;
+
+        TestSearchPhaseResult(ShardSearchContextId contextId, DiscoveryNode node) {
+            this.contextId = contextId;
+            this.node = node;
+        }
+    }
+
+    private static String createEncodedPIT(Index index) {
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        TestSearchPhaseResult testSearchPhaseResult1 = new TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
+        testSearchPhaseResult1.setSearchShardTarget(
+            new SearchShardTarget("node_1", new ShardId(index.getName(), index.getUUID(), 0), null)
+        );
+        List<SearchPhaseResult> results = new ArrayList<>();
+        results.add(testSearchPhaseResult1);
+        return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current());
     }
 
     private static class RBACAuthorizationInfoRoleMatcher implements ArgumentMatcher<AuthorizationInfo> {

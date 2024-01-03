@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
@@ -18,7 +19,7 @@ import org.elasticsearch.core.Releasable;
 
 public class ThrowingDriverContext extends DriverContext {
     public ThrowingDriverContext() {
-        super(new ThrowingBigArrays(), BlockFactory.getNonBreakingInstance());
+        super(new ThrowingBigArrays(), BlockFactory.getInstance(new NoopCircuitBreaker("throwing-context"), new ThrowingBigArrays()));
     }
 
     @Override

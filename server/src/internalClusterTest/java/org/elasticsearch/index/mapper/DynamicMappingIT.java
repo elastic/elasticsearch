@@ -24,7 +24,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -190,10 +189,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
             });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar"));
         try {
             assertThat(
-                expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
+                expectThrows(IllegalArgumentException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
+                    .getMessage(),
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
         } finally {
@@ -226,9 +225,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
             });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
-            Exception e = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            Exception e = expectThrows(DocumentParsingException.class, prepareIndex("index").setId("2").setSource("field2", "value2"));
             assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(
@@ -273,7 +271,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             // introduction of a new object with 2 new sub-fields fails
             final IndexRequestBuilder indexRequestBuilder = prepareIndex("index1").setId("1")
                 .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
-            Exception exc = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            Exception exc = expectThrows(DocumentParsingException.class, indexRequestBuilder);
             indexRequestBuilder.request().decRef();
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));

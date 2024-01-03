@@ -307,11 +307,8 @@ public class UpdateIT extends ESIntegTestCase {
 
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         {
-            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1");
-            DocumentMissingException ex = expectThrows(
-                DocumentMissingException.class,
-                () -> updateRequestBuilder.setScript(fieldIncScript).get()
-            );
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1").setScript(fieldIncScript);
+            DocumentMissingException ex = expectThrows(DocumentMissingException.class, updateRequestBuilder);
             updateRequestBuilder.request().decRef();
             assertEquals("[1]: document missing", ex.getMessage());
         }
@@ -489,38 +486,29 @@ public class UpdateIT extends ESIntegTestCase {
         DocWriteResponse result = indexRequestBuilder.get();
         indexRequestBuilder.request().decRef();
         {
-            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1");
-            expectThrows(
-                VersionConflictEngineException.class,
-                () -> updateRequestBuilder.setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
-                    .setIfSeqNo(result.getSeqNo() + 1)
-                    .setIfPrimaryTerm(result.getPrimaryTerm())
-                    .get()
-            );
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo() + 1)
+                .setIfPrimaryTerm(result.getPrimaryTerm());
+            expectThrows(VersionConflictEngineException.class, updateRequestBuilder);
             updateRequestBuilder.request().decRef();
         }
 
         {
-            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1");
-            expectThrows(
-                VersionConflictEngineException.class,
-                () -> updateRequestBuilder.setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
-                    .setIfSeqNo(result.getSeqNo())
-                    .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
-                    .get()
-            );
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo())
+                .setIfPrimaryTerm(result.getPrimaryTerm() + 1);
+            expectThrows(VersionConflictEngineException.class, updateRequestBuilder);
             updateRequestBuilder.request().decRef();
         }
 
         {
-            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1");
-            expectThrows(
-                VersionConflictEngineException.class,
-                () -> updateRequestBuilder.setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
-                    .setIfSeqNo(result.getSeqNo() + 1)
-                    .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
-                    .get()
-            );
+            UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo() + 1)
+                .setIfPrimaryTerm(result.getPrimaryTerm() + 1);
+            expectThrows(VersionConflictEngineException.class, updateRequestBuilder);
             updateRequestBuilder.request().decRef();
         }
 

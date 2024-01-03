@@ -71,7 +71,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             ensureGreen("test");
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, true), "test");
             IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId("1").setSource("foo", "bar");
-            ClusterBlockException e = expectThrows(ClusterBlockException.class, indexRequestBuilder::get);
+            ClusterBlockException e = expectThrows(ClusterBlockException.class, indexRequestBuilder);
             indexRequestBuilder.request().decRef();
             assertEquals(
                 "index [test] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "

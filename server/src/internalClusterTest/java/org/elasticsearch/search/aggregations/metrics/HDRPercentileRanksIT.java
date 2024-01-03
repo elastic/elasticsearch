@@ -183,7 +183,6 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         .numberOfSignificantValueDigits(sigDigits)
                         .field("value")
                 )
-                .get()
         );
         assertThat(e.getMessage(), equalTo("[values] must not be null: [percentile_ranks]"));
     }
@@ -199,7 +198,6 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         .numberOfSignificantValueDigits(sigDigits)
                         .field("value")
                 )
-                .get()
         );
         assertThat(e.getMessage(), equalTo("[values] must not be an empty array: [percentile_ranks]"));
     }

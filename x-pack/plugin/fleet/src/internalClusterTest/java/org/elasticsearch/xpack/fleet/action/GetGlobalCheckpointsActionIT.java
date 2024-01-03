@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.fleet.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -73,7 +75,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         final int totalDocuments = shards * 3;
         for (int i = 0; i < totalDocuments; ++i) {
-            prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            indexEmptyDoc(indexName, Integer.toString(i));
         }
 
         final GetGlobalCheckpointsAction.Request request2 = new GetGlobalCheckpointsAction.Request(
@@ -117,7 +119,10 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         final int totalDocuments = between(25, 50);
         new Thread(() -> {
             for (int i = 0; i < totalDocuments; ++i) {
-                prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName);
+                indexRequestBuilder.setId(Integer.toString(i))
+                    .setSource("{}", XContentType.JSON)
+                    .execute(ActionListener.running(() -> indexRequestBuilder.request().decRef()));
             }
         }).start();
 
@@ -146,7 +151,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         final int totalDocuments = 30;
         for (int i = 0; i < totalDocuments; ++i) {
-            prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            indexEmptyDoc(indexName, Integer.toString(i));
         }
 
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
@@ -251,7 +256,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate(indexName)
             .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
-        prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+        indexEmptyDoc(indexName, Integer.toString(0));
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
@@ -328,7 +333,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         ActionFuture<GetGlobalCheckpointsAction.Response> future = client().execute(GetGlobalCheckpointsAction.INSTANCE, request);
         Thread.sleep(randomIntBetween(10, 100));
         updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", ""), indexName);
-        prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+        indexEmptyDoc(indexName, Integer.toString(0));
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
@@ -354,12 +359,22 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         Thread.sleep(randomIntBetween(10, 100));
 
         updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey()));
-        prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+        indexEmptyDoc(indexName, Integer.toString(0));
 
         var response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
         assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
         assertThat(response.globalCheckpoints()[0], equalTo(0L));
         assertFalse(response.timedOut());
+    }
+
+    private void indexEmptyDoc(String index, String id) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

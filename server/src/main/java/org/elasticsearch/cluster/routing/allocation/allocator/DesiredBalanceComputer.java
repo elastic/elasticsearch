@@ -257,6 +257,7 @@ public class DesiredBalanceComputer {
         final long computationStartedTime = threadPool.relativeTimeInMillis();
         long nextReportTime = computationStartedTime + timeWarningInterval;
 
+        clusterInfoSimulator.discardReservedSpace();
         int i = 0;
         boolean hasChanges = false;
         while (true) {
@@ -277,7 +278,7 @@ public class DesiredBalanceComputer {
             routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
             logger.trace("running delegate allocator");
             delegateAllocator.allocate(routingAllocation);
-            assert routingNodes.unassigned().size() == 0; // any unassigned shards should now be ignored
+            assert routingNodes.unassigned().isEmpty(); // any unassigned shards should now be ignored
 
             hasChanges = false;
             for (final var routingNode : routingNodes) {

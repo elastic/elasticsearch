@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -20,7 +19,6 @@ import org.junit.ClassRule;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103765")
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();

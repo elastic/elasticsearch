@@ -1279,6 +1279,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         latch.await();
         verify(mapperService, times(2)).merge(any(), any(CompressedXContent.class), any());
+        bulkShardRequest.decRef();
     }
 
     private IndexShard mockShard() {

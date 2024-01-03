@@ -148,8 +148,20 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
             return newQuery.boost(query.boost());
         } else if (qb instanceof QueryStringQueryBuilder query) {
+            // this overrides the empty fields as well as the default field logic in order to instead fill in all the
+            // allowed fields for API Key querying and nothing more
             if (query.fields().isEmpty()) {
-                query.fields().put("*", 1.0f);
+                if (query.defaultField() == null) {
+                    query.fields().put("*", 1.0f);
+                } else {
+                    for (String translatedFieldName : ApiKeyFieldNameTranslators.translatePattern(query.defaultField())) {
+                        query.fields().put(translatedFieldName, 1.0f);
+                    }
+                    query.defaultField(null);
+                }
+            }
+            if (query.defaultField() != null) {
+                throw new IllegalArgumentException("cannot use [fields] parameter in conjunction with [default_field]");
             }
             // "lenient=false" with "all_fields" wildcard will almost certainly return an error,
             // because index fields have different mappings, which makes parsing the same query
@@ -160,6 +172,8 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             translateFieldPatterns(query.fields());
             return query;
         } else if (qb instanceof SimpleQueryStringBuilder query) {
+            // this overrides the empty fields logic in order to expand the wildcard to only the allowed fields
+            // for API Key querying and nothing more
             if (query.fields().isEmpty()) {
                 query.fields().put("*", 1.0f);
             }

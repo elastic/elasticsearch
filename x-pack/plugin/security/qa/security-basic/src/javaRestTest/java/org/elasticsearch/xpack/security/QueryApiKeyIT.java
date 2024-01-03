@@ -359,6 +359,10 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         assertQueryError(authHeader, 400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
     }
 
+    public void testQueryStringQuery() {
+
+    }
+
     public void testExistsQuery() throws IOException, InterruptedException {
         final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
 

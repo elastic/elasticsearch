@@ -81,8 +81,6 @@ import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringUsageTransportAction;
-import co.elastic.elasticsearch.stateless.xpack.DummyProfilingInfoTransportAction;
-import co.elastic.elasticsearch.stateless.xpack.DummyProfilingUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyRollupInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyRollupUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
@@ -289,8 +287,6 @@ public class Stateless extends Plugin
             new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, DummyTransportGetRollupIndexCapsAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.UNIVERSAL_PROFILING, DummyProfilingInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.UNIVERSAL_PROFILING, DummyProfilingUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.WATCHER, DummyWatcherInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.WATCHER, DummyWatcherUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),

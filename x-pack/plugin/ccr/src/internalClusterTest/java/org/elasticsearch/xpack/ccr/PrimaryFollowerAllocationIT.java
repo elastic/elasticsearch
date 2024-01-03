@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -124,7 +125,9 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         ensureFollowerGreen(followerIndex);
         int numDocs = between(0, 20);
         for (int i = 0; i < numDocs; i++) {
-            leaderClient().prepareIndex(leaderIndex).setSource("f", i).get();
+            IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex(leaderIndex).setSource("f", i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         // Empty follower primaries must be assigned to nodes with the remote cluster client role
         assertBusy(() -> {
@@ -181,7 +184,9 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         }, 30, TimeUnit.SECONDS);
         int moreDocs = between(0, 20);
         for (int i = 0; i < moreDocs; i++) {
-            leaderClient().prepareIndex(leaderIndex).setSource("f", i).get();
+            IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex(leaderIndex).setSource("f", i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         assertIndexFullyReplicatedToFollower(leaderIndex, followerIndex);
     }

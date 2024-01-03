@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -76,7 +77,11 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             final String source = Strings.format("{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex("index1")
+                .setId(Integer.toString(i))
+                .setSource(source, XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), firstBatchNumDocs));
@@ -87,7 +92,9 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         final long secondBatchNumDocs = randomIntBetween(10, 200);
         logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
         for (int i = 0; i < secondBatchNumDocs; i++) {
-            leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         getLeaderCluster().fullRestart();
@@ -96,7 +103,9 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         final long thirdBatchNumDocs = randomIntBetween(10, 200);
         logger.info("Indexing [{}] docs as third batch", thirdBatchNumDocs);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
-            leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         var totalDocs = firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs;

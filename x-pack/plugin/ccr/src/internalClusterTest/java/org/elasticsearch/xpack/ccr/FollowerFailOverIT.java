@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -74,10 +75,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     }
                     if (frequently()) {
                         String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
-                        DocWriteResponse indexResponse = leaderClient().prepareIndex(leaderIndex)
-                            .setId(id)
-                            .setSource("{\"f\":" + id + "}", XContentType.JSON)
-                            .get();
+                        DocWriteResponse indexResponse = index(leaderIndex, id, "{\"f\":" + id + "}", XContentType.JSON, null);
                         logger.info("--> index {} id={} seq_no={}", leaderIndex, indexResponse.getId(), indexResponse.getSeqNo());
                     } else {
                         String id = Integer.toString(between(0, docID.get()));
@@ -141,10 +139,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 }
                 Object[] args = new Object[] { counter++ };
                 final String source = Strings.format("{\"f\":%d}", args);
-                DocWriteResponse indexResp = leaderClient().prepareIndex("index1")
-                    .setSource(source, XContentType.JSON)
-                    .setTimeout(TimeValue.timeValueSeconds(1))
-                    .get();
+                DocWriteResponse indexResp = index("index1", null, source, XContentType.JSON, TimeValue.timeValueSeconds(1));
                 logger.info("--> index id={} seq_no={}", indexResp.getId(), indexResp.getSeqNo());
             }
         });
@@ -192,10 +187,10 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 try {
                     if (appendOnly) {
                         String id = Integer.toString(docID.incrementAndGet());
-                        leaderClient().prepareIndex("leader-index").setId(id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        index("leader-index", id, "{\"f\":" + id + "}", XContentType.JSON, null);
                     } else if (frequently()) {
                         String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 100));
-                        leaderClient().prepareIndex("leader-index").setId(id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        index("leader-index", id, "{\"f\":" + id + "}", XContentType.JSON, null);
                     } else {
                         String id = Integer.toString(between(0, docID.get()));
                         leaderClient().prepareDelete("leader-index", id).get();
@@ -289,12 +284,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 assertNotNull(mapper);
                 assertNotNull(mapper.mappers().getMapper("balance"));
             });
-            DocWriteResponse indexResp = leaderCluster.client()
-                .prepareIndex("leader-index")
-                .setId("1")
-                .setSource("{\"balance\": 100}", XContentType.JSON)
-                .setTimeout(TimeValue.ZERO)
-                .get();
+            DocWriteResponse indexResp = index("leader-index", "1", "{\"balance\": 100}", XContentType.JSON, TimeValue.ZERO);
             assertThat(indexResp.getResult(), equalTo(DocWriteResponse.Result.CREATED));
             assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(0L));
             // Make sure at least one read-request which requires mapping sync is completed.
@@ -311,6 +301,19 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         } finally {
             latch.countDown(); // no effect if latch was counted down - this makes sure teardown can make progress.
             pauseFollow("follower-index");
+        }
+    }
+
+    private DocWriteResponse index(String index, String id, String source, XContentType contentType, TimeValue timeout) {
+        IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex(index);
+        try {
+            indexRequestBuilder.setId(id).setSource(source, contentType);
+            if (timeout != null) {
+                indexRequestBuilder.setTimeout(timeout);
+            }
+            return indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
         }
     }
 }

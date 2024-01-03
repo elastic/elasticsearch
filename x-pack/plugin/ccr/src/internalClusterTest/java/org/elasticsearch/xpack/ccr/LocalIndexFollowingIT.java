@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,7 +49,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            prepareIndex("leader").setSource("{}", XContentType.JSON).get();
+            indexEmptyDoc("leader");
         }
 
         final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
@@ -58,7 +59,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < secondBatchNumDocs; i++) {
-            prepareIndex("leader").setSource("{}", XContentType.JSON).get();
+            indexEmptyDoc("leader");
         }
 
         assertBusy(() -> assertHitCount(client().prepareSearch("follower"), firstBatchNumDocs + secondBatchNumDocs));
@@ -68,7 +69,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
-            prepareIndex("leader").setSource("{}", XContentType.JSON).get();
+            indexEmptyDoc("leader");
         }
 
         client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
@@ -88,7 +89,9 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         for (int i = 0; i < firstBatchNumDocs; i++) {
             BytesArray source = new BytesArray("{}");
             sourceSize += source.length();
-            prepareIndex("leader").setSource(source, XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("leader").setSource(source, XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         ThreadPool nodeThreadPool = getInstanceFromNode(ThreadPool.class);
@@ -150,7 +153,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
         createIndex("logs-20200101", leaderIndexSettings);
-        prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
+        indexEmptyDoc("logs-20200101");
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
             assertThat(
@@ -169,7 +172,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         // This new index should be picked up by auto follow coordinator
         createIndex("logs-20200102", leaderIndexSettings);
         // This new document should be replicated to follower index:
-        prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
+        indexEmptyDoc("logs-20200101");
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
             assertThat(
@@ -194,7 +197,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         ensureGreen("index-1");
         int numDocs = between(1, 100);
         for (int i = 0; i < numDocs; i++) {
-            prepareIndex("index-1").setSource("{}", XContentType.JSON).get();
+            indexEmptyDoc("index-1");
         }
         client().execute(PutFollowAction.INSTANCE, getPutFollowRequest("index-1", "index-2")).get();
         assertBusy(() -> assertHitCount(client().prepareSearch("index-2"), numDocs));
@@ -208,7 +211,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             newDocs = numDocs + randomIntBetween(1, 100);
         }
         for (int i = 0; i < newDocs; i++) {
-            prepareIndex("index-0").setSource("{}", XContentType.JSON).get();
+            indexEmptyDoc("index-0");
         }
         if (randomBoolean()) {
             client().admin().indices().prepareFlush("index-0").get();
@@ -253,6 +256,16 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             settings = BytesReference.bytes(builder).utf8ToString();
         }
         return settings;
+    }
+
+    private void indexEmptyDoc(String index) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            indexRequestBuilder.setSource("{}", XContentType.JSON);
+            indexRequestBuilder.get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 
 }

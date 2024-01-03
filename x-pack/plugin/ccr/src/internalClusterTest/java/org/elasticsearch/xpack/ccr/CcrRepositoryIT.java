@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -217,7 +218,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             final String source = Strings.format("{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex("index1")
+                .setId(Integer.toString(i))
+                .setSource(source, XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -284,7 +289,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             final String source = Strings.format("{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex("index1")
+                .setId(Integer.toString(i))
+                .setSource(source, XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -349,7 +358,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             final String source = Strings.format("{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            IndexRequestBuilder indexRequestBuilder = leaderClient().prepareIndex("index1")
+                .setId(Integer.toString(i))
+                .setSource(source, XContentType.JSON);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
 
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -501,7 +514,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         if (numDocs > 0) {
             try (BulkRequestBuilder bulkRequest = leaderClient().prepareBulk(leaderIndex)) {
                 for (int i = 0; i < numDocs; i++) {
-                    bulkRequest.add(new IndexRequest(leaderIndex).id(Integer.toString(i)).source("field", i));
+                    IndexRequest indexRequest = new IndexRequest(leaderIndex).id(Integer.toString(i)).source("field", i);
+                    bulkRequest.add(indexRequest);
+                    indexRequest.decRef();
                 }
                 assertThat(bulkRequest.get().hasFailures(), is(false));
             }

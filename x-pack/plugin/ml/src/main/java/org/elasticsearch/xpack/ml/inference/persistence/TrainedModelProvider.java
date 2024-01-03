@@ -201,31 +201,36 @@ public class TrainedModelProvider {
             trainedModelConfig,
             allowOverwriting
         );
-        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try {
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            TransportIndexAction.TYPE,
-            request,
-            ActionListener.wrap(indexResponse -> listener.onResponse(true), e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    listener.onFailure(
-                        new ResourceAlreadyExistsException(
-                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())
-                        )
-                    );
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        )
-                    );
-                }
-            })
-        );
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                request,
+                ActionListener.runAfter(ActionListener.wrap(indexResponse -> listener.onResponse(true), e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(
+                            new ResourceAlreadyExistsException(
+                                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())
+                            )
+                        );
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                    }
+                }), request::decRef)
+            );
+        } catch (Exception e) {
+            request.decRef();
+            throw e;
+        }
     }
 
     public void storeTrainedModelDefinitionDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc, ActionListener<Void> listener) {
@@ -252,29 +257,38 @@ public class TrainedModelProvider {
             listener.onFailure(new ResourceAlreadyExistsException(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, modelId)));
             return;
         }
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            TransportIndexAction.TYPE,
-            createRequest(VocabularyConfig.docId(modelId), vocabularyConfig.getIndex(), vocabulary, allowOverwriting).setRefreshPolicy(
-                WriteRequest.RefreshPolicy.IMMEDIATE
-            ),
-            ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    listener.onFailure(
-                        new ResourceAlreadyExistsException(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_VOCAB_EXISTS, modelId))
-                    );
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL_VOCAB, modelId),
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        )
-                    );
-                }
-            })
-        );
+        IndexRequest indexRequest = createRequest(
+            VocabularyConfig.docId(modelId),
+            vocabularyConfig.getIndex(),
+            vocabulary,
+            allowOverwriting
+        ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try {
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(
+                            new ResourceAlreadyExistsException(Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_VOCAB_EXISTS, modelId))
+                        );
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL_VOCAB, modelId),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                    }
+                }), indexRequest::decRef)
+            );
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
     public void storeTrainedModelDefinitionDoc(
@@ -300,37 +314,43 @@ public class TrainedModelProvider {
             return;
         }
 
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            TransportIndexAction.TYPE,
-            createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc, allowOverwriting),
-            ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    listener.onFailure(
-                        new ResourceAlreadyExistsException(
-                            Messages.getMessage(
-                                Messages.INFERENCE_TRAINED_MODEL_DOC_EXISTS,
-                                trainedModelDefinitionDoc.getModelId(),
-                                trainedModelDefinitionDoc.getDocNum()
+        IndexRequest indexRequest = createRequest(trainedModelDefinitionDoc.getDocId(), index, trainedModelDefinitionDoc, allowOverwriting);
+        try {
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(
+                            new ResourceAlreadyExistsException(
+                                Messages.getMessage(
+                                    Messages.INFERENCE_TRAINED_MODEL_DOC_EXISTS,
+                                    trainedModelDefinitionDoc.getModelId(),
+                                    trainedModelDefinitionDoc.getDocNum()
+                                )
                             )
-                        )
-                    );
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            Messages.getMessage(
-                                Messages.INFERENCE_FAILED_TO_STORE_MODEL_DEFINITION,
-                                trainedModelDefinitionDoc.getModelId(),
-                                trainedModelDefinitionDoc.getDocNum()
-                            ),
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        )
-                    );
-                }
-            })
-        );
+                        );
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(
+                                    Messages.INFERENCE_FAILED_TO_STORE_MODEL_DEFINITION,
+                                    trainedModelDefinitionDoc.getModelId(),
+                                    trainedModelDefinitionDoc.getDocNum()
+                                ),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                    }
+                }), indexRequest::decRef)
+            );
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
     public void storeTrainedModelMetadata(TrainedModelMetadata trainedModelMetadata, ActionListener<Void> listener) {
@@ -350,34 +370,40 @@ public class TrainedModelProvider {
             );
             return;
         }
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            TransportIndexAction.TYPE,
-            createRequest(
-                trainedModelMetadata.getDocId(),
-                InferenceIndexConstants.LATEST_INDEX_NAME,
-                trainedModelMetadata,
-                allowOverwriting
-            ),
-            ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    listener.onFailure(
-                        new ResourceAlreadyExistsException(
-                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_METADATA_EXISTS, trainedModelMetadata.getModelId())
-                        )
-                    );
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA, trainedModelMetadata.getModelId()),
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        )
-                    );
-                }
-            })
+        IndexRequest indexRequest = createRequest(
+            trainedModelMetadata.getDocId(),
+            InferenceIndexConstants.LATEST_INDEX_NAME,
+            trainedModelMetadata,
+            allowOverwriting
         );
+        try {
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportIndexAction.TYPE,
+                indexRequest,
+                ActionListener.runAfter(ActionListener.wrap(indexResponse -> listener.onResponse(null), e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(
+                            new ResourceAlreadyExistsException(
+                                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_METADATA_EXISTS, trainedModelMetadata.getModelId())
+                            )
+                        );
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA, trainedModelMetadata.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                    }
+                }), indexRequest::decRef)
+            );
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
     public void getTrainedModelMetadata(
@@ -473,64 +499,80 @@ public class TrainedModelProvider {
             return;
         }
 
-        BulkRequestBuilder bulkRequest = client.prepareBulk(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(createRequest(trainedModelConfig.getModelId(), trainedModelConfig, allowOverwriting));
-        trainedModelDefinitionDocs.forEach(defDoc -> bulkRequest.add(createRequest(defDoc.getDocId(), defDoc, allowOverwriting)));
+        IndexRequest indexRequest = createRequest(trainedModelConfig.getModelId(), trainedModelConfig, allowOverwriting);
+        try {
+            BulkRequestBuilder bulkRequest = client.prepareBulk(InferenceIndexConstants.LATEST_INDEX_NAME);
+            try {
+                bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).add(indexRequest);
+                trainedModelDefinitionDocs.forEach(defDoc -> {
+                    IndexRequest indexRequest1 = createRequest(defDoc.getDocId(), defDoc, allowOverwriting);
+                    try {
+                        bulkRequest.add(indexRequest1);
+                    } finally {
+                        indexRequest1.decRef();
+                    }
+                });
 
-        ActionListener<Boolean> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                listener.onFailure(
-                    new ResourceAlreadyExistsException(
-                        Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())
-                    )
+                ActionListener<Boolean> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(
+                            new ResourceAlreadyExistsException(
+                                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())
+                            )
+                        );
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                    }
+                });
+
+                ActionListener<BulkResponse> bulkResponseActionListener = ActionListener.wrap(r -> {
+                    assert r.getItems().length == trainedModelDefinitionDocs.size() + 1;
+                    if (r.getItems()[0].isFailed()) {
+                        logger.error(
+                            () -> "[" + trainedModelConfig.getModelId() + "] failed to store trained model config for inference",
+                            r.getItems()[0].getFailure().getCause()
+                        );
+
+                        wrappedListener.onFailure(r.getItems()[0].getFailure().getCause());
+                        return;
+                    }
+                    if (r.hasFailures()) {
+                        Exception firstFailure = Arrays.stream(r.getItems())
+                            .filter(BulkItemResponse::isFailed)
+                            .map(BulkItemResponse::getFailure)
+                            .map(BulkItemResponse.Failure::getCause)
+                            .findFirst()
+                            .orElse(new Exception("unknown failure"));
+                        logger.error(
+                            () -> format("[%s] failed to store trained model definition for inference", trainedModelConfig.getModelId()),
+                            firstFailure
+                        );
+                        wrappedListener.onFailure(firstFailure);
+                        return;
+                    }
+                    wrappedListener.onResponse(true);
+                }, wrappedListener::onFailure);
+
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    BulkAction.INSTANCE,
+                    bulkRequest.request(),
+                    ActionListener.releaseAfter(bulkResponseActionListener, bulkRequest)
                 );
-            } else {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        e
-                    )
-                );
+            } catch (Exception e) {
+                bulkRequest.close();
+                throw e;
             }
-        });
-
-        ActionListener<BulkResponse> bulkResponseActionListener = ActionListener.wrap(r -> {
-            assert r.getItems().length == trainedModelDefinitionDocs.size() + 1;
-            if (r.getItems()[0].isFailed()) {
-                logger.error(
-                    () -> "[" + trainedModelConfig.getModelId() + "] failed to store trained model config for inference",
-                    r.getItems()[0].getFailure().getCause()
-                );
-
-                wrappedListener.onFailure(r.getItems()[0].getFailure().getCause());
-                return;
-            }
-            if (r.hasFailures()) {
-                Exception firstFailure = Arrays.stream(r.getItems())
-                    .filter(BulkItemResponse::isFailed)
-                    .map(BulkItemResponse::getFailure)
-                    .map(BulkItemResponse.Failure::getCause)
-                    .findFirst()
-                    .orElse(new Exception("unknown failure"));
-                logger.error(
-                    () -> format("[%s] failed to store trained model definition for inference", trainedModelConfig.getModelId()),
-                    firstFailure
-                );
-                wrappedListener.onFailure(firstFailure);
-                return;
-            }
-            wrappedListener.onResponse(true);
-        }, wrappedListener::onFailure);
-
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            BulkAction.INSTANCE,
-            bulkRequest.request(),
-            ActionListener.releaseAfter(bulkResponseActionListener, bulkRequest)
-        );
+        } finally {
+            indexRequest.decRef();
+        }
     }
 
     /**
@@ -1371,11 +1413,23 @@ public class TrainedModelProvider {
     }
 
     private static IndexRequest createRequest(String docId, String index, ToXContentObject body, boolean allowOverwriting) {
-        return createRequest(new IndexRequest(index), docId, body, allowOverwriting);
+        IndexRequest indexRequest = new IndexRequest(index);
+        try {
+            return createRequest(indexRequest, docId, body, allowOverwriting);
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
     private static IndexRequest createRequest(String docId, ToXContentObject body, boolean allowOverwriting) {
-        return createRequest(new IndexRequest(), docId, body, allowOverwriting);
+        IndexRequest indexRequest = new IndexRequest();
+        try {
+            return createRequest(indexRequest, docId, body, allowOverwriting);
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
     private static IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body, boolean allowOverwriting) {

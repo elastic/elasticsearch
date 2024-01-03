@@ -100,7 +100,12 @@ class DataFrameRowsJoiner implements AutoCloseable {
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
                 checkChecksumsMatch(row, result);
-                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row.getHit()));
+                IndexRequest indexRequest = createIndexRequest(result, row.getHit());
+                try {
+                    bulkIndexer.addAndExecuteIfNeeded(indexRequest);
+                } finally {
+                    indexRequest.decRef();
+                }
             }
         }
 
@@ -132,11 +137,16 @@ class DataFrameRowsJoiner implements AutoCloseable {
         Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
         source.putAll(result.getResults());
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());
-        indexRequest.id(hit.getId());
-        indexRequest.source(source);
-        indexRequest.opType(DocWriteRequest.OpType.INDEX);
-        indexRequest.setParentTask(parentTaskId);
-        return indexRequest;
+        try {
+            indexRequest.id(hit.getId());
+            indexRequest.source(source);
+            indexRequest.opType(DocWriteRequest.OpType.INDEX);
+            indexRequest.setParentTask(parentTaskId);
+            return indexRequest;
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
     @Override

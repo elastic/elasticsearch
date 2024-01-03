@@ -195,7 +195,12 @@ public class InferenceRunner {
                 for (SearchHit doc : batch) {
                     dataCountsTracker.incrementTestDocsCount();
                     InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc));
-                    bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
+                    IndexRequest indexRequest = createIndexRequest(doc, inferenceResults, config.getDest().getResultsField());
+                    try {
+                        bulkIndexer.addAndExecuteIfNeeded(indexRequest);
+                    } finally {
+                        indexRequest.decRef();
+                    }
 
                     processedDocCount++;
                     int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
@@ -227,11 +232,16 @@ public class InferenceRunner {
         Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
         source.put(resultField, resultsMap);
         IndexRequest indexRequest = new IndexRequest(hit.getIndex());
-        indexRequest.id(hit.getId());
-        indexRequest.source(source);
-        indexRequest.opType(DocWriteRequest.OpType.INDEX);
-        indexRequest.setParentTask(parentTaskId);
-        return indexRequest;
+        try {
+            indexRequest.id(hit.getId());
+            indexRequest.source(source);
+            indexRequest.opType(DocWriteRequest.OpType.INDEX);
+            indexRequest.setParentTask(parentTaskId);
+            return indexRequest;
+        } catch (Exception e) {
+            indexRequest.decRef();
+            throw e;
+        }
     }
 
     private void executeBulkRequest(BulkRequest bulkRequest) {

@@ -236,6 +236,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         inOrder.verify(client, times(3)).threadPool();
         inOrder.verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
+        bulkBuilder.executeRequest(); // clean up by clearing out any remaining requests
     }
 
     public void testPersistTimingStats() {

@@ -211,7 +211,13 @@ public class TrainedModelStatsService {
         }
         String jobPattern = "";
         try (BulkRequest bulkRequest = new BulkRequest()) {
-            stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
+            stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(updateRequest -> {
+                try {
+                    bulkRequest.add(updateRequest);
+                } finally {
+                    updateRequest.decRef();
+                }
+            });
             bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             if (bulkRequest.requests().isEmpty()) {
                 return;
@@ -285,15 +291,20 @@ public class TrainedModelStatsService {
             params.put(InferenceStats.CACHE_MISS_COUNT.getPreferredName(), stats.getCacheMissCount());
             stats.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
             UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.upsert(builder)
-                .index(MlStatsIndex.writeAlias())
-                // Usually, there shouldn't be a conflict, but if there is, only around a single update should have happened
-                // out of band. If there is MANY more than that, something strange is happening and it should fail.
-                .retryOnConflict(3)
-                .id(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
-                .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params))
-                .setRequireAlias(true);
-            return updateRequest;
+            try {
+                updateRequest.upsert(builder)
+                    .index(MlStatsIndex.writeAlias())
+                    // Usually, there shouldn't be a conflict, but if there is, only around a single update should have happened
+                    // out of band. If there is MANY more than that, something strange is happening and it should fail.
+                    .retryOnConflict(3)
+                    .id(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
+                    .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params))
+                    .setRequireAlias(true);
+                return updateRequest;
+            } catch (Exception e) {
+                updateRequest.decRef();
+                throw e;
+            }
         } catch (IOException ex) {
             logger.error(() -> format("[%s] [%s] failed to serialize stats for update.", stats.getModelId(), stats.getNodeId()), ex);
         }

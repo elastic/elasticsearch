@@ -94,7 +94,12 @@ public class AnnotationPersister {
         public Builder persistAnnotation(@Nullable String annotationId, Annotation annotation) {
             Objects.requireNonNull(annotation);
             try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-                bulkRequest.add(new IndexRequest().id(annotationId).source(xContentBuilder).setRequireAlias(true));
+                IndexRequest indexRequest = new IndexRequest();
+                try {
+                    bulkRequest.add(indexRequest.id(annotationId).source(xContentBuilder).setRequireAlias(true));
+                } finally {
+                    indexRequest.decRef();
+                }
             } catch (IOException e) {
                 logger.error(() -> "[" + jobId + "] Error serialising annotation", e);
             }

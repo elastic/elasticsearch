@@ -76,7 +76,14 @@ public class JobRenormalizedResultsPersister implements Releasable {
 
     public void updateResult(String id, String index, ToXContent resultDoc) {
         try (XContentBuilder content = toXContentBuilder(resultDoc)) {
-            bulkRequest.add(new IndexRequest(index).id(id).source(content));
+            IndexRequest indexRequest = new IndexRequest(index);
+            try {
+                indexRequest.id(id).source(content);
+                bulkRequest.add(indexRequest);
+            } finally {
+                indexRequest.decRef();
+            }
+
         } catch (IOException e) {
             logger.error(() -> "[" + jobId + "] Error serialising result", e);
         }

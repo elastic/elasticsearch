@@ -254,15 +254,26 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 return;
             }
 
-            IndexRequest indexRequest = new IndexRequest(indexOrAlias).id(progressDocId)
-                .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-                LOGGER.debug(() -> format("[%s] Persisting progress is: %s", jobId, progress));
-                storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
-                indexRequest.source(jsonBuilder);
+            IndexRequest indexRequest = new IndexRequest(indexOrAlias).id(progressDocId);
+            try {
+                indexRequest.setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+                    LOGGER.debug(() -> format("[%s] Persisting progress is: %s", jobId, progress));
+                    storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
+                    indexRequest.source(jsonBuilder);
+                }
+                executeAsyncWithOrigin(
+                    clientToUse,
+                    ML_ORIGIN,
+                    TransportIndexAction.TYPE,
+                    indexRequest,
+                    ActionListener.runAfter(indexProgressDocListener, indexRequest::decRef)
+                );
+            } catch (Exception e) {
+                indexRequest.decRef();
+                throw e;
             }
-            executeAsyncWithOrigin(clientToUse, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, indexProgressDocListener);
         }, e -> {
             LOGGER.error(
                 () -> format("[%s] cannot persist progress as an error occurred while retrieving former progress document", jobId),

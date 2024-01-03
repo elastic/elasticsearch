@@ -337,7 +337,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
             : List.of(new RestTestLegacyFeatures());
 
-        return new TestFeatureService(
+        return new ESRestTestFeatureService(
             hasHistoricalFeaturesInformation,
             providers,
             semanticNodeVersions,
@@ -721,8 +721,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "logs@lifecycle",
             "metrics",
             "metrics@lifecycle",
-            "profiling",
-            "profiling@lifecycle",
+            "profiling-60-days",
+            "profiling-60-days@lifecycle",
             "synthetics",
             "synthetics@lifecycle",
             "7-days-default",

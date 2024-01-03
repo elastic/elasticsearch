@@ -8,9 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.ClusterInfo.NodeAndPath;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
-import org.elasticsearch.cluster.ClusterInfo.ReservedSpace;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
@@ -19,7 +17,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -35,42 +32,14 @@ public class ClusterInfoSimulator {
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<NodeAndShard, String> dataPath;
-    private Map<NodeAndPath, ReservedSpace> reservedSpace;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
-        this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation.clusterInfo(), ClusterInfo::getNodeLeastAvailableDiskUsages);
-        this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation.clusterInfo(), ClusterInfo::getNodeMostAvailableDiskUsages);
+        this.leastAvailableSpaceUsage = new HashMap<>(allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
+        this.mostAvailableSpaceUsage = new HashMap<>(allocation.clusterInfo().getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.shardDataSetSizes = Map.copyOf(allocation.clusterInfo().shardDataSetSizes);
         this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
-        this.reservedSpace = Map.copyOf(allocation.clusterInfo().reservedSpace);
-    }
-
-    /**
-     * This adds the reserved space to the actual disk usage
-     * as all initializing shards are going to be started during simulation.
-     */
-    private static Map<String, DiskUsage> getAdjustedDiskSpace(
-        ClusterInfo clusterInfo,
-        Function<ClusterInfo, Map<String, DiskUsage>> getter
-    ) {
-        var availableSpaceUsage = new HashMap<>(getter.apply(clusterInfo));
-        for (var entry : availableSpaceUsage.entrySet()) {
-            var diskUsage = entry.getValue();
-            var reservedSpace = clusterInfo.getReservedSpace(diskUsage.nodeId(), diskUsage.path());
-            if (reservedSpace != ReservedSpace.EMPTY) {
-                entry.setValue(updateWithFreeBytes(diskUsage, -reservedSpace.total()));
-            }
-        }
-        return availableSpaceUsage;
-    }
-
-    /**
-     * Must be called all shards that are in progress of initializations are processed
-     */
-    public void discardReservedSpace() {
-        reservedSpace = Map.of();
     }
 
     /**
@@ -125,10 +94,6 @@ public class ClusterInfoSimulator {
     }
 
     private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, ShardId shardId, long freeDelta) {
-        if (reservedSpace.getOrDefault(new NodeAndPath(nodeId, path), ReservedSpace.EMPTY).containsShardId(shardId) && freeDelta < 0) {
-            // space is already reserved and accounted for
-            return;
-        }
         var usage = availableSpaceUsage.get(nodeId);
         if (usage != null && Objects.equals(usage.getPath(), path)) {
             // ensure new value is within bounds

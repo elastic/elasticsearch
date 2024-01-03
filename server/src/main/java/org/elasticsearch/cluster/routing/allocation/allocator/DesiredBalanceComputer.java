@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -231,9 +230,6 @@ public class DesiredBalanceComputer {
                 }
             }
         }
-
-        assert routingNodes.stream().mapToLong(node -> node.numberOfShardsWithState(ShardRoutingState.INITIALIZING)).sum() == 0;
-        clusterInfoSimulator.discardReservedSpace();
 
         List<MoveAllocationCommand> commands;
         while ((commands = pendingDesiredBalanceMoves.poll()) != null) {

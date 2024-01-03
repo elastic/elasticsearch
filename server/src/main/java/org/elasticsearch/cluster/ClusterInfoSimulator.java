@@ -111,8 +111,8 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private void modifyDiskUsage(String nodeId, ShardId shardId, long delta) {
-        if (delta == 0) {
+    private void modifyDiskUsage(String nodeId, ShardId shardId, long freeDelta) {
+        if (freeDelta == 0) {
             return;
         }
         var diskUsage = mostAvailableSpaceUsage.get(nodeId);
@@ -120,19 +120,19 @@ public class ClusterInfoSimulator {
             return;
         }
         var path = diskUsage.getPath();
-        updateDiskUsage(leastAvailableSpaceUsage, nodeId, path, shardId, delta);
-        updateDiskUsage(mostAvailableSpaceUsage, nodeId, path, shardId, delta);
+        updateDiskUsage(leastAvailableSpaceUsage, nodeId, path, shardId, freeDelta);
+        updateDiskUsage(mostAvailableSpaceUsage, nodeId, path, shardId, freeDelta);
     }
 
-    private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, ShardId shardId, long delta) {
-        if (reservedSpace.getOrDefault(new NodeAndPath(nodeId, path), ReservedSpace.EMPTY).containsShardId(shardId)) {
+    private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, ShardId shardId, long freeDelta) {
+        if (reservedSpace.getOrDefault(new NodeAndPath(nodeId, path), ReservedSpace.EMPTY).containsShardId(shardId) && freeDelta < 0) {
             // space is already reserved and accounted for
             return;
         }
         var usage = availableSpaceUsage.get(nodeId);
         if (usage != null && Objects.equals(usage.getPath(), path)) {
             // ensure new value is within bounds
-            availableSpaceUsage.put(nodeId, updateWithFreeBytes(usage, delta));
+            availableSpaceUsage.put(nodeId, updateWithFreeBytes(usage, freeDelta));
         }
     }
 

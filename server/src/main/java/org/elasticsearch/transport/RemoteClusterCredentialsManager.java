@@ -25,7 +25,7 @@ public class RemoteClusterCredentialsManager {
 
     private volatile Map<String, SecureString> clusterCredentials;
 
-    @SuppressWarnings("this-escape") // TODO-MP remove prior to opening non-draft PR
+    @SuppressWarnings("this-escape")
     public RemoteClusterCredentialsManager(Settings settings) {
         updateClusterCredentials(settings);
     }

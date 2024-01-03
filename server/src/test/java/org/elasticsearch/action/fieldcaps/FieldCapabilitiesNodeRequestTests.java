@@ -53,7 +53,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             indexFilter,
             nowInMillis,
             runtimeFields,
-            true // TODO-MP: check this
+            true
         );
     }
 
@@ -95,7 +95,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) {
-        switch (random().nextInt(7)) {
+        switch (random().nextInt(8)) {
             case 0 -> {
                 List<ShardId> shardIds = randomShardIds(instance.shardIds().size() + 1);
                 return new FieldCapabilitiesNodeRequest(
@@ -107,7 +107,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true // TODO-MP: check this
+                    true
                 );
             }
             case 1 -> {
@@ -121,7 +121,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true // TODO-MP: check this
+                    true
                 );
             }
             case 2 -> {
@@ -135,7 +135,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true // TODO-MP: check this
+                    true
                 );
             }
             case 3 -> {
@@ -149,7 +149,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     indexFilter,
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true // TODO-MP: check this
+                    true
                 );
             }
             case 4 -> {
@@ -163,7 +163,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     nowInMillis,
                     instance.runtimeFields(),
-                    true // TODO-MP: check this
+                    true
                 );
             }
             case 5 -> {
@@ -179,7 +179,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     runtimeFields,
-                    true // TODO-MP: check this
+                    true
                 );
             }
             case 6 -> {
@@ -193,7 +193,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true // TODO-MP: check this
+                    true
                 );
             }
             case 7 -> {
@@ -207,10 +207,23 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true // TODO-MP: check this
+                    true
                 );
             }
-            default -> throw new IllegalStateException("The test should only allow 7 parameters mutated");
+            case 8 -> {
+                return new FieldCapabilitiesNodeRequest(
+                    instance.shardIds(),
+                    instance.fields(),
+                    instance.filters(),
+                    instance.allowedTypes(),
+                    instance.originalIndices(),
+                    instance.indexFilter(),
+                    instance.nowInMillis(),
+                    instance.runtimeFields(),
+                    false
+                );
+            }
+            default -> throw new IllegalStateException("The test should only allow 8 parameters mutated");
         }
     }
 
@@ -224,9 +237,12 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             null,
             randomNonNegativeLong(),
             Map.of(),
-            true // TODO-MP: check this
+            true
         );
-        assertThat(r1.getDescription(), equalTo("shards[[index-1][0],[index-2][3]], fields[field-1,field-2], filters[], types[]"));
+        assertThat(
+            r1.getDescription(),
+            equalTo("shards[[index-1][0],[index-2][3]], fields[field-1,field-2], filters[], types[], includeFieldsWithNoValue[true]")
+        );
 
         FieldCapabilitiesNodeRequest r2 = new FieldCapabilitiesNodeRequest(
             List.of(new ShardId("index-1", "n/a", 0)),
@@ -237,8 +253,11 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             null,
             randomNonNegativeLong(),
             Map.of(),
-            true // TODO-MP: check this
+            false
         );
-        assertThat(r2.getDescription(), equalTo("shards[[index-1][0]], fields[*], filters[-nested,-metadata], types[]"));
+        assertThat(
+            r2.getDescription(),
+            equalTo("shards[[index-1][0]], fields[*], filters[-nested,-metadata], types[], includeFieldsWithNoValue[false]")
+        );
     }
 }

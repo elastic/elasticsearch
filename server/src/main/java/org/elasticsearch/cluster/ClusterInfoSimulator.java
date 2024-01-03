@@ -53,7 +53,6 @@ public class ClusterInfoSimulator {
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
-        var shardId = shard.shardId();
         var size = getExpectedShardSize(
             shard,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
@@ -65,12 +64,12 @@ public class ClusterInfoSimulator {
         if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {
                 // relocation
-                modifyDiskUsage(shard.relocatingNodeId(), shardId, size);
-                modifyDiskUsage(shard.currentNodeId(), shardId, -size);
+                modifyDiskUsage(shard.relocatingNodeId(), size);
+                modifyDiskUsage(shard.currentNodeId(), -size);
             } else {
                 // new shard
                 if (shouldReserveSpaceForInitializingShard(shard, allocation.metadata())) {
-                    modifyDiskUsage(shard.currentNodeId(), shardId, -size);
+                    modifyDiskUsage(shard.currentNodeId(), -size);
                 }
                 shardSizes.put(
                     shardIdentifierFromRouting(shard),
@@ -80,7 +79,7 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private void modifyDiskUsage(String nodeId, ShardId shardId, long freeDelta) {
+    private void modifyDiskUsage(String nodeId, long freeDelta) {
         if (freeDelta == 0) {
             return;
         }
@@ -89,11 +88,11 @@ public class ClusterInfoSimulator {
             return;
         }
         var path = diskUsage.getPath();
-        updateDiskUsage(leastAvailableSpaceUsage, nodeId, path, shardId, freeDelta);
-        updateDiskUsage(mostAvailableSpaceUsage, nodeId, path, shardId, freeDelta);
+        updateDiskUsage(leastAvailableSpaceUsage, nodeId, path, freeDelta);
+        updateDiskUsage(mostAvailableSpaceUsage, nodeId, path, freeDelta);
     }
 
-    private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, ShardId shardId, long freeDelta) {
+    private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, long freeDelta) {
         var usage = availableSpaceUsage.get(nodeId);
         if (usage != null && Objects.equals(usage.getPath(), path)) {
             // ensure new value is within bounds

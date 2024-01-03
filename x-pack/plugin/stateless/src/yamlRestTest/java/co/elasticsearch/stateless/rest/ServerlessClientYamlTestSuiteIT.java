@@ -60,7 +60,12 @@ public class ServerlessClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @Override
+    protected Settings getGlobalTemplateSettings(boolean defaultShardsFeature) {
+        // Temporary workaround to let serverless compile with main repo changes
+        List<String> features = defaultShardsFeature ? List.of("default_shards") : List.of();
+        return this.getGlobalTemplateSettings(features);
+    }
+
     protected Settings getGlobalTemplateSettings(List<String> features) {
         final Settings defaultSettings = super.getGlobalTemplateSettings(features);
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(defaultSettings), lessThanOrEqualTo(1));

@@ -281,16 +281,14 @@ public abstract class IndexRouting {
 
         private Builder hashSource(XContentType sourceType, BytesReference source) {
             Builder b = builder();
-            try {
-                try (XContentParser parser = sourceType.xContent().createParser(parserConfig, source.streamInput())) {
-                    parser.nextToken(); // Move to first token
-                    if (parser.currentToken() == null) {
-                        throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
-                    }
-                    parser.nextToken();
-                    b.extractObject(null, parser);
-                    ensureExpectedToken(null, parser.nextToken(), parser);
+            try (XContentParser parser = sourceType.xContent().createParser(parserConfig, source.streamInput())) {
+                parser.nextToken(); // Move to first token
+                if (parser.currentToken() == null) {
+                    throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
                 }
+                parser.nextToken();
+                b.extractObject(null, parser);
+                ensureExpectedToken(null, parser.nextToken(), parser);
             } catch (IOException | ParsingException e) {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }
@@ -335,6 +333,10 @@ public abstract class IndexRouting {
                         source.nextToken();
                         break;
                     case VALUE_NULL:
+                        source.nextToken();
+                        break;
+                    case VALUE_NUMBER: // allow parsing numbers assuming routing fields are always keyword fields
+                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
                         source.nextToken();
                         break;
                     default:

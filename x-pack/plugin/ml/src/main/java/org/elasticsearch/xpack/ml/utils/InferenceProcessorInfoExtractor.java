@@ -21,8 +21,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.inference.InferenceResults.MODEL_ID_RESULTS_FIELD;
 import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.MODEL_ID_RESULTS_FIELD;
 import static org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor.TYPE;
 
 /**

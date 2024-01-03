@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -20,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
@@ -56,9 +58,14 @@ public final class TransportActionProxy {
             wrappedRequest.setParentTask(taskId);
             service.sendRequest(targetNode, action, wrappedRequest, new TransportResponseHandler<>() {
                 @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(TransportResponse response) {
                     try {
-                        response.incRef();
+                        response.mustIncRef();
                         channel.sendResponse(response);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -182,7 +189,7 @@ public final class TransportActionProxy {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
             getProxyAction(action),
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
             false,
             in -> cancellable

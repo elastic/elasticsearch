@@ -81,7 +81,7 @@ public final class TimeSeriesParams {
             TIME_SERIES_METRIC_PARAM,
             false,
             initializer,
-            null,
+            (MetricType) null,
             MetricType.class,
             acceptedValues
         ).acceptsNull();

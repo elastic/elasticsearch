@@ -8,12 +8,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
 
@@ -721,7 +721,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     private static IndexMetadata.Builder indexBuilder(String index, boolean hidden) {
         return IndexMetadata.builder(index)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), hidden));
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), hidden));
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {

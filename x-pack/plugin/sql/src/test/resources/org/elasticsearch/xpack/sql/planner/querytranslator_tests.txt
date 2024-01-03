@@ -350,6 +350,21 @@ SELECT * FROM test WHERE some.string LIKE '%a%';
 "query":{"wildcard":{"some.string.typical":{"wildcard":"*a*",
 ;
 
+LikeOnInexactWithOR
+SELECT * FROM test WHERE some.string LIKE '%a%' OR some.string LIKE '%b%' OR some.string LIKE '%c%';
+{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*a*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*b*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*c*","boost":1.0}}}],"boost":1.0}}
+;
+
+LikeOnInexactWithORandAND
+SELECT * FROM test WHERE some.string LIKE '%a%' OR some.string LIKE '%b%' AND some.string LIKE '%c%' OR some.string LIKE '%d%' OR some.string LIKE '%e%';
+{"bool":{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*a*","boost":1.0}}},{"bool":{"must":[{"wildcard":{"some.string.typical":{"wildcard":"*b*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*c*","boost":1.0}}}],"boost":1.0}},{"wildcard":{"some.string.typical":{"wildcard":"*d*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*e*","boost":1.0}}}],"boost":1.0}}
+;
+
+LikeOnInexactWithANDandGroupedOR
+SELECT * FROM test WHERE (some.string LIKE '%a%' OR some.string LIKE '%b%') AND (some.string LIKE '%c%' OR some.string LIKE '%d%' OR some.string LIKE '%e%');
+{"bool":{"must":[{"bool":{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*a*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*b*","boost":1.0}}}],"boost":1.0}},{"bool":{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*c*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*d*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*e*","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+;
+
 RLikeOnInexact
 SELECT * FROM test WHERE some.string RLIKE '.*a.*';
 "query":{"regexp":{"some.string.typical":{"value":".*a.*",

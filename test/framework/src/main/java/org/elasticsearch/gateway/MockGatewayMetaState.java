@@ -8,13 +8,14 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -50,9 +51,14 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+    ClusterState prepareInitialClusterState(
+        TransportService transportService,
+        ClusterService clusterService,
+        ClusterState clusterState,
+        CompatibilityVersions compatibilityVersions
+    ) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
-        return ClusterStateUpdaters.setLocalNode(clusterState, localNode, TransportVersion.CURRENT);
+        return ClusterStateUpdaters.setLocalNode(clusterState, localNode, compatibilityVersions);
     }
 
     public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
@@ -81,7 +87,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
             ),
-            List.of()
+            List.of(),
+            CompatibilityVersionsUtils.staticCurrent()
         );
     }
 }

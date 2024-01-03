@@ -114,13 +114,13 @@ public class GrokProcessorTests extends ESTestCase {
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
-        assertThat(doc, equalTo(originalDoc));
+        assertIngestDocument(doc, originalDoc);
     }
 
     public void testNullField() {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        doc.setFieldValue(fieldName, null);
+        doc.setFieldValue(fieldName, (Object) null);
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
@@ -138,7 +138,7 @@ public class GrokProcessorTests extends ESTestCase {
     public void testNullFieldWithIgnoreMissing() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        originalIngestDocument.setFieldValue(fieldName, null);
+        originalIngestDocument.setFieldValue(fieldName, (Object) null);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),

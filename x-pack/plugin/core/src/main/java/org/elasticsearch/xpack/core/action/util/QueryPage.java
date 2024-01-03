@@ -43,7 +43,7 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
 
     public QueryPage(StreamInput in, Reader<T> hitReader) throws IOException {
         resultsField = new ParseField(in.readString());
-        results = in.readList(hitReader);
+        results = in.readCollectionAsList(hitReader);
         count = in.readLong();
     }
 
@@ -54,7 +54,7 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(resultsField.getPreferredName());
-        out.writeList(results);
+        out.writeCollection(results);
         out.writeLong(count);
     }
 

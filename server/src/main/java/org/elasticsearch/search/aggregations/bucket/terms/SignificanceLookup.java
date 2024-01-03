@@ -223,7 +223,7 @@ class SignificanceLookup {
             // for types that use the inverted index, we prefer using a terms
             // enum that will do a better job at reusing index inputs
             Term term = ((TermQuery) query).getTerm();
-            TermsEnum termsEnum = getTermsEnum(term.field());
+            TermsEnum termsEnum = getTermsEnum();
             if (termsEnum.seekExact(term.bytes())) {
                 return termsEnum.docFreq();
             }
@@ -233,10 +233,11 @@ class SignificanceLookup {
         if (backgroundFilter != null) {
             query = new BooleanQuery.Builder().add(query, Occur.FILTER).add(backgroundFilter, Occur.FILTER).build();
         }
-        return context.searcher().count(query);
+        // use a brand new index searcher as we want to run this query on the current thread
+        return new IndexSearcher(context.searcher().getIndexReader()).count(query);
     }
 
-    private TermsEnum getTermsEnum(String field) throws IOException {
+    private TermsEnum getTermsEnum() throws IOException {
         // TODO this method helps because of asMultiBucketAggregator. Once we remove it we can move this logic into the aggregators.
         if (termsEnum != null) {
             return termsEnum;

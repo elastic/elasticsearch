@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -130,9 +130,9 @@ public final class DatafeedManager {
 
                 ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
                     if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name());
                     } else {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name(), RollupSearchAction.NAME);
                     }
                     if (indices.length == 0) {
                         privResponseListener.onResponse(new HasPrivilegesResponse());
@@ -142,7 +142,7 @@ public final class DatafeedManager {
                     }
                 }, e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        indicesPrivilegesBuilder.privileges(TransportSearchAction.TYPE.name());
                         privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                         client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                     } else {
@@ -239,7 +239,8 @@ public final class DatafeedManager {
             client,
             state,
             request.masterNodeTimeout(),
-            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure)
+            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }
 
@@ -271,7 +272,7 @@ public final class DatafeedManager {
 
     }
 
-    private PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
+    private static PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.getDatafeedTask(datafeedId, tasks);
     }
@@ -332,7 +333,8 @@ public final class DatafeedManager {
                 client,
                 clusterState,
                 request.masterNodeTimeout(),
-                ActionListener.wrap(mappingsUpdated, listener::onFailure)
+                ActionListener.wrap(mappingsUpdated, listener::onFailure),
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             );
         };
 

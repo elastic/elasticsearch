@@ -8,17 +8,18 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -48,7 +49,13 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
         JobResultsProvider jobResultsProvider,
         JobManager jobManager
     ) {
-        super(DeleteCalendarEventAction.NAME, transportService, actionFilters, DeleteCalendarEventAction.Request::new);
+        super(
+            DeleteCalendarEventAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteCalendarEventAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
@@ -60,7 +67,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(calendar -> {
             GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), eventId);
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
                 if (getResponse.isExists() == false) {
                     listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                     return;
@@ -108,7 +115,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
         DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.indexName(), eventId);
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest, new ActionListener<DeleteResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportDeleteAction.TYPE, deleteRequest, new ActionListener<DeleteResponse>() {
             @Override
             public void onResponse(DeleteResponse response) {
 
@@ -117,7 +124,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                 } else {
                     jobManager.updateProcessOnCalendarChanged(
                         calendar.getJobIds(),
-                        ActionListener.wrap(r -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, r) -> l.onResponse(AcknowledgedResponse.TRUE))
                     );
                 }
             }

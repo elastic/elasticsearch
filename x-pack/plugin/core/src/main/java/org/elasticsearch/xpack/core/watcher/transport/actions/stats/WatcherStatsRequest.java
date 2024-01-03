@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,13 +25,6 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
     public WatcherStatsRequest() {
         super((String[]) null);
-    }
-
-    public WatcherStatsRequest(StreamInput in) throws IOException {
-        super(in);
-        includeCurrentWatches = in.readBoolean();
-        includeQueuedWatches = in.readBoolean();
-        includeStats = in.readBoolean();
     }
 
     public boolean includeCurrentWatches() {
@@ -59,16 +52,8 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(includeCurrentWatches);
-        out.writeBoolean(includeQueuedWatches);
-        out.writeBoolean(includeStats);
+        TransportAction.localOnly();
     }
 
     @Override

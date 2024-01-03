@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -43,11 +42,6 @@ public abstract class DenseVectorDocValuesField extends AbstractScriptFieldFacto
     @Override
     public int size() {
         return isEmpty() ? 0 : 1;
-    }
-
-    @Override
-    public BytesRef getInternal(int index) {
-        throw new UnsupportedOperationException();
     }
 
     /**

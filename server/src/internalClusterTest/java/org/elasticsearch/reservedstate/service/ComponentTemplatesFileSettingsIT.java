@@ -402,10 +402,9 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).actionGet();
 
         Map<String, ComposableIndexTemplate> allTemplates = clusterStateResponse.getState().metadata().templatesV2();
 
@@ -417,14 +416,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1")).actionGet()
+                client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1"))
             ).getMessage().contains("[[component_template:component_template1] set as read-only by [file_settings]]")
         );
 
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1")).actionGet()
+                client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1"))
             ).getMessage().contains("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
     }
@@ -486,8 +485,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_other"))
-                    .actionGet()
+                client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_other"))
             ).getMessage()
                 .contains(
                     "with errors: [[component_template:runtime_component_template, "
@@ -502,14 +500,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1")).actionGet()
+                client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1"))
             ).getMessage().contains("[[component_template:component_template1] set as read-only by [file_settings]]")
         );
 
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1")).actionGet()
+                client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1"))
             ).getMessage().contains("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
     }

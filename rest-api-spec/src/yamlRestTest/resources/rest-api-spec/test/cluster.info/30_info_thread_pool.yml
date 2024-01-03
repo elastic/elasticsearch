@@ -1,0 +1,159 @@
+---
+"Cluster HTTP Info":
+  - skip:
+      version: " - 8.8.99"
+      reason: "/_info/thread_pool only available from v8.9"
+
+  - do:
+      cluster.info:
+        target: [ thread_pool ]
+
+  - is_true: cluster_name
+  - is_true: thread_pool
+
+  - gte: { thread_pool.analyze.threads: 0 }
+  - gte: { thread_pool.analyze.queue: 0 }
+  - gte: { thread_pool.analyze.active: 0 }
+  - gte: { thread_pool.analyze.rejected: 0 }
+  - gte: { thread_pool.analyze.largest: 0 }
+  - gte: { thread_pool.analyze.completed: 0 }
+
+  - gte: { thread_pool.auto_complete.threads: 0 }
+  - gte: { thread_pool.auto_complete.queue: 0 }
+  - gte: { thread_pool.auto_complete.active: 0 }
+  - gte: { thread_pool.auto_complete.rejected: 0 }
+  - gte: { thread_pool.auto_complete.largest: 0 }
+  - gte: { thread_pool.auto_complete.completed: 0 }
+
+  - gte: { thread_pool.cluster_coordination.threads: 0 }
+  - gte: { thread_pool.cluster_coordination.queue: 0 }
+  - gte: { thread_pool.cluster_coordination.active: 0 }
+  - gte: { thread_pool.cluster_coordination.rejected: 0 }
+  - gte: { thread_pool.cluster_coordination.largest: 0 }
+  - gte: { thread_pool.cluster_coordination.completed: 0 }
+
+  - gte: { thread_pool.fetch_shard_store.threads: 0 }
+  - gte: { thread_pool.fetch_shard_store.queue: 0 }
+  - gte: { thread_pool.fetch_shard_store.active: 0 }
+  - gte: { thread_pool.fetch_shard_store.rejected: 0 }
+  - gte: { thread_pool.fetch_shard_store.largest: 0 }
+  - gte: { thread_pool.fetch_shard_store.completed: 0 }
+
+  - gte: { thread_pool.flush.threads: 0 }
+  - gte: { thread_pool.flush.queue: 0 }
+  - gte: { thread_pool.flush.active: 0 }
+  - gte: { thread_pool.flush.rejected: 0 }
+  - gte: { thread_pool.flush.largest: 0 }
+  - gte: { thread_pool.flush.completed: 0 }
+
+  - gte: { thread_pool.force_merge.threads: 0 }
+  - gte: { thread_pool.force_merge.queue: 0 }
+  - gte: { thread_pool.force_merge.active: 0 }
+  - gte: { thread_pool.force_merge.rejected: 0 }
+  - gte: { thread_pool.force_merge.largest: 0 }
+  - gte: { thread_pool.force_merge.completed: 0 }
+
+  - gte: { thread_pool.generic.threads: 0 }
+  - gte: { thread_pool.generic.queue: 0 }
+  - gte: { thread_pool.generic.active: 0 }
+  - gte: { thread_pool.generic.rejected: 0 }
+  - gte: { thread_pool.generic.largest: 0 }
+  - gte: { thread_pool.generic.completed: 0 }
+
+  - gte: { thread_pool.get.threads: 0 }
+  - gte: { thread_pool.get.queue: 0 }
+  - gte: { thread_pool.get.active: 0 }
+  - gte: { thread_pool.get.rejected: 0 }
+  - gte: { thread_pool.get.largest: 0 }
+  - gte: { thread_pool.get.completed: 0 }
+
+  - gte: { thread_pool.management.threads: 0 }
+  - gte: { thread_pool.management.queue: 0 }
+  - gte: { thread_pool.management.active: 0 }
+  - gte: { thread_pool.management.rejected: 0 }
+  - gte: { thread_pool.management.largest: 0 }
+  - gte: { thread_pool.management.completed: 0 }
+
+  - gte: { thread_pool.refresh.threads: 0 }
+  - gte: { thread_pool.refresh.queue: 0 }
+  - gte: { thread_pool.refresh.active: 0 }
+  - gte: { thread_pool.refresh.rejected: 0 }
+  - gte: { thread_pool.refresh.largest: 0 }
+  - gte: { thread_pool.refresh.completed: 0 }
+
+  - gte: { thread_pool.search.threads: 0 }
+  - gte: { thread_pool.search.queue: 0 }
+  - gte: { thread_pool.search.active: 0 }
+  - gte: { thread_pool.search.rejected: 0 }
+  - gte: { thread_pool.search.largest: 0 }
+  - gte: { thread_pool.search.completed: 0 }
+
+  - gte: { thread_pool.search_coordination.threads: 0 }
+  - gte: { thread_pool.search_coordination.queue: 0 }
+  - gte: { thread_pool.search_coordination.active: 0 }
+  - gte: { thread_pool.search_coordination.rejected: 0 }
+  - gte: { thread_pool.search_coordination.largest: 0 }
+  - gte: { thread_pool.search_coordination.completed: 0 }
+
+  - gte: { thread_pool.search_throttled.threads: 0 }
+  - gte: { thread_pool.search_throttled.queue: 0 }
+  - gte: { thread_pool.search_throttled.active: 0 }
+  - gte: { thread_pool.search_throttled.rejected: 0 }
+  - gte: { thread_pool.search_throttled.largest: 0 }
+  - gte: { thread_pool.search_throttled.completed: 0 }
+
+  - gte: { thread_pool.snapshot.threads: 0 }
+  - gte: { thread_pool.snapshot.queue: 0 }
+  - gte: { thread_pool.snapshot.active: 0 }
+  - gte: { thread_pool.snapshot.rejected: 0 }
+  - gte: { thread_pool.snapshot.largest: 0 }
+  - gte: { thread_pool.snapshot.completed: 0 }
+
+  - gte: { thread_pool.snapshot_meta.threads: 0 }
+  - gte: { thread_pool.snapshot_meta.queue: 0 }
+  - gte: { thread_pool.snapshot_meta.active: 0 }
+  - gte: { thread_pool.snapshot_meta.rejected: 0 }
+  - gte: { thread_pool.snapshot_meta.largest: 0 }
+  - gte: { thread_pool.snapshot_meta.completed: 0 }
+
+  - gte: { thread_pool.system_critical_read.threads: 0 }
+  - gte: { thread_pool.system_critical_read.queue: 0 }
+  - gte: { thread_pool.system_critical_read.active: 0 }
+  - gte: { thread_pool.system_critical_read.rejected: 0 }
+  - gte: { thread_pool.system_critical_read.largest: 0 }
+  - gte: { thread_pool.system_critical_read.completed: 0 }
+
+  - gte: { thread_pool.system_critical_write.threads: 0 }
+  - gte: { thread_pool.system_critical_write.queue: 0 }
+  - gte: { thread_pool.system_critical_write.active: 0 }
+  - gte: { thread_pool.system_critical_write.rejected: 0 }
+  - gte: { thread_pool.system_critical_write.largest: 0 }
+  - gte: { thread_pool.system_critical_write.completed: 0 }
+
+  - gte: { thread_pool.system_read.threads: 0 }
+  - gte: { thread_pool.system_read.queue: 0 }
+  - gte: { thread_pool.system_read.active: 0 }
+  - gte: { thread_pool.system_read.rejected: 0 }
+  - gte: { thread_pool.system_read.largest: 0 }
+  - gte: { thread_pool.system_read.completed: 0 }
+
+  - gte: { thread_pool.system_write.threads: 0 }
+  - gte: { thread_pool.system_write.queue: 0 }
+  - gte: { thread_pool.system_write.active: 0 }
+  - gte: { thread_pool.system_write.rejected: 0 }
+  - gte: { thread_pool.system_write.largest: 0 }
+  - gte: { thread_pool.system_write.completed: 0 }
+
+  - gte: { thread_pool.warmer.threads: 0 }
+  - gte: { thread_pool.warmer.queue: 0 }
+  - gte: { thread_pool.warmer.active: 0 }
+  - gte: { thread_pool.warmer.rejected: 0 }
+  - gte: { thread_pool.warmer.largest: 0 }
+  - gte: { thread_pool.warmer.completed: 0 }
+
+  - gte: { thread_pool.write.threads: 0 }
+  - gte: { thread_pool.write.queue: 0 }
+  - gte: { thread_pool.write.active: 0 }
+  - gte: { thread_pool.write.rejected: 0 }
+  - gte: { thread_pool.write.largest: 0 }
+  - gte: { thread_pool.write.completed: 0 }

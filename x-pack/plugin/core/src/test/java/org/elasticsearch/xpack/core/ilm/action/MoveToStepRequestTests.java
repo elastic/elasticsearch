@@ -41,11 +41,6 @@ public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request mutateInstance(Request request) {
         String indexName = request.getIndex();
         StepKey currentStepKey = request.getCurrentStepKey();

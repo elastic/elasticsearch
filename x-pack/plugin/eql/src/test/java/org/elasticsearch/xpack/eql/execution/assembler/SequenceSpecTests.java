@@ -11,11 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,9 +48,9 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class SequenceSpecTests extends ESTestCase {
 
@@ -135,6 +134,7 @@ public class SequenceSpecTests extends ESTestCase {
                 tsExtractor,
                 tbExtractor,
                 implicitTbExtractor,
+                false,
                 false
             );
             this.ordinal = ordinal;
@@ -220,9 +220,10 @@ public class SequenceSpecTests extends ESTestCase {
                 new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                 0.0f
             );
-            SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-            SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
-            l.onResponse(s);
+            ActionListener.respondAndRelease(
+                l,
+                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
+            );
         }
 
         @Override
@@ -266,13 +267,20 @@ public class SequenceSpecTests extends ESTestCase {
         }
 
         // convert the results through a test specific payload
-        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
+        SequenceMatcher matcher = new SequenceMatcher(
+            stages,
+            false,
+            TimeValue.MINUS_ONE,
+            null,
+            booleanArrayOf(stages, false),
+            NOOP_CIRCUIT_BREAKER
+        );
 
         QueryClient testClient = new TestQueryClient();
-        TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);
+        TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher, Collections.emptyList());
 
         // finally make the assertion at the end of the listener
-        window.execute(wrap(this::checkResults, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
+        window.execute(ActionTestUtils.assertNoFailureListener(this::checkResults));
     }
 
     private void checkResults(Payload payload) {

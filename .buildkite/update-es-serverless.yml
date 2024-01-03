@@ -1,8 +1,4 @@
 steps:
-  - trigger: elasticsearch-serverless
-    label: ":elasticsearch: Run serverless tests"
-    build:
-      message: "Elasticsearch submodule update build"
-      env:
-        ELASTICSEARCH_SUBMODULE_COMMIT: "${BUILDKITE_COMMIT}"
+  - label: ":git: Trigger submodule update build"
+    command: ".buildkite/scripts/update-serverless-submodule.sh"
 

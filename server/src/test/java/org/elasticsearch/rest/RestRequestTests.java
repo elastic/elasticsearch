@@ -31,8 +31,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.RESPONSE_RESTRICTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -201,6 +203,17 @@ public class RestRequestTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Invalid media-type value on headers [Content-Type]"));
     }
 
+    public void testInvalidMediaTypeCharacter() {
+        List<String> headers = List.of("a/b[", "a/b]", "a/b\\");
+        for (String header : headers) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestRequest.parseContentType(Collections.singletonList(header))
+            );
+            assertThat(e.getMessage(), equalTo("invalid Content-Type header [" + header + "]"));
+        }
+    }
+
     public void testNoContentTypeHeader() {
         RestRequest contentRestRequest = contentRestRequest("", Collections.emptyMap(), Collections.emptyMap());
         assertNull(contentRestRequest.getXContentType());
@@ -234,6 +247,22 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("request body is required", e.getMessage());
         e = expectThrows(IllegalStateException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
         assertEquals("unknown content type", e.getMessage());
+    }
+
+    public void testMarkResponseRestricted() {
+        RestRequest request1 = contentRestRequest("content", new HashMap<>());
+        request1.markResponseRestricted("foo");
+        assertEquals(request1.param(RESPONSE_RESTRICTED), "foo");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request1.markResponseRestricted("foo"));
+        assertThat(exception.getMessage(), is("The parameter [" + RESPONSE_RESTRICTED + "] is already defined."));
+
+        RestRequest request2 = contentRestRequest("content", new HashMap<>() {
+            {
+                put(RESPONSE_RESTRICTED, "foo");
+            }
+        });
+        exception = expectThrows(IllegalArgumentException.class, () -> request2.markResponseRestricted("bar"));
+        assertThat(exception.getMessage(), is("The parameter [" + RESPONSE_RESTRICTED + "] is already defined."));
     }
 
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {

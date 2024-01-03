@@ -9,10 +9,12 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -77,12 +79,13 @@ public class RestThreadPoolAction extends AbstractCatAction {
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
                 nodesInfoRequest.clear()
-                    .addMetrics(NodesInfoRequest.Metric.PROCESS.metricName(), NodesInfoRequest.Metric.THREAD_POOL.metricName());
+                    .addMetrics(NodesInfoMetrics.Metric.PROCESS.metricName(), NodesInfoMetrics.Metric.THREAD_POOL.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName());
+                        nodesStatsRequest.setIncludeShardsStats(false);
+                        nodesStatsRequest.clear().addMetric(NodesStatsRequestParameters.Metric.THREAD_POOL.metricName());
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -140,7 +143,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
         final Set<String> candidates = new HashSet<>();
         for (final NodeStats nodeStats : nodesStats.getNodes()) {
             for (final ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
-                candidates.add(threadPoolStats.getName());
+                candidates.add(threadPoolStats.name());
             }
         }
 
@@ -169,7 +172,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
                 ThreadPoolStats threadPoolStats = stats.getThreadPool();
                 for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
-                    poolThreadStats.put(threadPoolStat.getName(), threadPoolStat);
+                    poolThreadStats.put(threadPoolStat.name(), threadPoolStat);
                 }
                 if (info != null) {
                     for (ThreadPool.Info threadPoolInfo : info.getInfo(ThreadPoolInfo.class)) {
@@ -222,13 +225,13 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
                 table.addCell(entry.getKey());
                 table.addCell(poolInfo == null ? null : poolInfo.getThreadPoolType().getType());
-                table.addCell(poolStats == null ? null : poolStats.getActive());
-                table.addCell(poolStats == null ? null : poolStats.getThreads());
-                table.addCell(poolStats == null ? null : poolStats.getQueue());
+                table.addCell(poolStats == null ? null : poolStats.active());
+                table.addCell(poolStats == null ? null : poolStats.threads());
+                table.addCell(poolStats == null ? null : poolStats.queue());
                 table.addCell(maxQueueSize == null ? -1 : maxQueueSize);
-                table.addCell(poolStats == null ? null : poolStats.getRejected());
-                table.addCell(poolStats == null ? null : poolStats.getLargest());
-                table.addCell(poolStats == null ? null : poolStats.getCompleted());
+                table.addCell(poolStats == null ? null : poolStats.rejected());
+                table.addCell(poolStats == null ? null : poolStats.largest());
+                table.addCell(poolStats == null ? null : poolStats.completed());
                 table.addCell(core);
                 table.addCell(max);
                 table.addCell(size);

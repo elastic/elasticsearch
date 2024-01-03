@@ -20,6 +20,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -29,9 +30,9 @@ import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
-public class TransportRankEvalActionTests extends ESTestCase {
+public final class TransportRankEvalActionTests extends ESTestCase {
 
-    private Settings settings = Settings.builder()
+    private final Settings settings = Settings.builder()
         .put("path.home", createTempDir().toString())
         .put("node.name", "test-" + getTestName())
         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -74,10 +75,11 @@ public class TransportRankEvalActionTests extends ESTestCase {
             }
         };
 
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         TransportRankEvalAction action = new TransportRankEvalAction(
             mock(ActionFilters.class),
             client,
-            mock(TransportService.class),
+            transportService,
             mock(ScriptService.class),
             NamedXContentRegistry.EMPTY
         );

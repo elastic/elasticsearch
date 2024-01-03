@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
@@ -63,7 +63,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
     private IndexMetadata getIndexMetadata(String alias) {
         return IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(alias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -97,7 +97,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
     public void testPerformActionOnDataStream() throws Exception {
         String dataStreamName = "test-datastream";
         IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -119,13 +119,13 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
     public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() throws Exception {
         String dataStreamName = "test-datastream";
         IndexMetadata firstGenerationIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         IndexMetadata writeIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -162,7 +162,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(alias))
             .settings(
-                settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
                     .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true)
             )
             .numberOfShards(randomIntBetween(1, 5))
@@ -179,7 +179,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         String rolloverAlias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(rolloverAlias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
+            .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
             .putRolloverInfo(
                 new RolloverInfo(
                     rolloverAlias,
@@ -230,7 +230,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
     public void testPerformActionInvalidNullOrEmptyAlias() {
         String alias = randomBoolean() ? "" : null;
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -258,7 +258,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
     public void testPerformActionAliasDoesNotPointToIndex() {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(IndexVersion.current()).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();

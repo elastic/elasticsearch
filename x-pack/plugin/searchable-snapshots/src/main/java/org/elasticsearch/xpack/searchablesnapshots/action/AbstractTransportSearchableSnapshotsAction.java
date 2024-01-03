@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
 
@@ -51,7 +52,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver resolver,
         Writeable.Reader<Request> request,
-        String executor,
+        Executor executor,
         IndicesService indicesService,
         XPackLicenseState licenseState
     ) {
@@ -67,7 +68,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver resolver,
         Writeable.Reader<Request> request,
-        String executor,
+        Executor executor,
         IndicesService indicesService,
         XPackLicenseState licenseState,
         boolean canTripCircuitBreaker

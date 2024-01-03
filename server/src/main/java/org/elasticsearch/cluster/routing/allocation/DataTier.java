@@ -142,23 +142,6 @@ public class DataTier {
         return res;
     }
 
-    /**
-     * Returns true iff the given settings have a data tier setting configured
-     */
-    public static boolean isExplicitDataTier(Settings settings) {
-        /*
-         * This method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is
-         * initialized. We do not want to trigger initialization prematurely because that will bake
-         *  the default roles before plugins have had a chance to register them. Therefore,
-         * to avoid initializing this setting prematurely, we avoid using the actual node roles
-         * setting instance here in favor of the string.
-         */
-        if (settings.hasValue("node.roles")) {
-            return settings.getAsList("node.roles").stream().anyMatch(DataTier::validTierName);
-        }
-        return false;
-    }
-
     public static boolean isContentNode(DiscoveryNode discoveryNode) {
         return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE)
             || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);

@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -17,6 +15,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -57,8 +56,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 public class TestSearchContext extends SearchContext {
-    public static final SearchShardTarget SHARD_TARGET = new SearchShardTarget("test", new ShardId("test", "test", 0), null);
-
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final IndexShard indexShard;
@@ -73,7 +70,6 @@ public class TestSearchContext extends SearchContext {
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     RankShardContext rankShardContext;
-    CollectorManager<Collector, Void> aggCollectorManager;
     ContextIndexSearcher searcher;
     int from;
     int size;
@@ -218,11 +214,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public boolean sourceRequested() {
-        return false;
-    }
-
-    @Override
-    public boolean hasFetchSourceContext() {
         return false;
     }
 
@@ -462,16 +453,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public int[] docIdsToLoad() {
-        return new int[0];
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        return null;
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return null;
     }
@@ -527,16 +508,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
-        return aggCollectorManager;
-    }
-
-    @Override
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collector) {
-        this.aggCollectorManager = collector;
-    }
-
-    @Override
     public SearchExecutionContext getSearchExecutionContext() {
         return searchExecutionContext;
     }
@@ -579,5 +550,10 @@ public class TestSearchContext extends SearchContext {
     @Override
     public SourceLoader newSourceLoader() {
         return searchExecutionContext.newSourceLoader(false);
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
+        throw new UnsupportedOperationException();
     }
 }

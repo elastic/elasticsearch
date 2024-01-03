@@ -42,9 +42,9 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     TransportVerifyShardBeforeCloseAction.ShardRequest,
     ReplicationResponse> {
 
-    public static final String NAME = CloseIndexAction.NAME + "[s]";
+    public static final String NAME = TransportCloseIndexAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
-    protected Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(TransportVerifyShardBeforeCloseAction.class);
 
     @Inject
     public TransportVerifyShardBeforeCloseAction(
@@ -67,7 +67,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             actionFilters,
             ShardRequest::new,
             ShardRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -83,7 +83,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         final ActionListener<Releasable> onAcquired
     ) {
         primary.acquireAllPrimaryOperationsPermits(
-            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, ThreadPool.Names.GENERIC)
+            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, threadPool.generic())
         );
     }
 
@@ -100,7 +100,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             primaryTerm,
             globalCheckpoint,
             maxSeqNoOfUpdateOrDeletes,
-            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, ThreadPool.Names.GENERIC)
+            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, threadPool.generic())
         );
     }
 
@@ -171,7 +171,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
     }
 
-    public static class ShardRequest extends ReplicationRequest<ShardRequest> {
+    public static final class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;
 

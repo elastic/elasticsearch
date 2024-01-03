@@ -1,0 +1,9 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+arg1 | arg2 | result
+boolean | boolean | boolean
+integer | integer | integer
+keyword | keyword | keyword
+long | long | long
+text | text | text
+|===

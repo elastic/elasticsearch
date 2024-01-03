@@ -90,7 +90,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     public TargetMeanEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
         this.featureName = in.readString();
-        this.meanMap = in.readImmutableMap(StreamInput::readString, StreamInput::readDouble);
+        this.meanMap = in.readImmutableMap(StreamInput::readDouble);
         this.defaultValue = in.readDouble();
         this.custom = in.readBoolean();
     }
@@ -171,7 +171,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeString(featureName);
-        out.writeMap(meanMap, StreamOutput::writeString, StreamOutput::writeDouble);
+        out.writeMap(meanMap, StreamOutput::writeDouble);
         out.writeDouble(defaultValue);
         out.writeBoolean(custom);
     }

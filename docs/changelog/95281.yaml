@@ -1,5 +1,0 @@
-pr: 95281
-summary: Integrate ELSER model download into put trained model API
-area: Machine Learning
-type: enhancement
-issues: []

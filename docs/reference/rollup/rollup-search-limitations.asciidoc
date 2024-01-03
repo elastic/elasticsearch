@@ -2,10 +2,7 @@
 [[rollup-search-limitations]]
 === {rollup-cap} search limitations
 
-experimental[]
-
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
 While we feel the Rollup function is extremely flexible, the nature of summarizing data means there will be some limitations. Once
 live data is thrown away, you will always lose some flexibility.

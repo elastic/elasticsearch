@@ -29,8 +29,8 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id 'elasticsearch.build-scan'
   id 'elasticsearch.build-complete'
+  id 'elasticsearch.build-scan'
   id 'elasticsearch.jdk-download'
   id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
@@ -72,9 +72,48 @@ tasks.register("updateCIBwcVersions") {
       file << "  - \"$it\"\n"
     }
   }
+
+  def writeBuildkiteList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
+    def outputFile = file(outputFilePath)
+    def pipelineTemplate = file(pipelineTemplatePath)
+
+    def listString = "[" + versions.collect { "\"${it}\"" }.join(", ") + "]"
+    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipelineTemplate.text.replaceAll('\\$BWC_LIST', listString)
+  }
+
+  def writeBuildkiteSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
+    def outputFile = file(outputFilePath)
+    def pipelineTemplate = file(pipelineTemplatePath)
+    def stepTemplate = file(stepTemplatePath)
+
+    def steps = ""
+    versions.each {
+      steps += "\n" + stepTemplate.text.replaceAll('\\$BWC_VERSION', it.toString())
+    }
+
+    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipelineTemplate.text.replaceAll(' *\\$BWC_STEPS', steps)
+  }
+
   doLast {
     writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
     writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
+    writeBuildkiteList(
+      ".buildkite/pipelines/intake.yml",
+      ".buildkite/pipelines/intake.template.yml",
+      BuildParams.bwcVersions.unreleasedIndexCompatible
+    )
+    writeBuildkiteSteps(
+      ".buildkite/pipelines/periodic.yml",
+      ".buildkite/pipelines/periodic.template.yml",
+      ".buildkite/pipelines/periodic.bwc.template.yml",
+      BuildParams.bwcVersions.allIndexCompatible
+    )
+    writeBuildkiteSteps(
+      ".buildkite/pipelines/periodic-packaging.yml",
+      ".buildkite/pipelines/periodic-packaging.template.yml",
+      ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
+      BuildParams.bwcVersions.allIndexCompatible
+    )
   }
 }
 
@@ -122,8 +161,10 @@ tasks.register("verifyVersions") {
     String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
     String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
     if (versionMapping != expectedMapping) {
-      throw new GradleException("Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
-        "'${expectedMapping}'. Update .backportrc.json.")
+      throw new GradleException(
+        "Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
+          "'${expectedMapping}'. Update .backportrc.json."
+      )
     }
   }
 }
@@ -147,8 +188,8 @@ if (bwc_tests_enabled == false) {
   println "See ${bwc_tests_disabled_issue}"
   println "==========================================================="
 }
-if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
-  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
+  // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
   bwc_tests_enabled = false
 }
 
@@ -172,9 +213,9 @@ allprojects {
   project.ext {
     // for ide hacks...
     isEclipse = providers.systemProperty("eclipse.launcher").isPresent() ||   // Detects gradle launched from Eclipse's IDE
-            providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
-            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-            gradle.startParameter.taskNames.contains('cleanEclipse')
+      providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
+      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+      gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 
   ext.bwc_tests_enabled = bwc_tests_enabled
@@ -190,16 +231,17 @@ allprojects {
     eclipse.classpath.file.whenMerged { classpath ->
       if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
         classpath.entries
-                .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
-                .each {
-                  it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
-                }
+          .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
+          .each {
+            it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
+          }
       }
     }
   }
 
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     configs = project.configurations
+    resolveJavaToolChain = true
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
@@ -208,6 +250,8 @@ allprojects {
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
+        tasks.register('checkPart4') { dependsOn 'check' }
+      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
         tasks.register('checkPart3') { dependsOn 'check' }
       } else {
         tasks.register('checkPart2') { dependsOn 'check' }
@@ -215,6 +259,8 @@ allprojects {
     } else {
       tasks.register('checkPart1') { dependsOn 'check' }
     }
+
+    tasks.register('functionalTests') { dependsOn 'check' }
   }
 
   /*
@@ -239,7 +285,7 @@ allprojects {
       // :test:framework:test cannot run before and after :server:test
       return
     }
-    tasks.matching { it.name.equals('integTest')}.configureEach {integTestTask ->
+    tasks.matching { it.name.equals('integTest') }.configureEach { integTestTask ->
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
 
@@ -248,7 +294,7 @@ allprojects {
         Project upstreamProject = dep.dependencyProject
         if (project.path != upstreamProject?.path) {
           for (String taskName : ['test', 'integTest']) {
-            project.tasks.matching { it.name == taskName }.configureEach {task ->
+            project.tasks.matching { it.name == taskName }.configureEach { task ->
               task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
             }
           }

@@ -1,5 +1,0 @@
-pr: 94417
-summary: "Avoid copying during iteration of all shards in routing table"
-area: Allocation
-type: bug
-issues: []

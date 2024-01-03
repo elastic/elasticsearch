@@ -113,9 +113,9 @@ public class HighlightFieldTests extends ESTestCase {
     }
 
     private static HighlightField mutate(HighlightField original) {
-        Text[] fragments = original.getFragments();
+        Text[] fragments = original.fragments();
         if (randomBoolean()) {
-            return new HighlightField(original.getName() + "_suffix", fragments);
+            return new HighlightField(original.name() + "_suffix", fragments);
         } else {
             if (fragments == null) {
                 fragments = new Text[] { new Text("field") };
@@ -123,12 +123,12 @@ public class HighlightFieldTests extends ESTestCase {
                 fragments = Arrays.copyOf(fragments, fragments.length + 1);
                 fragments[fragments.length - 1] = new Text("something new");
             }
-            return new HighlightField(original.getName(), fragments);
+            return new HighlightField(original.name(), fragments);
         }
     }
 
     private static HighlightField copy(HighlightField original) {
-        return new HighlightField(original.getName(), original.getFragments());
+        return new HighlightField(original.name(), original.fragments());
     }
 
 }

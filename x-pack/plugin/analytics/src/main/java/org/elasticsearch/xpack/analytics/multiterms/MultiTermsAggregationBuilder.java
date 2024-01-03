@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -18,6 +19,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -35,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<MultiTermsAggregationBuilder> {
@@ -140,7 +143,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     public MultiTermsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        terms = in.readList(MultiValuesSourceFieldConfig::new);
+        terms = in.readCollectionAsList(MultiValuesSourceFieldConfig::new);
         order = InternalOrder.Streams.readOrder(in);
         collectMode = in.readOptionalWriteable(Aggregator.SubAggCollectionMode::readFromStream);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
@@ -153,8 +156,17 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     @Override
-    public boolean supportsConcurrentExecution() {
-        return false;
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        for (MultiValuesSourceFieldConfig sourceFieldConfig : terms) {
+            if (sourceFieldConfig.getScript() != null) {
+                return false;
+            }
+            long cardinality = fieldCardinalityResolver.applyAsLong(sourceFieldConfig.getFieldName());
+            if (TermsAggregationBuilder.supportsParallelCollection(cardinality, order, bucketCountThresholds) == false) {
+                return false;
+            }
+        }
+        return super.supportsParallelCollection(fieldCardinalityResolver);
     }
 
     /**
@@ -196,7 +208,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(terms);
+        out.writeCollection(terms);
         order.writeTo(out);
         out.writeOptionalWriteable(collectMode);
         bucketCountThresholds.writeTo(out);
@@ -438,6 +450,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_12_0;
+        return TransportVersions.V_7_12_0;
     }
 }

@@ -1,6 +1,0 @@
-pr: 95342
-summary: Add Watcher APIs for updating/retrieving settings
-area: Watcher
-type: enhancement
-issues:
- - 92991

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
 public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<BinaryMathProcessor> {
     public static BinaryMathProcessor randomProcessor() {
@@ -108,6 +110,11 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertEquals(1234456.234567, new Round(EMPTY, l(1234456.234567), l(20)).makePipe().asProcessor().process(null));
         assertEquals(12344561234567456.2345, new Round(EMPTY, l(12344561234567456.234567), l(4)).makePipe().asProcessor().process(null));
         assertEquals(12344561234567000., new Round(EMPTY, l(12344561234567456.234567), l(-3)).makePipe().asProcessor().process(null));
+        // UnsignedLong MAX_VALUE
+        expectThrows(
+            ArithmeticException.class,
+            () -> new Round(EMPTY, l(asLongUnsigned(UNSIGNED_LONG_MAX)), l(-1)).makePipe().asProcessor().process(null)
+        );
     }
 
     public void testRoundInputValidation() {

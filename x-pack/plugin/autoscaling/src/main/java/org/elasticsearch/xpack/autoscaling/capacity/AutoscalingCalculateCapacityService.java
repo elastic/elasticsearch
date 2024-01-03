@@ -75,7 +75,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         configuration.keySet().forEach(key -> validateSetting(key, configuration, deciderSettings, deciderName));
     }
 
-    private void validateSetting(String key, Settings configuration, Map<String, Setting<?>> deciderSettings, String decider) {
+    private static void validateSetting(String key, Settings configuration, Map<String, Setting<?>> deciderSettings, String decider) {
         Setting<?> setting = deciderSettings.get(key);
         if (setting == null) {
             throw new IllegalArgumentException("unknown setting [" + key + "] for decider [" + decider + "]");
@@ -212,7 +212,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
      * Check if the policy has unknown roles. This can only happen in mixed clusters, where one master can accept a policy but if it fails
      * over to an older master before it is also upgraded, one of the roles might not be known.
      */
-    private boolean hasUnknownRoles(AutoscalingPolicy policy) {
+    private static boolean hasUnknownRoles(AutoscalingPolicy policy) {
         return DiscoveryNodeRole.roleNames().containsAll(policy.roles()) == false;
     }
 
@@ -338,7 +338,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             );
         }
 
-        private long totalStorage(Map<String, DiskUsage> diskUsages, DiscoveryNode node) {
+        private static long totalStorage(Map<String, DiskUsage> diskUsages, DiscoveryNode node) {
             DiskUsage diskUsage = diskUsages.get(node.getId());
             return diskUsage != null ? diskUsage.getTotalBytes() : -1;
         }

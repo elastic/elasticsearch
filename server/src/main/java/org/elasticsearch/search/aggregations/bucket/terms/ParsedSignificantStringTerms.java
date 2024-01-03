@@ -54,10 +54,6 @@ public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
             return key.utf8ToString();
         }
 
-        public Number getKeyAsNumber() {
-            return Double.parseDouble(key.utf8ToString());
-        }
-
         @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             return builder.field(CommonFields.KEY.getPreferredName(), getKey());

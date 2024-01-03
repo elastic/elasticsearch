@@ -62,7 +62,7 @@ public class RestSqlPaginationTestCase extends BaseRestSqlTestCase {
         assertNoSearchContexts(client());
     }
 
-    private String fetchRemainingPages(String cursor, String format) throws IOException {
+    private static String fetchRemainingPages(String cursor, String format) throws IOException {
         StringBuilder result = new StringBuilder();
         while (cursor != null) {
             Tuple<String, String> response = runSqlAsText(cursor(cursor), format);

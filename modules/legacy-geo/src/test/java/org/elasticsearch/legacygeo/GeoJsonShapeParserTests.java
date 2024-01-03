@@ -9,7 +9,6 @@
 package org.elasticsearch.legacygeo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryNormalizer;
@@ -20,11 +19,13 @@ import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.test.ElasticsearchGeoAssertions;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -180,34 +181,37 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
             .endArray()
             .endObject();
 
-        XContentParser parser = createParser(pointGeoJson);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
-        assertNull(parser.nextToken());
+        XContentBuilder lineGeoJson;
+        try (XContentParser parser = createParser(pointGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
 
-        // multi dimension linestring
-        XContentBuilder lineGeoJson = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("type", "LineString")
-            .startArray("coordinates")
-            .startArray()
-            .value(100.0)
-            .value(0.0)
-            .value(15.0)
-            .endArray()
-            .startArray()
-            .value(101.0)
-            .value(1.0)
-            .value(18.0)
-            .value(19.0)
-            .endArray()
-            .endArray()
-            .endObject();
+            // multi dimension linestring
+            lineGeoJson = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("type", "LineString")
+                .startArray("coordinates")
+                .startArray()
+                .value(100.0)
+                .value(0.0)
+                .value(15.0)
+                .endArray()
+                .startArray()
+                .value(101.0)
+                .value(1.0)
+                .value(18.0)
+                .value(19.0)
+                .endArray()
+                .endArray()
+                .endObject();
+        }
 
-        parser = createParser(lineGeoJson);
-        parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
-        assertNull(parser.nextToken());
+        try (var parser = createParser(lineGeoJson)) {
+            parser.nextToken();
+            ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+            assertNull(parser.nextToken());
+        }
     }
 
     @Override
@@ -381,12 +385,11 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         shellCoordinates.add(new Coordinate(100, 0, 10));
         Coordinate[] coordinates = shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]);
 
-        Version randomVersion = VersionUtils.randomIndexCompatibleVersion(random());
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         );
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();

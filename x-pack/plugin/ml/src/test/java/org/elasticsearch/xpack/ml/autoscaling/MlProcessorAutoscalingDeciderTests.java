@@ -12,9 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
@@ -26,10 +25,11 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.junit.Before;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
@@ -76,7 +76,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         3,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
@@ -91,7 +93,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
@@ -108,7 +112,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(7.8)));
@@ -145,7 +150,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         8,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                             )
@@ -160,7 +167,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         4,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -177,7 +186,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(8.0)));
@@ -214,7 +224,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.LOW
+                                        Priority.LOW,
+                                        0L,
+                                        0L
                                     )
                                 )
                             )
@@ -229,7 +241,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         4,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 )
                                     .addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
@@ -246,7 +260,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(4.0)));
@@ -283,7 +298,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         2,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
@@ -298,7 +315,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -313,11 +332,22 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(3.8)));
         assertThat(capacity.tierProcessors(), equalTo(Processors.of(7.6)));
+        assertThat(
+            capacity.reason(),
+            equalTo("not scaling down as model assignments require more than half of the ML tier's allocated processors")
+        );
+
+        // test with allocated processor scaling
+        capacity = decider.scale(Settings.EMPTY, newContext(clusterState), new MlAutoscalingContext(clusterState), 2);
+
+        assertThat(capacity.nodeProcessors(), equalTo(Processors.of(1.9)));
+        assertThat(capacity.tierProcessors(), equalTo(Processors.of(3.8)));
         assertThat(
             capacity.reason(),
             equalTo("not scaling down as model assignments require more than half of the ML tier's allocated processors")
@@ -353,7 +383,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         2,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
@@ -368,7 +400,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -384,7 +418,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(7.9)));
@@ -421,7 +456,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         2,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(2, 2, RoutingState.STARTED, ""))
                             )
@@ -436,7 +473,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.NORMAL
+                                        Priority.NORMAL,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId2, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -456,7 +495,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.of(2.0)));
@@ -493,7 +533,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.LOW
+                                        Priority.LOW,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -508,7 +550,9 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                                         1,
                                         1024,
                                         ByteSizeValue.ONE,
-                                        Priority.LOW
+                                        Priority.LOW,
+                                        0L,
+                                        0L
                                     )
                                 ).addRoutingEntry(mlNodeId1, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
                             )
@@ -528,7 +572,8 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         MlProcessorAutoscalingCapacity capacity = decider.scale(
             Settings.EMPTY,
             newContext(clusterState),
-            new MlAutoscalingContext(clusterState)
+            new MlAutoscalingContext(clusterState),
+            1
         );
 
         assertThat(capacity.nodeProcessors(), equalTo(Processors.ZERO));
@@ -537,16 +582,18 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {
-        return TestDiscoveryNode.create(
-            name,
-            name,
-            buildNewFakeTransportAddress(),
-            MapBuilder.<String, String>newMapBuilder()
-                .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
-                .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
-                .map(),
-            isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)
-        );
+        return DiscoveryNodeUtils.builder(name)
+            .name(name)
+            .attributes(
+                Map.of(
+                    MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                    String.valueOf(10),
+                    MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+                    String.valueOf(allocatedProcessors)
+                )
+            )
+            .roles(isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+            .build();
     }
 
     private MlProcessorAutoscalingDecider newDecider() {

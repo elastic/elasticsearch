@@ -405,6 +405,13 @@ public final class MappingLookup {
     }
 
     /**
+     * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
+     */
+    public String parentField(String field) {
+        return fieldTypesLookup().parentField(field);
+    }
+
+    /**
      * Returns true if the index has mappings. An index does not have mappings only if it was created
      * without providing mappings explicitly, and no documents have yet been indexed in it.
      * @return true if the current index has mappings, false otherwise
@@ -452,7 +459,7 @@ public final class MappingLookup {
      * @return {@code true} if contains a timestamp field of type date that is indexed and has doc values, {@code false} otherwise.
      */
     public boolean hasTimestampField() {
-        final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
             return mappedFieldType.isIndexed() && mappedFieldType.hasDocValues();
         } else {

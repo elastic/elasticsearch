@@ -56,11 +56,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
     }
@@ -73,7 +68,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
         return settings.build();
     }
@@ -119,7 +113,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
             .build();
-        CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
+        CreateIndexResponse res = indicesAdmin().prepareCreate(managedIndex).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
 
         assertBusy(() -> {
@@ -180,7 +174,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
             .build();
-        CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
+        CreateIndexResponse res = indicesAdmin().prepareCreate(managedIndex).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
 
         assertBusy(() -> {
@@ -230,7 +224,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         ClusterAllocationExplainRequest explainReplicaShard = new ClusterAllocationExplainRequest().setIndex(managedIndex)
             .setPrimary(false)
             .setShard(0);
-        ClusterAllocationExplainResponse response = client().admin().cluster().allocationExplain(explainReplicaShard).actionGet();
+        ClusterAllocationExplainResponse response = clusterAdmin().allocationExplain(explainReplicaShard).actionGet();
         assertThat(response.getExplanation().getShardState(), is(ShardRoutingState.UNASSIGNED));
     }
 }

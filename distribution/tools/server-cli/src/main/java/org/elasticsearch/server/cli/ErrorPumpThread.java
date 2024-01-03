@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
@@ -68,6 +69,9 @@ class ErrorPumpThread extends Thread {
         nonInterruptibleVoid(this::join);
     }
 
+    /** List of messages / lines to filter from the output. */
+    List<String> filter = List.of("WARNING: Using incubator modules: jdk.incubator.vector");
+
     @Override
     public void run() {
         try {
@@ -76,7 +80,7 @@ class ErrorPumpThread extends Thread {
                 if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                     ready = true;
                     readyOrDead.countDown();
-                } else {
+                } else if (filter.contains(line) == false) {
                     writer.println(line);
                 }
             }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -18,6 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,6 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.security.Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE;
 
 /**
  * Rest action to create an API key specific to cross cluster access via the dedicate remote cluster server port
@@ -73,10 +76,20 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = PARSER.parse(request.contentParser(), null);
+        createCrossClusterApiKeyRequest.setRefreshPolicy(ApiKeyService.defaultCreateDocRefreshPolicy(settings));
         return channel -> client.execute(
             CreateCrossClusterApiKeyAction.INSTANCE,
             createCrossClusterApiKeyRequest,
             new RestToXContentListener<>(channel)
         );
+    }
+
+    @Override
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
+            return null;
+        } else {
+            return LicenseUtils.newComplianceException(ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName());
+        }
     }
 }

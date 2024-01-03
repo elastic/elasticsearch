@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -43,16 +44,13 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
                 .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
         );
 
-        final TotalHits totalHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits();
+        final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true)
+        );
 
         final var snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final var restoredIndexName = "restored-" + indexName;
         mountSnapshot(
@@ -87,7 +85,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
         ensureGreen(restoredIndexName);
 
-        assertHitCount(client().prepareSearch(restoredIndexName).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
 
         mockAppender.assertAllExpectationsMatched();
         Loggers.removeAppender(logger, mockAppender);

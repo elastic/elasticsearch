@@ -1,0 +1,10 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "routing.allocation.include._tier_preference": "data_hot"
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

@@ -1,5 +1,0 @@
-pr: 94680
-summary: Allow preserving specific headers on thread context stash
-area: Infra/Core
-type: enhancement
-issues: []

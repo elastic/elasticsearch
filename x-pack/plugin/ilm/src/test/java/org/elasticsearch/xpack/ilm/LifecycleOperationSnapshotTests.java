@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
+import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 
 import java.util.Collection;
 import java.util.List;
@@ -47,7 +48,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, SnapshotLifecycle.class);
     }
 
     @Override
@@ -56,12 +57,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
     }
 
     public void testModeSnapshotRestore() throws Exception {
-        client().admin()
-            .cluster()
-            .preparePutRepository("repo")
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", "repo").build())
-            .get();
+        clusterAdmin().preparePutRepository("repo").setType("fs").setSettings(Settings.builder().put("location", "repo").build()).get();
 
         client().execute(
             PutSnapshotLifecycleAction.INSTANCE,

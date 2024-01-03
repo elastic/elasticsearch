@@ -1,8 +1,8 @@
 ---
 "Test cat indices output for hidden index":
   - skip:
-      version: "- 7.6.99"
-      reason: "hidden indices were added in 7.7.0"
+      version: "- 8.10.99"
+      reason: "dataset size was added in 8.11.0"
   - do:
       indices.create:
         index: index1
@@ -34,6 +34,7 @@
            0      \s+
            0      \s+
            (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
@@ -41,8 +42,8 @@
 ---
 "Test cat indices output for dot-hidden index and dot-prefixed pattern":
   - skip:
-      version: "- 7.6.99"
-      reason: "hidden indices were added in 7.7.0"
+      version: "- 8.10.99"
+      reason: "dataset size was added in 8.11.0"
   - do:
       indices.create:
         index: .index1
@@ -72,6 +73,7 @@
            0      \s+
            0      \s+
            (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
@@ -79,8 +81,8 @@
 ---
 "Test cat indices output with a hidden index with a visible alias":
   - skip:
-      version: "- 7.6.99"
-      reason: "hidden indices were added in 7.7.0"
+      version: "- 8.10.99"
+      reason: "dataset size was added in 8.11.0"
 
   - do:
       indices.create:
@@ -118,6 +120,7 @@
            0      \s+
            0      \s+
            (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
@@ -136,14 +139,15 @@
            0      \s+
            0      \s+
            (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
 ---
 "Test cat indices output with a hidden index with a hidden alias":
   - skip:
-      version: "- 7.6.99"
-      reason: "hidden indices and aliases were added in 7.7.0"
+      version: "- 8.10.99"
+      reason: "dataset size was added in 8.11.0"
 
   - do:
       indices.create:
@@ -180,6 +184,7 @@
            0      \s+
            0      \s+
            (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
@@ -198,14 +203,15 @@
            0      \s+
            0      \s+
            (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
 ---
 "Test cat indices output with a hidden index, dot-hidden alias and dot pattern":
   - skip:
-      version: "- 7.6.99"
-      reason: "hidden indices and aliases were added in 7.7.0"
+      version: "- 8.10.99"
+      reason: "dataset size was added in 8.11.0"
 
   - do:
       indices.create:
@@ -238,6 +244,7 @@
            0      \s+
            0      \s+
            0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s*
            .*           # Accounts for system indices that get automatically generated

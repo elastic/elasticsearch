@@ -51,7 +51,7 @@ public record ReservedStateErrorMetadata(Long version, ErrorKind errorKind, List
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
         out.writeString(errorKind.getKindValue());
-        out.writeCollection(errors, StreamOutput::writeString);
+        out.writeStringCollection(errors);
     }
 
     /**
@@ -62,7 +62,11 @@ public record ReservedStateErrorMetadata(Long version, ErrorKind errorKind, List
      * @throws IOException
      */
     public static ReservedStateErrorMetadata readFrom(StreamInput in) throws IOException {
-        return new ReservedStateErrorMetadata(in.readLong(), ErrorKind.of(in.readString()), in.readList(StreamInput::readString));
+        return new ReservedStateErrorMetadata(
+            in.readLong(),
+            ErrorKind.of(in.readString()),
+            in.readCollectionAsList(StreamInput::readString)
+        );
     }
 
     @Override

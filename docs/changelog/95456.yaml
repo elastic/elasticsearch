@@ -1,6 +1,0 @@
-pr: 95456
-summary: Use monotonic time in `TransformScheduler`
-area: Transform
-type: bug
-issues:
- - 95445

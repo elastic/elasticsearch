@@ -31,6 +31,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.InternalExecutePolicyAction;
@@ -75,6 +76,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         Client client = getClient(latch);
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
+            null,
             null,
             client,
             testThreadPool,
@@ -130,6 +132,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         EnrichPolicyLocks locks = new EnrichPolicyLocks();
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             testSettings,
+            null,
             null,
             client,
             testThreadPool,
@@ -265,6 +268,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
             null,
+            null,
             client,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
@@ -273,7 +277,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         );
 
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
-        PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = PlainActionFuture.newFuture();
+        PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = new PlainActionFuture<>();
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyName).setWaitForCompletion(false),
             firstTaskResult
@@ -387,6 +391,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
             clusterService,
+            null,
             null,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),

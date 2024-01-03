@@ -48,6 +48,10 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
         return ValueCountAggregationBuilder.NAME;
     }
 
+    public static InternalValueCount empty(String name, Map<String, Object> metadata) {
+        return new InternalValueCount(name, 0L, metadata);
+    }
+
     @Override
     public long getValue() {
         return value;

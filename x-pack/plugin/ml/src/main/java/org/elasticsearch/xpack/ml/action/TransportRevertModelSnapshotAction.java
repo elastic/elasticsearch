@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -83,7 +84,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             RevertModelSnapshotAction.Request::new,
             indexNameExpressionResolver,
             RevertModelSnapshotAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.jobManager = jobManager;
@@ -169,7 +170,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                 client,
                 state,
                 request.masterNodeTimeout(),
-                configMappingUpdateListener
+                configMappingUpdateListener,
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             ),
             listener::onFailure
         );
@@ -257,7 +259,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         }, listener::onFailure);
     }
 
-    private void getModelSnapshot(
+    private static void getModelSnapshot(
         RevertModelSnapshotAction.Request request,
         JobResultsProvider provider,
         Consumer<ModelSnapshot> handler,
@@ -270,7 +272,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             return;
         }
 
-        provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
+        provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), true, modelSnapshot -> {
             if (modelSnapshot == null) {
                 throw missingSnapshotException(request);
             }
@@ -302,12 +304,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                 // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
                 Annotation.Event.MODEL_CHANGE.toString()
             );
-            dataDeleter.deleteAnnotations(
-                deleteAfter.getTime() + 1,
-                null,
-                eventsToDelete,
-                listener.delegateFailure((l, r) -> l.onResponse(response))
-            );
+            dataDeleter.deleteAnnotations(deleteAfter.getTime() + 1, null, eventsToDelete, listener.safeMap(r -> response));
         }, listener::onFailure);
     }
 
@@ -325,7 +322,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
-            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, listener.delegateFailure((l, r) -> l.onResponse(response)));
+            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, listener.safeMap(r -> response));
         }, listener::onFailure);
     }
 
@@ -336,7 +333,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     ) {
         return ActionListener.wrap(response -> jobResultsProvider.dataCounts(jobId, counts -> {
             counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-            jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.delegateFailure((l, r) -> l.onResponse(response)));
+            jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.safeMap(r -> response));
         }, listener::onFailure), listener::onFailure);
     }
 

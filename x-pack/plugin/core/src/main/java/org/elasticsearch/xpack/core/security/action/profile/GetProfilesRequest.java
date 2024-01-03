@@ -32,8 +32,8 @@ public class GetProfilesRequest extends ActionRequest {
 
     public GetProfilesRequest(StreamInput in) throws IOException {
         super(in);
-        this.uids = in.readStringList();
-        this.dataKeys = in.readSet(StreamInput::readString);
+        this.uids = in.readStringCollectionAsList();
+        this.dataKeys = in.readCollectionAsSet(StreamInput::readString);
     }
 
     public GetProfilesRequest(String uid, Set<String> dataKeys) {

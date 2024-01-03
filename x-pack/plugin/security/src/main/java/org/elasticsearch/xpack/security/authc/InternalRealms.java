@@ -143,11 +143,7 @@ public final class InternalRealms {
             config -> new FileRealm(config, resourceWatcherService, threadPool),
             // native realm
             NativeRealmSettings.TYPE,
-            config -> {
-                final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
-                securityIndex.addStateListener(nativeRealm::onSecurityIndexStateChange);
-                return nativeRealm;
-            },
+            config -> buildNativeRealm(threadPool, settings, nativeUsersStore, securityIndex, config),
             // active directory realm
             LdapRealmSettings.AD_TYPE,
             config -> new LdapRealm(config, sslService, resourceWatcherService, nativeRoleMappingStore, threadPool),
@@ -170,6 +166,27 @@ public final class InternalRealms {
             JwtRealmSettings.TYPE,
             config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
         );
+    }
+
+    private static NativeRealm buildNativeRealm(
+        ThreadPool threadPool,
+        Settings settings,
+        NativeUsersStore nativeUsersStore,
+        SecurityIndexManager securityIndex,
+        RealmConfig config
+    ) {
+        if (settings.getAsBoolean(NativeRealmSettings.NATIVE_USERS_ENABLED, true) == false) {
+            throw new IllegalArgumentException(
+                "Cannot configure a ["
+                    + NativeRealmSettings.TYPE
+                    + "] realm when ["
+                    + NativeRealmSettings.NATIVE_USERS_ENABLED
+                    + "] is false"
+            );
+        }
+        final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
+        securityIndex.addStateListener(nativeRealm::onSecurityIndexStateChange);
+        return nativeRealm;
     }
 
     private InternalRealms() {}

@@ -10,7 +10,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -21,8 +21,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -465,13 +467,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         synchronized (retentionLeasePersistenceLock) {
             retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
         }
+        return emptyIfNull(retentionLeases);
+    }
 
-        // TODO after backporting we expect this never to happen in 8.x, so adjust this to throw an exception instead.
-        assert Version.CURRENT.major <= 8 : "throw an exception instead of returning EMPTY on null";
-        if (retentionLeases == null) {
-            return RetentionLeases.EMPTY;
-        }
-        return retentionLeases;
+    @UpdateForV9
+    private static RetentionLeases emptyIfNull(RetentionLeases retentionLeases) {
+        // we expect never to see a null in 8.x, so adjust this to throw an exception from v9 onwards.
+        return retentionLeases == null ? RetentionLeases.EMPTY : retentionLeases;
     }
 
     private final Object retentionLeasePersistenceLock = new Object();
@@ -973,15 +975,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
-        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_6_0)
+        this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_6_0)
             || (indexSettings.isSoftDeleteEnabled()
-                && indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0)
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_4_0)
                 && indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN);
 
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
-        assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
+        assert IndexVersions.ZERO.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }
 
@@ -1387,13 +1389,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized PrimaryContext startRelocationHandoff(String targetAllocationId) {
         assert invariant();
-        assert primaryMode;
         assert handoffInProgress == false;
         assert pendingInSync.isEmpty() : "relocation handoff started while there are still shard copies pending in-sync: " + pendingInSync;
         if (checkpoints.containsKey(targetAllocationId) == false) {
             // can happen if the relocation target was removed from cluster but the recovery process isn't aware of that.
             throw new IllegalStateException("relocation target [" + targetAllocationId + "] is no longer part of the replication group");
         }
+        assert primaryMode;
         handoffInProgress = true;
         // copy clusterStateVersion and checkpoints and return
         // all the entries from checkpoints that are inSync: the reason we don't need to care about initializing non-insync entries
@@ -1481,36 +1483,33 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
         if (hasAllPeerRecoveryRetentionLeases == false) {
-            final List<ShardRouting> shardRoutings = routingTable.assignedShards()
-                .stream()
-                .filter(ShardRouting::isPromotableToPrimary)
-                .toList();
-            final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(
-                shardRoutings.size(),
-                ActionListener.wrap(vs -> {
-                    setHasAllPeerRecoveryRetentionLeases();
-                    listener.onResponse(null);
-                }, listener::onFailure)
-            );
-            for (ShardRouting shardRouting : shardRoutings) {
-                if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
-                    groupedActionListener.onResponse(null);
-                } else {
+            try (var listeners = new RefCountingListener(listener.safeMap(ignored -> {
+                setHasAllPeerRecoveryRetentionLeases();
+                return null;
+            }))) {
+                for (ShardRouting shardRouting : routingTable.assignedShards()) {
+                    if (shardRouting.isPromotableToPrimary() == false) {
+                        continue;
+                    }
+
+                    if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
+                        continue;
+                    }
+
                     final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
                     if (checkpointState.tracked == false) {
-                        groupedActionListener.onResponse(null);
-                    } else {
-                        logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
-                        try {
-                            addPeerRecoveryRetentionLease(
-                                shardRouting.currentNodeId(),
-                                Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
-                                groupedActionListener
-                            );
-                        } catch (Exception e) {
-                            groupedActionListener.onFailure(e);
-                        }
+                        continue;
                     }
+
+                    logger.trace("createMissingPeerRecoveryRetentionLeases: adding missing lease for {}", shardRouting);
+                    ActionListener.run(
+                        listeners.acquire((ReplicationResponse replicationResponse) -> {}),
+                        l -> addPeerRecoveryRetentionLease(
+                            shardRouting.currentNodeId(),
+                            Math.max(SequenceNumbers.NO_OPS_PERFORMED, checkpointState.globalCheckpoint),
+                            l
+                        )
+                    );
                 }
             }
         } else {
@@ -1585,7 +1584,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         public PrimaryContext(StreamInput in) throws IOException {
             clusterStateVersion = in.readVLong();
-            checkpoints = in.readMap(StreamInput::readString, CheckpointState::new);
+            checkpoints = in.readMap(CheckpointState::new);
             routingTable = IndexShardRoutingTable.Builder.readFrom(in).build();
         }
 
@@ -1604,7 +1603,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(clusterStateVersion);
-            out.writeMap(checkpoints, (streamOutput, s) -> out.writeString(s), (streamOutput, cps) -> cps.writeTo(out));
+            out.writeMap(checkpoints, StreamOutput::writeWriteable);
             IndexShardRoutingTable.Builder.writeTo(routingTable, out);
         }
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -17,8 +16,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.FilterRepository;
@@ -128,16 +128,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-                try {
-                    assertThat(indexId.getName(), equalTo(indexName));
-                    assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
-                    latch.await();
-                    getShardSnapshotStatusCount.incrementAndGet();
-                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+                assertThat(indexId.getName(), equalTo(indexName));
+                assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
+                safeAwait(latch);
+                getShardSnapshotStatusCount.incrementAndGet();
+                return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
             }
         };
         when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
@@ -196,7 +192,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> results = new ConcurrentHashMap<>();
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 final InternalSnapshotsInfoService.SnapshotShard snapshotShard = new InternalSnapshotsInfoService.SnapshotShard(
                     new Snapshot("_repo", snapshotId),
                     indexId,
@@ -284,7 +280,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
             }
         };
@@ -320,7 +316,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     public void testCleanUpSnapshotShardSizes() throws Exception {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 if (randomBoolean()) {
                     throw new SnapshotException(new Snapshot("_repo", snapshotId), "simulated");
                 } else {
@@ -398,12 +394,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             final ThreadPoolStats threadPoolStats = clusterService.getClusterApplierService().threadPool().stats();
             ThreadPoolStats.Stats generic = null;
             for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
-                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.getName())) {
+                if (ThreadPool.Names.GENERIC.equals(threadPoolStat.name())) {
                     generic = threadPoolStat;
                 }
             }
             assertThat(generic, notNullValue());
-            assertThat(generic.getActive(), equalTo(nbActive));
+            assertThat(generic.active(), equalTo(nbActive));
         }, 30L, TimeUnit.SECONDS);
     }
 
@@ -411,7 +407,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         assertThat(currentState.metadata().hasIndex(indexName), is(false));
 
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()));
+            .settings(indexSettings(IndexVersion.current(), numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()));
 
         for (int i = 0; i < numberOfShards; i++) {
             indexMetadataBuilder.putInSyncAllocationIds(i, Collections.singleton(AllocationId.newInitializing().getId()));
@@ -424,7 +420,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
             new Snapshot("_repo", new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID(random()))),
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId(indexName, UUIDs.randomBase64UUID(random()))
         );
 
@@ -438,9 +434,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 .build()
         );
 
-        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
-            currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)
-        );
+        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(RestoreInProgress.get(currentState));
         final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             shards.put(new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));
@@ -465,7 +459,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
-        final DiscoveryNode node = TestDiscoveryNode.create("other");
+        final DiscoveryNode node = DiscoveryNodeUtils.create("other");
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)

@@ -37,15 +37,12 @@ public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequ
         SeekStatsService seekStatsService
     ) {
         super(
-            SeekStatsAction.NAME,
-            threadPool,
+            SeekTrackerPlugin.SEEK_STATS_ACTION.name(),
             clusterService,
             transportService,
             actionFilters,
             SeekStatsRequest::new,
-            SeekStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeSeekStats.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.seekStatsService = seekStatsService;
     }
@@ -57,6 +54,7 @@ public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequ
 
     @Override
     protected SeekStatsRequest newNodeRequest(SeekStatsRequest request) {
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         return request;
     }
 

@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.Loggers;
@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createNoOpNodeConnectionsService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -85,7 +84,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
     }
 
     private ClusterApplierService createClusterApplierService(boolean makeMaster) {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         final ClusterApplierService clusterApplierService = new ClusterApplierService(
             "test_node",
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
@@ -319,21 +318,24 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         ClusterState state = clusterApplierService.state();
         DiscoveryNodes nodes = state.nodes();
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
-        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(nodes.withMasterNodeId(nodes.getLocalNodeId()))
+            .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(true));
 
         nodes = state.nodes();
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(null);
         state = ClusterState.builder(state)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES))
-            .nodes(nodesBuilder)
+            .nodes(nodes.withMasterNodeId(null))
             .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(false));
-        nodesBuilder = DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId());
-        state = ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).nodes(nodesBuilder).build();
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(nodes.withMasterNodeId(nodes.getLocalNodeId()))
+            .build();
         setState(clusterApplierService, state);
         assertThat(isMaster.get(), is(true));
 
@@ -349,9 +351,15 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 clusterApplierService.state();
                 error.set(new AssertionError("successfully sampled state"));
             } catch (AssertionError e) {
-                if (e.getMessage().contains("should not be called by a cluster state applier") == false) {
-                    error.set(e);
+                // NB not a string constant shared between implementation and test, because the content of this message is important and
+                // mustn't be changed inadvertently.
+                if (e.getMessage().equals("""
+                    On the cluster applier thread you must use ClusterChangedEvent#state() and ClusterChangedEvent#previousState() instead \
+                    of ClusterApplierService#state(). It is almost certainly a bug to read the latest-applied state from within a cluster \
+                    applier since the new state has been committed at this point but is not yet applied.""")) {
+                    return;
                 }
+                error.set(e);
             }
         });
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
@@ -224,7 +225,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
             try {
                 return formatterFor(patternString).apply(ta);
             } catch (IllegalArgumentException | DateTimeException e) {
-                throw new SqlIllegalArgumentException(
+                throw new InvalidArgumentException(
                     "Invalid pattern [{}] is received for formatting date/time [{}]; {}",
                     pattern,
                     timestamp,

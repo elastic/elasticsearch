@@ -8,12 +8,11 @@
 
 package org.elasticsearch.common.file;
 
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -58,13 +57,13 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
 
         private final CountDownLatch countDownLatch;
 
-        TestFileWatchingService(ClusterService clusterService, Path watchedFile) {
-            super(clusterService, watchedFile);
+        TestFileWatchingService(Path watchedFile) {
+            super(watchedFile);
             this.countDownLatch = null;
         }
 
-        TestFileWatchingService(ClusterService clusterService, Path watchedFile, CountDownLatch countDownLatch) {
-            super(clusterService, watchedFile);
+        TestFileWatchingService(Path watchedFile, CountDownLatch countDownLatch) {
+            super(watchedFile);
             this.countDownLatch = countDownLatch;
         }
 
@@ -89,7 +88,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.builder().put(NODE_NAME_SETTING.getKey(), "test").build());
 
-        final DiscoveryNode localNode = TestDiscoveryNode.create("node");
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .build();
@@ -99,19 +98,17 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
 
         Files.createDirectories(env.configFile());
 
-        fileWatchingService = new TestFileWatchingService(clusterService, getWatchedFilePath(env));
+        fileWatchingService = new TestFileWatchingService(getWatchedFilePath(env));
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        clusterService.close();
         threadpool.shutdownNow();
     }
 
     public void testStartStop() {
         fileWatchingService.start();
-        fileWatchingService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         assertTrue(fileWatchingService.watching());
         fileWatchingService.stop();
         assertFalse(fileWatchingService.watching());
@@ -144,10 +141,9 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     public void testCallsProcessing() throws Exception {
         CountDownLatch processFileLatch = new CountDownLatch(1);
 
-        AbstractFileWatchingService service = new TestFileWatchingService(clusterService, getWatchedFilePath(env), processFileLatch);
+        AbstractFileWatchingService service = new TestFileWatchingService(getWatchedFilePath(env), processFileLatch);
 
         service.start();
-        service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         assertTrue(service.watching());
 
         Files.createDirectories(service.watchedFileDir());

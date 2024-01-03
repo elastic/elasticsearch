@@ -1,5 +1,0 @@
-pr: 95359
-summary: Bump bundled JDK to Java 20.0.1
-area: Packaging
-type: upgrade
-issues: []

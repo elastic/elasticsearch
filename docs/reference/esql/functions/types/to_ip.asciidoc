@@ -1,0 +1,7 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | result
+ip | ip
+keyword | ip
+text | ip
+|===

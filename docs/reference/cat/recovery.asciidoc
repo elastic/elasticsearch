@@ -135,7 +135,7 @@ measurements.
 [[cat-recovery-api-ex-snapshot]]
 ===== Example with a snapshot recovery
 
-You can restore backups of an index using the <<modules-snapshots,snapshot and
+You can restore backups of an index using the <<snapshot-restore,snapshot and
 restore>> API. You can use the cat recovery API retrieve information about a
 snapshot recovery.
 

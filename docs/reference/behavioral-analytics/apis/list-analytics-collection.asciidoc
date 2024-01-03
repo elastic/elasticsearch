@@ -2,9 +2,27 @@
 [[list-analytics-collection]]
 === List Analytics Collections
 
+beta::[]
+
 ++++
 <titleabbrev>List Analytics Collections</titleabbrev>
 ++++
+
+////
+[source,console]
+----
+PUT _application/analytics/my_analytics_collection
+PUT _application/analytics/my_analytics_collection2
+----
+// TESTSETUP
+
+[source,console]
+----
+DELETE _application/analytics/my_analytics_collection
+DELETE _application/analytics/my_analytics_collection2
+----
+// TEARDOWN
+////
 
 Returns information about Analytics Collections.
 
@@ -42,7 +60,6 @@ The following example lists all configured Analytics Collections:
 ----
 GET _application/analytics/
 ----
-// TEST[skip:TBD]
 
 A sample response:
 
@@ -68,7 +85,6 @@ The following example returns the Analytics Collection that matches `my_analytic
 ----
 GET _application/analytics/my_analytics_collection
 ----
-// TEST[skip:TBD]
 
 A sample response:
 
@@ -89,7 +105,6 @@ The following example returns all Analytics Collections prefixed with `my`:
 ----
 GET _application/analytics/my*
 ----
-// TEST[skip:TBD]
 
 A sample response:
 
@@ -108,4 +123,3 @@ A sample response:
   }
 }
 ----
-// TEST[skip:TBD]

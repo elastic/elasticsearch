@@ -1,0 +1,5 @@
+pr: 101753
+summary: Expose roles by default in cat allocation API
+area: CAT APIs
+type: enhancement
+issues: []

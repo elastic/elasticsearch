@@ -83,11 +83,8 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     private void prepareIndex() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
-                .get()
         );
         createIndex("idx_unmapped");
 
@@ -98,15 +95,14 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(
-                client().prepareIndex("test")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field("val", fieldValue)
-                            .field("event_type", "my_event")
-                            .field("@timestamp", "2020-04-09T12:35:48Z")
-                            .field("i", i)
-                            .endObject()
-                    )
+                prepareIndex("test").setSource(
+                    jsonBuilder().startObject()
+                        .field("val", fieldValue)
+                        .field("event_type", "my_event")
+                        .field("@timestamp", "2020-04-09T12:35:48Z")
+                        .field("i", i)
+                        .endObject()
+                )
             );
         }
         indexRandom(true, builders);
@@ -154,7 +150,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(response, notNullValue());
             assertThat(response.hits().events().size(), equalTo(1));
         } else {
-            Exception ex = expectThrows(Exception.class, future::actionGet);
+            Exception ex = expectThrows(Exception.class, future);
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
         AcknowledgedResponse deleteResponse = client().execute(

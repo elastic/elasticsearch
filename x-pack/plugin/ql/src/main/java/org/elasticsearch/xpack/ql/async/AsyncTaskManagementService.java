@@ -214,7 +214,8 @@ public class AsyncTaskManagementService<
             if (acquiredListener != null) {
                 acquiredListener.onResponse(operation.initialResponse(searchTask));
             }
-        }, waitForCompletionTimeout, ThreadPool.Names.SEARCH);
+        }, waitForCompletionTimeout, threadPool.executor(ThreadPool.Names.SEARCH));
+
         // This will be performed at the end of normal execution
         return ActionListener.wrap(response -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
@@ -234,7 +235,11 @@ public class AsyncTaskManagementService<
                 }
             } else {
                 // We finished after timeout - saving results
-                storeResults(searchTask, new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()));
+                storeResults(
+                    searchTask,
+                    new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
+                    ActionListener.running(response::decRef)
+                );
             }
         }, e -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
@@ -272,6 +277,7 @@ public class AsyncTaskManagementService<
                 ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
+                        // TODO: generalize the logging, not just eql
                         logger.trace(() -> "stored eql search results for [" + searchTask.getExecutionId().getEncoded() + "]");
                         taskManager.unregister(searchTask);
                         if (storedResponse.getException() != null) {
@@ -290,6 +296,7 @@ public class AsyncTaskManagementService<
                         if (cause instanceof DocumentMissingException == false
                             && cause instanceof VersionConflictEngineException == false) {
                             logger.error(
+                                // TODO: generalize the logging, not just eql
                                 () -> format("failed to store eql search results for [%s]", searchTask.getExecutionId().getEncoded()),
                                 exc
                             );
@@ -324,7 +331,7 @@ public class AsyncTaskManagementService<
                 ListenerTimeouts.wrapWithTimeout(
                     threadPool,
                     timeout,
-                    ThreadPool.Names.SEARCH,
+                    threadPool.executor(ThreadPool.Names.SEARCH),
                     ActionListener.wrap(
                         r -> listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis())),
                         e -> listener.onResponse(new StoredAsyncResponse<>(e, task.getExpirationTimeMillis()))

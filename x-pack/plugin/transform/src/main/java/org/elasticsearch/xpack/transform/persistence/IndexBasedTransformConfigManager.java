@@ -15,16 +15,16 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -135,13 +135,9 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 .id(TransformCheckpoint.documentId(checkpoint.getTransformId(), checkpoint.getCheckpoint()))
                 .source(source);
 
-            executeAsyncWithOrigin(
-                client,
-                TRANSFORM_ORIGIN,
-                IndexAction.INSTANCE,
-                indexRequest,
-                ActionListener.wrap(r -> { listener.onResponse(true); }, listener::onFailure)
-            );
+            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.wrap(r -> {
+                listener.onResponse(true);
+            }, listener::onFailure));
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(e);
@@ -308,7 +304,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             IndicesOptions.LENIENT_EXPAND_OPEN
         );
 
-        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteRequest, ActionListener.wrap(response -> {
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportDeleteIndexAction.TYPE, deleteRequest, ActionListener.wrap(response -> {
             if (response.isAcknowledged() == false) {
                 listener.onFailure(new ElasticsearchStatusException("Failed to delete internal indices", RestStatus.INTERNAL_SERVER_ERROR));
                 return;
@@ -319,38 +315,44 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     private void putTransformConfiguration(
         TransformConfig transformConfig,
-        DocWriteRequest.OpType optType,
+        DocWriteRequest.OpType opType,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
         ActionListener<Boolean> listener
     ) {
+        assert DocWriteRequest.OpType.CREATE.equals(opType) || DocWriteRequest.OpType.INDEX.equals(opType);
+
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(optType)
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(opType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .id(TransformConfig.documentId(transformConfig.getId()))
                 .source(source);
             if (seqNoPrimaryTermAndIndex != null) {
                 indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo()).setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
             }
-            executeAsyncWithOrigin(
-                client,
-                TRANSFORM_ORIGIN,
-                IndexAction.INSTANCE,
-                indexRequest,
-                ActionListener.wrap(r -> { listener.onResponse(true); }, e -> {
-                    if (e instanceof VersionConflictEngineException) {
-                        // the transform already exists
+            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportIndexAction.TYPE, indexRequest, ActionListener.wrap(r -> {
+                listener.onResponse(true);
+            }, e -> {
+                if (e instanceof VersionConflictEngineException) {
+                    if (DocWriteRequest.OpType.CREATE.equals(opType)) {  // we want to create the transform but it already exists
                         listener.onFailure(
                             new ResourceAlreadyExistsException(
                                 TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformConfig.getId())
                             )
                         );
-                    } else {
-                        listener.onFailure(new RuntimeException(TransformMessages.REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
+                    } else {  // we want to update the transform but it got updated in the meantime, report version conflict
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                TransformMessages.getMessage(TransformMessages.REST_UPDATE_TRANSFORM_CONFLICT, transformConfig.getId()),
+                                RestStatus.CONFLICT
+                            )
+                        );
                     }
-                })
-            );
+                } else {
+                    listener.onFailure(new RuntimeException(TransformMessages.REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
+                }
+            }));
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(
@@ -379,7 +381,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
@@ -416,7 +418,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
@@ -460,7 +462,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
@@ -493,7 +495,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .seqNoAndPrimaryTerm(true)
             .request();
 
-        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getHits().length == 0) {
                 configAndVersionListener.onFailure(
                     new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
@@ -627,7 +629,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     .query(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
                     .trackTotalHitsUpTo(1)
             );
-        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getTotalHits().value == 0) {
                 listener.onFailure(
                     new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
@@ -707,7 +709,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             executeAsyncWithOrigin(
                 client,
                 TRANSFORM_ORIGIN,
-                IndexAction.INSTANCE,
+                TransportIndexAction.TYPE,
                 indexRequest,
                 ActionListener.wrap(
                     r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
@@ -752,7 +754,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
@@ -888,7 +890,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         }
     }
 
-    private QueryBuilder buildQueryFromTokenizedIds(String[] idTokens, String resourceName) {
+    private static QueryBuilder buildQueryFromTokenizedIds(String[] idTokens, String resourceName) {
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), resourceName));
         if (Strings.isAllOrWildcard(idTokens) == false) {

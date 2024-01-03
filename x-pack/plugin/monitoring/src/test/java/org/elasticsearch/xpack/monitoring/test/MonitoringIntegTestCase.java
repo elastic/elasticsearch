@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
@@ -75,7 +76,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             MockClusterAlertScriptEngine.TestPlugin.class,
             MockIngestPlugin.class,
             CommonAnalysisPlugin.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
@@ -97,11 +99,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void startMonitoringService() {
-        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::start);
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::unpause);
     }
 
     protected void stopMonitoringService() {
-        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::stop);
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::pause);
     }
 
     protected void wipeMonitoringIndices() throws Exception {

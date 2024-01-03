@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Abstract class for aggregated data extractors, e.g. {@link RollupDataExtractor}
@@ -79,6 +78,11 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     }
 
     @Override
+    public void destroy() {
+        cancel();
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }
@@ -118,10 +122,14 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         T searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
         SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        checkForSkippedClusters(searchResponse);
-        LOGGER.debug("[{}] Search response was obtained", context.jobId);
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        return validateAggs(searchResponse.getAggregations());
+        try {
+            checkForSkippedClusters(searchResponse);
+            LOGGER.debug("[{}] Search response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            return validateAggs(searchResponse.getAggregations());
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private void initAggregationProcessor(Aggregations aggs) throws IOException {
@@ -158,7 +166,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     protected abstract T buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
 
-    private Aggregations validateAggs(@Nullable Aggregations aggs) {
+    private static Aggregations validateAggs(@Nullable Aggregations aggs) {
         if (aggs == null) {
             return null;
         }
@@ -168,8 +176,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         }
         if (aggsAsList.size() > 1) {
             throw new IllegalArgumentException(
-                "Multiple top level aggregations not supported; found: "
-                    + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList())
+                "Multiple top level aggregations not supported; found: " + aggsAsList.stream().map(Aggregation::getName).toList()
             );
         }
 

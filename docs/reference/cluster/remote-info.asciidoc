@@ -67,3 +67,9 @@ Refer to <<skip-unavailable-clusters>>.
 `max_proxy_socket_connections`::
     The maximum number of socket connections to the remote cluster when proxy
     mode is configured.
+
+`cluster_credentials`::
+beta:[]
+This field presents and has value of `::es_redacted::` only when the
+<<remote-clusters-api-key,remote cluster is configured with the API key based model>>.
+Otherwise, the field is not present.

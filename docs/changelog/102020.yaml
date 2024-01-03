@@ -1,0 +1,5 @@
+pr: 102020
+summary: Retrieve stacktrace events from a custom index
+area: Application
+type: enhancement
+issues: []

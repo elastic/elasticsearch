@@ -12,13 +12,13 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.tests.analysis.MockTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
@@ -41,7 +41,7 @@ public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
 
     public void testThreadSafety() throws IOException {
         // TODO: is this the right boilerplate? I forked this out of TransportAnalyzeAction.java:
-        Settings settings = indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         Environment environment = TestEnvironment.newEnvironment(settings);

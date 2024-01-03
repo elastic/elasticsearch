@@ -186,7 +186,7 @@ The `transport.compress` setting always configures local cluster request
 compression and is the fallback setting for remote cluster request compression.
 If you want to configure remote request compression differently than local
 request compression, you can set it on a per-remote cluster basis using the
-<<remote-cluster-settings,`cluster.remote.${cluster_alias}.transport.compress` setting>>.
+<<remote-clusters-settings,`cluster.remote.${cluster_alias}.transport.compress` setting>>.
 
 
 [[response-compression]]

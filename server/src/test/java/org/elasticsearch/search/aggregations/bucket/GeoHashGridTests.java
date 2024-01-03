@@ -8,22 +8,10 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.elasticsearch.test.TransportVersionUtils;
-
-import java.util.Collections;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
@@ -48,29 +36,4 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
         return factory;
     }
 
-    public void testSerializationPreBounds() throws Exception {
-        TransportVersion noBoundsSupportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.V_7_0_0,
-            TransportVersion.V_7_5_0
-        );
-        GeoHashGridAggregationBuilder builder = createTestAggregatorBuilder();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.V_7_6_0);
-            builder.writeTo(output);
-            try (
-                StreamInput in = new NamedWriteableAwareStreamInput(
-                    output.bytes().streamInput(),
-                    new NamedWriteableRegistry(Collections.emptyList())
-                )
-            ) {
-                in.setTransportVersion(noBoundsSupportVersion);
-                GeoHashGridAggregationBuilder readBuilder = new GeoHashGridAggregationBuilder(in);
-                assertThat(
-                    readBuilder.geoBoundingBox(),
-                    equalTo(new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN)))
-                );
-            }
-        }
-    }
 }

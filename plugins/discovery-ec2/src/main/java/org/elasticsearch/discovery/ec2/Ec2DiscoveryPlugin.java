@@ -74,6 +74,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         this(settings, new AwsEc2ServiceImpl());
     }
 
+    @SuppressWarnings("this-escape")
     protected Ec2DiscoveryPlugin(Settings settings, AwsEc2ServiceImpl ec2Service) {
         this.settings = settings;
         this.ec2Service = ec2Service;
@@ -103,6 +104,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             Ec2ClientSettings.PROTOCOL_SETTING,
             Ec2ClientSettings.PROXY_HOST_SETTING,
             Ec2ClientSettings.PROXY_PORT_SETTING,
+            Ec2ClientSettings.PROXY_SCHEME_SETTING,
             Ec2ClientSettings.PROXY_USERNAME_SETTING,
             Ec2ClientSettings.PROXY_PASSWORD_SETTING,
             Ec2ClientSettings.READ_TIMEOUT_SETTING,

@@ -13,12 +13,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.CleanableResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -36,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -87,8 +89,8 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
     @Before
     public void initTransports() {
-        node1 = TestDiscoveryNode.create("node1");
-        node2 = TestDiscoveryNode.create("node2");
+        node1 = DiscoveryNodeUtils.create("node1");
+        node2 = DiscoveryNodeUtils.create("node2");
 
         disconnectedLinks = new HashSet<>();
         blackholedLinks = new HashSet<>();
@@ -253,6 +255,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(T response) {
                 throw new AssertionError("should not be called");
             }
@@ -269,6 +276,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
             @Override
@@ -293,6 +305,11 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
             public void handleResponse(T response) {
                 throw new AssertionError("should not be called");
             }
@@ -305,7 +322,12 @@ public class DisruptableMockTransportTests extends ESTestCase {
     }
 
     private void registerRequestHandler(TransportService transportService, TransportRequestHandler<TestRequest> handler) {
-        transportService.registerRequestHandler(TEST_ACTION, ThreadPool.Names.GENERIC, TestRequest::new, handler);
+        transportService.registerRequestHandler(
+            TEST_ACTION,
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            TestRequest::new,
+            handler
+        );
     }
 
     private void send(
@@ -537,7 +559,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
                     new CleanableResponseHandler<>(
                         ActionListener.running(() -> assertFalse(responseHandlerCalled.getAndSet(true))),
                         TestResponse::new,
-                        ThreadPool.Names.SAME,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         () -> assertFalse(responseHandlerReleased.getAndSet(true))
                     )
                 );
@@ -584,7 +606,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
         );
         blackholedRequestLinks.clear();
 
-        final DiscoveryNode node3 = TestDiscoveryNode.create("node3");
+        final DiscoveryNode node3 = DiscoveryNodeUtils.create("node3");
         assertThat(
             expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node3))
                 .getMessage(),

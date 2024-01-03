@@ -1,0 +1,5 @@
+pr: 100383
+summary: Push s3 requests count via metrics API
+area: Distributed
+type: enhancement
+issues: []

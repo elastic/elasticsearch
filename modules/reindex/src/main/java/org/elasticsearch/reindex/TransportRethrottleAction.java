@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,20 +39,25 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         Client client
     ) {
         super(
-            RethrottleAction.NAME,
+            ReindexPlugin.RETHROTTLE_ACTION.name(),
             clusterService,
             transportService,
             actionFilters,
             RethrottleRequest::new,
             ListTasksResponse::new,
             TaskInfo::from,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
     }
 
     @Override
-    protected void taskOperation(Task actionTask, RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
+    protected void taskOperation(
+        CancellableTask actionTask,
+        RethrottleRequest request,
+        BulkByScrollTask task,
+        ActionListener<TaskInfo> listener
+    ) {
         rethrottle(logger, clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
     }
 
@@ -96,10 +101,10 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubtasks);
             subRequest.setTargetParentTaskId(new TaskId(localNodeId, task.getId()));
             logger.debug("rethrottling children of task [{}] to [{}] requests per second", task.getId(), subRequest.getRequestsPerSecond());
-            client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(r -> {
+            client.execute(ReindexPlugin.RETHROTTLE_ACTION, subRequest, listener.delegateFailureAndWrap((l, r) -> {
                 r.rethrowFailures("Rethrottle");
-                listener.onResponse(task.taskInfoGivenSubtaskInfo(localNodeId, r.getTasks()));
-            }, listener::onFailure));
+                l.onResponse(task.taskInfoGivenSubtaskInfo(localNodeId, r.getTasks()));
+            }));
         } else {
             logger.debug("children of task [{}] are already finished, nothing to rethrottle", task.getId());
             listener.onResponse(task.taskInfo(localNodeId, true));

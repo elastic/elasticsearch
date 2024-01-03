@@ -10,11 +10,16 @@ package org.elasticsearch.common.collect;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.ToIntFunction;
 
 public class Iterators {
 
@@ -87,36 +92,91 @@ public class Iterators {
             }
             return value;
         }
+
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            while (index < iterators.length) {
+                iterators[index++].forEachRemaining(action);
+            }
+        }
     }
 
     public static <T> Iterator<T> forArray(T[] array) {
-        return new ArrayIterator<>(array);
+        return Arrays.asList(array).iterator();
     }
 
-    private static final class ArrayIterator<T> implements Iterator<T> {
+    public static <T> Iterator<T> forRange(int lowerBoundInclusive, int upperBoundExclusive, IntFunction<? extends T> fn) {
+        assert lowerBoundInclusive <= upperBoundExclusive : lowerBoundInclusive + " vs " + upperBoundExclusive;
+        if (upperBoundExclusive <= lowerBoundInclusive) {
+            return Collections.emptyIterator();
+        } else {
+            return new IntRangeIterator<>(lowerBoundInclusive, upperBoundExclusive, Objects.requireNonNull(fn));
+        }
+    }
 
-        private final T[] array;
+    private static final class IntRangeIterator<T> implements Iterator<T> {
+        private final IntFunction<? extends T> fn;
+        private final int upperBoundExclusive;
         private int index;
 
-        private ArrayIterator(T[] array) {
-            this.array = Objects.requireNonNull(array, "Unable to iterate over a null array");
+        IntRangeIterator(int lowerBoundInclusive, int upperBoundExclusive, IntFunction<? extends T> fn) {
+            this.fn = fn;
+            this.index = lowerBoundInclusive;
+            this.upperBoundExclusive = upperBoundExclusive;
         }
 
         @Override
         public boolean hasNext() {
-            return index < array.length;
+            return index < upperBoundExclusive;
         }
 
         @Override
         public T next() {
-            if (index >= array.length) {
+            if (index >= upperBoundExclusive) {
                 throw new NoSuchElementException();
             }
-            return array[index++];
+            return fn.apply(index++);
         }
     }
 
-    public static <T, U> Iterator<? extends U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public static <T, U> Iterator<U> map(Iterator<? extends T> input, Function<T, ? extends U> fn) {
+        if (input.hasNext()) {
+            if (input instanceof MapIterator mapIterator) {
+                return new MapIterator<>(mapIterator.input, mapIterator.fn.andThen(fn));
+            }
+            return new MapIterator<>(input, fn);
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
+    private static final class MapIterator<T, U> implements Iterator<U> {
+        private final Iterator<? extends T> input;
+        private final Function<T, ? extends U> fn;
+
+        MapIterator(Iterator<? extends T> input, Function<T, ? extends U> fn) {
+            this.input = input;
+            this.fn = fn;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return input.hasNext();
+        }
+
+        @Override
+        public U next() {
+            return fn.apply(input.next());
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super U> action) {
+            input.forEachRemaining(t -> action.accept(fn.apply(t)));
+        }
+    }
+
+    public static <T, U> Iterator<U> flatMap(Iterator<? extends T> input, Function<T, Iterator<? extends U>> fn) {
         while (input.hasNext()) {
             final var value = fn.apply(input.next());
             if (value.hasNext()) {
@@ -163,6 +223,38 @@ public class Iterators {
             }
             return value;
         }
+    }
+
+    public static <T> boolean equals(Iterator<? extends T> iterator1, Iterator<? extends T> iterator2, BiPredicate<T, T> itemComparer) {
+        if (iterator1 == null) {
+            return iterator2 == null;
+        }
+        if (iterator2 == null) {
+            return false;
+        }
+
+        while (iterator1.hasNext()) {
+            if (iterator2.hasNext() == false) {
+                return false;
+            }
+
+            if (itemComparer.test(iterator1.next(), iterator2.next()) == false) {
+                return false;
+            }
+        }
+
+        return iterator2.hasNext() == false;
+    }
+
+    public static <T> int hashCode(Iterator<? extends T> iterator, ToIntFunction<T> itemHashcode) {
+        if (iterator == null) {
+            return 0;
+        }
+        int result = 1;
+        while (iterator.hasNext()) {
+            result = 31 * result + itemHashcode.applyAsInt(iterator.next());
+        }
+        return result;
     }
 
 }

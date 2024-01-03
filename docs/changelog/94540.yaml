@@ -1,5 +1,0 @@
-pr: 94540
-summary: Cut over from Field to `StringField` when applicable
-area: Mapping
-type: enhancement
-issues: []

@@ -16,10 +16,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
@@ -57,7 +58,7 @@ public class Subject {
     private final Map<String, Object> metadata;
 
     public Subject(User user, Authentication.RealmRef realm) {
-        this(user, realm, TransportVersion.CURRENT, Map.of());
+        this(user, realm, TransportVersion.current(), Map.of());
     }
 
     public Subject(User user, Authentication.RealmRef realm, TransportVersion version, Map<String, Object> metadata) {
@@ -272,7 +273,7 @@ public class Subject {
 
     // Package private for testing
     RoleReference.ApiKeyRoleReference buildRoleReferenceForCrossClusterApiKey() {
-        assert version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR);
+        assert version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
@@ -294,12 +295,16 @@ public class Subject {
         );
         final var innerAuthentication = (Authentication) metadata.get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         final User innerUser = innerAuthentication.getEffectiveSubject().getUser();
-        if (CrossClusterAccessUser.is(innerUser)) {
+        if (innerUser instanceof InternalUser internalUser) {
             assert crossClusterAccessRoleDescriptorsBytes.isEmpty()
                 : "role descriptors bytes list for internal cross cluster access user must be empty";
-            roleReferences.add(
-                new RoleReference.FixedRoleReference(CrossClusterAccessUser.ROLE_DESCRIPTOR, "cross_cluster_access_internal")
-            );
+            final RoleDescriptor internalRoleDescriptor = internalUser.getRemoteAccessRoleDescriptor()
+                .orElseThrow(
+                    () -> new ElasticsearchSecurityException(
+                        "The internal user [" + internalUser + "] is not permitted to perform cross cluster actions"
+                    )
+                );
+            roleReferences.add(new RoleReference.FixedRoleReference(internalRoleDescriptor, "cross_cluster_access_internal"));
         } else if (crossClusterAccessRoleDescriptorsBytes.isEmpty()) {
             // If the cross cluster access role descriptors are empty, the remote user has no privileges. We need to add an empty role to
             // restrict access of the overall intersection accordingly
@@ -378,8 +383,8 @@ public class Subject {
 
     private ApiKey.Type getApiKeyType() {
         final String typeString = (String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY);
-        assert (typeString != null) || version.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)
-            : "API key type must be non-null except for versions older than " + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
+        assert (typeString != null) || version.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+            : "API key type must be non-null except for versions older than " + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 
         // A null type string can only be for the REST type because it is not possible to
         // create cross-cluster API keys for mixed cluster with old nodes.

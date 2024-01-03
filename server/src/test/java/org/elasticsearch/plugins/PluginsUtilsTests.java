@@ -10,6 +10,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.jdk.JarHell;
@@ -39,7 +40,20 @@ public class PluginsUtilsTests extends ESTestCase {
 
     PluginDescriptor newTestDescriptor(String name, List<String> deps) {
         String javaVersion = Runtime.version().toString();
-        return new PluginDescriptor(name, "desc", "1.0", Version.CURRENT, javaVersion, "MyPlugin", null, deps, false, false, false, false);
+        return new PluginDescriptor(
+            name,
+            "desc",
+            "1.0",
+            Build.current().version(),
+            javaVersion,
+            "MyPlugin",
+            null,
+            deps,
+            false,
+            false,
+            false,
+            false
+        );
     }
 
     public void testExistingPluginMissingDescriptor() throws Exception {
@@ -368,8 +382,20 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
+    public void testInternalNonSemanticVersions() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(randomAlphaOfLengthBetween(6, 32), "1.8", false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("Plugin [my_plugin] was built for Elasticsearch version"));
+    }
+
+    public void testStableNonSemanticVersions() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(randomAlphaOfLengthBetween(6, 32), "1.8", true);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("Expected semantic version for plugin [my_plugin] but was"));
+    }
+
     public void testStableEarlierElasticsearchVersion() throws Exception {
-        PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(Version.CURRENT.id + 1), "1.8", true);
+        PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(Version.CURRENT.id + 1).toString(), "1.8", true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
         assertThat(
             e.getMessage(),
@@ -384,19 +410,19 @@ public class PluginsUtilsTests extends ESTestCase {
     }
 
     public void testStableIncompatibleElasticsearchVersion() throws Exception {
-        PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(6000099), "1.8", true);
+        PluginDescriptor info = getPluginDescriptorForVersion("6.0.0", "1.8", true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for Elasticsearch major version 6"));
     }
 
     public void testIncompatibleElasticsearchVersion() throws Exception {
-        PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(6000099), "1.8", false);
+        PluginDescriptor info = getPluginDescriptorForVersion("6.0.0", "1.8", false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for Elasticsearch version 6.0.0"));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
-        PluginDescriptor info = getPluginDescriptorForVersion(Version.CURRENT, "1000", false);
+        PluginDescriptor info = getPluginDescriptorForVersion(Build.current().version(), "1000", false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsUtils.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("my_plugin requires Java"));
     }
@@ -415,7 +441,7 @@ public class PluginsUtilsTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -429,14 +455,14 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(PluginsUtils.findPluginDirs(plugins), containsInAnyOrder(fake));
     }
 
-    private static PluginDescriptor getPluginDescriptorForVersion(Version id, String javaVersion, boolean isStable) {
+    private static PluginDescriptor getPluginDescriptorForVersion(String id, String javaVersion, boolean isStable) {
         PluginDescriptor info = new PluginDescriptor(
             "my_plugin",
             "desc",
             "1.0",
             id,
             javaVersion,
-            "FakePlugin",
+            isStable ? null : "FakePlugin",
             null,
             Collections.emptyList(),
             false,

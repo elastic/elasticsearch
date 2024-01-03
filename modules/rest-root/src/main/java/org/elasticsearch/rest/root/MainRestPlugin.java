@@ -10,6 +10,7 @@ package org.elasticsearch.rest.root;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,6 +26,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class MainRestPlugin extends Plugin implements ActionPlugin {
+
+    public static final ActionType<MainResponse> MAIN_ACTION = ActionType.localOnly("cluster:monitor/main");
+
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
@@ -40,6 +44,6 @@ public class MainRestPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class));
+        return List.of(new ActionHandler<>(MAIN_ACTION, TransportMainAction.class));
     }
 }

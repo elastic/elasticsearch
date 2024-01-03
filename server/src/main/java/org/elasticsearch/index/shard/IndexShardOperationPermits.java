@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +26,7 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -73,13 +75,13 @@ final class IndexShardOperationPermits implements Closeable {
      * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed. This listener should not throw.
      * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
      */
-    public void blockOperations(final ActionListener<Releasable> onAcquired, String executor) {
+    public void blockOperations(final ActionListener<Releasable> onAcquired, Executor executor) {
         delayOperations();
         waitUntilBlocked(ActionListener.assertOnce(onAcquired), executor);
     }
 
-    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, String executor) {
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, Executor executor) {
+        executor.execute(new AbstractRunnable() {
 
             final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
 
@@ -182,11 +184,19 @@ final class IndexShardOperationPermits implements Closeable {
      * @param executorOnDelay executor to use for the possibly delayed {@link ActionListener#onResponse(Object)} call
      * @param forceExecution  whether the runnable should force its execution in case it gets rejected
      */
-    public void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution) {
+    public void acquire(
+        final ActionListener<Releasable> onAcquired,
+        @Nullable final Executor executorOnDelay,
+        final boolean forceExecution
+    ) {
         innerAcquire(ActionListener.assertOnce(onAcquired), executorOnDelay, forceExecution);
     }
 
-    private void innerAcquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution) {
+    private void innerAcquire(
+        final ActionListener<Releasable> onAcquired,
+        @Nullable final Executor executorOnDelay,
+        final boolean forceExecution
+    ) {
         if (closed) {
             onAcquired.onFailure(new IndexShardClosedException(shardId));
             return;
@@ -199,7 +209,7 @@ final class IndexShardOperationPermits implements Closeable {
                     final ActionListener<Releasable> wrappedListener;
                     if (executorOnDelay != null) {
                         wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired).delegateFailure(
-                            (l, r) -> threadPool.executor(executorOnDelay).execute(new ActionRunnable<>(l) {
+                            (l, r) -> executorOnDelay.execute(new ActionRunnable<>(l) {
                                 @Override
                                 public boolean isForceExecution() {
                                     return forceExecution;

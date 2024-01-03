@@ -23,8 +23,9 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     private final AsyncExecutionId asyncExecutionId;
     private final Map<String, String> originHeaders;
     private volatile long expirationTimeMillis;
-    private final List<ActionListener<Response>> completionListeners;
+    protected final List<ActionListener<Response>> completionListeners;
 
+    @SuppressWarnings("this-escape")
     public StoredAsyncTask(
         long id,
         String type,
@@ -78,7 +79,8 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
      */
     public synchronized void onResponse(Response response) {
         for (ActionListener<Response> listener : completionListeners) {
-            listener.onResponse(response);
+            response.incRef();
+            ActionListener.respondAndRelease(listener, response);
         }
     }
 

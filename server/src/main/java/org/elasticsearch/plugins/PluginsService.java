@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.node.ReportingService;
@@ -33,7 +32,6 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
@@ -60,6 +58,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -99,6 +98,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PluginsService.class);
 
+    private static final Map<String, List<ModuleQualifiedExportsService>> exportsServices;
+
+    static {
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>();
+        var loader = ServiceLoader.load(ModuleQualifiedExportsService.class, PluginsService.class.getClassLoader());
+        for (var exportsService : loader) {
+            addExportsService(qualifiedExports, exportsService, exportsService.getClass().getModule().getName());
+        }
+        exportsServices = Map.copyOf(qualifiedExports);
+    }
+
     private final Settings settings;
     private final Path configPath;
 
@@ -119,12 +129,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
+    @SuppressWarnings("this-escape")
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
         this.settings = settings;
         this.configPath = configPath;
 
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>();
-        loadExportsServices(qualifiedExports, PluginsService.class.getClassLoader());
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(exportsServices);
         addServerExportsService(qualifiedExports);
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
@@ -202,12 +212,21 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    private static final Set<String> officialPlugins;
+
+    static {
+        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
+            officialPlugins = Streams.readAllLines(stream).stream().map(String::trim).collect(Collectors.toUnmodifiableSet());
+        } catch (final IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private static List<PluginRuntimeInfo> getRuntimeInfos(
         PluginIntrospector inspector,
         List<PluginDescriptor> pluginDescriptors,
         Map<String, LoadedPlugin> plugins
     ) {
-        var officialPlugins = getOfficialPlugins();
         List<PluginRuntimeInfo> runtimeInfos = new ArrayList<>();
         for (PluginDescriptor descriptor : pluginDescriptors) {
             LoadedPlugin plugin = plugins.get(descriptor.getName());
@@ -221,14 +240,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             runtimeInfos.add(new PluginRuntimeInfo(descriptor, isOfficial, apiInfo));
         }
         return runtimeInfos;
-    }
-
-    private static Set<String> getOfficialPlugins() {
-        try (var stream = PluginsService.class.getResourceAsStream("/plugins.txt")) {
-            return Streams.readAllLines(stream).stream().map(String::trim).collect(Sets.toUnmodifiableSortedSet());
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     /**
@@ -286,10 +297,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
-        Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-        for (PluginBundle bundle : sortedBundles) {
-            PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-            loadBundle(bundle, loaded, qualifiedExports);
+        if (sortedBundles.isEmpty() == false) {
+            Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
+            for (PluginBundle bundle : sortedBundles) {
+                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
+                loadBundle(bundle, loaded, qualifiedExports);
+            }
         }
 
         loadExtensions(loaded.values());
@@ -331,6 +344,27 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         return Collections.unmodifiableList(result);
+    }
+
+    /**
+     * Loads a single SPI extension.
+     *
+     * There should be no more than one extension found. If no service providers
+     * are found, the supplied fallback is used.
+     *
+     * @param service the SPI class that should be loaded
+     * @param fallback a supplier for an instance if no providers are found
+     * @return an instance of the service
+     * @param <T> the SPI service type
+     */
+    public <T> T loadSingletonServiceProvider(Class<T> service, Supplier<T> fallback) {
+        var services = loadServiceProviders(service);
+        if (services.size() > 1) {
+            throw new IllegalStateException(String.format(Locale.ROOT, "More than one extension found for %s", service.getSimpleName()));
+        } else if (services.isEmpty()) {
+            return fallback.get();
+        }
+        return services.get(0);
     }
 
     private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {
@@ -676,21 +710,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("unchecked")
-    public final <T> List<T> filterPlugins(Class<T> type) {
-        return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+    public final <T> Stream<T> filterPlugins(Class<T> type) {
+        return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance()));
     }
 
-    /**
-     * Get a function that will take a {@link Settings} object and return a {@link PluginsService}.
-     * This function passes in an empty list of classpath plugins.
-     * @param environment The environment for the plugins service.
-     * @return A function for creating a plugins service.
-     */
-    public static Function<Settings, PluginsService> getPluginsServiceCtor(Environment environment) {
-        return settings -> new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
-    }
-
-    static final LayerAndLoader createPluginModuleLayer(
+    static LayerAndLoader createPluginModuleLayer(
         PluginBundle bundle,
         ClassLoader parentLoader,
         List<ModuleLayer> parentLayers,
@@ -784,13 +808,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private static void exposeQualifiedExportsAndOpens(Module target, Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
         qualifiedExports.getOrDefault(target.getName(), List.of()).forEach(exportService -> exportService.addExportsAndOpens(target));
-    }
-
-    private static void loadExportsServices(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports, ClassLoader classLoader) {
-        var loader = ServiceLoader.load(ModuleQualifiedExportsService.class, classLoader);
-        for (var exportsService : loader) {
-            addExportsService(qualifiedExports, exportsService, exportsService.getClass().getModule().getName());
-        }
     }
 
     private static void addExportsService(

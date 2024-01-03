@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -98,7 +99,9 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(new SystemIndexDescriptor(INDEX_NAME + "*", "System index for [" + getTestClass().getName() + ']'));
+            return List.of(
+                SystemIndexDescriptorUtils.createUnmanaged(INDEX_NAME + "*", "System index for [" + getTestClass().getName() + ']')
+            );
         }
 
         @Override

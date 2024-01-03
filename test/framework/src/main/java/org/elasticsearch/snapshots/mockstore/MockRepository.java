@@ -20,6 +20,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
@@ -35,6 +36,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -60,7 +62,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
@@ -80,7 +83,8 @@ public class MockRepository extends FsRepository {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 "mock",
@@ -105,13 +109,14 @@ public class MockRepository extends FsRepository {
         return failureCounter.get();
     }
 
-    private final double randomControlIOExceptionRate;
+    private volatile double randomControlIOExceptionRate;
 
-    private final double randomDataFileIOExceptionRate;
+    private volatile double randomDataFileIOExceptionRate;
+    private volatile Predicate<String> randomIOExceptionPattern;
 
-    private final boolean useLuceneCorruptionException;
+    private volatile boolean useLuceneCorruptionException;
 
-    private final long maximumNumberOfFailures;
+    private volatile long maximumNumberOfFailures;
 
     private final long waitAfterUnblock;
 
@@ -167,6 +172,8 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blocked = false;
 
+    private volatile boolean failOnDeleteContainer = false;
+
     public MockRepository(
         RepositoryMetadata metadata,
         Environment environment,
@@ -178,6 +185,7 @@ public class MockRepository extends FsRepository {
         super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
+        randomIOExceptionPattern = Pattern.compile(metadata.settings().get("random_io_exception_pattern", ".*")).asMatchPredicate();
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
         maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
         blockOnAnyFiles = metadata.settings().getAsBoolean("block_on_control", false);
@@ -249,6 +257,31 @@ public class MockRepository extends FsRepository {
         blockAndFailOnReadSnapFile = false;
         blockAndFailOnReadIndexFile = false;
         this.notifyAll();
+    }
+
+    public void setMaximumNumberOfFailures(long maximumNumberOfFailures) {
+        logger.debug("Setting maximum number of failures to [{}]", maximumNumberOfFailures);
+        this.maximumNumberOfFailures = maximumNumberOfFailures;
+    }
+
+    public void setUseLuceneCorruptionException(boolean useLuceneCorruptionException) {
+        logger.debug("Setting using lucene corruption exception to [{}]", useLuceneCorruptionException);
+        this.useLuceneCorruptionException = useLuceneCorruptionException;
+    }
+
+    public void setRandomControlIOExceptionRate(double randomControlIOExceptionRate) {
+        logger.debug("Setting random control I/O exception rate to [{}]", randomControlIOExceptionRate);
+        this.randomControlIOExceptionRate = randomControlIOExceptionRate;
+    }
+
+    public void setRandomDataFileIOExceptionRate(double randomDataFileIOExceptionRate) {
+        logger.debug("Setting random data file I/O exception rate to [{}]", randomDataFileIOExceptionRate);
+        this.randomDataFileIOExceptionRate = randomDataFileIOExceptionRate;
+    }
+
+    public void setRandomIOExceptionPattern(String randomIOExceptionPattern) {
+        logger.debug("Setting random I/O exception pattern to [{}]", randomIOExceptionPattern);
+        this.randomIOExceptionPattern = Pattern.compile(randomIOExceptionPattern).asMatchPredicate();
     }
 
     public void blockOnDataFiles() {
@@ -323,6 +356,13 @@ public class MockRepository extends FsRepository {
         blockOnceOnReadSnapshotInfo.set(true);
     }
 
+    /**
+     * Sets the fail-on-delete-container flag, which if {@code true} throws an exception when deleting a {@link BlobContainer}.
+     */
+    public void setFailOnDeleteContainer(boolean failOnDeleteContainer) {
+        this.failOnDeleteContainer = failOnDeleteContainer;
+    }
+
     public boolean blocked() {
         return blocked;
     }
@@ -392,11 +432,22 @@ public class MockRepository extends FsRepository {
                 if (probability > 0.0) {
                     String path = path().add(blobName).buildAsString() + randomPrefix;
                     path += "/" + incrementAndGet(path);
-                    logger.info("checking [{}] [{}]", path, Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability);
-                    return Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability;
-                } else {
-                    return false;
+                    if (Math.abs(hashCode(path)) < Integer.MAX_VALUE * probability) {
+                        if (randomIOExceptionPattern.test(path)) {
+                            if (incrementAndGetFailureCount() <= maximumNumberOfFailures) {
+                                logger.info("failing [{}]", path);
+                                return true;
+                            } else {
+                                logger.info("did not fail [{}] because failure count larger than maximum", path);
+                            }
+                        } else {
+                            logger.info("did not fail [{}] because it does not match the pattern", path);
+                        }
+                    } else {
+                        logger.info("did not fail [{}] due to probability", path);
+                    }
                 }
+                return false;
             }
 
             private int hashCode(String path) {
@@ -417,7 +468,7 @@ public class MockRepository extends FsRepository {
                     return;
                 }
                 if (blobName.startsWith("__")) {
-                    if (shouldFail(blobName, randomDataFileIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
+                    if (shouldFail(blobName, randomDataFileIOExceptionRate)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         if (useLuceneCorruptionException) {
                             throw new CorruptIndexException("Random corruption", "random file");
@@ -430,7 +481,7 @@ public class MockRepository extends FsRepository {
                         blockExecutionAndFail(blobName);
                     }
                 } else {
-                    if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
+                    if (shouldFail(blobName, randomControlIOExceptionRate)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");
                     } else if (blockOnAnyFiles) {
@@ -487,7 +538,7 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public InputStream readBlob(String name) throws IOException {
+            public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
                 if (blockOnReadIndexMeta && name.startsWith(BlobStoreRepository.METADATA_PREFIX) && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(name);
                 } else if (path().equals(basePath())
@@ -498,70 +549,79 @@ public class MockRepository extends FsRepository {
                         maybeReadErrorAfterBlock(name);
                         maybeIOExceptionOrBlock(name);
                     }
-                return super.readBlob(name);
+                return super.readBlob(purpose, name);
             }
 
             @Override
-            public InputStream readBlob(String name, long position, long length) throws IOException {
+            public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
                 maybeReadErrorAfterBlock(name);
                 maybeIOExceptionOrBlock(name);
-                return super.readBlob(name, position, length);
+                return super.readBlob(purpose, name, position, length);
             }
 
             @Override
-            public DeleteResult delete() throws IOException {
-                DeleteResult deleteResult = DeleteResult.ZERO;
-                for (BlobContainer child : children().values()) {
-                    deleteResult = deleteResult.add(child.delete());
+            public DeleteResult delete(OperationPurpose purpose) throws IOException {
+                if (failOnDeleteContainer) {
+                    throw new IOException("simulated delete-container failure");
                 }
-                final Map<String, BlobMetadata> blobs = listBlobs();
+                DeleteResult deleteResult = DeleteResult.ZERO;
+                for (BlobContainer child : children(purpose).values()) {
+                    deleteResult = deleteResult.add(child.delete(purpose));
+                }
+                final Map<String, BlobMetadata> blobs = listBlobs(purpose);
                 long deleteBlobCount = blobs.size();
                 long deleteByteCount = 0L;
-                for (String blob : blobs.values().stream().map(BlobMetadata::name).collect(Collectors.toList())) {
+                for (String blob : blobs.values().stream().map(BlobMetadata::name).toList()) {
                     maybeIOExceptionOrBlock(blob);
-                    deleteBlobsIgnoringIfNotExists(Iterators.single(blob));
+                    deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blob));
                     deleteByteCount += blobs.get(blob).length();
                 }
                 blobStore().blobContainer(path().parent())
-                    .deleteBlobsIgnoringIfNotExists(Iterators.single(path().parts().get(path().parts().size() - 1)));
+                    .deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(path().parts().get(path().parts().size() - 1)));
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 
             @Override
-            public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+            public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
                 final List<String> names = new ArrayList<>();
                 blobNames.forEachRemaining(names::add);
                 if (blockOnDeleteIndexN && names.stream().anyMatch(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
                     blockExecutionAndMaybeWait("index-{N}");
                 }
-                super.deleteBlobsIgnoringIfNotExists(names.iterator());
+                super.deleteBlobsIgnoringIfNotExists(purpose, names.iterator());
             }
 
             @Override
-            public Map<String, BlobMetadata> listBlobs() throws IOException {
+            public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
                 maybeIOExceptionOrBlock("");
-                return super.listBlobs();
+                return super.listBlobs(purpose);
             }
 
             @Override
-            public Map<String, BlobContainer> children() throws IOException {
+            public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
                 final Map<String, BlobContainer> res = new HashMap<>();
-                for (Map.Entry<String, BlobContainer> entry : super.children().entrySet()) {
+                for (Map.Entry<String, BlobContainer> entry : super.children(purpose).entrySet()) {
                     res.put(entry.getKey(), new MockBlobContainer(entry.getValue()));
                 }
                 return res;
             }
 
             @Override
-            public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+            public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
                 maybeIOExceptionOrBlock(blobNamePrefix);
-                return super.listBlobsByPrefix(blobNamePrefix);
+                return super.listBlobsByPrefix(purpose, blobNamePrefix);
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+            public void writeBlob(
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
                 beforeWrite(blobName);
-                super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+                super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -571,6 +631,7 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeMetadataBlob(
+                OperationPurpose purpose,
                 String blobName,
                 boolean failIfAlreadyExists,
                 boolean atomic,
@@ -581,7 +642,7 @@ public class MockRepository extends FsRepository {
                 } else {
                     beforeWrite(blobName);
                 }
-                super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
+                super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -601,27 +662,35 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final BytesReference bytes, final boolean failIfAlreadyExists)
-                throws IOException {
+            public void writeBlobAtomic(
+                final OperationPurpose purpose,
+                final String blobName,
+                final BytesReference bytes,
+                final boolean failIfAlreadyExists
+            ) throws IOException {
                 final Random random = beforeAtomicWrite(blobName);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(tempBlobName, bytes, failIfAlreadyExists);
+                    super.writeBlob(purpose, tempBlobName, bytes, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
+                    fsBlobContainer.moveBlobAtomic(purpose, tempBlobName, blobName, failIfAlreadyExists);
                 } else {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
+                    super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
                 }
             }
 
             private Random beforeAtomicWrite(String blobName) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
                 if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    throw new IOException("Random IOException");
+                }
+                if (shouldFail(blobName, randomControlIOExceptionRate)) {
+                    logger.info("throwing random IOException for atomic write of file [{}] at path [{}]", blobName, path());
                     throw new IOException("Random IOException");
                 }
                 if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {

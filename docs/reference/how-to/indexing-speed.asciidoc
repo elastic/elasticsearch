@@ -107,7 +107,7 @@ that it will increase the risk of failure since the failure of any one SSD
 destroys the index. However this is typically the right tradeoff to make:
 optimize single shards for maximum performance, and then add replicas across
 different nodes so there's redundancy for any node failures. You can also use
-<<modules-snapshots,snapshot and restore>> to backup the index for further
+<<snapshot-restore,snapshot and restore>> to backup the index for further
 insurance.
 
 Directly-attached (local) storage generally performs better than remote storage

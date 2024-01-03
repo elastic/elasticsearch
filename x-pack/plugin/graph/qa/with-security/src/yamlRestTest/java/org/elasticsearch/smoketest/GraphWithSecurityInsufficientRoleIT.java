@@ -8,13 +8,18 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = GraphWithSecurityIT.createCluster();
 
     public GraphWithSecurityInsufficientRoleIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -34,5 +39,10 @@ public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
     @Override
     protected String[] getCredentials() {
         return new String[] { "no_graph_explorer", "x-pack-test-password" };
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

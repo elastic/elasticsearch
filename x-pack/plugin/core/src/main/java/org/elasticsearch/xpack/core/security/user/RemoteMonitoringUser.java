@@ -6,25 +6,18 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import java.util.Optional;
 
 /**
  * Built in user for remote monitoring: collection as well as indexing.
  */
-public class RemoteMonitoringUser extends User {
+public class RemoteMonitoringUser extends ReservedUser {
 
     public static final String NAME = UsernamesField.REMOTE_MONITORING_NAME;
     public static final String COLLECTION_ROLE_NAME = UsernamesField.REMOTE_MONITORING_COLLECTION_ROLE;
     public static final String INDEXING_ROLE_NAME = UsernamesField.REMOTE_MONITORING_INDEXING_ROLE;
 
     public RemoteMonitoringUser(boolean enabled) {
-        super(
-            NAME,
-            new String[] { COLLECTION_ROLE_NAME, INDEXING_ROLE_NAME },
-            null,
-            null,
-            MetadataUtils.DEFAULT_RESERVED_METADATA,
-            enabled
-        );
+        super(NAME, new String[] { COLLECTION_ROLE_NAME, INDEXING_ROLE_NAME }, enabled, Optional.empty());
     }
 }

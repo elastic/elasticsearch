@@ -44,6 +44,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
             INDEX("indices"),
             NODE("nodes"),
             SLM_POLICY("slm_policies"),
+            ILM_POLICY("ilm_policies"),
             FEATURE_STATE("feature_states"),
             SNAPSHOT_REPOSITORY("snapshot_repositories");
 
@@ -79,7 +80,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             final Iterator<? extends ToXContent> valuesIterator;
             if (nodes != null) {
-                valuesIterator = nodes.stream().map(node -> (ToXContent) (builder, params) -> {
+                valuesIterator = Iterators.map(nodes.iterator(), node -> (builder, params) -> {
                     builder.startObject();
                     builder.field(ID_FIELD, node.getId());
                     if (node.getName() != null) {
@@ -87,9 +88,9 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
                     }
                     builder.endObject();
                     return builder;
-                }).iterator();
+                });
             } else {
-                valuesIterator = values.stream().map(value -> (ToXContent) (builder, params) -> builder.value(value)).iterator();
+                valuesIterator = Iterators.map(values.iterator(), value -> (builder, params) -> builder.value(value));
             }
             return ChunkedToXContentHelper.array(type.displayValue, valuesIterator);
         }

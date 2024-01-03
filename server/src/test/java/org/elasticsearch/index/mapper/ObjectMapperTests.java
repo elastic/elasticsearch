@@ -8,18 +8,19 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -29,23 +30,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testDifferentInnerObjectTokenFailure() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
-                {
-                     "object": {
-                       "array":[
-                       {
-                         "object": { "value": "value" }
-                       },
-                       {
-                         "object":"value"
-                       }
-                       ]
-                     },
-                     "value":"value"
-                   }""".indent(1)), XContentType.JSON))
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> defaultMapper.parse(new SourceToParse("1", new BytesArray("""
+            {
+                 "object": {
+                   "array":[
+                   {
+                     "object": { "value": "value" }
+                   },
+                   {
+                     "object":"value"
+                   }
+                   ]
+                 },
+                 "value":"value"
+               }""".indent(1)), XContentType.JSON)));
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
     }
 
@@ -199,7 +197,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         String update = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -220,7 +217,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         );
         DocumentMapper mapper = mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(update),
+            List.of(new CompressedXContent(mapping), new CompressedXContent(update)),
             MergeReason.INDEX_TEMPLATE
         );
 
@@ -269,7 +266,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         String firstUpdate = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -285,11 +281,16 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
+
+        // We can only check such assertion in sequential merges. Bulk merges allow such type substitution as it replaces entire field
+        // mapping subtrees
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstUpdate), MergeReason.INDEX_TEMPLATE)
         );
-        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field2] with an object mapping"));
+        assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [object.field2] with a nested mapping"));
 
         String secondUpdate = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -313,7 +314,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testUnknownLegacyFields() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", "unknown");
             b.field("unknown_setting", 5);
@@ -323,7 +324,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testUnmappedLegacyFields() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", CompletionFieldMapper.CONTENT_TYPE);
             b.field("unknown_setting", 5);

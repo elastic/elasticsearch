@@ -113,7 +113,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     .settings(settings);
                 getClient().admin()
                     .indices()
-                    .updateSettings(updateSettingsRequest, ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
+                    .updateSettings(updateSettingsRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
             } else {
                 // No nodes currently match the allocation rules, so report this as an error and we'll retry
                 logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);

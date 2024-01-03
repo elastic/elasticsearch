@@ -12,6 +12,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -21,6 +22,8 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -42,11 +45,16 @@ import java.util.Objects;
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
     public static final String NAME = "geo_bounding_box";
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoBoundingBoxQueryBuilder.class);
+
+    private static final String TYPE_PARAMETER_DEPRECATION_MESSAGE = "Deprecated parameter [type] used, it should no longer be specified.";
+
     /**
      * The default value for ignore_unmapped.
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
+    private static final ParseField TYPE_FIELD = new ParseField("type").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
@@ -76,7 +84,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         super(in);
         fieldName = in.readString();
         geoBoundingBox = new GeoBoundingBox(in);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readVInt(); // ignore value
         }
         validationMethod = GeoValidationMethod.readFromStream(in);
@@ -87,7 +95,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         geoBoundingBox.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeVInt(0);
         }
         validationMethod.writeTo(out);
@@ -349,14 +357,18 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "failed to parse [{}] query. unexpected field [{}]",
-                        NAME,
-                        currentFieldName
-                    );
-                }
+                } else if (parser.getRestApiVersion() == RestApiVersion.V_7
+                    && TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        deprecationLogger.compatibleCritical("geo_bounding_box_type", TYPE_PARAMETER_DEPRECATION_MESSAGE);
+                        parser.text(); // ignore value
+                    } else {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "failed to parse [{}] query. unexpected field [{}]",
+                            NAME,
+                            currentFieldName
+                        );
+                    }
             }
         }
 
@@ -396,6 +408,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

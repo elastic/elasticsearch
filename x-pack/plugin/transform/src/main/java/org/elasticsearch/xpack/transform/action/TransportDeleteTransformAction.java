@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -22,8 +22,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -69,7 +71,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             actionFilters,
             Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.transformConfigManager = transformServices.getConfigManager();
         this.auditor = transformServices.getAuditor();
@@ -135,6 +137,15 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         TimeValue timeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        // <3> Check if the error is "index not found" error. If so, just move on. The index is already deleted.
+        ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(listener::onResponse, e -> {
+            if (e instanceof IndexNotFoundException) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            } else {
+                listener.onFailure(e);
+            }
+        });
+
         // <2> Delete destination index
         ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> getTransformConfigurationListener = ActionListener.wrap(
             transformConfigAndVersion -> {
@@ -147,9 +158,9 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
                     config.getHeaders(),
                     TRANSFORM_ORIGIN,
                     client,
-                    DeleteIndexAction.INSTANCE,
+                    TransportDeleteIndexAction.TYPE,
                     deleteDestIndexRequest,
-                    listener
+                    deleteDestIndexListener
                 );
             },
             listener::onFailure

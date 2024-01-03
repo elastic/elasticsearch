@@ -14,6 +14,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.internal.jvm.Jvm;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -127,7 +128,7 @@ public abstract class JarApiComparisonTask extends PrecommitTask {
         static List<String> disassemble(String location, String modulePath, String classpath) {
             ProcessBuilder pb = new ProcessBuilder();
             List<String> command = new ArrayList<>();
-            command.add("javap");
+            command.add(Jvm.current().getExecutable("javap").getPath());
             if (modulePath != null) {
                 command.add("--module-path");
                 command.add(modulePath);

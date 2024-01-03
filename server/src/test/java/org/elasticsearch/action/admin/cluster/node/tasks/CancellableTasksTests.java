@@ -31,6 +31,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TestTransportChannels;
@@ -44,12 +45,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
@@ -408,7 +407,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 threadPool,
                 "test",
                 randomNonNegativeLong(),
-                TransportVersion.CURRENT
+                TransportVersion.current()
             )
         );
         CancellableNodesRequest childRequest = new CancellableNodesRequest("child");
@@ -626,18 +625,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         TaskCancelHelper.cancel(task, "simulated");
 
-        final Runnable await = new Runnable() {
-            final CyclicBarrier barrier = new CyclicBarrier(2);
-
-            @Override
-            public void run() {
-                try {
-                    barrier.await(5, TimeUnit.SECONDS);
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            }
-        };
+        final CyclicBarrier barrier = new CyclicBarrier(2);
 
         final Thread concurrentNotify = new Thread(() -> task.notifyIfCancelled(new ActionListener<Void>() {
             @Override
@@ -647,19 +635,31 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                await.run();
+                safeAwait(barrier);
                 // main thread calls notifyIfCancelled again between these two blocks
-                await.run();
+                safeAwait(barrier);
             }
         }), "concurrent notify");
         concurrentNotify.start();
 
-        await.run();
+        safeAwait(barrier);
         task.notifyIfCancelled(future);
         assertTrue(future.isDone());
         assertThat(expectThrows(TaskCancelledException.class, future::actionGet).getMessage(), equalTo("task cancelled [simulated]"));
-        await.run();
+        safeAwait(barrier);
         concurrentNotify.join();
+    }
+
+    public void testReleaseListenersOnCancellation() {
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final AtomicBoolean cancelNotified = new AtomicBoolean();
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        task.addListener(reachabilityChecker.register(() -> assertTrue(cancelNotified.compareAndSet(false, true))));
+
+        reachabilityChecker.checkReachable();
+        TaskCancelHelper.cancel(task, "simulated");
+        reachabilityChecker.ensureUnreachable();
+        assertTrue(cancelNotified.get());
     }
 
 }

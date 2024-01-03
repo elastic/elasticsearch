@@ -22,4 +22,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 public @interface ServerlessScope {
     Scope value();
+
+    /**
+     * A value used when restricting a response of a serverless endpoints.
+     */
+    String SERVERLESS_RESTRICTION = "serverless";
 }

@@ -17,10 +17,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
@@ -48,7 +50,7 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
             GetRollupJobsAction.Request::new,
             GetRollupJobsAction.Response::new,
             GetRollupJobsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
@@ -77,7 +79,11 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, GetRollupJobsAction.Response::new)
+                    new ActionListenerResponseHandler<>(
+                        listener,
+                        GetRollupJobsAction.Response::new,
+                        TransportResponseHandler.TRANSPORT_WORKER
+                    )
                 );
             }
         }
@@ -108,7 +114,7 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         GetRollupJobsAction.Request request,
         RollupJobTask jobTask,
         ActionListener<GetRollupJobsAction.Response> listener

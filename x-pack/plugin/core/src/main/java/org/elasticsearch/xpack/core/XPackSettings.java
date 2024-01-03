@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -31,7 +29,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import javax.crypto.SecretKeyFactory;
-import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
@@ -42,13 +39,6 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_U
  * A container for xpack setting constants.
  */
 public class XPackSettings {
-
-    private static final boolean IS_DARWIN_AARCH64;
-    static {
-        final String name = System.getProperty("os.name");
-        final String arch = System.getProperty("os.arch");
-        IS_DARWIN_AARCH64 = "aarch64".equals(arch) && name.startsWith("Mac OS X");
-    }
 
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -90,6 +80,20 @@ public class XPackSettings {
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
         true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling universal profiling. Defaults to true. */
+    public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
+        "xpack.profiling.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling APM Data. Defaults to false. */
+    public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting(
+        "xpack.apm_data.enabled",
+        false,
         Setting.Property.NodeScope
     );
 
@@ -153,6 +157,12 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED = Setting.boolSetting(
         "xpack.security.fips_mode.enabled",
         false,
+        Property.NodeScope
+    );
+
+    /** Optional setting to prevent startup if required providers are not discovered at runtime */
+    public static final Setting<List<String>> FIPS_REQUIRED_PROVIDERS = Setting.stringListSetting(
+        "xpack.security.fips_mode.required_providers",
         Property.NodeScope
     );
 
@@ -249,19 +259,7 @@ public class XPackSettings {
         }, Property.NodeScope);
     }
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
-
-    static {
-        boolean supportsTLSv13 = false;
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            supportsTLSv13 = true;
-        } catch (NoSuchAlgorithmException e) {
-            // BCJSSE in FIPS mode doesn't support TLSv1.3 yet.
-            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
-        }
-        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
-    }
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1");
 
     public static final SslClientAuthenticationMode CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.REQUIRED;
     public static final SslClientAuthenticationMode HTTP_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
@@ -282,14 +280,12 @@ public class XPackSettings {
 
     private static final SSLConfigurationSettings REMOTE_CLUSTER_SERVER_SSL = SSLConfigurationSettings.withPrefix(
         REMOTE_CLUSTER_SERVER_SSL_PREFIX,
-        false,
-        SSLConfigurationSettings.IntendedUse.SERVER
+        false
     );
 
     private static final SSLConfigurationSettings REMOTE_CLUSTER_CLIENT_SSL = SSLConfigurationSettings.withPrefix(
         REMOTE_CLUSTER_CLIENT_SSL_PREFIX,
-        false,
-        SSLConfigurationSettings.IntendedUse.CLIENT
+        false
     );
 
     /** Setting for enabling or disabling remote cluster server TLS. Defaults to true. */
@@ -311,23 +307,21 @@ public class XPackSettings {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.addAll(HTTP_SSL.getEnabledSettings());
         settings.addAll(TRANSPORT_SSL.getEnabledSettings());
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            settings.addAll(REMOTE_CLUSTER_SERVER_SSL.getEnabledSettings());
-            settings.addAll(REMOTE_CLUSTER_CLIENT_SSL.getEnabledSettings());
-        }
+        settings.addAll(REMOTE_CLUSTER_SERVER_SSL.getEnabledSettings());
+        settings.addAll(REMOTE_CLUSTER_CLIENT_SSL.getEnabledSettings());
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
+        settings.add(PROFILING_ENABLED);
+        settings.add(APM_DATA_ENABLED);
         settings.add(ENTERPRISE_SEARCH_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);
         settings.add(DLS_FLS_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
         settings.add(HTTP_SSL_ENABLED);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            settings.add(REMOTE_CLUSTER_SERVER_SSL_ENABLED);
-            settings.add(REMOTE_CLUSTER_CLIENT_SSL_ENABLED);
-        }
+        settings.add(REMOTE_CLUSTER_SERVER_SSL_ENABLED);
+        settings.add(REMOTE_CLUSTER_CLIENT_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);

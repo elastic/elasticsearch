@@ -34,6 +34,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -123,7 +124,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                             waitForDocs(nbDocs, indexer);
                             indexer.assertNoFailures();
                             assertNoFailures(
-                                client().admin().indices().prepareForceMerge().setFlush(true).setIndices(index).setMaxNumSegments(1).get()
+                                indicesAdmin().prepareForceMerge().setFlush(true).setIndices(index).setMaxNumSegments(1).get()
                             );
                             Map<String, Long> storeSize = sizeOfShardsStores(index);
                             if (storeSize.get(index) > WATERMARK_BYTES) {
@@ -148,18 +149,14 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     private void createRepository(String name, String type) {
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(name)
+            clusterAdmin().preparePutRepository(name)
                 .setType(type)
                 .setSettings(Settings.builder().put("location", randomRepoPath()).build())
         );
     }
 
     private void createSnapshot(String repository, String snapshot, int nbIndices) {
-        var snapshotInfo = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repository, snapshot)
+        var snapshotInfo = clusterAdmin().prepareCreateSnapshot(repository, snapshot)
             .setIndices("index-*")
             .setIncludeGlobalState(false)
             .setWaitForCompletion(true)
@@ -207,7 +204,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         createSnapshot(repositoryName, snapshot, nbIndices);
 
         final Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
-        assertAcked(client().admin().indices().prepareDelete("index-*"));
+        assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         // The test completes reliably successfully only when we do a full copy, we can overcommit on SHARED_CACHE
         final Storage storage = FULL_COPY;
@@ -244,7 +241,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         // The cold/frozen data node has enough disk space to hold all the shards
         assertBusy(() -> {
-            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -260,7 +257,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mountIndices(indicesStoresSizes.keySet(), "extra-", repositoryName, snapshot, storage);
 
         assertBusy(() -> {
-            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -290,14 +287,14 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         createSnapshot(repositoryName, snapshotName, nbIndices);
 
         Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
-        assertAcked(client().admin().indices().prepareDelete("index-*"));
+        assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         String coldNodeName = internalCluster().startNode(
             Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName()).build()
         );
         ensureStableCluster(3);
 
-        String coldNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(coldNodeName).getId();
+        String coldNodeId = clusterAdmin().prepareState().get().getState().nodes().resolveNode(coldNodeName).getId();
         logger.info("--> reducing disk size of node [{}/{}] so that all shards except one can fit on the node", coldNodeName, coldNodeId);
         String indexToSkip = randomFrom(indicesStoresSizes.keySet());
         Map<String, Long> indicesToBeMounted = indicesStoresSizes.entrySet()
@@ -321,7 +318,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mountIndices(indicesToBeMounted.keySet(), prefix, repositoryName, snapshotName, FULL_COPY);
 
         assertBusy(() -> {
-            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -338,7 +335,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         mountIndices(List.of(indexToSkip), prefix, repositoryName, snapshotName, FULL_COPY);
         assertBusy(() -> {
-            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
             assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
         });
 
@@ -348,7 +345,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mockRepository.unlockRestore();
 
         assertBusy(() -> {
-            var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
             assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
             assertThat(
                 state.routingTable()
@@ -364,7 +361,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
     }
 
     private static Map<String, Long> sizeOfShardsStores(String indexPattern) {
-        return Arrays.stream(client().admin().indices().prepareStats(indexPattern).clear().setStore(true).get().getShards())
+        return Arrays.stream(indicesAdmin().prepareStats(indexPattern).clear().setStore(true).get().getShards())
             .collect(
                 Collectors.toUnmodifiableMap(s -> s.getShardRouting().getIndexName(), s -> s.getStats().getStore().sizeInBytes(), Long::sum)
             );
@@ -380,7 +377,8 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,

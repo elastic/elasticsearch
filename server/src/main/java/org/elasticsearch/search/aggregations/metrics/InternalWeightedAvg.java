@@ -46,6 +46,10 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
         out.writeDouble(weight);
     }
 
+    static InternalWeightedAvg empty(String name, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalWeightedAvg(name, 0.0, 0L, format, metadata);
+    }
+
     @Override
     public double value() {
         return getValue();

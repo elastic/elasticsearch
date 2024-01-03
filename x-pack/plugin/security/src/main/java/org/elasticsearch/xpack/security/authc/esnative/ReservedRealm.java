@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
+import org.elasticsearch.xpack.core.security.user.ReservedUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -202,7 +203,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private User getUser(String username, ReservedUserInfo userInfo) {
+    private ReservedUser getUser(String username, ReservedUserInfo userInfo) {
         assert username != null;
         switch (username) {
             case ElasticUser.NAME:
@@ -232,7 +233,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
         } else {
             nativeUsersStore.getAllReservedUserInfo(ActionListener.wrap((reservedUserInfos) -> {
-                List<User> users = new ArrayList<>(4);
+                final List<User> users = new ArrayList<>(8);
 
                 ReservedUserInfo userInfo = reservedUserInfos.get(ElasticUser.NAME);
                 users.add(new ElasticUser(userInfo == null || userInfo.enabled));

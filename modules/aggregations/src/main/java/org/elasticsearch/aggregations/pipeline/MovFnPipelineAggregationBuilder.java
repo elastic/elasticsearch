@@ -9,6 +9,7 @@
 package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,7 +69,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
-    };
+    }
 
     public MovFnPipelineAggregationBuilder(String name, String bucketsPath, Script script, int window) {
         super(name, NAME, new String[] { bucketsPath });
@@ -240,6 +241,6 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

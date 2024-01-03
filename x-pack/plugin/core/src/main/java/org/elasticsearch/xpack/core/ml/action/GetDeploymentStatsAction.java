@@ -50,7 +50,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         public Request(StreamInput in) throws IOException {
             super(in);
             this.deploymentId = in.readString();
-            this.expandedIds = in.readStringList();
+            this.expandedIds = in.readStringCollectionAsList();
         }
 
         @Override

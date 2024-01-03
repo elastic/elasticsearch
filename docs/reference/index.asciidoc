@@ -11,9 +11,13 @@
 include::../Versions.asciidoc[]
 include::links.asciidoc[]
 
+include::landing-page.asciidoc[]
+
 include::intro.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
+
+include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
@@ -43,6 +47,8 @@ include::geospatial-analysis.asciidoc[]
 
 include::eql/eql.asciidoc[]
 
+include::esql/index.asciidoc[]
+
 include::sql/index.asciidoc[]
 
 include::scripting.asciidoc[]
@@ -59,9 +65,9 @@ include::high-availability.asciidoc[]
 
 include::snapshot-restore/index.asciidoc[]
 
-include::{xes-repo-dir}/security/index.asciidoc[]
+include::security/index.asciidoc[]
 
-include::{xes-repo-dir}/watcher/index.asciidoc[]
+include::watcher/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 

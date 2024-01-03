@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.datastreams.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -68,7 +68,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     MappingLookup createMappingLookup(String mapping) throws IOException {
         String indexName = "test";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(indexSettings(Version.CURRENT, 1, 1))
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putMapping(mapping)
             .build();
         IndicesModule indicesModule = new IndicesModule(List.of());

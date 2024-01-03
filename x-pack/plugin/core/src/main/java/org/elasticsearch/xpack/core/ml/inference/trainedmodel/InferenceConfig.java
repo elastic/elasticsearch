@@ -7,14 +7,16 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 public interface InferenceConfig extends NamedXContentObject, VersionedNamedWriteable {
 
     String DEFAULT_TOP_CLASSES_RESULTS_FIELD = "top_classes";
     String DEFAULT_RESULTS_FIELD = "predicted_value";
+    ParseField RESULTS_FIELD = new ParseField("results_field");
 
     boolean isTargetTypeSupported(TargetType targetType);
 
@@ -24,9 +26,9 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
     }
 
     /**
-     * All nodes in the cluster must be at least this version
+     * All nodes in the cluster must have at least this MlConfigVersion attribute
      */
-    Version getMinimalSupportedNodeVersion();
+    MlConfigVersion getMinimalSupportedMlConfigVersion();
 
     /**
      * All communication in the cluster must use at least this version
@@ -40,4 +42,16 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
     String getResultsField();
 
     boolean isAllocateOnly();
+
+    default boolean supportsIngestPipeline() {
+        return true;
+    }
+
+    default boolean supportsPipelineAggregation() {
+        return true;
+    }
+
+    default boolean supportsSearchRescorer() {
+        return false;
+    }
 }

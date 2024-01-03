@@ -11,7 +11,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -30,12 +30,10 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -130,12 +128,12 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     transformsConfigManager,
                     mock(TransformCheckpointService.class),
                     auditor,
-                    new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
+                    new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
                 ),
                 checkpointProvider,
                 initialState,
                 initialPosition,
-                mock(Client.class),
+                mock(ParentTaskAssigningClient.class),
                 jobStats,
                 transformConfig,
                 /* TransformProgress */ null,
@@ -162,11 +160,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
             final long timestamp = System.currentTimeMillis();
             listener.onResponse(new TransformCheckpoint(getJobId(), timestamp, 1, Collections.emptyMap(), timestamp));
-        }
-
-        @Override
-        protected String getJobId() {
-            return transformConfig.getId();
         }
 
         @Override
@@ -230,16 +223,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
             responseListener.onResponse(
                 new SearchResponse(
-                    new InternalSearchResponse(
-                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                        // Simulate completely null aggs
-                        null,
-                        new Suggest(Collections.emptyList()),
-                        new SearchProfileResults(Collections.emptyMap()),
-                        false,
-                        false,
-                        1
-                    ),
+                    new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                    // Simulate completely null aggs
+                    null,
+                    new Suggest(Collections.emptyList()),
+                    false,
+                    false,
+                    new SearchProfileResults(Collections.emptyMap()),
+                    1,
                     "",
                     1,
                     1,
@@ -262,8 +253,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
-            responseListener.onResponse(new RefreshResponse(1, 1, 0, Collections.emptyList()));
+        protected void refreshDestinationIndex(ActionListener<Void> responseListener) {
+            responseListener.onResponse(null);
         }
 
         @Override
@@ -279,13 +270,12 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        client = new NoOpClient(getTestName());
-        threadPool = new TestThreadPool(getTestName());
+        threadPool = createThreadPool();
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
@@ -382,16 +372,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
         SearchResponse searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                // Simulate completely null aggs
-                null,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
+            new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
             "",
             1,
             1,
@@ -520,16 +508,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         final SearchResponse searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                // Simulate completely null aggs
-                null,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
+            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
             "",
             1,
             1,
@@ -612,16 +598,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         final SearchResponse searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                // Simulate completely null aggs
-                null,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
+            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
             "",
             1,
             1,
@@ -707,16 +691,14 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
 
         final SearchResponse searchResponse = new SearchResponse(
-            new InternalSearchResponse(
-                new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                // Simulate completely null aggs
-                null,
-                new Suggest(Collections.emptyList()),
-                new SearchProfileResults(Collections.emptyMap()),
-                false,
-                false,
-                1
-            ),
+            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            false,
+            false,
+            new SearchProfileResults(Collections.emptyMap()),
+            1,
             "",
             1,
             1,
@@ -1075,7 +1057,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String message, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String message, ActionListener<Void> listener) {
                 assertTrue(failIndexerCalled.compareAndSet(false, true));
                 assertTrue(failureMessage.compareAndSet(null, message));
             }

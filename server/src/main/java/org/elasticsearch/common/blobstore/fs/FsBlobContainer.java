@@ -17,6 +17,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
@@ -52,6 +53,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -84,12 +86,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobs() throws IOException {
-        return listBlobsByPrefix(null);
+    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+        return listBlobsByPrefix(purpose, null);
     }
 
     @Override
-    public Map<String, BlobContainer> children() throws IOException {
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         Map<String, BlobContainer> builder = new HashMap<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
             for (Path file : stream) {
@@ -103,7 +105,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
         Map<String, BlobMetadata> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
@@ -137,17 +139,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             return new DirectoryStream<>() {
                 @Override
                 public Iterator<Path> iterator() {
-                    return new Iterator<>() {
-                        @Override
-                        public boolean hasNext() {
-                            return false;
-                        }
-
-                        @Override
-                        public Path next() {
-                            return null;
-                        }
-                    };
+                    return Collections.emptyIterator();
                 }
 
                 @Override
@@ -157,7 +149,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public DeleteResult delete() throws IOException {
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
         final AtomicLong filesDeleted = new AtomicLong(0L);
         final AtomicLong bytesDeleted = new AtomicLong(0L);
         Files.walkFileTree(path, new SimpleFileVisitor<>() {
@@ -180,42 +172,18 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        IOException ioe = null;
-        long suppressedExceptions = 0;
-        while (blobNames.hasNext()) {
-            try {
-                Path resolve = path.resolve(blobNames.next());
-                IOUtils.rm(resolve);
-            } catch (IOException e) {
-                // IOUtils.rm puts the original exception as a string in the IOException message. Ignore no such file exception.
-                if (e.getMessage().contains("NoSuchFileException") == false) {
-                    // track up to 10 delete exceptions and try to continue deleting on exceptions
-                    if (ioe == null) {
-                        ioe = e;
-                    } else if (ioe.getSuppressed().length < 10) {
-                        ioe.addSuppressed(e);
-                    } else {
-                        ++suppressedExceptions;
-                    }
-                }
-            }
-        }
-        if (ioe != null) {
-            if (suppressedExceptions > 0) {
-                ioe.addSuppressed(new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures"));
-            }
-            throw ioe;
-        }
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        blobStore.deleteBlobsIgnoringIfNotExists(purpose, Iterators.map(blobNames, blobName -> path.resolve(blobName).toString()));
     }
 
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(OperationPurpose purpose, String blobName) {
         return Files.exists(path.resolve(blobName));
     }
 
     @Override
-    public InputStream readBlob(String name) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, name);
         final Path resolvedPath = path.resolve(name);
         try {
             return Files.newInputStream(resolvedPath);
@@ -225,7 +193,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
         if (position > 0L) {
             channel.position(position);
@@ -241,7 +210,9 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final Path file = path.resolve(blobName);
         try {
             writeToPath(inputStream, file, blobSize);
@@ -249,14 +220,15 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
             writeToPath(inputStream, file, blobSize);
         }
         IOUtils.fsync(path, true);
     }
 
     @Override
-    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final Path file = path.resolve(blobName);
         try {
             writeToPath(bytes, file);
@@ -264,7 +236,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
             writeToPath(bytes, file);
         }
         IOUtils.fsync(path, true);
@@ -272,32 +244,38 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeMetadataBlob(
+        OperationPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         if (atomic) {
             final String tempBlob = tempBlobName(blobName);
             try {
-                writeToPath(tempBlob, true, writer);
-                moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
+                writeToPath(purpose, tempBlob, true, writer);
+                moveBlobAtomic(purpose, tempBlob, blobName, failIfAlreadyExists);
             } catch (IOException ex) {
                 try {
-                    deleteBlobsIgnoringIfNotExists(Iterators.single(tempBlob));
+                    deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
                 } catch (IOException e) {
                     ex.addSuppressed(e);
                 }
                 throw ex;
             }
         } else {
-            writeToPath(blobName, failIfAlreadyExists, writer);
+            writeToPath(purpose, blobName, failIfAlreadyExists, writer);
         }
         IOUtils.fsync(path, true);
     }
 
-    private void writeToPath(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
-        throws IOException {
+    private void writeToPath(
+        OperationPurpose purpose,
+        String blobName,
+        boolean failIfAlreadyExists,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
         final Path file = path.resolve(blobName);
         try {
             try (OutputStream out = blobOutputStream(file)) {
@@ -307,7 +285,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
             try (OutputStream out = blobOutputStream(file)) {
                 writer.accept(out);
             }
@@ -316,15 +294,17 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(final String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlobAtomic(OperationPurpose purpose, final String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+        throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {
             writeToPath(bytes, tempBlobPath);
-            moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
+            moveBlobAtomic(purpose, tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
-                deleteBlobsIgnoringIfNotExists(Iterators.single(tempBlob));
+                deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }
@@ -353,8 +333,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
         IOUtils.fsync(tempBlobPath, false);
     }
 
-    public void moveBlobAtomic(final String sourceBlobName, final String targetBlobName, final boolean failIfAlreadyExists)
-        throws IOException {
+    public void moveBlobAtomic(
+        OperationPurpose purpose,
+        final String sourceBlobName,
+        final String targetBlobName,
+        final boolean failIfAlreadyExists
+    ) throws IOException {
         final Path sourceBlobPath = path.resolve(sourceBlobName);
         final Path targetBlobPath = path.resolve(targetBlobName);
         try {
@@ -369,13 +353,14 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw e;
             }
-            moveBlobNonAtomic(targetBlobName, sourceBlobPath, targetBlobPath, e);
+            moveBlobNonAtomic(purpose, targetBlobName, sourceBlobPath, targetBlobPath, e);
         }
     }
 
-    private void moveBlobNonAtomic(String targetBlobName, Path sourceBlobPath, Path targetBlobPath, IOException e) throws IOException {
+    private void moveBlobNonAtomic(OperationPurpose purpose, String targetBlobName, Path sourceBlobPath, Path targetBlobPath, IOException e)
+        throws IOException {
         try {
-            deleteBlobsIgnoringIfNotExists(Iterators.single(targetBlobName));
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(targetBlobName));
             Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException ex) {
             ex.addSuppressed(e);
@@ -403,6 +388,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
     public void compareAndExchangeRegister(
+        OperationPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,

@@ -6,11 +6,12 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -35,14 +37,14 @@ public class EnrichCacheTests extends ESTestCase {
         var metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-1")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
             )
             .put(
                 IndexMetadata.builder(EnrichPolicy.getBaseName("policy2") + "-1")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy2")).build())
@@ -98,14 +100,14 @@ public class EnrichCacheTests extends ESTestCase {
         metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-2")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
             )
             .put(
                 IndexMetadata.builder(EnrichPolicy.getBaseName("policy2") + "-2")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy2")).build())
@@ -181,6 +183,24 @@ public class EnrichCacheTests extends ESTestCase {
         original.put("embedded_object", new byte[] { 1, 2, 3 });
         result = EnrichCache.deepCopy(original, false);
         assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) result.get("embedded_object"));
+    }
+
+    public void testEnrichIndexNotExist() {
+        // Emulate cluster metadata:
+        var metadata = Metadata.builder().build();
+
+        // Emulated search request on a non-exist enrich index that an enrich processor could generate
+        var searchRequest = new SearchRequest(EnrichPolicy.getBaseName("policy-enrich-index-not-generated")).source(
+            new SearchSourceBuilder().query(new MatchQueryBuilder("test", "query"))
+        );
+        // Emulated search response (content doesn't matter, since it isn't used, it just a cache entry)
+        List<Map<?, ?>> searchResponse = List.of(Map.of("test", "entry"));
+
+        EnrichCache enrichCache = new EnrichCache(1);
+        enrichCache.setMetadata(metadata);
+
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> enrichCache.put(searchRequest, searchResponse));
+        assertThat(e.getMessage(), containsString("no generated enrich index [.enrich-policy-enrich-index-not-generated]"));
     }
 
 }

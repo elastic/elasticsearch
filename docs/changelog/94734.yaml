@@ -1,6 +1,0 @@
-pr: 94734
-summary: Fix bug where `geo_line` does not respect `sort_order`
-area: Geo
-type: bug
-issues:
- - 94733

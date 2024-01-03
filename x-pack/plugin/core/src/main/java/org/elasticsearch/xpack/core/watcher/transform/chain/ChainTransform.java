@@ -143,7 +143,7 @@ public class ChainTransform implements Transform {
         }
     }
 
-    public static class Builder implements Transform.Builder<ChainTransform> {
+    public static final class Builder implements Transform.Builder<ChainTransform> {
 
         private final List<Transform> transforms = new ArrayList<>();
 

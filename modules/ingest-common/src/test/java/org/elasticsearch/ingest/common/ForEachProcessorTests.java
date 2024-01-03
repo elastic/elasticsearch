@@ -344,7 +344,7 @@ public class ForEachProcessorTests extends ESTestCase {
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(testProcessor.getInvokedCounter(), equalTo(2));
         ingestDocument.removeField("_ingest._value");
-        assertThat(ingestDocument, equalTo(originalIngestDocument));
+        assertIngestDocument(ingestDocument, originalIngestDocument);
     }
 
     public void testRemovingFromTheSameField() {
@@ -355,7 +355,7 @@ public class ForEachProcessorTests extends ESTestCase {
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(testProcessor.getInvokedCounter(), equalTo(2));
         ingestDocument.removeField("_ingest._value");
-        assertThat(ingestDocument, equalTo(originalIngestDocument));
+        assertIngestDocument(ingestDocument, originalIngestDocument);
     }
 
     public void testMapIteration() {

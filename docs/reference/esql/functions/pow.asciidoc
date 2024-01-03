@@ -1,0 +1,41 @@
+[discrete]
+[[esql-pow]]
+=== `POW`
+[.text-center]
+image::esql/functions/signature/pow.svg[Embedded,opts=inline]
+
+Returns the value of a base (first argument) raised to the power of an exponent (second argument).
+Both arguments must be numeric. The output is always a double.  Note that it is still possible to overflow
+a double result here; in that case, null will be returned.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=powDI]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=powDI-result]
+|===
+
+
+[discrete]
+==== Fractional exponents
+
+The exponent can be a fraction, which is similar to performing a root.
+For example, the exponent of `0.5` will give the square root of the base:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=powID-sqrt]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=powID-sqrt-result]
+|===
+
+[discrete]
+==== Table of supported input and output types
+
+For clarity, the following table describes the output result type for all combinations of numeric input types:
+
+include::types/pow.asciidoc[]

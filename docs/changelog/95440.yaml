@@ -1,5 +1,0 @@
-pr: 95440
-summary: "[ML] Get trained model stats by deployment id or model id"
-area: Machine Learning
-type: enhancement
-issues: []

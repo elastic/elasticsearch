@@ -16,8 +16,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class ListTasksRequestBuilder extends TasksRequestBuilder<ListTasksRequest, ListTasksResponse, ListTasksRequestBuilder> {
 
-    public ListTasksRequestBuilder(ElasticsearchClient client, ListTasksAction action) {
-        super(client, action, new ListTasksRequest());
+    public ListTasksRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportListTasksAction.TYPE, new ListTasksRequest());
     }
 
     /**

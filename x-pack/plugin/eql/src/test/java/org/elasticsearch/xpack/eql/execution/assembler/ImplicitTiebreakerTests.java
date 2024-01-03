@@ -13,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
@@ -32,12 +31,14 @@ import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class ImplicitTiebreakerTests extends ESTestCase {
 
@@ -81,9 +82,10 @@ public class ImplicitTiebreakerTests extends ESTestCase {
                 )
             );
             SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-            SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
-            l.onResponse(s);
+            ActionListener.respondAndRelease(
+                l,
+                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
+            );
         }
 
         @Override
@@ -121,7 +123,8 @@ public class ImplicitTiebreakerTests extends ESTestCase {
                     tsExtractor,
                     tbExtractor,
                     implicitTbExtractor,
-                    criteriaDescending
+                    criteriaDescending,
+                    false
                 )
             );
             // for DESC (TAIL) sequences only the first criterion is descending the rest are ASC, so flip it after the first query
@@ -130,8 +133,15 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             }
         }
 
-        SequenceMatcher matcher = new SequenceMatcher(stages, descending, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
+        SequenceMatcher matcher = new SequenceMatcher(
+            stages,
+            descending,
+            TimeValue.MINUS_ONE,
+            null,
+            booleanArrayOf(stages, false),
+            NOOP_CIRCUIT_BREAKER
+        );
+        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList());
         window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 }

@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -99,7 +99,7 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(final Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create("node_" + UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Map.of(), roles);
+        return DiscoveryNodeUtils.create("node_" + UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Map.of(), roles);
     }
 
 }

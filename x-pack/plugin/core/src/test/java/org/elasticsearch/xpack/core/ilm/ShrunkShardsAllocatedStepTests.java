@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
@@ -60,28 +61,27 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         int originalNumberOfShards = randomIntBetween(1, 5);
         String originalIndexName = randomAlphaOfLength(5);
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(originalIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(originalNumberOfShards)
             .numberOfReplicas(0)
             .build();
         IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(SHRUNKEN_INDEX_PREFIX + originalIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(shrinkNumberOfShards)
             .numberOfReplicas(0)
             .build();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(originalIndexMetadata))
             .put(IndexMetadata.builder(shrunkIndexMetadata))
             .build();
         Index shrinkIndex = shrunkIndexMetadata.getIndex();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(Version.CURRENT).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
         for (int i = 0; i < shrinkNumberOfShards; i++) {
@@ -104,28 +104,27 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         int originalNumberOfShards = randomIntBetween(1, 5);
         String originalIndexName = randomAlphaOfLength(5);
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(originalIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(originalNumberOfShards)
             .numberOfReplicas(0)
             .build();
         IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(SHRUNKEN_INDEX_PREFIX + originalIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(shrinkNumberOfShards)
             .numberOfReplicas(0)
             .build();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(originalIndexMetadata))
             .put(IndexMetadata.builder(shrunkIndexMetadata))
             .build();
         Index shrinkIndex = shrunkIndexMetadata.getIndex();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(Version.CURRENT).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
         for (int i = 0; i < shrinkNumberOfShards; i++) {
@@ -147,21 +146,20 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         int originalNumberOfShards = randomIntBetween(1, 5);
         String originalIndexName = randomAlphaOfLength(5);
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(originalIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(originalNumberOfShards)
             .numberOfReplicas(0)
             .build();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(originalIndexMetadata))
             .build();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(Version.CURRENT).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())

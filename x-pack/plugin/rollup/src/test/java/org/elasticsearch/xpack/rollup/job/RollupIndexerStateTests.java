@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -106,16 +105,22 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(
+            final SearchResponse response = new SearchResponse(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs,
                 null,
                 false,
                 null,
                 null,
-                1
+                1,
+                null,
+                1,
+                1,
+                0,
+                0,
+                new ShardSearchFailure[0],
+                null
             );
-            final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, new ShardSearchFailure[0], null);
             nextPhase.onResponse(response);
         }
 
@@ -198,18 +203,6 @@ public class RollupIndexerStateTests extends ESTestCase {
             Map<String, Object> initialPosition,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
-            Consumer<Exception> failureConsumer
-        ) {
-            this(threadPool, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
-        }
-
-        NonEmptyRollupIndexer(
-            ThreadPool threadPool,
-            RollupJob job,
-            AtomicReference<IndexerState> initialState,
-            Map<String, Object> initialPosition,
-            Function<SearchRequest, SearchResponse> searchFunction,
-            Function<BulkRequest, BulkResponse> bulkFunction,
             Consumer<Exception> failureConsumer,
             BiConsumer<IndexerState, Map<String, Object>> saveStateCheck
         ) {
@@ -234,8 +227,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(buildSearchRequest());
-                nextPhase.onResponse(response);
+                ActionListener.respondAndRelease(nextPhase, searchFunction.apply(buildSearchRequest()));
             } catch (Exception e) {
                 nextPhase.onFailure(e);
             }
@@ -485,17 +477,25 @@ public class RollupIndexerStateTests extends ESTestCase {
                             return null;
                         }
                     }));
-                    final SearchResponseSections sections = new SearchResponseSections(
-                        new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                        aggs,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1
+                    ActionListener.respondAndRelease(
+                        nextPhase,
+                        new SearchResponse(
+                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                            aggs,
+                            null,
+                            false,
+                            null,
+                            null,
+                            1,
+                            null,
+                            1,
+                            1,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            null
+                        )
                     );
-                    final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-                    nextPhase.onResponse(response);
                 }
 
                 @Override
@@ -696,16 +696,22 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(
+            return new SearchResponse(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs,
                 null,
                 false,
                 null,
                 null,
-                1
+                1,
+                null,
+                1,
+                1,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                null
             );
-            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
@@ -820,16 +826,22 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(
+            return new SearchResponse(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs,
                 null,
                 false,
                 null,
                 null,
-                1
+                1,
+                null,
+                1,
+                1,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                null
             );
-            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
@@ -993,16 +1005,22 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(
+            return new SearchResponse(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs,
                 null,
                 false,
                 null,
                 null,
-                1
+                1,
+                null,
+                1,
+                1,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                null
             );
-            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> {

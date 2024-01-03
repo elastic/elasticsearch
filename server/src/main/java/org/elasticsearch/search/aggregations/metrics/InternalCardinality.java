@@ -57,6 +57,10 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         return CardinalityAggregationBuilder.NAME;
     }
 
+    static InternalCardinality empty(String name, Map<String, Object> metadata) {
+        return new InternalCardinality(name, null, metadata);
+    }
+
     @Override
     public double value() {
         return getValue();

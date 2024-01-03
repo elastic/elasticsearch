@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.admin.indices.readonly;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -49,7 +47,6 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
 
     public static final String NAME = AddIndexBlockAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
-    protected Logger logger = LogManager.getLogger(getClass());
 
     @Inject
     public TransportVerifyShardIndexBlockAction(
@@ -72,7 +69,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             actionFilters,
             ShardRequest::new,
             ShardRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -88,7 +85,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         final ActionListener<Releasable> onAcquired
     ) {
         primary.acquireAllPrimaryOperationsPermits(
-            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, ThreadPool.Names.GENERIC)
+            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, threadPool.generic())
         );
     }
 
@@ -105,7 +102,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             primaryTerm,
             globalCheckpoint,
             maxSeqNoOfUpdateOrDeletes,
-            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, ThreadPool.Names.GENERIC)
+            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, threadPool.generic())
         );
     }
 
@@ -165,7 +162,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         }
     }
 
-    public static class ShardRequest extends ReplicationRequest<ShardRequest> {
+    public static final class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;
 

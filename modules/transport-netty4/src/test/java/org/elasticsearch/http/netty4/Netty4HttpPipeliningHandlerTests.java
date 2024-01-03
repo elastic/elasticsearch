@@ -70,16 +70,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         waitingRequests.keySet().forEach(this::finishRequest);
-        shutdownExecutorService();
-        super.tearDown();
-    }
-
-    private CountDownLatch finishRequest(String url) {
-        waitingRequests.get(url).countDown();
-        return finishingRequests.get(url);
-    }
-
-    private void shutdownExecutorService() throws InterruptedException {
+        // shutdown the Executor Service
         if (handlerService.isShutdown() == false) {
             handlerService.shutdown();
             handlerService.awaitTermination(10, TimeUnit.SECONDS);
@@ -88,6 +79,12 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             eventLoopService.shutdown();
             eventLoopService.awaitTermination(10, TimeUnit.SECONDS);
         }
+        super.tearDown();
+    }
+
+    private CountDownLatch finishRequest(String url) {
+        waitingRequests.get(url).countDown();
+        return finishingRequests.get(url);
     }
 
     public void testThatPipeliningWorksWithFastSerializedRequests() throws InterruptedException {
@@ -481,6 +478,9 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             public String getResponseContentTypeString() {
                 return "application/octet-stream";
             }
+
+            @Override
+            public void close() {}
         };
     }
 

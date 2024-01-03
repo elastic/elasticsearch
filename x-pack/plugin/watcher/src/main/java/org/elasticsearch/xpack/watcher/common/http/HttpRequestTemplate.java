@@ -10,7 +10,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestUtils;
@@ -137,16 +137,16 @@ public class HttpRequestTemplate implements ToXContentObject {
             request.path(engine.render(path, model));
         }
         if (params != null && params.isEmpty() == false) {
-            MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+            Map<String, String> mapBuilder = Maps.newMapWithExpectedSize(params.size());
             for (Map.Entry<String, TextTemplate> entry : params.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));
             }
-            request.setParams(mapBuilder.map());
+            request.setParams(mapBuilder);
         }
         if ((headers == null || headers.isEmpty()) && body != null && body.getContentType() != null) {
             request.setHeaders(singletonMap(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().mediaType()));
         } else if (headers != null && headers.isEmpty() == false) {
-            MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+            Map<String, String> mapBuilder = Maps.newMapWithExpectedSize(headers.size());
             if (body != null && body.getContentType() != null) {
                 // putting the content type first, so it can be overridden by custom headers
                 mapBuilder.put(HttpHeaders.Names.CONTENT_TYPE, body.getContentType().mediaType());
@@ -154,7 +154,7 @@ public class HttpRequestTemplate implements ToXContentObject {
             for (Map.Entry<String, TextTemplate> entry : headers.entrySet()) {
                 mapBuilder.put(entry.getKey(), engine.render(entry.getValue(), model));
             }
-            request.setHeaders(mapBuilder.map());
+            request.setHeaders(mapBuilder);
         }
         if (auth != null) {
             request.auth(auth);

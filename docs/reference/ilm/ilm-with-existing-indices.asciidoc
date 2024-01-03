@@ -47,7 +47,7 @@ to use {ilm-init} for new data.
 [[ilm-existing-indices-reindex]]
 === Reindex into a managed index
 
-An alternative to <<ilm-with-existing-periodic-indices,applying policies to existing indices>> is to
+An alternative to <<ilm-existing-indices-apply,applying policies to existing indices>> is to
 reindex your data into an {ilm-init}-managed index.
 You might want to do this if creating periodic indices with very small amounts of data
 has led to excessive shard counts, or if continually indexing into the same index has led to large shards

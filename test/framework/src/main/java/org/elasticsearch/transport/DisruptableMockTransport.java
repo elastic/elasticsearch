@@ -21,9 +21,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ import static org.elasticsearch.test.ESTestCase.copyWriteable;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final DiscoveryNode localNode;
-    private final Logger logger = LogManager.getLogger(DisruptableMockTransport.class);
+    private static final Logger logger = LogManager.getLogger(DisruptableMockTransport.class);
     private final DeterministicTaskQueue deterministicTaskQueue;
     private final List<Runnable> blackholedRequests = new ArrayList<>();
     private final Set<String> blockedActions = new HashSet<>();
@@ -98,7 +98,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
                     @Override
                     public TransportVersion getTransportVersion() {
-                        return TransportVersion.CURRENT;
+                        return TransportVersion.current();
                     }
 
                     @Override
@@ -150,7 +150,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false
             : "non-local message from " + getLocalNode() + " to itself";
 
-        request.incRef();
+        request.mustIncRef();
 
         destinationTransport.execute(new RebootSensitiveRunnable() {
             @Override

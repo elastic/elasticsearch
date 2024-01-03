@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 
 import java.util.Arrays;
 import java.util.List;
@@ -135,6 +136,9 @@ public class TransformAggregationsTests extends ESTestCase {
         // stats
         assertEquals("double", TransformAggregations.resolveTargetMapping("stats", null));
         assertEquals("double", TransformAggregations.resolveTargetMapping("stats", "int"));
+
+        // boxplot
+        assertEquals("double", TransformAggregations.resolveTargetMapping("boxplot", "double"));
 
         // corner case: source type null
         assertEquals(null, TransformAggregations.resolveTargetMapping("min", null));
@@ -363,6 +367,23 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.44_4"));
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.88_8"));
         assertEquals("percentiles", outputTypes.get("filter_1.filter_2.percentiles.99_5"));
+    }
+
+    public void testGetAggregationOutputTypesBoxplot() {
+        AggregationBuilder boxplotAggregationBuilder = new BoxplotAggregationBuilder("boxplot");
+
+        Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+            boxplotAggregationBuilder
+        );
+        Map<String, String> outputTypes = inputAndOutputTypes.v2();
+        assertEquals(7, outputTypes.size());
+        assertEquals("boxplot", outputTypes.get("boxplot.min"));
+        assertEquals("boxplot", outputTypes.get("boxplot.max"));
+        assertEquals("boxplot", outputTypes.get("boxplot.q1"));
+        assertEquals("boxplot", outputTypes.get("boxplot.q2"));
+        assertEquals("boxplot", outputTypes.get("boxplot.q3"));
+        assertEquals("boxplot", outputTypes.get("boxplot.lower"));
+        assertEquals("boxplot", outputTypes.get("boxplot.upper"));
     }
 
     public void testGenerateKeyForRange() {

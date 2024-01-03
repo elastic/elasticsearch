@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -26,7 +26,7 @@ public class NlpTask {
     private final NlpConfig config;
     private final NlpTokenizer tokenizer;
 
-    public NlpTask(NlpConfig config, Vocabulary vocabulary) {
+    public NlpTask(NlpConfig config, Vocabulary vocabulary) throws IOException {
         this.config = config;
         this.tokenizer = NlpTokenizer.build(vocabulary, config.getTokenization());
     }

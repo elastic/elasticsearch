@@ -11,6 +11,7 @@ package org.elasticsearch.test.cluster.local;
 import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
+import org.elasticsearch.test.cluster.SystemPropertyProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
@@ -49,6 +50,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Add a new node environment variable.
      */
     T environment(String key, String value);
+
+    /**
+     * Add a new node environment variable computed by the given supplier.
+     */
+    T environment(String key, Supplier<String> supplier);
 
     /**
      * Set the cluster {@link DistributionType}. By default, the {@link DistributionType#INTEG_TEST} distribution is used.
@@ -92,6 +98,11 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T keystore(String key, Supplier<String> supplier, Predicate<LocalNodeSpec> predicate);
 
     /**
+     * Register a {@link SettingsProvider} for keystore settings.
+     */
+    T keystore(SettingsProvider settingsProvider);
+
+    /**
      * Sets the security setting keystore password.
      */
     T keystorePassword(String password);
@@ -102,12 +113,6 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T configFile(String fileName, Resource configFile);
 
     /**
-     * Adds a secret to the local secure settings file. This should be used instead of {@link #keystore(String, String)} when file-based
-     * secure settings are enabled.
-     */
-    T secret(String key, String value);
-
-    /**
      * Sets the version of Elasticsearch. Defaults to {@link Version#CURRENT}.
      */
     T version(Version version);
@@ -116,4 +121,25 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Adds a system property to node JVM arguments.
      */
     T systemProperty(String property, String value);
+
+    /**
+     * Adds a system property to node JVM arguments computed by the given supplier
+     */
+    T systemProperty(String property, Supplier<String> supplier);
+
+    /**
+     * Adds a system property to node JVM arguments computed by the given supplier
+     * when the given predicate evaluates to {@code true}.
+     */
+    T systemProperty(String setting, Supplier<String> value, Predicate<LocalNodeSpec> predicate);
+
+    /**
+     * Register a {@link SystemPropertyProvider}.
+     */
+    T systemProperty(SystemPropertyProvider systemPropertyProvider);
+
+    /**
+     * Adds an additional command line argument to node JVM arguments.
+     */
+    T jvmArg(String arg);
 }

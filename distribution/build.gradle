@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -30,6 +31,15 @@ configurations {
       attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
     }
   }
+  featuresMetadata {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+    }
+  }
+}
+
+dependencies {
+  featuresMetadata project(':server')
 }
 
 def thisProj = project
@@ -196,6 +206,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
+  dependencies.add('featuresMetadata', module)
   if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
@@ -214,6 +225,7 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
     }
   }
   distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  dependencies.add('featuresMetadata', xpackModule)
   if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
   }
@@ -411,7 +423,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (testDistro) {
           from buildServerNoticeTaskProvider
         } else {
-          from buildDefaultNoticeTaskProvider
+          from (buildDefaultNoticeTaskProvider) {
+            fileMode = 0644
+          }
         }
       }
     }

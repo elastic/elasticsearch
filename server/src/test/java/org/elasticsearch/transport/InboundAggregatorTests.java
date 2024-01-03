@@ -54,7 +54,7 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testInboundAggregation() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.CURRENT);
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.current());
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = "action_name";
         // Initiate Message
@@ -89,7 +89,7 @@ public class InboundAggregatorTests extends ESTestCase {
         assertFalse(aggregated.isPing());
         assertTrue(aggregated.getHeader().isRequest());
         assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
-        assertThat(aggregated.getHeader().getVersion(), equalTo(TransportVersion.CURRENT));
+        assertThat(aggregated.getHeader().getVersion(), equalTo(TransportVersion.current()));
         for (ReleasableBytesReference reference : references) {
             assertTrue(reference.hasReferences());
         }
@@ -101,7 +101,7 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testInboundUnknownAction() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.CURRENT);
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.current());
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = unknownAction;
         // Initiate Message
@@ -129,7 +129,7 @@ public class InboundAggregatorTests extends ESTestCase {
             randomInt(),
             randomNonNegativeLong(),
             TransportStatus.setRequest((byte) 0),
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         breakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         breakableHeader.actionName = "action_name";
@@ -154,7 +154,7 @@ public class InboundAggregatorTests extends ESTestCase {
             randomInt(),
             randomNonNegativeLong(),
             TransportStatus.setRequest((byte) 0),
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         unbreakableHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         unbreakableHeader.actionName = unBreakableAction;
@@ -174,7 +174,7 @@ public class InboundAggregatorTests extends ESTestCase {
 
         // Handshakes are not broken
         final byte handshakeStatus = TransportStatus.setHandshake(TransportStatus.setRequest((byte) 0));
-        Header handshakeHeader = new Header(randomInt(), randomNonNegativeLong(), handshakeStatus, TransportVersion.CURRENT);
+        Header handshakeHeader = new Header(randomInt(), randomNonNegativeLong(), handshakeStatus, TransportVersion.current());
         handshakeHeader.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         handshakeHeader.actionName = "handshake";
         // Initiate Message
@@ -194,7 +194,7 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testCloseWillCloseContent() {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.CURRENT);
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.current());
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
         header.actionName = "action_name";
         // Initiate Message
@@ -234,7 +234,7 @@ public class InboundAggregatorTests extends ESTestCase {
         } else {
             actionName = "action_name";
         }
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.CURRENT);
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), TransportVersion.current());
         // Initiate Message
         aggregator.headerReceived(header);
 

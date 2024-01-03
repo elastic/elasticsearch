@@ -24,7 +24,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsA
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
@@ -101,6 +101,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
+    private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*", "cluster:admin/xpack/enrich/get");
+
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
         "indices:admin/template/*",
@@ -154,19 +156,25 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
+    private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");
+    private static final Set<String> MANAGE_SEARCH_SYNONYMS_PATTERN = Set.of(
+        "cluster:admin/synonyms/*",
+        "cluster:admin/synonyms_sets/*",
+        "cluster:admin/synonym_rules/*"
+    );
 
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME,
+        RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME,
+        RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME,
         ClusterStateAction.NAME
     );
-    private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
+    private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*", "cluster:monitor/xpack/enrich/*");
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
     public static final NamedClusterPrivilege ALL = new ActionClusterPrivilege("all", ALL_CLUSTER_PATTERN);
@@ -186,6 +194,7 @@ public class ClusterPrivilegeResolver {
     );
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_TRANSFORM_DEPRECATED = new ActionClusterPrivilege(
@@ -227,7 +236,8 @@ public class ClusterPrivilegeResolver {
             GetServiceAccountCredentialsAction.NAME + "*",
             GetUsersAction.NAME,
             GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
-            HasPrivilegesAction.NAME
+            HasPrivilegesAction.NAME,
+            GetSecuritySettingsAction.NAME
         )
     );
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
@@ -271,11 +281,25 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/logstash/pipeline/*")
     );
 
+    public static final NamedClusterPrivilege READ_FLEET_SECRETS = new ActionClusterPrivilege(
+        "read_fleet_secrets",
+        Set.of("cluster:admin/fleet/secrets/get")
+    );
+
+    public static final NamedClusterPrivilege WRITE_FLEET_SECRETS = new ActionClusterPrivilege(
+        "write_fleet_secrets",
+        Set.of("cluster:admin/fleet/secrets/post", "cluster:admin/fleet/secrets/delete")
+    );
+
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
     public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege(
         "manage_search_application",
         MANAGE_SEARCH_APPLICATION_PATTERN
+    );
+    public static final NamedClusterPrivilege MANAGE_SEARCH_SYNONYMS = new ActionClusterPrivilege(
+        "manage_search_synonyms",
+        MANAGE_SEARCH_SYNONYMS_PATTERN
     );
     public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege(
         "manage_behavioral_analytics",
@@ -287,6 +311,10 @@ public class ClusterPrivilegeResolver {
         POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN
     );
 
+    public static final NamedClusterPrivilege MANAGE_SEARCH_QUERY_RULES = new ActionClusterPrivilege(
+        "manage_search_query_rules",
+        MANAGE_SEARCH_QUERY_RULES_PATTERN
+    );
     public static final NamedClusterPrivilege CROSS_CLUSTER_SEARCH = new ActionClusterPrivilege(
         "cross_cluster_search",
         CROSS_CLUSTER_SEARCH_PATTERN
@@ -308,6 +336,7 @@ public class ClusterPrivilegeResolver {
             MONITOR_TRANSFORM,
             MONITOR_WATCHER,
             MONITOR_ROLLUP,
+            MONITOR_ENRICH,
             MANAGE,
             MANAGE_ML,
             MANAGE_TRANSFORM_DEPRECATED,
@@ -341,12 +370,16 @@ public class ClusterPrivilegeResolver {
             MANAGE_OWN_API_KEY,
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
+            READ_FLEET_SECRETS,
+            WRITE_FLEET_SECRETS,
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,
+            MANAGE_SEARCH_SYNONYMS,
             MANAGE_BEHAVIORAL_ANALYTICS,
             POST_BEHAVIORAL_ANALYTICS_EVENT,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_SEARCH : null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_REPLICATION : null
+            MANAGE_SEARCH_QUERY_RULES,
+            CROSS_CLUSTER_SEARCH,
+            CROSS_CLUSTER_REPLICATION
         ).filter(Objects::nonNull).toList()
     );
 

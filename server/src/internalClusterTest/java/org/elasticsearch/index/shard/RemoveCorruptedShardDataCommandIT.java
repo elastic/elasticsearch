@@ -119,7 +119,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
+                builders[i] = prepareIndex(indexName).setSource("foo", "bar");
             }
 
             numDocs += numExtraDocs;
@@ -201,7 +201,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         waitNoPendingTasksOnAll();
 
         String nodeId = null;
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             final String name = cursor.getValue().getName();
@@ -234,7 +234,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             );
         });
 
-        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true)).get();
+        clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true)).get();
 
         assertBusy(() -> {
             final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
@@ -255,7 +255,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         ensureGreen(indexName);
 
-        assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), expectedNumDocs);
+        assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), expectedNumDocs);
     }
 
     public void testCorruptTranslogTruncation() throws Exception {
@@ -282,7 +282,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] docs to be kept", numDocsToKeep);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocsToKeep];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
+            builders[i] = prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         flush(indexName);
@@ -293,7 +293,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] more doc to be truncated", numDocsToTruncate);
         builders = new IndexRequestBuilder[numDocsToTruncate];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
+            builders[i] = prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
 
@@ -376,7 +376,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         });
 
         String primaryNodeId = null;
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             final String name = cursor.getValue().getName();
@@ -407,7 +407,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             );
         });
 
-        client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true)).get();
+        clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true)).get();
 
         assertBusy(() -> {
             final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
@@ -424,16 +424,16 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         ensureYellow(indexName);
 
         // Run a search and make sure it succeeds
-        assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocsToKeep);
+        assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), numDocsToKeep);
 
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode(node2PathSettings);
         ensureGreen(indexName);
         for (String node : internalCluster().nodesInclude(indexName)) {
-            SearchRequestBuilder q = client().prepareSearch(indexName).setPreference("_only_nodes:" + node).setQuery(matchAllQuery());
-            assertHitCount(q.get(), numDocsToKeep);
+            SearchRequestBuilder q = prepareSearch(indexName).setPreference("_only_nodes:" + node).setQuery(matchAllQuery());
+            assertHitCount(q, numDocsToKeep);
         }
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).setActiveOnly(false).get();
+        final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates()
             .get(indexName)
             .stream()
@@ -472,7 +472,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] docs to be kept", numDocsToKeep);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocsToKeep];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
+            builders[i] = prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         flush(indexName);
@@ -482,7 +482,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexing [{}] more docs to be truncated", numDocsToTruncate);
         builders = new IndexRequestBuilder[numDocsToTruncate];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName).setSource("foo", "bar");
+            builders[i] = prepareIndex(indexName).setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
         final int totalDocs = numDocsToKeep + numDocsToTruncate;
@@ -513,7 +513,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         ensureYellow();
 
         // Run a search and make sure it succeeds
-        assertHitCount(client().prepareSearch(indexName).setQuery(matchAllQuery()).get(), totalDocs);
+        assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), totalDocs);
 
         // check replica corruption
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
@@ -534,13 +534,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         internalCluster().startNode(node2PathSettings);
         ensureGreen(indexName);
         for (String node : internalCluster().nodesInclude(indexName)) {
-            assertHitCount(
-                client().prepareSearch(indexName).setPreference("_only_nodes:" + node).setQuery(matchAllQuery()).get(),
-                totalDocs
-            );
+            assertHitCount(prepareSearch(indexName).setPreference("_only_nodes:" + node).setQuery(matchAllQuery()), totalDocs);
         }
 
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).setActiveOnly(false).get();
+        final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).setActiveOnly(false).get();
         final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates()
             .get(indexName)
             .stream()
@@ -611,7 +608,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     private Path getPathToShardData(String indexName, String dirSuffix) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { indexName }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
@@ -651,7 +648,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     private SeqNoStats getSeqNoStats(String index, int shardId) {
-        final ShardStats[] shardStats = client().admin().indices().prepareStats(index).get().getIndices().get(index).getShards();
+        final ShardStats[] shardStats = indicesAdmin().prepareStats(index).get().getIndices().get(index).getShards();
         return shardStats[shardId].getSeqNoStats();
     }
 }

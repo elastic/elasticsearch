@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -32,7 +33,7 @@ public class TimeoutReleasableListener implements ActionListener<Releasable> {
         ActionListener<Releasable> delegate,
         TimeValue timeout,
         ThreadPool threadPool,
-        String timeoutExecutor
+        Executor timeoutExecutor
     ) {
         final var listenerSupplier = readOnce(delegate);
         return new TimeoutReleasableListener(listenerSupplier, scheduleTimeout(timeout, threadPool, timeoutExecutor, listenerSupplier));
@@ -56,7 +57,7 @@ public class TimeoutReleasableListener implements ActionListener<Releasable> {
     private static Runnable scheduleTimeout(
         TimeValue timeout,
         ThreadPool threadPool,
-        String timeoutExecutor,
+        Executor timeoutExecutor,
         Supplier<ActionListener<Releasable>> listenerSupplier
     ) {
         try {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,7 +26,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -71,7 +69,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         PARSER.declareField(optionalConstructorArg(), Settings::fromXContent, INDEX_SETTINGS_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(
             optionalConstructorArg(),
-            p -> p.list().stream().map(s -> (String) s).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY),
+            p -> p.list().stream().map(s -> (String) s).toArray(String[]::new),
             IGNORE_INDEX_SETTINGS_FIELD,
             ObjectParser.ValueType.STRING_ARRAY
         );
@@ -80,11 +78,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             return Strings.EMPTY_ARRAY;
         }, IGNORED_INDEX_SETTINGS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
-
-    /**
-     * Searchable snapshots partial storage was introduced in 7.12.0
-     */
-    private static final TransportVersion SHARED_CACHE_VERSION = TransportVersion.V_7_12_0;
 
     private final String mountedIndexName;
     private final String repositoryName;
@@ -127,11 +120,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.indexSettings = readSettingsFromStream(in);
         this.ignoreIndexSettings = in.readStringArray();
         this.waitForCompletion = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(SHARED_CACHE_VERSION)) {
-            this.storage = Storage.readFromStream(in);
-        } else {
-            this.storage = Storage.FULL_COPY;
-        }
+        this.storage = Storage.readFromStream(in);
     }
 
     @Override
@@ -144,13 +133,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeBoolean(waitForCompletion);
-        if (out.getTransportVersion().onOrAfter(SHARED_CACHE_VERSION)) {
-            storage.writeTo(out);
-        } else if (storage != Storage.FULL_COPY) {
-            throw new UnsupportedOperationException(
-                "storage type [" + storage + "] is not supported on version [" + out.getTransportVersion() + "]"
-            );
-        }
+        storage.writeTo(out);
     }
 
     @Override

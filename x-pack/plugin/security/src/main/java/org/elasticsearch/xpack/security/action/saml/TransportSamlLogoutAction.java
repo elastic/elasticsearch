@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
@@ -46,7 +47,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         Realms realms,
         TokenService tokenService
     ) {
-        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
+        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
         this.tokenService = tokenService;
     }
@@ -119,7 +120,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         return new SamlLogoutResponse(logout.getID(), uri);
     }
 
-    private String getMetadataString(Map<String, Object> metadata, String key) {
+    private static String getMetadataString(Map<String, Object> metadata, String key) {
         final Object value = metadata.get(key);
         if (value == null) {
             if (metadata.containsKey(key)) {

@@ -21,8 +21,11 @@ description = "The elasticsearch build tools"
 
 group = "org.elasticsearch.gradle"
 version = versions.getProperty("elasticsearch")
-targetCompatibility = versions.get("minimumRuntimeJava")
-sourceCompatibility = versions.get("minimumRuntimeJava")
+
+java {
+  targetCompatibility = versions.get("minimumRuntimeJava")
+  sourceCompatibility = versions.get("minimumRuntimeJava")
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
@@ -153,6 +156,10 @@ dependencies {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
 
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
 tasks.named('test').configure {

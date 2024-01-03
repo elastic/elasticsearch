@@ -75,11 +75,6 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractXContentSer
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(id, parser);
     }

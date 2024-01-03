@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
@@ -73,7 +72,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             );
         }
 
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").roles(emptySet()).build();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
             .build();
@@ -178,7 +177,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     }
 
     public void testDescriptionOnMasterIneligibleNodes() {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local").roles(emptySet()).build();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
@@ -242,7 +241,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     }
 
     public void testDescriptionOnUnhealthyNodes() {
-        final DiscoveryNode dataNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode dataNode = DiscoveryNodeUtils.builder("local").roles(emptySet()).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(dataNode).localNodeId(dataNode.getId()))
@@ -262,12 +261,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             is("this node is unhealthy: unhealthy-info")
         );
 
-        final DiscoveryNode masterNode = TestDiscoveryNode.create(
-            "local",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.builder("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
@@ -821,12 +815,11 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         );
 
         final DiscoveryNode otherMasterNode = makeDiscoveryNode("other-master");
-        final DiscoveryNode otherNonMasterNode = TestDiscoveryNode.create(
-            "other-non-master",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList())
-        );
+        final DiscoveryNode otherNonMasterNode = DiscoveryNodeUtils.builder("other-non-master")
+            .roles(
+                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList())
+            )
+            .build();
 
         String[] configNodeIds = new String[] { "n1", "n2" };
         final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
@@ -990,13 +983,13 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final DiscoveryNode localNode = makeDiscoveryNode("local");
         List<TransportAddress> resolvedAddresses = List.of(buildNewFakeTransportAddress(), buildNewFakeTransportAddress());
         List<DiscoveryNode> foundPeers = List.of(
-            TestDiscoveryNode.create(UUID.randomUUID().toString()),
-            TestDiscoveryNode.create(UUID.randomUUID().toString()),
-            TestDiscoveryNode.create(UUID.randomUUID().toString())
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString())
         );
         List<JoinStatus> joinStatuses = List.of(
             new JoinStatus(
-                TestDiscoveryNode.create(UUID.randomUUID().toString()),
+                DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
                 1,
                 "join status message",
                 new TimeValue(500, TimeUnit.SECONDS)
@@ -1065,7 +1058,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             }
             case 2 -> {
                 List<DiscoveryNode> newFoundPeers = new ArrayList<>(foundPeers);
-                newFoundPeers.add(TestDiscoveryNode.create(UUID.randomUUID().toString()));
+                newFoundPeers.add(DiscoveryNodeUtils.create(UUID.randomUUID().toString()));
                 return new ClusterFormationState(
                     settings,
                     clusterState,
@@ -1081,7 +1074,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 List<JoinStatus> newJoinStatuses = new ArrayList<>(joinStatuses);
                 newJoinStatuses.add(
                     new JoinStatus(
-                        TestDiscoveryNode.create(UUID.randomUUID().toString()),
+                        DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
                         1,
                         "join status message",
                         new TimeValue(500, TimeUnit.SECONDS)
@@ -1132,7 +1125,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         if (randomBoolean()) {
             attributes.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles());
+        return DiscoveryNodeUtils.create(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles());
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

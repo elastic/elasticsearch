@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.path;
 
+import org.elasticsearch.common.collect.Iterators;
+
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -267,6 +269,15 @@ public class PathTrie<T> {
             }
         }
 
+        Iterator<T> allNodeValues() {
+            final Iterator<T> childrenIterator = Iterators.flatMap(children.values().iterator(), TrieNode::allNodeValues);
+            if (value == null) {
+                return childrenIterator;
+            } else {
+                return Iterators.concat(Iterators.single(value), childrenIterator);
+            }
+        }
+
         @Override
         public String toString() {
             return key;
@@ -365,5 +376,9 @@ public class PathTrie<T> {
                 return retrieve(path, paramSupplier.get(), TrieMatchingMode.values()[mode++]);
             }
         };
+    }
+
+    public Iterator<T> allNodeValues() {
+        return Iterators.concat(Iterators.single(rootValue), root.allNodeValues());
     }
 }

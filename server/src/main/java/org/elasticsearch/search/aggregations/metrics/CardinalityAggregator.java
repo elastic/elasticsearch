@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -46,10 +45,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private final int precision;
     private final CardinalityAggregatorFactory.ExecutionMode executionMode;
     private final ValuesSource valuesSource;
-
-    // Expensive to initialize, so we only initialize it when we have an actual value source
-    @Nullable
-    private HyperLogLogPlusPlus counts;
+    private final HyperLogLogPlusPlus counts;
 
     private Collector collector;
 
@@ -69,24 +65,19 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop using nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
         this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.counts = new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
         this.executionMode = executionMode;
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     private Collector pickCollector(LeafReaderContext ctx) throws IOException {
-        if (valuesSource == null) {
-            emptyCollectorsUsed++;
-            return new EmptyCollector();
-        }
-
         if (valuesSource instanceof ValuesSource.Numeric source) {
             MurmurHash3Values hashValues = source.isFloatingPoint()
                 ? MurmurHash3Values.hash(source.doubleValues(ctx))
@@ -144,12 +135,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public double metric(long owningBucketOrd) {
-        return counts == null ? 0 : counts.cardinality(owningBucketOrd);
+        return counts.cardinality(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
+        if (owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
         // We need to build a copy because the returned Aggregation needs remain usable after
@@ -160,7 +151,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, metadata());
+        return InternalCardinality.empty(name, metadata());
     }
 
     @Override

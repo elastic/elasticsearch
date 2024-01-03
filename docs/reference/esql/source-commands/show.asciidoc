@@ -1,0 +1,35 @@
+[discrete]
+[[esql-show]]
+=== `SHOW`
+
+**Syntax**
+
+[source,esql]
+----
+SHOW item
+----
+
+*Parameters*
+
+`item`::
+Can be `INFO` or `FUNCTIONS`.
+
+*Description*
+
+The `SHOW` source command returns information about the deployment and
+its capabilities:
+
+* Use `SHOW INFO` to return the deployment's version, build date and hash.
+* Use `SHOW FUNCTIONS` to return a list of all supported functions and a
+synopsis of each function.
+
+*Examples*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/show.csv-spec[tag=showFunctionsFiltered]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/show.csv-spec[tag=showFunctionsFiltered-result]
+|===

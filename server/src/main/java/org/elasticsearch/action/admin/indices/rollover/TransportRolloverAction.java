@@ -37,8 +37,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.CancellableTask;
@@ -86,7 +88,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             RolloverRequest::new,
             indexNameExpressionResolver,
             RolloverResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.rolloverTaskQueue = clusterService.createTaskQueue(
@@ -137,7 +139,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             IndicesStatsAction.INSTANCE,
             statsRequest,
 
-            ActionListener.wrap(statsResponse -> {
+            listener.delegateFailureAndWrap((delegate, statsResponse) -> {
                 // Now that we have the stats for the cluster, we need to know the names of the index for which we should evaluate
                 // conditions, as well as what our newly created index *would* be.
                 final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
@@ -169,20 +171,20 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 // If this is a dry run, return with the results without invoking a cluster state update
                 if (rolloverRequest.isDryRun()) {
-                    listener.onResponse(trialRolloverResponse);
+                    delegate.onResponse(trialRolloverResponse);
                     return;
                 }
 
                 // Pre-check the conditions to see whether we should submit a new cluster state task
                 if (rolloverRequest.areConditionsMet(trialConditionResults)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
-                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
+                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, delegate);
                     rolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
                 } else {
                     // conditions not met
-                    listener.onResponse(trialRolloverResponse);
+                    delegate.onResponse(trialRolloverResponse);
                 }
-            }, listener::onFailure)
+            })
         );
     }
 
@@ -272,7 +274,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             if (state != batchExecutionContext.initialState()) {
                 var reason = new StringBuilder();
                 Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> results.stream().map(t -> t.sourceIndexName() + "->" + t.rolloverIndexName()).iterator(),
+                    (Iterable<String>) () -> Iterators.map(results.iterator(), t -> t.sourceIndexName() + "->" + t.rolloverIndexName()),
                     ",",
                     "bulk rollover [",
                     "]",

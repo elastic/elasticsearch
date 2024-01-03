@@ -14,11 +14,11 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
@@ -41,13 +41,13 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
+public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
 
-    AbstractScriptFieldType(
+    protected AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
@@ -221,7 +221,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder<Factory> extends RuntimeField.Builder {
+    protected abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
 
         private final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
@@ -239,14 +239,14 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             script
         );
 
-        Builder(String name, ScriptContext<Factory> scriptContext) {
+        protected Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
         }
 
-        abstract Factory getParseFromSourceFactory();
+        protected abstract Factory getParseFromSourceFactory();
 
-        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
+        protected abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
@@ -278,15 +278,15 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
-            return createRuntimeField(scriptFactory, Version.CURRENT);
+            return createRuntimeField(scriptFactory, IndexVersion.current());
         }
 
-        final RuntimeField createRuntimeField(Factory scriptFactory, Version indexVersion) {
+        final RuntimeField createRuntimeField(Factory scriptFactory, IndexVersion indexVersion) {
             var fieldType = createFieldType(name, scriptFactory, getScript(), meta(), indexVersion, onScriptError.get());
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(
+        protected abstract AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,
@@ -294,12 +294,12 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             OnScriptError onScriptError
         );
 
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,
             Map<String, String> meta,
-            Version supportedVersion,
+            IndexVersion supportedVersion,
             OnScriptError onScriptError
         ) {
             return createFieldType(name, factory, script, meta, onScriptError);

@@ -22,13 +22,15 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class MlTasks {
-
+    public static final String MODEL_IMPORT_TASK_TYPE = "model_import";
+    public static final String MODEL_IMPORT_TASK_ACTION = "xpack/ml/model_import[n]";
     public static final String TRAINED_MODEL_ASSIGNMENT_TASK_TYPE = "trained_model_assignment";
     public static final String TRAINED_MODEL_ASSIGNMENT_TASK_ACTION = "xpack/ml/trained_model_assignment[n]";
 
@@ -50,6 +52,7 @@ public final class MlTasks {
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
     public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX = "job-snapshot-upgrade-";
+    private static final String DOWNLOAD_MODEL_TASK_DESCRIPTION_PREFIX = "model_id-";
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
         null,
@@ -192,6 +195,17 @@ public final class MlTasks {
         return jobState;
     }
 
+    public static Instant getLastJobTaskStateChangeTime(String jobId, @Nullable PersistentTasksCustomMetadata tasks) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getJobTask(jobId, tasks);
+        if (task != null) {
+            JobTaskState jobTaskState = (JobTaskState) task.getState();
+            if (jobTaskState != null) {
+                return jobTaskState.getLastStateChangeTime();
+            }
+        }
+        return null;
+    }
+
     public static SnapshotUpgradeState getSnapshotUpgradeState(
         String jobId,
         String snapshotId,
@@ -215,9 +229,13 @@ public final class MlTasks {
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetadata tasks) {
         PersistentTasksCustomMetadata.PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
+        return getDatafeedState(task);
+    }
+
+    public static DatafeedState getDatafeedState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         if (task == null) {
             // If we haven't started a datafeed then there will be no persistent task,
-            // which is the same as if the datafeed was't started
+            // which is the same as if the datafeed wasn't started
             return DatafeedState.STOPPED;
         }
         DatafeedState taskState = (DatafeedState) task.getState();
@@ -256,6 +274,17 @@ public final class MlTasks {
             }
         }
         return state;
+    }
+
+    public static Instant getLastDataFrameAnalyticsTaskStateChangeTime(String analyticsId, @Nullable PersistentTasksCustomMetadata tasks) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getDataFrameAnalyticsTask(analyticsId, tasks);
+        if (task != null) {
+            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
+            if (taskState != null) {
+                return taskState.getLastStateChangeTime();
+            }
+        }
+        return null;
     }
 
     /**
@@ -475,5 +504,15 @@ public final class MlTasks {
             case DATAFEED_TASK_NAME -> "datafeed";
             default -> throw new IllegalArgumentException("unexpected task type [" + taskName + "]");
         };
+    }
+
+    /**
+     * Builds the task description from the model id that initiated the task.
+     *
+     * @param modelId a string that identifies the model
+     * @return a string representing the task description
+     */
+    public static String downloadModelTaskDescription(String modelId) {
+        return DOWNLOAD_MODEL_TASK_DESCRIPTION_PREFIX + modelId;
     }
 }

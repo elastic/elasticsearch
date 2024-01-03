@@ -50,7 +50,7 @@ public final class UnigramTokenizer extends Tokenizer {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
 
-    static UnigramTokenizer build(List<String> neverSplit, List<String> dictionary, List<Double> scores, String unknownToken) {
+    static UnigramTokenizer build(List<String> neverSplit, List<String> dictionary, double[] scores, String unknownToken) {
         if (dictionary.isEmpty()) {
             throw new IllegalArgumentException("vocab empty");
         }
@@ -59,9 +59,9 @@ public final class UnigramTokenizer extends Tokenizer {
         }
         CharArraySet neverSplitSet = new CharArraySet(neverSplit, false);
         CharTrie neverSplitTree = CharTrie.build(neverSplit);
-        if (dictionary.size() != scores.size()) {
+        if (dictionary.size() != scores.length) {
             throw new IllegalArgumentException(
-                format("provided vocabulary [%s] and scores [%s] must have the same size", dictionary.size(), scores.size())
+                format("provided vocabulary [%s] and scores [%s] must have the same size", dictionary.size(), scores.length)
             );
         }
         int vocabSize = dictionary.size();
@@ -69,17 +69,15 @@ public final class UnigramTokenizer extends Tokenizer {
         Map<BytesRef, Integer> tokenToId = Maps.newHashMapWithExpectedSize(vocabSize);
         int vocabIndex = 0;
         double minScore = Double.POSITIVE_INFINITY;
-        double[] vocabScores = new double[vocabSize];
         for (String word : dictionary) {
-            minScore = Double.min(minScore, scores.get(vocabIndex));
+            minScore = Double.min(minScore, scores[vocabIndex]);
             BytesRef vocab = new BytesRef(word);
-            vocabScores[vocabIndex] = scores.get(vocabIndex);
             tokenToId.put(vocab, vocabIndex++);
             vocabTrie.insert(vocab);
         }
         return new UnigramTokenizer(
             minScore,
-            vocabScores,
+            scores,
             neverSplitTree,
             neverSplitSet,
             tokenToId,
@@ -130,6 +128,10 @@ public final class UnigramTokenizer extends Tokenizer {
         this.whitespaceTokenizer = new SimpleWhitespaceTokenizer();
     }
 
+    List<DelimitedToken.Encoded> getTokenizedValues() {
+        return tokenizedValues;
+    }
+
     @Override
     public void reset() throws IOException {
         super.reset();
@@ -144,13 +146,20 @@ public final class UnigramTokenizer extends Tokenizer {
         offsetAtt.setOffset(correctOffset(whitespaceTokenizer.finalOffset), correctOffset(whitespaceTokenizer.finalOffset));
     }
 
+    private void popFromTokens() {
+        if (tokens.isEmpty() == false) {
+            DelimitedToken.Encoded token = tokens.removeFirst();
+            tokenizedValues.add(token);
+            termAtt.setEmpty().append(token.charSequence());
+            offsetAtt.setOffset(token.startOffset(), token.endOffset());
+        }
+    }
+
     @Override
     public boolean incrementToken() throws IOException {
         clearAttributes();
         if (tokens.isEmpty() == false) {
-            DelimitedToken.Encoded token = tokens.removeFirst();
-            termAtt.setEmpty().append(token.charSequence());
-            offsetAtt.setOffset(token.startOffset(), token.endOffset());
+            popFromTokens();
             return true;
         }
         // First, whitespace tokenize
@@ -158,7 +167,7 @@ public final class UnigramTokenizer extends Tokenizer {
         if (whitespaceToken != null) {
             if (neverSplitHash.contains(whitespaceToken.charSequence())) {
                 Integer maybeTokenized = vocabToId.get(new BytesRef(whitespaceToken.charSequence()));
-                tokenizedValues.add(
+                tokens.add(
                     new DelimitedToken.Encoded(
                         whitespaceToken.charSequence().toString(),
                         Objects.requireNonNullElse(maybeTokenized, unknownTokenId),
@@ -166,7 +175,7 @@ public final class UnigramTokenizer extends Tokenizer {
                         correctOffset(whitespaceToken.endOffset())
                     )
                 );
-                offsetAtt.setOffset(correctOffset(whitespaceToken.startOffset()), correctOffset(whitespaceToken.endOffset()));
+                popFromTokens();
                 return true;
             }
             int inputOffsetStart = whitespaceToken.startOffset();
@@ -215,12 +224,9 @@ public final class UnigramTokenizer extends Tokenizer {
                     MultiCharSequence.from(PREFIX, token.charSequence()),
                     offsetCorrectorFunction
                 );
-                tokenizedValues.addAll(tokenList);
                 tokens.addAll(tokenList);
             }
-            DelimitedToken.Encoded token = tokens.removeFirst();
-            termAtt.setEmpty().append(token.charSequence());
-            offsetAtt.setOffset(token.startOffset(), token.endOffset());
+            popFromTokens();
             return true;
         }
         return false;

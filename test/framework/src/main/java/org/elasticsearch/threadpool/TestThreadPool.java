@@ -10,14 +10,16 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.node.Node;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
-public class TestThreadPool extends ThreadPool {
+public class TestThreadPool extends ThreadPool implements Releasable {
 
     private final CountDownLatch blockingLatch = new CountDownLatch(1);
     private volatile boolean returnRejectingExecutor = false;
@@ -74,7 +76,14 @@ public class TestThreadPool extends ThreadPool {
             return;
         }
         ThreadFactory factory = EsExecutors.daemonThreadFactory("reject_thread");
-        rejectingExecutor = EsExecutors.newFixed("rejecting", 1, 0, factory, getThreadContext(), false);
+        rejectingExecutor = EsExecutors.newFixed(
+            "rejecting",
+            1,
+            0,
+            factory,
+            getThreadContext(),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
 
         CountDownLatch startedLatch = new CountDownLatch(1);
         rejectingExecutor.execute(() -> {
@@ -90,5 +99,10 @@ public class TestThreadPool extends ThreadPool {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void close() {
+        ThreadPool.terminate(this, 10, TimeUnit.SECONDS);
     }
 }

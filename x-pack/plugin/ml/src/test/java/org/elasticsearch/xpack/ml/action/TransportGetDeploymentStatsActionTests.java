@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -151,14 +151,25 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         int port = 9200;
         for (String nodeId : nodeIds) {
-            builder.add(TestDiscoveryNode.create(nodeId, new TransportAddress(inetAddress, port++)));
+            builder.add(DiscoveryNodeUtils.create(nodeId, new TransportAddress(inetAddress, port++)));
         }
         return builder.build();
     }
 
     private static TrainedModelAssignment createAssignment(String modelId) {
         return TrainedModelAssignment.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(modelId, modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024), Priority.NORMAL)
+            new StartTrainedModelDeploymentAction.TaskParams(
+                modelId,
+                modelId,
+                1024,
+                1,
+                1,
+                1,
+                ByteSizeValue.ofBytes(1024),
+                Priority.NORMAL,
+                0L,
+                0L
+            )
         ).build();
     }
 }

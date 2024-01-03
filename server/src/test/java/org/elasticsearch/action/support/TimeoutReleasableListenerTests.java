@@ -104,7 +104,10 @@ public class TimeoutReleasableListenerTests extends ESTestCase {
                                 timeoutListener.onFailure(new ElasticsearchException("simulated"));
                             }
                         }
-                    }, TimeValue.timeValueMillis(between(1, 20)), randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+                    },
+                        TimeValue.timeValueMillis(between(1, 20)),
+                        threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
+                    );
                 }
             }
 
@@ -127,7 +130,7 @@ public class TimeoutReleasableListenerTests extends ESTestCase {
             ActionListener.assertOnce(listener),
             TimeValue.timeValueMillis(between(1, MAX_TIMEOUT_MILLIS)),
             threadPool,
-            randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)
+            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
         );
     }
 }

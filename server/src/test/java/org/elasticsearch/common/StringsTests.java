@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -33,7 +32,6 @@ import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.common.Strings.isAllOrWildcard;
 import static org.elasticsearch.common.Strings.isEmpty;
 import static org.elasticsearch.common.Strings.padStart;
-import static org.elasticsearch.common.Strings.spaceify;
 import static org.elasticsearch.common.Strings.stripDisallowedChars;
 import static org.elasticsearch.common.Strings.substring;
 import static org.elasticsearch.common.Strings.toLowercaseAscii;
@@ -50,19 +48,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StringsTests extends ESTestCase {
-
-    public void testSpaceify() throws Exception {
-        String[] lines = new String[] { randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5) };
-
-        // spaceify always finishes with \n regardless of input
-        StringBuilder sb = new StringBuilder();
-        spaceify(4, String.join("\n", lines), sb);
-        assertThat(sb.toString(), equalTo(Arrays.stream(lines).map(s -> " ".repeat(4) + s).collect(Collectors.joining("\n", "", "\n"))));
-
-        sb = new StringBuilder();
-        spaceify(0, String.join("\n", lines), sb);
-        assertThat(sb.toString(), equalTo(Arrays.stream(lines).collect(Collectors.joining("\n", "", "\n"))));
-    }
 
     public void testHasLength() {
         assertFalse(hasLength((String) null));
@@ -362,6 +347,11 @@ public class StringsTests extends ESTestCase {
 
         assertNotEquals(validFileName, invalidFileName.toString());
         assertEquals(validFileName, stripDisallowedChars(invalidFileName.toString()));
+    }
+
+    public void testFormat1Decimals() {
+        assertThat(Strings.format1Decimals(100.0 / 2, "%"), equalTo("50%"));
+        assertThat(Strings.format1Decimals(100.0 / 3, "%"), equalTo("33.3%"));
     }
 
     private static String lowercaseAsciiOnly(String s) {

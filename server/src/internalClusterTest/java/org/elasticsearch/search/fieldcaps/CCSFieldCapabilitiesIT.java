@@ -66,7 +66,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
             .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertThat(response.getIndices()[0], equalTo(localIndex));
-        assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:*"));
+        assertThat(response.getFailedIndicesCount(), equalTo(1));
         FieldCapabilitiesFailure failure = response.getFailures()
             .stream()
             .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:*"))
@@ -81,7 +81,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         // if we only query the remote we should get back an exception only
         ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareFieldCaps("remote_cluster:*").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder()).get()
+            client().prepareFieldCaps("remote_cluster:*").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
         );
         assertEquals("I throw because I choose to.", ex.getMessage());
 
@@ -95,7 +95,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
             .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:okay_remote_index"));
-        assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:" + remoteErrorIndex));
+        assertThat(response.getFailedIndicesCount(), equalTo(1));
         failure = response.getFailures()
             .stream()
             .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:" + remoteErrorIndex))

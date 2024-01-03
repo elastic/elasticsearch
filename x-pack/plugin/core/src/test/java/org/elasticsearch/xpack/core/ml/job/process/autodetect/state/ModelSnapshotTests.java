@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -131,7 +131,7 @@ public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<Mode
     private static ModelSnapshot.Builder createFullyPopulated() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder();
         modelSnapshot.setJobId("foo");
-        modelSnapshot.setMinVersion(Version.CURRENT);
+        modelSnapshot.setMinVersion(MlConfigVersion.CURRENT);
         modelSnapshot.setTimestamp(DEFAULT_TIMESTAMP);
         modelSnapshot.setDescription(DEFAULT_DESCRIPTION);
         modelSnapshot.setSnapshotId(DEFAULT_ID);
@@ -158,7 +158,7 @@ public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<Mode
 
     public static ModelSnapshot createRandomized() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAlphaOfLengthBetween(1, 20));
-        modelSnapshot.setMinVersion(Version.CURRENT);
+        modelSnapshot.setMinVersion(MlConfigVersion.CURRENT);
         modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setDescription(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotId(randomAlphaOfLength(10));
@@ -227,7 +227,7 @@ public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<Mode
         ModelSnapshot modelSnapshot = ModelSnapshot.emptySnapshot("my_job");
         assertThat(modelSnapshot.getSnapshotId(), equalTo("empty"));
         assertThat(modelSnapshot.isTheEmptySnapshot(), is(true));
-        assertThat(modelSnapshot.getMinVersion(), equalTo(Version.CURRENT));
+        assertThat(modelSnapshot.getMinVersion(), equalTo(MlConfigVersion.CURRENT));
         assertThat(modelSnapshot.getLatestRecordTimeStamp(), is(nullValue()));
         assertThat(modelSnapshot.getLatestResultTimeStamp(), is(nullValue()));
     }

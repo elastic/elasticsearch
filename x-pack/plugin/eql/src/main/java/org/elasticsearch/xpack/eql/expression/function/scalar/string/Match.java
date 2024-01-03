@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
  * Returns true if the source field matches any of the provided regular expressions
  * Refer to: https://eql.readthedocs.io/en/latest/query-guide/functions.html#match
  */
-public class Match extends BaseSurrogateFunction {
+public final class Match extends BaseSurrogateFunction {
 
     private final Expression field;
     private final List<Expression> patterns;

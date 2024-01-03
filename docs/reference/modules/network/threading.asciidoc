@@ -63,7 +63,7 @@ reported like this:
 
 [source,text]
 ----
-   100.0% [cpu=0.0%, other=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000004][transport_worker][T#1]'
+   0.0% [cpu=0.0%, idle=100.0%] (500ms out of 500ms) cpu usage by thread 'elasticsearch[instance-0000000004][transport_worker][T#1]'
      10/10 snapshots sharing following 9 elements
        java.base@17.0.2/sun.nio.ch.EPoll.wait(Native Method)
        java.base@17.0.2/sun.nio.ch.EPollSelectorImpl.doSelect(EPollSelectorImpl.java:118)
@@ -77,11 +77,9 @@ reported like this:
 ----
 
 Note that `transport_worker` threads should always be in state `RUNNABLE`, even
-when waiting for input, because they block in the native `EPoll#wait` method.
-This means the hot threads API will report these threads at 100% overall
-utilisation. This is normal, and the breakdown of time into `cpu=` and `other=`
-fractions shows how much time the thread spent running and waiting for input
-respectively.
+when waiting for input, because they block in the native `EPoll#wait` method. The `idle=`
+time reports the proportion of time the thread spent waiting for input, whereas the `cpu=` time
+reports the proportion of time the thread spent processing input it has received.
 
 If a `transport_worker` thread is not frequently idle, it may build up a
 backlog of work. This can cause delays in processing messages on the channels
@@ -109,3 +107,12 @@ However, this API itself sends network messages so may not work correctly if
 the `transport_worker` threads are too busy. It is more reliable to use
 `jstack` to obtain stack dumps or use Java Flight Recorder to obtain a
 profiling trace. These tools are independent of any work the JVM is performing.
+
+It may also be possible to identify some reasons for delays from the server
+logs, particularly looking at warnings from
+`org.elasticsearch.transport.InboundHandler` and
+`org.elasticsearch.transport.OutboundHandler`. Warnings about long processing
+times from the `InboundHandler` are particularly indicative of incorrect
+threading behaviour, whereas the transmission time reported by the
+`OutboundHandler` includes time spent waiting for network congestion and the
+`transport_worker` thread is free to do other work during this time.

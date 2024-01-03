@@ -1,0 +1,5 @@
+description = 'Integration tests for ESQL'
+
+subprojects {
+  tasks.withType(Javadoc).all { enabled = false }
+}

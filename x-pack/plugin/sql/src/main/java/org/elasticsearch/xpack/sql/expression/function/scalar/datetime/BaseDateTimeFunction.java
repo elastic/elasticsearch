@@ -49,11 +49,6 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     }
 
     @Override
-    public Object fold() {
-        return makeProcessor().process(field().fold());
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(getClass(), field(), zoneId());
     }

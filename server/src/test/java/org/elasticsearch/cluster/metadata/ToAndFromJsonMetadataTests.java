@@ -9,13 +9,13 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.xcontent.ToXContent;
@@ -89,24 +89,25 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             )
             .put(
                 "index_templatev2",
-                new ComposableIndexTemplate(
-                    Arrays.asList("foo", "bar*"),
-                    new Template(
-                        Settings.builder().put("setting", "value").build(),
-                        new CompressedXContent("{\"baz\":\"eggplant\"}"),
-                        Collections.singletonMap("alias", AliasMetadata.builder("alias").build())
-                    ),
-                    Collections.singletonList("component_template"),
-                    5L,
-                    4L,
-                    Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")),
-                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate(),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Arrays.asList("foo", "bar*"))
+                    .template(
+                        new Template(
+                            Settings.builder().put("setting", "value").build(),
+                            new CompressedXContent("{\"baz\":\"eggplant\"}"),
+                            Collections.singletonMap("alias", AliasMetadata.builder("alias").build())
+                        )
+                    )
+                    .componentTemplates(Collections.singletonList("component_template"))
+                    .priority(5L)
+                    .version(4L)
+                    .metadata(Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")))
+                    .dataStreamTemplate(randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
             )
             .put(
                 IndexMetadata.builder("test12")
-                    .settings(settings(Version.CURRENT).put("setting1", "value1").put("setting2", "value2"))
+                    .settings(settings(IndexVersion.current()).put("setting1", "value1").put("setting2", "value2"))
                     .creationDate(2L)
                     .numberOfShards(1)
                     .numberOfReplicas(2)
@@ -137,7 +138,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
 
-        Metadata parsedMetadata = Metadata.Builder.fromXContent(createParser(builder));
+        Metadata parsedMetadata;
+        try (var parser = createParser(builder)) {
+            parsedMetadata = Metadata.Builder.fromXContent(parser);
+        }
 
         // templates
         assertThat(parsedMetadata.templates().get("foo").name(), is("foo"));
@@ -197,11 +201,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         // data streams
         assertNotNull(parsedMetadata.dataStreams().get("data-stream1"));
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getName(), is("data-stream1"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream1").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
         assertNotNull(parsedMetadata.dataStreams().get("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
 
         // reserved 'operator' metadata
@@ -276,7 +278,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPI_SameTypeName() throws IOException {
@@ -292,7 +294,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .put(
                 IndexMetadata.builder("index")
                     .state(IndexMetadata.State.OPEN)
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                     .putMapping(
                         new MappingMetadata(
                             "type",
@@ -372,7 +374,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -437,7 +439,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingTrue_ReduceMappingFalse() throws IOException {
@@ -540,7 +542,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -649,7 +651,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPIReservedMetadata() throws IOException {
@@ -829,7 +831,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     private Metadata buildMetadata() throws IOException {
@@ -851,12 +853,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
                     .build()
             )
-            .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id).build())
-            .transientSettings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id).build())
+            .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .transientSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .put(
                 IndexMetadata.builder("index")
                     .state(IndexMetadata.State.OPEN)
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                     .putMapping(new MappingMetadata("type", new HashMap<>() {
                         {
                             put("type1", new HashMap<String, Object>() {
@@ -881,7 +883,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 IndexTemplateMetadata.builder("template")
                     .patterns(List.of("pattern1", "pattern2"))
                     .order(0)
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
+                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
                     .putMapping("type", "{ \"key1\": {} }")
                     .build()
             )
@@ -902,7 +904,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

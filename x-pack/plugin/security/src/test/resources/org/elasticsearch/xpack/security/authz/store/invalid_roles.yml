@@ -45,3 +45,16 @@ role5:
     - names:
         - 'idx1'
       privileges: []
+
+# role includes unsupported workflows restriction
+role6:
+  cluster:
+    - ALL
+  indices:
+    - names: idx
+      privileges:
+        - ALL
+  restriction:
+    workflows:
+      - workflow1
+      - workflow2

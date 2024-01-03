@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -100,29 +101,22 @@ public class TrainedModelAssignmentService {
         final @Nullable TimeValue timeout,
         final WaitForAssignmentListener listener
     ) {
+        ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(TrainedModelAssignmentMetadata.assignmentForDeploymentId(state, deploymentId).orElse(null));
+            }
 
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
-        final ClusterState clusterState = observer.setAndGetObservedState();
-        if (predicate.test(clusterState)) {
-            listener.onResponse(TrainedModelAssignmentMetadata.assignmentForDeploymentId(clusterState, deploymentId).orElse(null));
-        } else {
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(TrainedModelAssignmentMetadata.assignmentForDeploymentId(state, deploymentId).orElse(null));
-                }
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
 
-                @Override
-                public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    listener.onTimeout(timeout);
-                }
-            }, predicate);
-        }
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onTimeout(timeout);
+            }
+        }, predicate, timeout, logger);
     }
 
     public interface WaitForAssignmentListener extends ActionListener<TrainedModelAssignment> {

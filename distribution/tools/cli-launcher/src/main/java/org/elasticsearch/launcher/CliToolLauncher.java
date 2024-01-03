@@ -94,7 +94,7 @@ class CliToolLauncher {
                 e.printStackTrace(terminal.getErrorWriter());
             }
             terminal.flush(); // make sure to flush whatever the close or error might have written
-        });
+        }, "elasticsearch-cli-shutdown");
 
     }
 
@@ -112,6 +112,8 @@ class CliToolLauncher {
         final String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
         LogConfigurator.configureWithoutConfig(settings);
+        // a temporary fix to allow a cli-launcher.jar replacement. That method should is called in configureWithoutConfig
+        LogConfigurator.configureESLogging();
     }
 
     /**

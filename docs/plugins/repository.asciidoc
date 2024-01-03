@@ -1,7 +1,7 @@
 [[repository]]
 == Snapshot/restore repository plugins
 
-Repository plugins extend the {ref}/modules-snapshots.html[Snapshot/Restore]
+Repository plugins extend the {ref}/snapshot-restore.html[Snapshot/Restore]
 functionality in Elasticsearch by adding repositories backed by the cloud or
 by distributed file systems:
 

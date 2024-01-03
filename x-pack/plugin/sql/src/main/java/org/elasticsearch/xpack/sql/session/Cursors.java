@@ -38,7 +38,7 @@ import java.util.Map;
 public final class Cursors {
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(getNamedWriteables());
-    private static final TransportVersion VERSION = TransportVersion.CURRENT;
+    private static final TransportVersion VERSION = TransportVersion.current();
 
     private Cursors() {}
 

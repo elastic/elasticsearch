@@ -14,18 +14,15 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -40,6 +37,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
@@ -89,6 +87,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
@@ -132,7 +131,7 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.TokenService.THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromAccessTokenBytes;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -265,16 +264,28 @@ public class AuthenticationServiceTests extends ESTestCase {
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,
-            new FixedExecutorBuilder(settings, THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool", false),
-            new FixedExecutorBuilder(Settings.EMPTY, SECURITY_CRYPTO_THREAD_POOL_NAME, 1, 1000, "xpack.security.crypto.thread_pool", false)
+            new FixedExecutorBuilder(
+                settings,
+                THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.authc.token.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            ),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                SECURITY_CRYPTO_THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.crypto.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        when(client.prepareIndex(nullable(String.class))).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(nullable(String.class), nullable(String.class))).thenReturn(
-            new UpdateRequestBuilder(client, UpdateAction.INSTANCE)
-        );
+        when(client.prepareIndex(nullable(String.class))).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareUpdate(nullable(String.class), nullable(String.class))).thenReturn(new UpdateRequestBuilder(client));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
@@ -289,9 +300,9 @@ public class AuthenticationServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
+            GetRequestBuilder builder = new GetRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareGet(nullable(String.class), nullable(String.class));
@@ -308,7 +319,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         final ClusterSettings clusterSettings = new ClusterSettings(
             settings,
-            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL)
+            )
         );
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
@@ -876,7 +890,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
         User user = new User("username", new String[] { "r1", "r2" }, null, null, Map.of(), false);
-        User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
+        User fallback = randomBoolean() ? InternalUsers.SYSTEM_USER : null;
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, user);
@@ -922,7 +936,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final User user = new User("username", "r1", "r2");
         final Consumer<ActionListener<Authentication>> authenticate;
         if (randomBoolean()) {
-            authenticate = listener -> service.authenticate("_action", transportRequest, SystemUser.INSTANCE, listener);
+            authenticate = listener -> service.authenticate("_action", transportRequest, InternalUsers.SYSTEM_USER, listener);
         } else {
             authenticate = listener -> service.authenticate("_action", transportRequest, true, listener);
         }
@@ -990,7 +1004,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             if (requestIdAlreadyPresent) {
                 reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
             }
-            service.authenticate("_action", transportRequest, SystemUser.INSTANCE, ActionListener.wrap(authentication -> {
+            service.authenticate("_action", transportRequest, InternalUsers.SYSTEM_USER, ActionListener.wrap(authentication -> {
                 if (requestIdAlreadyPresent) {
                     assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
                 } else {
@@ -1036,7 +1050,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
             threadContext1.putTransient(AuthenticationField.AUTHENTICATION_KEY, authRef.get());
             threadContext1.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
-            service.authenticate("_action", message1, SystemUser.INSTANCE, ActionListener.wrap(ctxAuth -> {
+            service.authenticate("_action", message1, InternalUsers.SYSTEM_USER, ActionListener.wrap(ctxAuth -> {
                 if (requestIdAlreadyPresent) {
                     assertThat(expectAuditRequestId(threadContext1), is(reqId.get()));
                 } else {
@@ -1101,7 +1115,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 serviceAccountService,
                 operatorPrivilegesService
             );
-            service.authenticate("_action", new InternalRequest(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
+            service.authenticate("_action", new InternalRequest(), InternalUsers.SYSTEM_USER, ActionListener.wrap(result -> {
                 if (requestIdAlreadyPresent) {
                     assertThat(expectAuditRequestId(threadPool2.getThreadContext()), is(reqId.get()));
                 } else {
@@ -1129,7 +1143,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
         try {
-            authenticateBlocking("_action", message, randomBoolean() ? SystemUser.INSTANCE : null, null);
+            authenticateBlocking("_action", message, randomBoolean() ? InternalUsers.SYSTEM_USER : null, null);
         } catch (Exception e) {
             // expected
             if (requestIdAlreadyPresent) {
@@ -1381,13 +1395,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
         }
 
-        authenticateBlocking("_action", message, SystemUser.INSTANCE, result -> {
+        authenticateBlocking("_action", message, InternalUsers.SYSTEM_USER, result -> {
             if (requestIdAlreadyPresent) {
                 assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             }
             assertThat(result, notNullValue());
             assertThat(expectAuditRequestId(threadContext), is(result.v2()));
-            assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance(SystemUser.INSTANCE));
+            assertThat(result.v1().getEffectiveSubject().getUser(), sameInstance(InternalUsers.SYSTEM_USER));
             assertThat(result.v1().getAuthenticationType(), is(AuthenticationType.INTERNAL));
             assertThat(result.v1().getEffectiveSubject().getRealm().getDomain(), nullValue());
             assertThreadContextContainsAuthentication(result.v1());
@@ -1825,7 +1839,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             listener.onResponse(new User("looked up user", new String[] { "some role" }, null, null, Map.of(), false));
             return null;
         }).when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
-        User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
+        User fallback = randomBoolean() ? InternalUsers.SYSTEM_USER : null;
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
             () -> authenticateBlocking("_action", transportRequest, fallback, null)
@@ -1875,20 +1889,27 @@ public class AuthenticationServiceTests extends ESTestCase {
             .realmRef(new RealmRef("realm", "custom", "node"))
             .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = AuthenticationTestHelper.builder()
                 .user(new User("creator"))
                 .realmRef(new RealmRef("test", "test", "test"))
                 .build(false);
-            tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
+            tokenService.createOAuth2Tokens(
+                newTokenBytes.v1(),
+                newTokenBytes.v2(),
+                expected,
+                originatingAuth,
+                Collections.emptyMap(),
+                tokenFuture
+            );
         }
         String token = tokenFuture.get().getAccessToken();
-        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        mockGetTokenFromId(tokenService, userTokenId, expected, Map.of(), false, client);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client));
+        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), false, null, client);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
@@ -1992,8 +2013,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testExpiredToken() throws Exception {
-        when(securityIndex.freeze()).thenReturn(securityIndex);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = AuthenticationTestHelper.builder()
@@ -2001,17 +2023,17 @@ public class AuthenticationServiceTests extends ESTestCase {
             .realmRef(new RealmRef("realm", "custom", "node"))
             .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = AuthenticationTestHelper.builder()
                 .user(new User("creator"))
                 .realmRef(new RealmRef("test", "test", "test"))
                 .build(false);
-            tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
+            tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), expected, originatingAuth, Collections.emptyMap(),
+                    tokenFuture);
         }
         String token = tokenFuture.get().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenId, expected, Map.of(), true, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), true, null, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
@@ -2476,6 +2498,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
         return new SecurityIndexManager.State(
             Instant.now(),
+            true,
             true,
             true,
             true,

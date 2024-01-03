@@ -28,7 +28,7 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
         super(in);
         historyUUID = in.readString();
         maxSeqNoOfUpdatesOrDeletes = in.readZLong();
-        operations = in.readList(Translog.Operation::readOperation);
+        operations = in.readCollectionAsList(Translog.Operation::readOperation);
     }
 
     public BulkShardOperationsRequest(

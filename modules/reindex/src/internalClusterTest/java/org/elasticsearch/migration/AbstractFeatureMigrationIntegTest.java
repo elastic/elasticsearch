@@ -24,12 +24,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Assert;
@@ -66,6 +68,9 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
     static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
     public static final Version NEEDS_UPGRADE_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.previousMajor();
+    public static final IndexVersion NEEDS_UPGRADE_INDEX_VERSION = IndexVersionUtils.getPreviousMajorVersion(
+        TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION
+    );
 
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")
@@ -89,7 +94,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAliasName(".internal-managed-alias")
         .setPrimaryIndex(INTERNAL_MANAGED_INDEX_NAME)
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSettings(NEEDS_UPGRADE_INDEX_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
@@ -104,7 +109,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAliasName(".external-managed-alias")
         .setPrimaryIndex(".ext-man-old")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-        .setSettings(createSettings(NEEDS_UPGRADE_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSettings(NEEDS_UPGRADE_INDEX_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createMapping(true, false))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
@@ -148,7 +153,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
     public <T extends Plugin> T getPlugin(Class<T> type) {
         final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
-        return pluginsService.filterPlugins(type).stream().findFirst().get();
+        return pluginsService.filterPlugins(type).findFirst().get();
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
@@ -166,7 +171,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             // unmanaged
             createRequest.setSettings(
                 createSettings(
-                    NEEDS_UPGRADE_VERSION,
+                    NEEDS_UPGRADE_INDEX_VERSION,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
             );
@@ -174,7 +179,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             // managed
             createRequest.setSettings(
                 Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .build()
             );
@@ -187,14 +192,14 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(ESIntegTestCase.client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
+            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
-        IndicesStatsResponse indexStats = ESIntegTestCase.client().admin().indices().prepareStats(indexName).setDocs(true).get();
+        IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();
         Assert.assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
-    static Settings createSettings(Version creationVersion, int flagSettingValue) {
+    static Settings createSettings(IndexVersion creationVersion, int flagSettingValue) {
         return indexSettings(creationVersion, 1, 0).put(FlAG_SETTING_KEY, flagSettingValue).build();
     }
 
@@ -204,6 +209,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             {
                 builder.startObject("_meta");
                 builder.field(VERSION_META_KEY, META_VERSION);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                 builder.field(DESCRIPTOR_MANAGED_META_KEY, descriptorManaged);
                 builder.field(DESCRIPTOR_INTERNAL_META_KEY, descriptorInternal);
                 builder.endObject();
@@ -246,7 +252,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         Set<String> actualAliasNames = imd.getAliases().keySet();
         assertThat(actualAliasNames, containsInAnyOrder(aliasNames.toArray()));
 
-        IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
+        IndicesStatsResponse indexStats = indicesAdmin().prepareStats(imd.getIndex().getName()).setDocs(true).get();
         assertNotNull(indexStats);
         final IndexStats thisIndexStats = indexStats.getIndex(imd.getIndex().getName());
         assertNotNull(thisIndexStats);

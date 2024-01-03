@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -48,30 +49,42 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     private final Path path;
     private final int bufferSize;
 
-    HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore store, Path path, int bufferSize, HdfsSecurityContext hdfsSecurityContext) {
+    private final Short replicationFactor;
+    private final Options.CreateOpts[] createOpts;
+
+    HdfsBlobContainer(
+        BlobPath blobPath,
+        HdfsBlobStore store,
+        Path path,
+        int bufferSize,
+        HdfsSecurityContext hdfsSecurityContext,
+        Short replicationFactor
+    ) {
         super(blobPath);
         this.store = store;
         this.securityContext = hdfsSecurityContext;
         this.path = path;
         this.bufferSize = bufferSize;
+        this.replicationFactor = replicationFactor;
+        this.createOpts = replicationFactor == null ? new CreateOpts[0] : new CreateOpts[] { CreateOpts.repFac(replicationFactor) };
     }
 
     // TODO: See if we can get precise result reporting.
     private static final DeleteResult DELETE_RESULT = new DeleteResult(1L, 0L);
 
     @Override
-    public boolean blobExists(String blobName) throws IOException {
+    public boolean blobExists(OperationPurpose purpose, String blobName) throws IOException {
         return store.execute(fileContext -> fileContext.util().exists(new Path(path, blobName)));
     }
 
     @Override
-    public DeleteResult delete() throws IOException {
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
         store.execute(fileContext -> fileContext.delete(path, true));
         return DELETE_RESULT;
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(final Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, final Iterator<String> blobNames) throws IOException {
         IOException ioe = null;
         while (blobNames.hasNext()) {
             final String blobName = blobNames.next();
@@ -93,7 +106,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
         // FSDataInputStream does buffering internally
         // FSDataInputStream can open connections on read() or skip() so we wrap in
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
@@ -108,7 +121,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
         // FSDataInputStream does buffering internally
         // FSDataInputStream can open connections on read() or skip() so we wrap in
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
@@ -128,7 +141,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
         Path blob = new Path(path, blobName);
         // we pass CREATE, which means it fails if a blob already exists.
         final EnumSet<CreateFlag> flags = failIfAlreadyExists
@@ -145,7 +159,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         Path blob = new Path(path, blobName);
         // we pass CREATE, which means it fails if a blob already exists.
         final EnumSet<CreateFlag> flags = failIfAlreadyExists
@@ -163,6 +177,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeMetadataBlob(
+        OperationPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
@@ -174,7 +189,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             store.execute((Operation<Void>) fileContext -> {
                 try {
                     try (
-                        FSDataOutputStream stream = fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK))
+                        FSDataOutputStream stream = fileContext.create(
+                            tempBlobPath,
+                            EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK),
+                            createOpts
+                        )
                     ) {
                         writer.accept(stream);
                     }
@@ -191,7 +210,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
                 ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
                 : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
             store.execute((Operation<Void>) fileContext -> {
-                try (FSDataOutputStream stream = fileContext.create(blob, flags)) {
+                try (FSDataOutputStream stream = fileContext.create(blob, flags, createOpts)) {
                     writer.accept(stream);
                 } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                     throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
@@ -202,7 +221,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+        throws IOException {
         final String tempBlob = FsBlobContainer.tempBlobName(blobName);
         final Path tempBlobPath = new Path(path, tempBlob);
         final Path blob = new Path(path, blobName);
@@ -219,7 +239,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     private void writeToPath(BytesReference bytes, Path blobPath, FileContext fileContext, EnumSet<CreateFlag> createFlags)
         throws IOException {
-        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags)) {
+        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOpts)) {
             bytes.writeTo(stream);
         }
     }
@@ -232,7 +252,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         EnumSet<CreateFlag> createFlags
     ) throws IOException {
         final byte[] buffer = new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize];
-        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, CreateOpts.bufferSize(buffer.length))) {
+
+        Options.CreateOpts[] createOptsWithBufferSize = addOptionToArray(createOpts, CreateOpts.bufferSize(buffer.length));
+        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOptsWithBufferSize)) {
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 stream.write(buffer, 0, bytesRead);
@@ -241,7 +263,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, @Nullable final String prefix) throws IOException {
         FileStatus[] files;
         try {
             files = store.execute(
@@ -260,18 +282,21 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobs() throws IOException {
-        return listBlobsByPrefix(null);
+    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+        return listBlobsByPrefix(purpose, null);
     }
 
     @Override
-    public Map<String, BlobContainer> children() throws IOException {
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path));
         Map<String, BlobContainer> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
             if (file.isDirectory()) {
                 final String name = file.getPath().getName();
-                map.put(name, new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext));
+                map.put(
+                    name,
+                    new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext, replicationFactor)
+                );
             }
         }
         return Collections.unmodifiableMap(map);
@@ -321,11 +346,23 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void compareAndExchangeRegister(
+        OperationPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
         listener.onFailure(new UnsupportedOperationException("HDFS repositories do not support this operation"));
+    }
+
+    private static CreateOpts[] addOptionToArray(final CreateOpts[] opts, final CreateOpts opt) {
+        if (opts == null) {
+            return new CreateOpts[] { opt };
+        }
+        CreateOpts[] newOpts = new CreateOpts[opts.length + 1];
+        System.arraycopy(opts, 0, newOpts, 0, opts.length);
+        newOpts[opts.length] = opt;
+
+        return newOpts;
     }
 }

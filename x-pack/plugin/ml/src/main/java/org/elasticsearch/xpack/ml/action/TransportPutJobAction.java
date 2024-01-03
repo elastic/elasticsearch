@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -19,9 +19,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -70,7 +72,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
             PutJobAction.Request::new,
             indexNameExpressionResolver,
             PutJobAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.jobManager = jobManager;
@@ -119,8 +121,9 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                                 () -> format("[%s] failed to cleanup job after datafeed creation failure", request.getJobBuilder().getId()),
                                 deleteFailed
                             );
-                            ElasticsearchException ex = new ElasticsearchException(
+                            ElasticsearchStatusException ex = new ElasticsearchStatusException(
                                 "failed to cleanup job after datafeed creation failure",
+                                RestStatus.REQUEST_TIMEOUT,
                                 failed
                             );
                             ex.addSuppressed(deleteFailed);

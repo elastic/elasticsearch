@@ -103,7 +103,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
                     || maxTimeSinceLastHeartbeat.millis() <= heartBeat.timeSinceLastHeartbeatInMillis(absoluteTimeInMillis())) {
                     runnable.run();
                 } else {
-                    logger.trace("runIfNoRecentLeader: found recent leader");
+                    logger.trace("runIfNoRecentLeader: found recent leader [{}]", heartBeat);
                 }
             }
 
@@ -122,13 +122,9 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
             super(listener);
             assert 0 < heartbeatTerm : heartbeatTerm;
             this.heartbeatTerm = heartbeatTerm;
-            this.rerunListener = listener.delegateFailure((l, scheduleDelay) -> {
-                try {
-                    threadPool.schedule(HeartbeatTask.this, scheduleDelay, ThreadPool.Names.GENERIC);
-                } catch (Exception e) {
-                    l.onFailure(e);
-                }
-            });
+            this.rerunListener = listener.delegateFailureAndWrap(
+                (l, scheduleDelay) -> threadPool.schedule(HeartbeatTask.this, scheduleDelay, threadPool.generic())
+            );
         }
 
         @Override

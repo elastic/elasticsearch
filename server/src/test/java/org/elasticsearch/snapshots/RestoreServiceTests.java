@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -147,7 +147,7 @@ public class RestoreServiceTests extends ESTestCase {
                     when(freshBlobStoreRepo.getMetadata()).thenReturn(
                         new RepositoryMetadata(repositoryName, randomAlphaOfLength(3), Settings.EMPTY).withUuid(UUIDs.randomBase64UUID())
                     );
-                    doThrow(new AssertionError("repo UUID already known")).when(freshBlobStoreRepo).getRepositoryData(any());
+                    doThrow(new AssertionError("repo UUID already known")).when(freshBlobStoreRepo).getRepositoryData(any(), any());
                 }
                 case 3 -> {
                     final Repository staleBlobStoreRepo = mock(BlobStoreRepository.class);
@@ -158,16 +158,14 @@ public class RestoreServiceTests extends ESTestCase {
                     );
                     doAnswer(invocationOnMock -> {
                         assertTrue(pendingRefreshes.remove(repositoryName));
-                        @SuppressWarnings("unchecked")
-                        ActionListener<RepositoryData> repositoryDataListener = (ActionListener<RepositoryData>) invocationOnMock
-                            .getArguments()[0];
+                        final ActionListener<RepositoryData> repositoryDataListener = invocationOnMock.getArgument(1);
                         if (randomBoolean()) {
                             repositoryDataListener.onResponse(null);
                         } else {
                             repositoryDataListener.onFailure(new Exception("simulated"));
                         }
                         return null;
-                    }).when(staleBlobStoreRepo).getRepositoryData(any());
+                    }).when(staleBlobStoreRepo).getRepositoryData(any(), any());
                 }
             }
         }
@@ -207,7 +205,7 @@ public class RestoreServiceTests extends ESTestCase {
             List.of(),
             List.of(),
             randomAlphaOfLengthBetween(10, 100),
-            Version.CURRENT,
+            IndexVersion.current(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             shards,

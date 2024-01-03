@@ -10,10 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -67,11 +67,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     ) {
 
         this(client, auditIndex, templateConfig.getTemplateName(), () -> {
-            try {
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
                 return new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                    ComposableIndexTemplate.parse(
-                        JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())
-                    )
+                    ComposableIndexTemplate.parse(parser)
                 ).masterNodeTimeout(MASTER_TIMEOUT);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
@@ -116,7 +114,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         indexDoc(messageFactory.newMessage(resourceId, message, Level.ERROR, new Date(), nodeName));
     }
 
-    private static void onIndexResponse(IndexResponse response) {
+    private static void onIndexResponse(DocWriteResponse response) {
         logger.trace("Successfully wrote audit message");
     }
 

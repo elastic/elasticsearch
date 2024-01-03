@@ -16,20 +16,20 @@ setup:
       indices.put_settings:
         index: test_index1
         body:
-          refresh_interval: 1s
+          refresh_interval: 10s
 
   - do:
       indices.put_settings:
         index: test_index2
         body:
-          refresh_interval: 1s
+          refresh_interval: 10s
 
 
   - do:
       indices.get_settings: {}
 
-  - match: {test_index1.settings.index.refresh_interval:     1s}
-  - match: {test_index2.settings.index.refresh_interval:     1s}
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
   - is_false: foo.settings.index.refresh_interval
 
 ---
@@ -38,14 +38,14 @@ setup:
       indices.put_settings:
         index: _all
         body:
-          refresh_interval: 1s
+          refresh_interval: 10s
 
   - do:
       indices.get_settings: {}
 
-  - match: {test_index1.settings.index.refresh_interval:     1s}
-  - match: {test_index2.settings.index.refresh_interval:     1s}
-  - match: {foo.settings.index.refresh_interval:     1s}
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
+  - match: {foo.settings.index.refresh_interval:     10s}
 
 ---
 "put settings in * index":
@@ -53,14 +53,14 @@ setup:
       indices.put_settings:
         index: '*'
         body:
-          refresh_interval: 1s
+          refresh_interval: 10s
 
   - do:
       indices.get_settings: {}
 
-  - match: {test_index1.settings.index.refresh_interval:     1s}
-  - match: {test_index2.settings.index.refresh_interval:     1s}
-  - match: {foo.settings.index.refresh_interval:     1s}
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
+  - match: {foo.settings.index.refresh_interval:     10s}
 
 
 ---
@@ -69,13 +69,13 @@ setup:
       indices.put_settings:
         index: 'test*'
         body:
-          refresh_interval: 1s
+          refresh_interval: 10s
 
   - do:
       indices.get_settings: {}
 
-  - match: {test_index1.settings.index.refresh_interval:     1s}
-  - match: {test_index2.settings.index.refresh_interval:     1s}
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
   - is_false: foo.settings.index.refresh_interval
 
 ---
@@ -87,13 +87,13 @@ setup:
       indices.put_settings:
         index: test_index1, test_index2
         body:
-          refresh_interval: 1s
+          refresh_interval: 10s
 
   - do:
       indices.get_settings: {}
 
-  - match: {test_index1.settings.index.refresh_interval:     1s}
-  - match: {test_index2.settings.index.refresh_interval:     1s}
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
   - is_false: foo.settings.index.refresh_interval
 
 
@@ -102,12 +102,12 @@ setup:
   - do:
       indices.put_settings:
         body:
-          refresh_interval: 1s
+          refresh_interval: 10s
 
   - do:
       indices.get_settings: {}
 
-  - match: {test_index1.settings.index.refresh_interval:     1s}
-  - match: {test_index2.settings.index.refresh_interval:     1s}
-  - match: {foo.settings.index.refresh_interval:     1s}
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
+  - match: {foo.settings.index.refresh_interval:     10s}
 

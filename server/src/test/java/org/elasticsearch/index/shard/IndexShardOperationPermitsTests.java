@@ -8,8 +8,10 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -63,7 +66,14 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".size", writeThreadPoolSize)
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", writeThreadPoolQueueSize)
                 .build(),
-            new FixedExecutorBuilder(Settings.EMPTY, REJECTING_EXECUTOR, 1, 0, REJECTING_EXECUTOR, false)
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                REJECTING_EXECUTOR,
+                1,
+                0,
+                REJECTING_EXECUTOR,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(EsThreadPoolExecutor.class));
         assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(), equalTo(writeThreadPoolSize));
@@ -100,7 +110,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         boolean forceExecution = randomBoolean();
         for (int i = 0; i < numThreads; i++) {
             // the write thread pool uses a bounded size and can get rejections, see setupThreadPool
-            String threadPoolName = randomFrom(ThreadPool.Names.WRITE, ThreadPool.Names.GENERIC);
+            Executor executor = threadPool.executor(randomFrom(ThreadPool.Names.WRITE, ThreadPool.Names.GENERIC));
             PlainActionFuture<Releasable> future = new PlainActionFuture<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -110,7 +120,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             };
             Thread thread = new Thread(() -> {
                 latch.countDown();
-                permits.acquire(future, threadPoolName, forceExecution);
+                permits.acquire(future, executor, forceExecution);
             });
             futures.add(future);
             operationThreads.add(thread);
@@ -159,7 +169,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testOperationsInvokedImmediatelyIfNoBlock() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
-        permits.acquire(future, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future, threadPool.generic(), true);
         assertTrue(future.isDone());
         future.get().close();
     }
@@ -167,7 +177,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testOperationsIfClosed() {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         permits.close();
-        permits.acquire(future, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future, threadPool.generic(), true);
         ExecutionException exception = expectThrows(ExecutionException.class, future::get);
         assertThat(exception.getCause(), instanceOf(IndexShardClosedException.class));
     }
@@ -176,14 +186,14 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         permits.close();
         expectThrows(
             IndexShardClosedException.class,
-            () -> permits.blockOperations(wrap(() -> { throw new IllegalArgumentException("fake error"); }), ThreadPool.Names.GENERIC)
+            () -> permits.blockOperations(wrap(() -> { throw new IllegalArgumentException("fake error"); }), threadPool.generic())
         );
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         try (Releasable ignored = blockAndWait()) {
-            permits.acquire(future, ThreadPool.Names.GENERIC, true);
+            permits.acquire(future, threadPool.generic(), true);
             assertFalse(future.isDone());
         }
         future.get(1, TimeUnit.HOURS).close();
@@ -195,13 +205,13 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
         try (Releasable ignored = blockAndWait()) {
-            permits.acquire(future, ThreadPool.Names.GENERIC, true);
+            permits.acquire(future, threadPool.generic(), true);
 
             permits.blockOperations(wrap(() -> {
                 blocked.set(true);
                 blockAcquired.countDown();
                 releaseBlock.await();
-            }), ThreadPool.Names.GENERIC);
+            }), threadPool.generic());
             assertFalse(blocked.get());
             assertFalse(future.isDone());
         }
@@ -260,7 +270,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 context.putHeader("foo", "bar");
                 context.putTransient("bar", "baz");
                 // test both with and without a executor name
-                permits.acquire(future, ThreadPool.Names.GENERIC, true);
+                permits.acquire(future, threadPool.generic(), true);
                 permits.acquire(future2, null, true);
             }
             assertFalse(future.isDone());
@@ -295,7 +305,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }
-        }, blockReleased::countDown), ThreadPool.Names.GENERIC);
+        }, blockReleased::countDown), threadPool.generic());
         blockAcquired.await();
         return () -> {
             releaseBlock.countDown();
@@ -315,7 +325,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             blocked.set(true);
             blockAcquired.countDown();
             releaseBlock.await();
-        }), ThreadPool.Names.GENERIC);
+        }), threadPool.generic());
         blockAcquired.await();
         assertTrue(blocked.get());
 
@@ -334,7 +344,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             public void onFailure(Exception e) {
 
             }
-        }, ThreadPool.Names.GENERIC, false));
+        }, threadPool.generic(), false));
         thread.start();
         assertFalse(delayed.get());
         releaseBlock.countDown();
@@ -363,7 +373,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         permits.blockOperations(wrap(() -> {
             onBlocked.set(true);
             blockedLatch.countDown();
-        }), ThreadPool.Names.GENERIC);
+        }), threadPool.generic());
         assertFalse(onBlocked.get());
 
         // if we submit another operation, it should be delayed
@@ -384,7 +394,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     throw new RuntimeException(e);
                 }
-            }, ThreadPool.Names.GENERIC, false);
+            }, threadPool.generic(), false);
         });
         secondOperationThread.start();
 
@@ -430,7 +440,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                     public void onFailure(Exception e) {
 
                     }
-                }, ThreadPool.Names.GENERIC, false);
+                }, threadPool.generic(), false);
             });
             thread.start();
             threads.add(thread);
@@ -445,7 +455,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             permits.blockOperations(wrap(() -> {
                 values.add(operations);
                 operationLatch.countDown();
-            }), ThreadPool.Names.GENERIC);
+            }), threadPool.generic());
         });
         blockingThread.start();
 
@@ -469,8 +479,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
          */
         assertBusy(() -> {
             for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
-                if (ThreadPool.Names.GENERIC.equals(stats.getName())) {
-                    assertThat("Expected no active threads in GENERIC pool", stats.getActive(), equalTo(0));
+                if (ThreadPool.Names.GENERIC.equals(stats.name())) {
+                    assertThat("Expected no active threads in GENERIC pool", stats.active(), equalTo(0));
                     return;
                 }
             }
@@ -480,12 +490,12 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testActiveOperationsCount() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future1 = new PlainActionFuture<>();
-        permits.acquire(future1, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future1, threadPool.generic(), true);
         assertTrue(future1.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(1));
 
         PlainActionFuture<Releasable> future2 = new PlainActionFuture<>();
-        permits.acquire(future2, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future2, threadPool.generic(), true);
         assertTrue(future2.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(2));
 
@@ -501,7 +511,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         PlainActionFuture<Releasable> future3 = new PlainActionFuture<>();
-        permits.acquire(future3, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future3, threadPool.generic(), true);
         assertTrue(future3.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(1));
         future3.get().close();
@@ -510,24 +520,19 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testAsyncBlockOperationsOnRejection() {
         final PlainActionFuture<Void> threadBlock = new PlainActionFuture<>();
-        try (
-            Releasable firstPermit = PlainActionFuture.get(f -> permits.acquire(f, ThreadPool.Names.GENERIC, false), 0, TimeUnit.SECONDS)
-        ) {
+        try (Releasable firstPermit = PlainActionFuture.get(f -> permits.acquire(f, threadPool.generic(), false), 0, TimeUnit.SECONDS)) {
             assertNotNull(firstPermit);
 
-            threadPool.executor(REJECTING_EXECUTOR).execute(threadBlock::actionGet);
+            final var rejectingExecutor = threadPool.executor(REJECTING_EXECUTOR);
+            rejectingExecutor.execute(threadBlock::actionGet);
             expectThrows(
                 EsRejectedExecutionException.class,
-                () -> PlainActionFuture.<Releasable, RuntimeException>get(f -> permits.blockOperations(f, REJECTING_EXECUTOR))
+                () -> PlainActionFuture.<Releasable, RuntimeException>get(f -> permits.blockOperations(f, rejectingExecutor))
             );
 
             // ensure that the exception means no block was put in place
             try (
-                Releasable secondPermit = PlainActionFuture.get(
-                    f -> permits.acquire(f, ThreadPool.Names.GENERIC, false),
-                    0,
-                    TimeUnit.SECONDS
-                )
+                Releasable secondPermit = PlainActionFuture.get(f -> permits.acquire(f, threadPool.generic(), false), 0, TimeUnit.SECONDS)
             ) {
                 assertNotNull(secondPermit);
             }
@@ -536,7 +541,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         // ensure that another block can still be acquired
-        try (Releasable block = PlainActionFuture.get(f -> permits.blockOperations(f, ThreadPool.Names.GENERIC))) {
+        try (Releasable block = PlainActionFuture.get(f -> permits.blockOperations(f, threadPool.generic()))) {
             assertNotNull(block);
         }
     }
@@ -555,7 +560,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     assert false;
                 }
-            }, ThreadPool.Names.GENERIC, false)
+            }, threadPool.generic(), false)
         );
         assertThat(e, hasToString(containsString("failed to obtain permit but operations are not delayed")));
         permits.semaphore.release(IndexShardOperationPermits.TOTAL_PERMITS);
@@ -605,25 +610,15 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     throw new RuntimeException(e);
                 }
-            }, ThreadPool.Names.GENERIC, false);
+            }, threadPool.generic(), false);
         };
     }
 
     private static ActionListener<Releasable> wrap(final CheckedRunnable<Exception> onResponse) {
-        return new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(final Releasable releasable) {
-                try (Releasable ignored = releasable) {
-                    onResponse.run();
-                } catch (final Exception e) {
-                    onFailure(e);
-                }
+        return ActionTestUtils.assertNoFailureListener(releasable -> {
+            try (Releasable ignored = releasable) {
+                onResponse.run();
             }
-
-            @Override
-            public void onFailure(final Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        });
     }
 }

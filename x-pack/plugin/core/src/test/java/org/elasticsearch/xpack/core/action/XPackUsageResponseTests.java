@@ -33,12 +33,12 @@ public class XPackUsageResponseTests extends ESTestCase {
         oldVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getFirstVersion(),
-            TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT)
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
         newVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getNextVersion(oldVersion),
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
     }
 

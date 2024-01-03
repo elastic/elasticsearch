@@ -1,0 +1,8 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default settings for metrics-apm.* data streams
+  managed: true
+template:
+  settings:
+    codec: best_compression

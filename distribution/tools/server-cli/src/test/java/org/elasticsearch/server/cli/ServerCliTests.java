@@ -83,12 +83,12 @@ public class ServerCliTests extends CommandTestCase {
         final String expectedBuildOutput = String.format(
             Locale.ROOT,
             "Build: %s/%s/%s",
-            Build.CURRENT.type().displayName(),
-            Build.CURRENT.hash(),
-            Build.CURRENT.date()
+            Build.current().type().displayName(),
+            Build.current().hash(),
+            Build.current().date()
         );
         Matcher<String> versionOutput = allOf(
-            containsString("Version: " + Build.CURRENT.qualifiedVersion()),
+            containsString("Version: " + Build.current().qualifiedVersion()),
             containsString(expectedBuildOutput),
             containsString("JVM: " + JvmInfo.jvmInfo().version())
         );
@@ -314,6 +314,21 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), not(containsString("null")));
     }
 
+    public void testOptionsBuildingInterrupted() throws IOException {
+        Command command = new TestServerCli() {
+            @Override
+            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
+                throw new InterruptedException("interrupted while get jvm options");
+            }
+        };
+        var e = expectThrows(
+            InterruptedException.class,
+            () -> command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir))
+        );
+        assertThat(e.getMessage(), equalTo("interrupted while get jvm options"));
+        command.close();
+    }
+
     public void testServerExitsNonZero() throws Exception {
         mockServerExitCode = 140;
         int exitCode = executeMain();
@@ -480,35 +495,58 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
+    private class TestServerCli extends ServerCli {
+        @Override
+        protected Command loadTool(String toolname, String libs) {
+            if (toolname.equals("auto-configure-node")) {
+                assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
+                return AUTO_CONFIG_CLI;
+            } else if (toolname.equals("sync-plugins")) {
+                assertThat(libs, equalTo("lib/tools/plugin-cli"));
+                return SYNC_PLUGINS_CLI;
+            }
+            throw new AssertionError("Unknown tool: " + toolname);
+        }
+
+        @Override
+        Environment autoConfigureSecurity(
+            Terminal terminal,
+            OptionSet options,
+            ProcessInfo processInfo,
+            Environment env,
+            SecureString keystorePassword
+        ) throws Exception {
+            if (mockSecureSettingsLoader != null && mockSecureSettingsLoader.supportsSecurityAutoConfiguration() == false) {
+                fail("We shouldn't be calling auto configure on loaders that don't support it");
+            }
+            return super.autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
+        }
+
+        @Override
+        void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+            if (mockSecureSettingsLoader != null && mockSecureSettingsLoader instanceof MockSecureSettingsLoader mock) {
+                mock.verifiedEnv = true;
+                // equals as a pointer, environment shouldn't be changed if autoconfigure is not supported
+                assertFalse(mockSecureSettingsLoader.supportsSecurityAutoConfiguration());
+                assertTrue(mock.environment == env);
+            }
+
+            super.syncPlugins(terminal, env, processInfo);
+        }
+
+        @Override
+        protected SecureSettingsLoader secureSettingsLoader(Environment env) {
+            if (mockSecureSettingsLoader != null) {
+                return mockSecureSettingsLoader;
+            }
+
+            return new KeystoreSecureSettingsLoader();
+        }
+    }
+
     @Override
     protected Command newCommand() {
-        return new ServerCli() {
-            @Override
-            protected Command loadTool(String toolname, String libs) {
-                if (toolname.equals("auto-configure-node")) {
-                    assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
-                    return AUTO_CONFIG_CLI;
-                } else if (toolname.equals("sync-plugins")) {
-                    assertThat(libs, equalTo("lib/tools/plugin-cli"));
-                    return SYNC_PLUGINS_CLI;
-                }
-                throw new AssertionError("Unknown tool: " + toolname);
-            }
-
-            @Override
-            Environment autoConfigureSecurity(
-                Terminal terminal,
-                OptionSet options,
-                ProcessInfo processInfo,
-                Environment env,
-                SecureString keystorePassword
-            ) throws Exception {
-                if (mockSecureSettingsLoader != null && mockSecureSettingsLoader.supportsSecurityAutoConfiguration() == false) {
-                    fail("We shouldn't be calling auto configure on loaders that don't support it");
-                }
-                return super.autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
-            }
-
+        return new TestServerCli() {
             @Override
             protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
                 if (argsValidator != null) {
@@ -516,27 +554,6 @@ public class ServerCliTests extends CommandTestCase {
                 }
                 mockServer.reset();
                 return mockServer;
-            }
-
-            @Override
-            void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
-                if (mockSecureSettingsLoader != null && mockSecureSettingsLoader instanceof MockSecureSettingsLoader mock) {
-                    mock.verifiedEnv = true;
-                    // equals as a pointer, environment shouldn't be changed if autoconfigure is not supported
-                    assertFalse(mockSecureSettingsLoader.supportsSecurityAutoConfiguration());
-                    assertTrue(mock.environment == env);
-                }
-
-                super.syncPlugins(terminal, env, processInfo);
-            }
-
-            @Override
-            protected SecureSettingsLoader secureSettingsLoader(Environment env) {
-                if (mockSecureSettingsLoader != null) {
-                    return mockSecureSettingsLoader;
-                }
-
-                return new KeystoreSecureSettingsLoader();
             }
         };
     }

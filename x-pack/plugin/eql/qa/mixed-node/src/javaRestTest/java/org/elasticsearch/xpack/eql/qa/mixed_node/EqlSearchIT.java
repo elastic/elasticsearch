@@ -49,6 +49,8 @@ import static org.elasticsearch.xpack.ql.TestUtils.readResource;
  */
 public class EqlSearchIT extends ESRestTestCase {
 
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
     private static final String index = "test_eql_mixed_versions";
     private static int numShards;
     private static int numReplicas = 1;
@@ -59,7 +61,7 @@ public class EqlSearchIT extends ESRestTestCase {
 
     @Before
     public void createIndex() throws IOException {
-        nodes = buildNodeAndVersions(client());
+        nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
         numShards = nodes.size();
         numDocs = randomIntBetween(numShards, 15);
         newNodes = new ArrayList<>(nodes.getNewNodes());
@@ -441,7 +443,7 @@ public class EqlSearchIT extends ESRestTestCase {
         }
 
         List<Object> actualList = new ArrayList<>();
-        events.stream().forEach(m -> actualList.add(m.get("_id")));
+        events.forEach(m -> actualList.add(m.get("_id")));
 
         if (false == expected.equals(actualList)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();

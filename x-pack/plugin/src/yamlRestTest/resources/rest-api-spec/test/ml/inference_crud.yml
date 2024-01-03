@@ -1214,3 +1214,30 @@ setup:
       ml.get_trained_models:
         model_id: a-regression-model-0
         include: definition_status
+
+---
+"Test include model platform architecture":
+  - do:
+      ml.put_trained_model:
+        model_id: model-without-definition
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "ner": {
+              }
+            },
+          "platform_architecture": "windows-x86_64"
+          }
+
+  - do:
+      ml.get_trained_models:
+        model_id: model-without-definition
+        include: definition_status
+  - match: { count: 1 }
+  - match: { trained_model_configs.0.fully_defined: false }
+  - do:
+      ml.get_trained_models:
+        model_id: model-without-definition
+  - match: { count: 1 }
+  - match: { trained_model_configs.0.platform_architecture: windows-x86_64 }

@@ -1,5 +1,0 @@
-pr: 93576
-summary: Sort segments on timestamp in read only engine
-area: Engine
-type: enhancement
-issues: []

@@ -1,0 +1,23 @@
+[discrete]
+[[esql-sqrt]]
+=== `SQRT`
+[.text-center]
+image::esql/functions/signature/sqrt.svg[Embedded,opts=inline]
+
+Returns the square root of a number.  The input can be any numeric value, the return value
+is always a double.
+
+Square roots of negative numbers are NaN. Square roots of infinites are infinite.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=sqrt]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=sqrt-result]
+|===
+
+Supported types:
+
+include::types/sqrt.asciidoc[]

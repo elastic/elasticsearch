@@ -199,6 +199,10 @@ text multi plain:
 
 ---
 text single unified from reanalysis:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -210,10 +214,14 @@ text single unified from reanalysis:
             fields:
               foo.analyze:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from reanalysis:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -225,10 +233,14 @@ text multi unified from reanalysis:
             fields:
               foo.analyze:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single unified from positions:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -240,10 +252,14 @@ text single unified from positions:
             fields:
               foo.positions:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.positions.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.positions.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from positions:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -255,10 +271,14 @@ text multi unified from positions:
             fields:
               foo.positions:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.positions.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.positions.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single unified from vectors:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -270,10 +290,14 @@ text single unified from vectors:
             fields:
               foo.vectors:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from vectors:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -285,10 +309,14 @@ text multi unified from vectors:
             fields:
               foo.vectors:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single fvh source order:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -304,6 +332,10 @@ text single fvh source order:
 
 ---
 text multi fvh source order:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
       search:
@@ -319,6 +351,10 @@ text multi fvh source order:
 
 ---
 text single fvh score order:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -335,6 +371,10 @@ text single fvh score order:
 
 ---
 text multi fvh score order:
+  - skip:
+      version: " - 8.9.99"
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
       search:

@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
@@ -75,6 +76,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -86,12 +88,13 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
 
-public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
+public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
     private static final Logger logger = LogManager.getLogger(ShardFollowTasksExecutor.class);
 
     private final Client client;
     private final ThreadPool threadPool;
+    private final Executor ccrExecutor;
     private final ClusterService clusterService;
     private final IndexScopedSettings indexScopedSettings;
     private final TimeValue retentionLeaseRenewInterval;
@@ -101,6 +104,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
+        this.ccrExecutor = threadPool.executor(getExecutor());
         this.clusterService = clusterService;
         this.indexScopedSettings = settingsModule.getIndexScopedSettings();
         this.retentionLeaseRenewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(settingsModule.getSettings());
@@ -149,11 +153,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     ) {
         ShardFollowTask params = taskInProgress.getParams();
         Client followerClient = wrapClient(client, params.getHeaders(), clusterService.state());
-        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> threadPool.scheduleUnlessShuttingDown(
-            delay,
-            Ccr.CCR_THREAD_POOL_NAME,
-            command
-        );
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> threadPool.scheduleUnlessShuttingDown(delay, ccrExecutor, command);
 
         final String recordedLeaderShardHistoryUUID = getLeaderShardHistoryUUID(params);
         return new ShardFollowNodeTask(
@@ -527,7 +527,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         remoteClient(params),
                         listener
                     );
-                }, retentionLeaseRenewInterval, Ccr.CCR_THREAD_POOL_NAME);
+                }, retentionLeaseRenewInterval, ccrExecutor);
             }
 
             private void logRetentionLeaseFailure(final String retentionLeaseId, final Throwable cause) {
@@ -556,7 +556,17 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     private Client remoteClient(ShardFollowTask params) {
         // TODO: do we need minNodeVersion here since it is for remote cluster
-        return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders(), clusterService.state());
+        return wrapClient(
+            client.getRemoteClusterClient(
+                params.getRemoteCluster(),
+                // this client is only used for lightweight single-index metadata responses and for the shard-changes actions themselves
+                // which are about as easy to parse as shard bulks, and which handle their own forking, so we can handle responses on the
+                // transport thread
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ),
+            params.getHeaders(),
+            clusterService.state()
+        );
     }
 
     interface FollowerStatsInfoHandler {
@@ -583,7 +593,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     e
                 );
                 try {
-                    threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
+                    threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), ccrExecutor);
                 } catch (EsRejectedExecutionException rex) {
                     rex.addSuppressed(e);
                     shardFollowNodeTask.onFatalFailure(rex);

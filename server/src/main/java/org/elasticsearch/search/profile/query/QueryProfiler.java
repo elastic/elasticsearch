@@ -27,20 +27,30 @@ import java.util.Objects;
 public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown, Query> {
 
     /**
-     * The root Collector used in the search
+     * The root CollectorResult used in the search
      */
-    private InternalProfileCollectorManager collectorManager;
+    private CollectorResult collectorResult;
+
+    private long vectorOpsCount;
 
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
     }
 
-    /** Set the collector manager that is associated with this profiler. */
-    public void setCollectorManager(InternalProfileCollectorManager collectorManager) {
-        if (this.collectorManager != null) {
-            throw new IllegalStateException("The collector manager can only be set once.");
+    public void setVectorOpsCount(long vectorOpsCount) {
+        this.vectorOpsCount = vectorOpsCount;
+    }
+
+    public long getVectorOpsCount() {
+        return this.vectorOpsCount;
+    }
+
+    /** Set the collector result that is associated with this profiler. */
+    public void setCollectorResult(CollectorResult collectorResult) {
+        if (this.collectorResult != null) {
+            throw new IllegalStateException("The collector result can only be set once.");
         }
-        this.collectorManager = Objects.requireNonNull(collectorManager);
+        this.collectorResult = Objects.requireNonNull(collectorResult);
     }
 
     /**
@@ -71,8 +81,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
     /**
      * Return the current root Collector for this search
      */
-    public CollectorResult getCollector() {
-        return collectorManager.getCollectorTree();
+    public CollectorResult getCollectorResult() {
+        return this.collectorResult;
     }
 
 }

@@ -13,7 +13,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -232,7 +231,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (bdd == null) {
-            throw new AggregationExecutionException("Sampler aggregation must be used with child aggregations.");
+            throw new IllegalArgumentException("Sampler aggregation must be used with child aggregations.");
         }
         return bdd.getLeafCollector(aggCtx);
     }

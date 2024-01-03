@@ -1,5 +1,0 @@
-pr: 93579
-summary: Use a combined field to index terms and doc values on keyword fields
-area: Mapping
-type: enhancement
-issues: []

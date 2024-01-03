@@ -114,6 +114,11 @@ public enum IndexMode {
 
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return false;
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -206,6 +211,11 @@ public enum IndexMode {
             if (sourceFieldMapper.isSynthetic() == false) {
                 throw new IllegalArgumentException("time series indices only support synthetic source");
             }
+        }
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return true;
         }
     };
 
@@ -300,7 +310,7 @@ public enum IndexMode {
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
-     *         Otherwise <code>null</code> is returned.
+     * Otherwise <code>null</code> is returned.
      */
     @Nullable
     public abstract TimestampBounds getTimestampBound(IndexMetadata indexMetadata);
@@ -326,6 +336,11 @@ public enum IndexMode {
      * Validates the source field mapper
      */
     public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
+
+    /**
+     * @return whether synthetic source is the only allowed source mode.
+     */
+    public abstract boolean isSyntheticSourceEnabled();
 
     /**
      * Parse a string into an {@link IndexMode}.

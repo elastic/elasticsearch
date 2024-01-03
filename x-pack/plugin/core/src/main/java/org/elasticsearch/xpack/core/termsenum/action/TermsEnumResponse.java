@@ -59,7 +59,7 @@ public class TermsEnumResponse extends BroadcastResponse {
 
     TermsEnumResponse(StreamInput in) throws IOException {
         super(in);
-        terms = in.readStringList();
+        terms = in.readStringCollectionAsList();
         complete = in.readBoolean();
     }
 

@@ -53,7 +53,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             .name("fulfilling-cluster")
             .nodes(1)
             .apply(commonClusterConfig)
-            .setting("xpack.license.self_generated.type", "basic")
+            .setting("xpack.license.self_generated.type", "trial")
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
@@ -113,7 +113,6 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
     }
 
     public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
-        assertBasicLicense(fulfillingClusterClient);
         assertBasicLicense(client());
 
         final boolean useProxyMode = randomBoolean();
@@ -167,7 +166,6 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
 
             // We start the trial license which supports all features.
-            startTrialLicense(fulfillingClusterClient);
             startTrialLicense(client());
 
             // Check that feature is not tracked before we send CCS request.
@@ -178,7 +176,11 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
             final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertSearchResultContainsIndices(searchResponse, REMOTE_INDEX_NAME);
+            try {
+                assertSearchResultContainsIndices(searchResponse, REMOTE_INDEX_NAME);
+            } finally {
+                searchResponse.decRef();
+            }
 
             // Check that the feature is tracked on both QC and FC.
             assertFeatureTracked(client());

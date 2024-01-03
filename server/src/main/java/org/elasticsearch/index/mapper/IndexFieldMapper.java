@@ -10,12 +10,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -49,7 +51,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
             if (caseInsensitive) {
                 // Thankfully, all index names are lower-cased so we don't have to pass a case_insensitive mode flag
                 // down to all the index name-matching logic. We just lower-case the search string
@@ -77,6 +79,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return BlockLoader.constantBytes(new BytesRef(blContext.indexName()));
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return new ValueFetcher() {
 
@@ -94,10 +101,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             };
         }
 
-        @Override
-        public boolean eagerGlobalOrdinals() {
-            return false;
-        }
     }
 
     public IndexFieldMapper() {

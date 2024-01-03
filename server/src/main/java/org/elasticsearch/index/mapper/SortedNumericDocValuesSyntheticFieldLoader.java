@@ -60,7 +60,7 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
             values = NO_VALUES;
             return null;
         }
-        if (docIdsInLeaf.length > 1) {
+        if (docIdsInLeaf != null && docIdsInLeaf.length > 1) {
             /*
              * The singleton optimization is mostly about looking up all
              * values for the field at once. If there's just a single

@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -24,7 +23,9 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 
@@ -72,7 +73,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
@@ -107,7 +108,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -140,7 +141,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -174,7 +175,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -215,7 +216,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -249,7 +250,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -284,7 +285,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -344,7 +345,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = Collections.singletonMap("_id", "node1");
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -385,7 +386,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = Collections.singletonMap("_id", "node1");
         Settings.Builder existingSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -438,7 +439,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
             Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
             Settings.Builder existingSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             Settings.Builder expectedSettings = Settings.builder();
@@ -462,6 +463,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
+                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                : null;
             ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()
@@ -477,6 +481,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                                         .setReason("test")
                                         .setNodeId("node1")
                                         .setTargetNodeName(targetNodeName)
+                                        .setGracePeriod(grace)
                                         .build()
                                 )
                             )
@@ -485,18 +490,20 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .nodes(
                     DiscoveryNodes.builder()
                         .add(
-                            DiscoveryNode.createLocal(
-                                Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
-                                new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                                "node1"
-                            )
+                            DiscoveryNodeUtils.builder("node1")
+                                .applySettings(
+                                    Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()
+                                )
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                                .build()
                         )
                         .add(
-                            DiscoveryNode.createLocal(
-                                Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
-                                new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                                "node2"
-                            )
+                            DiscoveryNodeUtils.builder("node2")
+                                .applySettings(
+                                    Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()
+                                )
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                                .build()
                         )
                 )
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
@@ -513,7 +520,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
             Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
             Settings.Builder existingSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             Settings.Builder expectedSettings = Settings.builder();
@@ -537,6 +544,9 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
+                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                : null;
             ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
                     Metadata.builder()
@@ -552,6 +562,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                                         .setReason("test")
                                         .setNodeId("node1")
                                         .setTargetNodeName(targetNodeName)
+                                        .setGracePeriod(grace)
                                         .build()
                                 )
                             )
@@ -560,18 +571,20 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .nodes(
                     DiscoveryNodes.builder()
                         .add(
-                            DiscoveryNode.createLocal(
-                                Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
-                                new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                                "node1"
-                            )
+                            DiscoveryNodeUtils.builder("node1")
+                                .applySettings(
+                                    Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()
+                                )
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                                .build()
                         )
                         .add(
-                            DiscoveryNode.createLocal(
-                                Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
-                                new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                                "node2"
-                            )
+                            DiscoveryNodeUtils.builder("node2")
+                                .applySettings(
+                                    Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()
+                                )
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                                .build()
                         )
                 )
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
@@ -610,18 +623,20 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            "node1"
-                        )
+                        DiscoveryNodeUtils.builder("node1")
+                            .applySettings(
+                                Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()
+                            )
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            "node2"
-                        )
+                        DiscoveryNodeUtils.builder("node2")
+                            .applySettings(
+                                Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()
+                            )
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
             )
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())

@@ -19,8 +19,8 @@ dependencies {
   api project(':libs:elasticsearch-plugin-api')
   api project(":libs:elasticsearch-x-content")
 
-  api 'org.ow2.asm:asm:9.4'
-  api 'org.ow2.asm:asm-tree:9.4'
+  api 'org.ow2.asm:asm:9.5'
+  api 'org.ow2.asm:asm-tree:9.5'
 
   testImplementation "junit:junit:${versions.junit}"
   testImplementation(project(":test:framework")) {

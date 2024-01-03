@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -50,7 +52,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     // some nodes are pre-8.3 and others are newer, so we throw an error in
     // this situation. The aggregation was experimental at the time this change
     // was made, so this is acceptable.
-    public static final TransportVersion ALGORITHM_CHANGED_VERSION = TransportVersion.V_8_3_0;
+    public static final TransportVersion ALGORITHM_CHANGED_VERSION = TransportVersions.V_8_3_0;
 
     static final ParseField FIELD_NAME = new ParseField("field");
     static final ParseField SIMILARITY_THRESHOLD = new ParseField("similarity_threshold");
@@ -122,12 +124,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
         if (in.getTransportVersion().before(ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchException(
+            throw new ElasticsearchStatusException(
                 "["
                     + NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
                     + ALGORITHM_CHANGED_VERSION
-                    + "] or higher and others have a version before this"
+                    + "] or higher and others have a version before this",
+                RestStatus.BAD_REQUEST
             );
         }
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
@@ -278,12 +281,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
         if (out.getTransportVersion().before(ALGORITHM_CHANGED_VERSION)) {
-            throw new ElasticsearchException(
+            throw new ElasticsearchStatusException(
                 "["
                     + NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
                     + ALGORITHM_CHANGED_VERSION
-                    + "] or higher and others have a version before this"
+                    + "] or higher and others have a version before this",
+                RestStatus.BAD_REQUEST
             );
         }
         bucketCountThresholds.writeTo(out);

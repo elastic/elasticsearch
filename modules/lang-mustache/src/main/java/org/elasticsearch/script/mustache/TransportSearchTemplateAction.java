@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
@@ -54,7 +55,13 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         NodeClient client,
         UsageService usageService
     ) {
-        super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new);
+        super(
+            MustachePlugin.SEARCH_TEMPLATE_ACTION.name(),
+            transportService,
+            actionFilters,
+            SearchTemplateRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
@@ -64,22 +71,29 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     @Override
     protected void doExecute(Task task, SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
+        boolean success = false;
         try {
             SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry, searchUsageHolder);
             if (searchRequest != null) {
-                client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
-                    try {
-                        response.setResponse(searchResponse);
-                        l.onResponse(response);
-                    } catch (Exception t) {
-                        l.onFailure(t);
-                    }
+                client.search(searchRequest, listener.delegateResponse((l, e) -> {
+                    response.decRef();
+                    l.onFailure(e);
+                }).delegateFailureAndWrap((l, searchResponse) -> {
+                    response.setResponse(searchResponse);
+                    searchResponse.incRef();
+                    ActionListener.respondAndRelease(l, response);
                 }));
+                success = true;
             } else {
-                listener.onResponse(response);
+                success = true;
+                ActionListener.respondAndRelease(listener, response);
             }
         } catch (IOException e) {
             listener.onFailure(e);
+        } finally {
+            if (success == false) {
+                response.decRef();
+            }
         }
     }
 
@@ -101,20 +115,22 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         response.setSource(new BytesArray(source));
 
         SearchRequest searchRequest = searchTemplateRequest.getRequest();
-        if (searchTemplateRequest.isSimulate()) {
-            return null;
-        }
+
+        SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
 
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, source)) {
-            SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
             builder.parseXContent(parser, false, searchUsageHolder);
-            builder.explain(searchTemplateRequest.isExplain());
-            builder.profile(searchTemplateRequest.isProfile());
-            checkRestTotalHitsAsInt(searchRequest, builder);
-            searchRequest.source(builder);
         }
+
+        if (searchTemplateRequest.isSimulate()) {
+            return null;
+        }
+        builder.explain(searchTemplateRequest.isExplain());
+        builder.profile(searchTemplateRequest.isProfile());
+        checkRestTotalHitsAsInt(searchRequest, builder);
+        searchRequest.source(builder);
         return searchRequest;
     }
 

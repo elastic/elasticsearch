@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -106,6 +107,14 @@ public class ParsedMediaTypeTests extends ESTestCase {
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(mediaType + randomFrom("", " ", ";", ";;", ";;;"));
         assertEquals("application/foo", parsedMediaType.mediaTypeWithoutParameters());
         assertEquals(Collections.emptyMap(), parsedMediaType.getParameters());
+    }
+
+    public void testMalformedMediaType() {
+        List<String> headers = List.of("a/b[", "a/b]", "a/b\\");
+        for (String header : headers) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(header));
+            assertThat(e.getMessage(), equalTo("invalid media-type [" + header + "]"));
+        }
     }
 
     public void testMalformedParameters() {

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -156,9 +157,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(LongBounds::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            hardBounds = in.readOptionalWriteable(LongBounds::new);
-        }
+        hardBounds = in.readOptionalWriteable(LongBounds::new);
     }
 
     @Override
@@ -179,9 +178,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(hardBounds);
-        }
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /**
@@ -287,11 +284,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
         this.extendedBounds = extendedBounds;
         return this;
-    }
-
-    /** Return hard bounds for this histogram, or {@code null} if none are set. */
-    public LongBounds hardBounds() {
-        return hardBounds;
     }
 
     /** Set hard bounds on this histogram, specifying boundaries outside which buckets cannot be created. */
@@ -406,11 +398,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
@@ -519,7 +506,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     @Override

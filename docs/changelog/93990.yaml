@@ -1,6 +1,0 @@
-pr: 93990
-summary: Adding initial public and internal serverless scopes to data management rest
-  handlers
-area: Indices APIs
-type: enhancement
-issues: []

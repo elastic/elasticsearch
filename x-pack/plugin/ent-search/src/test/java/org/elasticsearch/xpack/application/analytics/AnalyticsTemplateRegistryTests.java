@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,13 +24,14 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -39,13 +41,9 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -53,7 +51,6 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -80,7 +77,13 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new AnalyticsTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new AnalyticsTemplateRegistry(
+            clusterService,
+            new FeatureService(List.of(new EnterpriseSearchFeatures())),
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        );
     }
 
     @After
@@ -91,7 +94,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingComposableTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> existingComponentTemplates = Map.of(
             AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
@@ -122,7 +125,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingComponentTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -152,134 +155,8 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         });
     }
 
-    public void testThatNonExistingPoliciesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
-                calledTimes.incrementAndGet();
-                return AcknowledgedResponse.TRUE;
-            }
-            if (action instanceof PutLifecycleAction) {
-                calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
-                assertThat(putRequest.getPolicy().getName(), equalTo(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_ILM_POLICY_NAME));
-                assertNotNull(listener);
-                return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComponentTemplateAction) {
-                // Ignore this, it's verified in another test
-                return new AnalyticsTemplateRegistryTests.TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutComposableIndexTemplateAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else {
-                fail("client called with unexpected request: " + request.toString());
-                return null;
-            }
-        });
-
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
-        registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(2)));
-    }
-
-    public void testPolicyAlreadyExists() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
-        assertThat(policies, hasSize(1));
-        policies.forEach(p -> policyMap.put(p.getName(), p));
-
-        client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            }
-            if (action instanceof PutComponentTemplateAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
-                fail("if the policy already exists it should not be re-put");
-            } else {
-                fail("client called with unexpected request: " + request.toString());
-            }
-            return null;
-        });
-
-        ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            policyMap,
-            nodes
-        );
-        registry.clusterChanged(event);
-    }
-
-    public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
-        assertThat(policies, hasSize(1));
-        policies.forEach(p -> policyMap.put(p.getName(), p));
-
-        client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            }
-            if (action instanceof PutComponentTemplateAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
-                fail("if the policy already exists it should not be re-put");
-            } else {
-                fail("client called with unexpected request: " + request.toString());
-            }
-            return null;
-        });
-
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(
-                        new NamedXContentRegistry(
-                            List.of(
-                                new NamedXContentRegistry.Entry(
-                                    LifecycleAction.class,
-                                    new ParseField(DeleteAction.NAME),
-                                    DeleteAction::parse
-                                )
-                            )
-                        )
-                    ),
-                    policyStr
-                )
-        ) {
-            LifecyclePolicy different = LifecyclePolicy.parse(parser, policies.get(0).getName());
-            policyMap.put(policies.get(0).getName(), different);
-            ClusterChangedEvent event = createClusterChangedEvent(
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                Collections.emptyMap(),
-                policyMap,
-                nodes
-            );
-            registry.clusterChanged(event);
-        }
-    }
-
     public void testThatVersionedOldComponentTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -299,7 +176,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatUnversionedOldComponentTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
@@ -317,7 +194,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.xpack.core.template:DEBUG", reason = "test")
     public void testSameOrHigherVersionComponentTemplateNotUpgraded() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, Integer> versions = new HashMap<>();
@@ -333,8 +210,8 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
                 fail("template should not have been re-installed");
                 return null;
             } else if (action instanceof PutLifecycleAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
+                fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+                return null;
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
@@ -359,7 +236,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
-        DiscoveryNode localNode = TestDiscoveryNode.create("node");
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
         client.setVerifier((a, r, l) -> {
@@ -376,7 +253,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingPipelinesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -389,8 +266,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
+                fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
@@ -403,6 +279,25 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelines().size())));
+    }
+
+    public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
+        DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
+        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId("updatedNode")
+            .masterNodeId("updatedNode")
+            .add(updatedNode)
+            .add(outdatedNode)
+            .build();
+
+        client.setVerifier((a, r, l) -> {
+            fail("if some cluster mode are not updated to at least v.8.8.0 nothing should happen");
+            return null;
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
+        registry.clusterChanged(event);
     }
 
     // -------------
@@ -455,8 +350,8 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutLifecycleAction) {
-            // Ignore this, it's verified in another test
-            return AcknowledgedResponse.TRUE;
+            fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+            return null;
         } else if (action instanceof PutComposableIndexTemplateAction) {
             calledTimes.incrementAndGet();
             assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
@@ -492,8 +387,8 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
         } else if (action instanceof PutLifecycleAction) {
-            // Ignore this, it's verified in another test
-            return AcknowledgedResponse.TRUE;
+            fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+            return null;
         } else if (action instanceof PutComposableIndexTemplateAction) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;

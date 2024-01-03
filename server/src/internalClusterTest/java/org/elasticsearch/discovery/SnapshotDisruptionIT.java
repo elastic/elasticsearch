@@ -87,8 +87,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
                 if (snapshots != null && snapshots.isEmpty() == false) {
                     final SnapshotsInProgress.Entry snapshotEntry = snapshots.forRepo(repoName).get(0);
                     if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
-                        final RepositoriesMetadata repoMeta = event.state().metadata().custom(RepositoriesMetadata.TYPE);
-                        final RepositoryMetadata metadata = repoMeta.repository(repoName);
+                        final RepositoryMetadata metadata = RepositoriesMetadata.get(event.state()).repository(repoName);
                         if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
                             logger.info("--> starting disruption");
                             networkDisruption.startDisrupting();
@@ -186,7 +185,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> done");
 
         logger.info("--> recreate the index with potentially different shard counts");
-        client().admin().indices().prepareDelete(idxName).get();
+        indicesAdmin().prepareDelete(idxName).get();
         createIndex(idxName);
         index(idxName, JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
@@ -211,7 +210,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         assertThat(successfulSnapshotInfo.state(), is(SnapshotState.SUCCESS));
 
         logger.info("--> making sure snapshot delete works out cleanly");
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "snapshot-2").get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, "snapshot-2").get());
     }
 
     public void testMasterFailOverDuringShardSnapshots() throws Exception {
@@ -223,7 +222,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "index-one";
         createIndex(indexName);
-        client().prepareIndex(indexName).setSource("foo", "bar").get();
+        prepareIndex(indexName).setSource("foo", "bar").get();
 
         blockDataNode(repoName, dataNode);
 
@@ -273,7 +272,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(idxName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            builders[i] = prepareIndex(idxName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
         }
         indexRandom(true, builders);
     }

@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MatchesIterator;
@@ -144,7 +143,7 @@ public class ProfileScorerTests extends ESTestCase {
 
     public void testPropagateMinCompetitiveScore() throws IOException {
         Query query = new MatchAllDocsQuery();
-        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        Weight weight = query.createWeight(newSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
         ProfileWeight profileWeight = new ProfileWeight(query, weight, profile);
@@ -155,7 +154,7 @@ public class ProfileScorerTests extends ESTestCase {
 
     public void testPropagateMaxScore() throws IOException {
         Query query = new MatchAllDocsQuery();
-        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        Weight weight = query.createWeight(newSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
         ProfileWeight profileWeight = new ProfileWeight(query, weight, profile);

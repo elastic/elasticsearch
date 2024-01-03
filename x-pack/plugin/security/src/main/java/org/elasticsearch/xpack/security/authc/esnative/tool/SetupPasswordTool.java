@@ -172,7 +172,7 @@ class SetupPasswordTool extends MultiCommand {
             );
         }
 
-        private SecureString generatePassword(SecureRandom secureRandom, String user) {
+        private static SecureString generatePassword(SecureRandom secureRandom, String user) {
             int passwordLength = 20; // Generate 20 character passwords
             char[] characters = new char[passwordLength];
             for (int i = 0; i < passwordLength; ++i) {
@@ -181,7 +181,7 @@ class SetupPasswordTool extends MultiCommand {
             return new SecureString(characters);
         }
 
-        private void changedPasswordCallback(Terminal terminal, String user, SecureString password) {
+        private static void changedPasswordCallback(Terminal terminal, String user, SecureString password) {
             terminal.println("Changed password for user " + user + "\n" + "PASSWORD " + user + " = " + password + "\n");
         }
 
@@ -227,7 +227,7 @@ class SetupPasswordTool extends MultiCommand {
             );
         }
 
-        private SecureString promptForPassword(Terminal terminal, String user) throws UserException {
+        private static SecureString promptForPassword(Terminal terminal, String user) throws UserException {
             // loop for two consecutive good passwords
             while (true) {
                 SecureString password1 = new SecureString(terminal.readSecret("Enter password for [" + user + "]: "));
@@ -250,7 +250,7 @@ class SetupPasswordTool extends MultiCommand {
             }
         }
 
-        private void changedPasswordCallback(Terminal terminal, String user, SecureString password) {
+        private static void changedPasswordCallback(Terminal terminal, String user, SecureString password) {
             terminal.println("Changed password for user [" + user + "]");
         }
     }
@@ -620,7 +620,7 @@ class SetupPasswordTool extends MultiCommand {
             }
         }
 
-        private HttpResponseBuilder responseBuilder(InputStream is, Terminal terminal) throws IOException {
+        private static HttpResponseBuilder responseBuilder(InputStream is, Terminal terminal) throws IOException {
             HttpResponseBuilder httpResponseBuilder = new HttpResponseBuilder();
             if (is != null) {
                 byte[] bytes = toByteArray(is);
@@ -633,12 +633,12 @@ class SetupPasswordTool extends MultiCommand {
             return httpResponseBuilder;
         }
 
-        private URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
+        private static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
             return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
         }
     }
 
-    private byte[] toByteArray(InputStream is) throws IOException {
+    private static byte[] toByteArray(InputStream is) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         byte[] internalBuffer = new byte[1024];
         int read = is.read(internalBuffer);

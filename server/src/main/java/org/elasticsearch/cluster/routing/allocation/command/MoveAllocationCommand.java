@@ -168,7 +168,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
             allocation.routingNodes()
-                .relocateOrReinitializeShard(
+                .relocateShard(
                     shardRouting,
                     toRoutingNode.nodeId(),
                     allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),

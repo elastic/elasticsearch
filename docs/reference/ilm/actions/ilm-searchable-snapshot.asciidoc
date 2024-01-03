@@ -17,6 +17,11 @@ the frozen phase, the action mounts a <<partially-mounted,partially mounted
 index>> prefixed with `partial-` to the frozen tier. In other phases, the action mounts a
 <<fully-mounted,fully mounted index>> prefixed with `restored-` to the corresponding data tier.
 
+In the frozen tier, the action will ignore the setting
+<<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>>, if it was present in the original index,
+to account for the difference in the number of nodes between the frozen and the other tiers.
+
+
 WARNING: Don't include the `searchable_snapshot` action in both the hot and cold
 phases. This can result in indices failing to automatically migrate to the cold
 tier during the cold phase.
@@ -40,7 +45,7 @@ indices. These costs are typically lower but, in some environments, may be
 higher. See <<searchable-snapshots-costs>> for more details.
 
 By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
-To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action. This 
+To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action. This
 snapshot retention runs off the index lifecycle management (ILM) policies and is not effected by snapshot lifecycle management (SLM) policies.
 
 [[ilm-searchable-snapshot-options]]
@@ -59,8 +64,7 @@ If the managed index was already force merged using the
 the `searchable snapshot` action force merge step will be a no-op.
 
 [NOTE]
-The `forcemerge` action is best effort. It might happen that some of
-the shards are relocating, in which case they will not be merged.
+Shards that are relocating during a `forcemerge` will not be merged.
 The `searchable_snapshot` action will continue executing even if not all shards
 are force merged.
 

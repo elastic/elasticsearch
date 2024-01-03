@@ -245,11 +245,16 @@ POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
 
 A task may continue to run for some time after it has been cancelled because it
-may not be able to safely stop its current activity straight away. The list
-tasks API will continue to list these cancelled tasks until they complete. The
-`cancelled` flag in the response to the list tasks API indicates that the
-cancellation command has been processed and the task will stop as soon as
-possible.
+may not be able to safely stop its current activity straight away, or because
+{es} must complete its work on other tasks before it can process the
+cancellation. The list tasks API will continue to list these cancelled tasks
+until they complete. The `cancelled` flag in the response to the list tasks API
+indicates that the cancellation command has been processed and the task will
+stop as soon as possible. To troubleshoot why a cancelled task does not
+complete promptly, use the list tasks API with the `?detailed` parameter to
+identify the other tasks the system is running and also use the
+<<cluster-nodes-hot-threads>> API to obtain detailed information about the work
+the system is doing instead of completing the cancelled task.
 
 ===== Task Grouping
 

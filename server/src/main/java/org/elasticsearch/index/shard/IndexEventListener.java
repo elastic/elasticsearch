@@ -173,6 +173,10 @@ public interface IndexEventListener {
         listener.onResponse(null);
     }
 
+    default void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
     /**
      * Called after the raw files have been restored from the repository but any other recovery processing has happened
      * @param indexShard the shard that is recovering

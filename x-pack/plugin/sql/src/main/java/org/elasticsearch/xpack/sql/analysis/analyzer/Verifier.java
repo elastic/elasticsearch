@@ -274,7 +274,7 @@ public final class Verifier {
         return failures;
     }
 
-    private void checkNestedAggregation(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
+    private static void checkNestedAggregation(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Aggregate) {
             ((Aggregate) p).child().forEachDown(Aggregate.class, a -> {
                 localFailures.add(fail(a, "Nested aggregations in sub-selects are not supported."));
@@ -282,7 +282,7 @@ public final class Verifier {
         }
     }
 
-    private void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {
+    private static void checkFullTextSearchInSelect(LogicalPlan plan, Set<Failure> localFailures) {
         plan.forEachUp(Project.class, p -> {
             for (NamedExpression ne : p.projections()) {
                 ne.forEachUp(

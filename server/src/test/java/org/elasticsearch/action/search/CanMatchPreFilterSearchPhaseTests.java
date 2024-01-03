@@ -9,10 +9,10 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -20,15 +20,15 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -99,8 +99,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = randomBoolean() ? null : TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = randomBoolean() ? null : DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
@@ -151,10 +151,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             EMPTY_CONTEXT_PROVIDER,
-            ActionListener.wrap(iter -> {
+            ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
-            }, e -> { throw new AssertionError(e); })
+            })
         );
 
         canMatchPhase.start();
@@ -184,8 +184,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             System::nanoTime
         );
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
@@ -249,10 +249,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             EMPTY_CONTEXT_PROVIDER,
-            ActionListener.wrap(iter -> {
+            ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
-            }, e -> { throw new AssertionError(e); })
+            })
         );
 
         canMatchPhase.start();
@@ -276,8 +276,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -342,10 +342,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 true,
                 EMPTY_CONTEXT_PROVIDER,
-                ActionListener.wrap(iter -> {
+                ActionTestUtils.assertNoFailureListener(iter -> {
                     result.set(iter);
                     latch.countDown();
-                }, e -> { throw new AssertionError(e); })
+                })
             );
 
             canMatchPhase.start();
@@ -375,8 +375,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -442,12 +442,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 shardsIter,
                 timeProvider,
                 null,
-                true,
+                shardsIter.size() > shardToSkip.size(),
                 EMPTY_CONTEXT_PROVIDER,
-                ActionListener.wrap(iter -> {
+                ActionTestUtils.assertNoFailureListener(iter -> {
                     result.set(iter);
                     latch.countDown();
-                }, e -> { throw new AssertionError(e); })
+                })
             );
 
             canMatchPhase.start();
@@ -471,12 +471,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMinTimestamp = randomLongBetween(0, 5000);
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        String timestampFieldName = dataStream.getTimeStampField().getName();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timestampFieldName, indexMinTimestamp, indexMaxTimestamp);
+            contextProviderBuilder.addIndexMinMaxTimestamps(
+                dataStreamIndex,
+                DataStream.TIMESTAMP_FIELD_NAME,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
         }
 
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName);
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
         // We query a range outside of the timestamp range covered by both datastream indices
         rangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
 
@@ -538,12 +542,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMinTimestamp = randomLongBetween(0, 5000);
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        String timestampFieldName = dataStream.getTimeStampField().getName();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timestampFieldName, indexMinTimestamp, indexMaxTimestamp);
+            contextProviderBuilder.addIndexMinMaxTimestamps(
+                dataStreamIndex,
+                DataStream.TIMESTAMP_FIELD_NAME,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
         }
 
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName);
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
         // Query with a non default date format
         rangeQueryBuilder.from("2020-1-01").to("2021-1-01");
 
@@ -575,16 +583,20 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMinTimestamp = 10;
         long indexMaxTimestamp = 20;
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        String timestampFieldName = dataStream.getTimeStampField().getName();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timestampFieldName, indexMinTimestamp, indexMaxTimestamp);
+            contextProviderBuilder.addIndexMinMaxTimestamps(
+                dataStreamIndex,
+                DataStream.TIMESTAMP_FIELD_NAME,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
         }
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder();
         // Query inside of the data stream index range
         if (randomBoolean()) {
             // Query generation
-            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName);
+            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
             // We query a range within the timestamp range covered by both datastream indices
             rangeQueryBuilder.from(indexMinTimestamp).to(indexMaxTimestamp);
 
@@ -597,7 +609,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         } else {
             // We query a range outside of the timestamp range covered by both datastream indices
-            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName).from(indexMaxTimestamp + 1)
+            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(indexMaxTimestamp + 1)
                 .to(indexMaxTimestamp + 2);
 
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder("fake", "value");
@@ -709,8 +721,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -817,10 +829,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             contextProvider,
-            ActionListener.wrap(iter -> {
+            ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
-            }, e -> { throw new AssertionError(e); })
+            })
         );
 
         canMatchPhase.start();
@@ -849,7 +861,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 ShardLongFieldRange.of(minTimeStamp, maxTimestamp)
             );
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
 
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
@@ -869,7 +881,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "a_field")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minTimestamp))
@@ -890,7 +902,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
                 .numberOfShards(1)
@@ -904,7 +916,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         public CoordinatorRewriteContextProvider build() {
             return new CoordinatorRewriteContextProvider(
                 XContentParserConfiguration.EMPTY,
-                mock(NamedWriteableRegistry.class),
                 mock(Client.class),
                 System::currentTimeMillis,
                 () -> clusterState,

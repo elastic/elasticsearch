@@ -1,5 +1,0 @@
-pr: 93726
-summary: Finer control over authentication metadata serialization
-area: Authentication
-type: enhancement
-issues: []

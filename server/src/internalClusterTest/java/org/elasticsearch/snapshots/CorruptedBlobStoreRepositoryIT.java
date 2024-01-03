@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
@@ -48,7 +49,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -65,7 +65,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1");
         logger.info("--> indexing some data");
-        indexRandom(true, client().prepareIndex("test-idx-1").setSource("foo", "bar"));
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"));
 
         final String snapshot = "test-snap";
 
@@ -92,7 +92,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot).get());
+        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot));
     }
 
     public void testConcurrentlyChangeRepositoryContents() throws Exception {
@@ -111,11 +111,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         final String snapshot = "test-snap";
 
@@ -166,10 +162,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
-        );
+        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot));
     }
 
     public void testFindDanglingLatestGeneration() throws Exception {
@@ -186,11 +179,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         final String snapshot = "test-snap";
 
@@ -219,8 +208,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     Metadata.builder(currentState.getMetadata())
                         .putCustom(
                             RepositoriesMetadata.TYPE,
-                            currentState.metadata()
-                                .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
+                            RepositoriesMetadata.get(currentState)
                                 .withUpdatedGeneration(repository.getMetadata().name(), beforeMoveGen, beforeMoveGen + 1)
                         )
                         .build()
@@ -241,7 +229,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 2));
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot).get());
+        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot));
     }
 
     public void testHandlingMissingRootLevelSnapshotMetadata() throws Exception {
@@ -302,7 +290,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.write(
             repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
             BytesReference.toBytes(
-                BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT, true))
+                BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), IndexVersion.current(), true))
             ),
             StandardOpenOption.TRUNCATE_EXISTING
         );
@@ -315,7 +303,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     .execute(
                         ActionRunnable.supply(
                             f,
-                            () -> SnapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
+                            () -> SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null)
                         )
                     )
             ),
@@ -332,15 +320,15 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     .execute(
                         ActionRunnable.supply(
                             f,
-                            () -> SnapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
+                            () -> SnapshotsService.minCompatibleVersion(IndexVersion.current(), getRepositoryData(repoName), null)
                         )
                     )
             ),
-            is(Version.CURRENT)
+            is(IndexVersion.current())
         );
         final RepositoryData finalRepositoryData = getRepositoryData(repoName);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
-            assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
+            assertThat(finalRepositoryData.getVersion(snapshotId), is(IndexVersion.current()));
         }
     }
 
@@ -457,7 +445,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         Files.write(
             repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
             BytesReference.toBytes(
-                BytesReference.bytes(brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))
+                BytesReference.bytes(brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), IndexVersion.current()))
             ),
             StandardOpenOption.TRUNCATE_EXISTING
         );
@@ -518,7 +506,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo(snapshot1));
 
         logger.info("-->  deleting index [{}]", indexName);
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         logger.info("-->  restoring snapshot [{}]", snapshot1);
         clusterAdmin().prepareRestoreSnapshot("test-repo", snapshot1)
@@ -556,11 +544,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final String[] indices = { "test-idx-1", "test-idx-2" };
         createIndex(indices);
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -591,10 +575,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> make sure snapshot doesn't exist");
 
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get()
-        );
+        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"));
 
         for (String index : indices) {
             assertTrue(Files.notExists(indicesPath.resolve(indexIds.get(index).getId())));
@@ -609,11 +590,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -635,10 +612,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get()
-        );
+        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"));
     }
 
     public void testDeleteSnapshotWithCorruptedSnapshotFile() throws Exception {
@@ -656,11 +630,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -683,10 +653,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().getSnapshots()
-        );
+        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"));
 
         logger.info("--> make sure that we can create the snapshot again");
         createSnapshotResponse = client.admin()
@@ -715,9 +682,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx-1", "test-idx-2");
         indexRandom(
             true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
+            prepareIndex("test-idx-1").setSource("foo", "bar"),
+            prepareIndex("test-idx-2").setSource("foo", "bar"),
+            prepareIndex("test-idx-2").setSource("foo", "bar")
         );
         flushAndRefresh("test-idx-1", "test-idx-2");
 
@@ -744,11 +711,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotStatusResponse.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("test-snap"));
 
         assertAcked(startDeleteSnapshot("test-repo", "test-snap").get());
-        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get());
-        assertRequestBuilderThrows(
-            clusterAdmin().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
-            SnapshotMissingException.class
-        );
+        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap"));
+        ActionRequestBuilder<?, ?> builder = clusterAdmin().prepareSnapshotStatus("test-repo").addSnapshots("test-snap");
+        expectThrows(SnapshotMissingException.class, builder);
 
         createFullSnapshot("test-repo", "test-snap");
     }
@@ -761,11 +726,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
@@ -796,7 +757,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             "--> restoring the first snapshot, the repository should not have lost any shard data despite deleting index-N, "
                 + "because it uses snap-*.data files and not the index-N to determine what files to restore"
         );
-        client().admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
+        indicesAdmin().prepareDelete("test-idx-1", "test-idx-2").get();
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-1")
             .setWaitForCompletion(true)
             .get();
@@ -822,14 +783,14 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> try to delete snapshot");
         final RepositoryException ex = expectThrows(
             RepositoryException.class,
-            () -> clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot).execute().actionGet()
+            clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot)
         );
         assertThat(ex.getMessage(), containsString("concurrent modification of the index-N file"));
 
         logger.info("--> try to create snapshot");
         final RepositoryException ex2 = expectThrows(
             RepositoryException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet()
+            clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot)
         );
         assertThat(ex2.getMessage(), containsString("The repository has been disabled to prevent data corruption"));
 

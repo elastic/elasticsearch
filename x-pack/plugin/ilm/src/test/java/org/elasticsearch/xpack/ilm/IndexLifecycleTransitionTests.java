@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -20,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xcontent.ToXContent;
@@ -492,7 +491,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
     public void testValidateTransitionThrowsExceptionForMissingIndexPolicy() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -592,7 +591,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
-        try (Client client = new NoOpClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             Step.StepKey currentStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
             Step.StepKey nextStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
             Step currentStep = new WaitForRolloverReadyStep(
@@ -648,7 +648,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
-        try (Client client = new NoOpClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             Step.StepKey currentStepKey = new Step.StepKey("warm", MigrateAction.NAME, DataTierMigrationRoutedStep.NAME);
             Step.StepKey nextStepKey = new Step.StepKey("warm", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
 
@@ -708,7 +709,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
-        try (Client client = new NoOpClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             Step.StepKey currentStepKey = new Step.StepKey("warm", MigrateAction.NAME, MigrateAction.NAME);
             Step.StepKey nextStepKey = new Step.StepKey("warm", MigrateAction.NAME, DataTierMigrationRoutedStep.NAME);
 
@@ -1077,7 +1079,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public void testEligibleForRefresh() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -1088,7 +1090,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecycleExecutionState state = LifecycleExecutionState.builder().build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -1100,7 +1102,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -1112,7 +1114,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -1129,7 +1131,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -1141,7 +1143,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                indexSettings(IndexVersion.current(), randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     randomAlphaOfLength(5)
                 )
@@ -1198,7 +1200,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 2L
             );
 
-            try (Client client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(
                     meta,
                     meta.getLifecycleExecutionState(),
@@ -1235,7 +1238,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 2L
             );
 
-            try (Client client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(
                     meta,
                     meta.getLifecycleExecutionState(),
@@ -1294,7 +1298,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     ) {
         Settings indexSettings = indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(indexSettings)
@@ -1372,7 +1376,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
     private IndexMetadata buildIndexMetadata(String policy, LifecycleExecutionState.Builder lifecycleState) {
         return IndexMetadata.builder("index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policy))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())

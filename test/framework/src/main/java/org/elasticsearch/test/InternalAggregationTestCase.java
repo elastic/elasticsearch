@@ -11,6 +11,7 @@ package org.elasticsearch.test;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -237,8 +238,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
     };
 
+    @SuppressWarnings("this-escape")
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
+    @SuppressWarnings("this-escape")
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 
     private static final List<NamedXContentRegistry.Entry> namedXContents;
@@ -389,7 +392,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return b;
     }
 
-    private void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
+    private static void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
         result.forEachBucket(ia -> {
             for (InternalAggregation a : ia.copyResults()) {
                 @SuppressWarnings("unchecked")
@@ -731,7 +734,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 }

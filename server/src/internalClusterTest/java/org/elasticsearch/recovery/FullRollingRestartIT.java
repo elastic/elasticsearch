@@ -49,19 +49,11 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         final String healthTimeout = "1m";
 
         for (int i = 0; i < 1000; i++) {
-            client().prepareIndex("test")
-                .setId(Long.toString(i))
-                .setSource(Map.<String, Object>of("test", "value" + i))
-                .execute()
-                .actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         flush();
         for (int i = 1000; i < 2000; i++) {
-            client().prepareIndex("test")
-                .setId(Long.toString(i))
-                .setSource(Map.<String, Object>of("test", "value" + i))
-                .execute()
-                .actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
 
         logger.info("--> now start adding nodes");
@@ -95,7 +87,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> refreshing and checking data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
 
         // now start shutting nodes down
@@ -124,7 +116,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> stopped two nodes, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
 
         // closing the 3rd node
@@ -154,7 +146,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> one node left, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
     }
 
@@ -173,15 +165,11 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ).get();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test")
-                .setId(Long.toString(i))
-                .setSource(Map.<String, Object>of("test", "value" + i))
-                .execute()
-                .actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         ensureGreen();
         ClusterState state = clusterAdmin().prepareState().get().getState();
-        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             assertNotEquals(
                 "relocated "
@@ -200,7 +188,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ensureGreen();
         clusterAdmin().prepareState().get();
 
-        recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             assertNotEquals(
                 "relocated "

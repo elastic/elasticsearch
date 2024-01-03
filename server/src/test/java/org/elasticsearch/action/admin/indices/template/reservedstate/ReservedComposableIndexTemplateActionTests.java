@@ -40,6 +40,8 @@ import org.elasticsearch.reservedstate.ActionWithReservedState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -64,7 +66,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 
 /**
  * A unit test class that tests {@link ReservedComposableIndexTemplateAction}
@@ -673,10 +674,12 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testHandlerCorrectness() {
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var putIndexAction = new TransportPutComposableIndexTemplateAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            threadPool,
             null,
             mock(ActionFilters.class),
             null
@@ -687,9 +690,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             containsInAnyOrder(reservedComposableIndexName("aaa"))
         );
         var delIndexAction = new TransportDeleteComposableIndexTemplateAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            threadPool,
             null,
             mock(ActionFilters.class),
             null
@@ -701,9 +704,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         );
 
         var putComponentAction = new TransportPutComponentTemplateAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            threadPool,
             null,
             mock(ActionFilters.class),
             null,
@@ -716,9 +719,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         );
 
         var delComponentAction = new TransportDeleteComponentTemplateAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            threadPool,
             null,
             mock(ActionFilters.class),
             null
@@ -872,14 +875,19 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             .indexTemplates(
                 Map.of(
                     reservedComposableIndexName(conflictingTemplateName),
-                    new ComposableIndexTemplate(singletonList("foo*"), null, Collections.emptyList(), 1L, 1L, Collections.emptyMap())
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(singletonList("foo*"))
+                        .componentTemplates(Collections.emptyList())
+                        .priority(1L)
+                        .version(1L)
+                        .metadata(Collections.emptyMap())
+                        .build()
                 )
             )
             .build();
 
-        ClusterService mockedClusterService = spy(clusterService);
         MetadataIndexTemplateService mockedTemplateService = new MetadataIndexTemplateService(
-            mockedClusterService,
+            clusterService,
             mock(MetadataCreateIndexService.class),
             indicesService,
             indexScopedSettings,
@@ -889,7 +897,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         );
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).metadata(metadata).build();
-        doReturn(state).when(mockedClusterService).state();
+        doReturn(state).when(clusterService).state();
 
         // we should see the weird composable name prefixed 'validate_template'
         assertThat(state.metadata().templatesV2(), allOf(aMapWithSize(1), hasKey(reservedComposableIndexName(conflictingTemplateName))));
@@ -922,10 +930,12 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         PutComposableIndexTemplateAction.Request pr = new PutComposableIndexTemplateAction.Request(conflictingTemplateName);
 
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var putTemplateAction = new TransportPutComposableIndexTemplateAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            threadPool,
             null,
             mock(ActionFilters.class),
             null

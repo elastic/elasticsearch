@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -21,6 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,6 +34,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
     public void testNameValidation() {
         final String name = randomAlphaOfLengthBetween(1, 256);
         CreateApiKeyRequest request = new CreateApiKeyRequest();
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
 
         ActionRequestValidationException ve = request.validate();
         assertThat(ve.validationErrors().size(), is(1));
@@ -78,6 +82,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
     public void testMetadataKeyValidation() {
         final String name = randomAlphaOfLengthBetween(1, 256);
         CreateApiKeyRequest request = new CreateApiKeyRequest();
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
         request.setName(name);
         request.setMetadata(Map.of("_foo", "bar"));
         final ActionRequestValidationException ve = request.validate();
@@ -87,6 +92,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRoleDescriptorValidation() {
+        final String[] unknownWorkflows = randomArray(1, 2, String[]::new, () -> randomAlphaOfLengthBetween(4, 10));
         final CreateApiKeyRequest request1 = new CreateApiKeyRequest(
             randomAlphaOfLength(5),
             List.of(
@@ -104,11 +110,14 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     Map.of("_key", "value"),
-                    null
+                    null,
+                    null,
+                    new RoleDescriptor.Restriction(unknownWorkflows)
                 )
             ),
             null
         );
+        request1.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
         final ActionRequestValidationException ve1 = request1.validate();
         assertNotNull(ve1);
         assertThat(ve1.validationErrors().get(0), containsString("unknown cluster privilege"));
@@ -116,6 +125,9 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         assertThat(ve1.validationErrors().get(2), containsStringIgnoringCase("application name"));
         assertThat(ve1.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
         assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
+        for (int i = 0; i < unknownWorkflows.length; i++) {
+            assertThat(ve1.validationErrors().get(5 + i), containsStringIgnoringCase("unknown workflow [" + unknownWorkflows[i] + "]"));
+        }
     }
 
     public void testSerialization() throws IOException {
@@ -149,12 +161,12 @@ public class CreateApiKeyRequestTests extends ESTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             if (testV710Bwc) {
-                out.setTransportVersion(TransportVersion.V_7_9_0); // a version before 7.10
+                out.setTransportVersion(TransportVersions.V_7_9_0); // a version before 7.10
             }
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 if (testV710Bwc) {
-                    in.setTransportVersion(TransportVersion.V_7_9_0);
+                    in.setTransportVersion(TransportVersions.V_7_9_0);
                 }
                 final CreateApiKeyRequest serialized = new CreateApiKeyRequest(in);
                 assertEquals(name, serialized.getName());

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.aggs.heuristic;
 import org.apache.commons.math3.util.FastMath;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.NXYSignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -175,9 +174,7 @@ public class PValueScore extends NXYSignificanceHeuristic {
             || docsContainTermInClass > Long.MAX_VALUE
             || allDocsNotInClass > Long.MAX_VALUE
             || docsContainTermNotInClass > Long.MAX_VALUE) {
-            throw new AggregationExecutionException(
-                "too many documents in background and foreground sets, further restrict sets for execution"
-            );
+            throw new IllegalArgumentException("too many documents in background and foreground sets, further restrict sets for execution");
         }
 
         double v1 = new LongBinomialDistribution((long) allDocsInClass, docsContainTermInClass / allDocsInClass).logProbability(
@@ -199,7 +196,7 @@ public class PValueScore extends NXYSignificanceHeuristic {
         return FastMath.max(-FastMath.log(FastMath.max(pValue, Double.MIN_NORMAL)), 0.0);
     }
 
-    private double eps(double value) {
+    private static double eps(double value) {
         return Math.max(0.05 * value + 0.5, 1.0);
     }
 

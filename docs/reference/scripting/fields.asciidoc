@@ -133,7 +133,7 @@ existence of the field in mappings in an `expression` script.
 ===================================================
 
 The `doc['field']` syntax can also be used for <<text,analyzed `text` fields>>
-if <<fielddata,`fielddata`>> is enabled, but *BEWARE*: enabling fielddata on a
+if <<fielddata-mapping-param,`fielddata`>> is enabled, but *BEWARE*: enabling fielddata on a
 `text` field requires loading all of the terms into the JVM heap, which can be
 very expensive both in terms of memory and CPU. It seldom makes sense to
 access `text` fields from scripts.

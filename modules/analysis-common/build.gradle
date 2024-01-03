@@ -5,8 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+import org.elasticsearch.gradle.Version
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -23,6 +25,8 @@ restResources {
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
+  clusterModules project(':modules:reindex')
+  clusterModules project(':modules:mapper-extras')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

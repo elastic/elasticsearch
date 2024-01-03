@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.searchbusinessrules;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
@@ -56,8 +55,8 @@ public final class CappedScoreQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = query.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = query.rewrite(searcher);
 
         if (rewritten != query) {
             return new CappedScoreQuery(rewritten, maxScore);
@@ -71,7 +70,7 @@ public final class CappedScoreQuery extends Query {
             return new CappedScoreQuery(((BoostQuery) rewritten).getQuery(), maxScore);
         }
 
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     /**

@@ -68,3 +68,4 @@ testfixtures_shared/
 
 # Generated
 checkstyle_ide.xml
+x-pack/plugin/esql/gen/

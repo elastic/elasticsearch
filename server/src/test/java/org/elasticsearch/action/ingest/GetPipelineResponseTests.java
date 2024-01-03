@@ -62,11 +62,15 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
         Map<String, PipelineConfiguration> pipelinesMap = createPipelineConfigMap();
         GetPipelineResponse response = new GetPipelineResponse(new ArrayList<>(pipelinesMap.values()));
         XContentBuilder builder = response.toXContent(getRandomXContentBuilder(), ToXContent.EMPTY_PARAMS);
-        XContentParser parser = builder.generator()
-            .contentType()
-            .xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-        GetPipelineResponse parsedResponse = GetPipelineResponse.fromXContent(parser);
+        GetPipelineResponse parsedResponse;
+        try (
+            XContentParser parser = builder.generator()
+                .contentType()
+                .xContent()
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+        ) {
+            parsedResponse = GetPipelineResponse.fromXContent(parser);
+        }
         List<PipelineConfiguration> actualPipelines = response.pipelines();
         List<PipelineConfiguration> parsedPipelines = parsedResponse.pipelines();
         assertEquals(actualPipelines.size(), parsedPipelines.size());
@@ -93,11 +97,6 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
     @Override
     protected Writeable.Reader<GetPipelineResponse> instanceReader() {
         return GetPipelineResponse::new;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override

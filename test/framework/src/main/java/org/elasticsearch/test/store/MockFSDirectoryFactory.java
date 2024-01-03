@@ -116,7 +116,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         }
     }
 
-    private Directory wrap(Directory dir, Random random, Settings indexSettings, ShardId shardId) {
+    private static Directory wrap(Directory dir, Random random, Settings indexSettings, ShardId shardId) {
 
         double randomIOExceptionRate = RANDOM_IO_EXCEPTION_RATE_SETTING.get(indexSettings);
         double randomIOExceptionRateOnOpen = RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.get(indexSettings);
@@ -135,7 +135,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         return w;
     }
 
-    private Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
+    private static Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
         final IndexMetadata build = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(
                 Settings.builder()

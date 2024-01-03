@@ -435,7 +435,7 @@ g:keyword  | l:integer
  null      | 5
 ;
 
-repetitiveAggregation
+repetitiveAggregation#[skip:-8.11.99,reason:ReplaceDuplicateAggWithEval breaks bwc]
 from employees | stats m1 = max(salary), m2 = min(salary), m3 = min(salary), m4 = max(salary);
 
 m1:i | m2:i | m3:i | m4:i
@@ -781,4 +781,13 @@ FROM sample_data
 ;
 
 median_duration:double | client_ip:ip
+;
+
+fieldEscaping#[skip:-8.12.99, reason:Fixed bug in 8.13 of removing the leading/trailing backquotes of an identifier]
+FROM sample_data
+| stats count(`event_duration`) |  keep `count(``event_duration``)`
+;
+
+count(`event_duration`):l
+7
 ;

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
@@ -28,12 +28,17 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -46,6 +51,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.InternalTestCluster;
@@ -309,6 +315,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 startCleaner();
             }
 
+            if (randomBoolean()) {
+                startNodeShutdownMarker();
+            }
+
             if (completedSnapshotLatch.await(30, TimeUnit.SECONDS)) {
                 logger.info("--> completed target snapshot count, finishing test");
             } else {
@@ -371,16 +381,11 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             "--> current cluster state:\n{}",
                             Strings.toString(clusterAdmin().prepareState().get().getState(), true, true)
                         );
-                        logger.info(
-                            "--> hot threads:\n{}",
-                            clusterAdmin().prepareNodesHotThreads()
-                                .setThreads(99999)
-                                .setIgnoreIdleThreads(false)
-                                .get()
-                                .getNodes()
-                                .stream()
-                                .map(NodeHotThreads::getHotThreads)
-                                .collect(Collectors.joining("\n"))
+                        HotThreads.logLocalHotThreads(
+                            logger,
+                            Level.INFO,
+                            "hot threads while failing to acquire permit [" + label + "]",
+                            ReferenceDocs.LOGGING
                         );
                         failedPermitAcquisitions.add(label);
                     }
@@ -1161,6 +1166,104 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 } finally {
                     if (restarting == false) {
                         startNodeRestarter();
+                    }
+                }
+            });
+        }
+
+        private void startNodeShutdownMarker() {
+            enqueueAction(() -> {
+                boolean rerun = true;
+                if (usually()) {
+                    return;
+                }
+                try (TransferableReleasables localReleasables = new TransferableReleasables()) {
+                    if (localReleasables.add(blockFullClusterRestart()) == null) {
+                        return;
+                    }
+
+                    final var node = randomFrom(shuffledNodes);
+
+                    if (localReleasables.add(tryAcquirePermit(node.permits)) == null) {
+                        return;
+                    }
+
+                    final var clusterService = cluster.getCurrentMasterNodeInstance(ClusterService.class);
+
+                    SubscribableListener
+
+                        .<Void>newForked(
+                            l -> clusterService.submitUnbatchedStateUpdateTask(
+                                "mark [" + node + "] for removal",
+                                new ClusterStateUpdateTask() {
+                                    @Override
+                                    public ClusterState execute(ClusterState currentState) {
+                                        assertTrue(
+                                            Strings.toString(currentState),
+                                            currentState.metadata().nodeShutdowns().getAll().isEmpty()
+                                        );
+                                        final var nodeId = currentState.nodes().resolveNode(node.nodeName).getId();
+                                        return currentState.copyAndUpdateMetadata(
+                                            mdb -> mdb.putCustom(
+                                                NodesShutdownMetadata.TYPE,
+                                                new NodesShutdownMetadata(
+                                                    Map.of(
+                                                        nodeId,
+                                                        SingleNodeShutdownMetadata.builder()
+                                                            .setNodeId(nodeId)
+                                                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                                            .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
+                                                            .setReason("test")
+                                                            .build()
+                                                    )
+                                                )
+                                            )
+                                        );
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        l.onFailure(e);
+                                    }
+
+                                    @Override
+                                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                                        l.onResponse(null);
+                                    }
+                                }
+                            )
+                        )
+
+                        .<Void>andThen(
+                            (l, ignored) -> clusterService.submitUnbatchedStateUpdateTask(
+                                "unmark [" + node + "] for removal",
+                                new ClusterStateUpdateTask() {
+                                    @Override
+                                    public ClusterState execute(ClusterState currentState) {
+                                        return currentState.copyAndUpdateMetadata(
+                                            mdb -> mdb.putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
+                                        );
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        l.onFailure(e);
+                                    }
+
+                                    @Override
+                                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                                        l.onResponse(null);
+                                    }
+                                }
+                            )
+                        )
+
+                        .addListener(mustSucceed(ignored -> startNodeShutdownMarker()));
+
+                    rerun = false;
+                } finally {
+                    if (rerun) {
+                        startNodeShutdownMarker();
                     }
                 }
             });

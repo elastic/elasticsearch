@@ -394,7 +394,7 @@ unsupported with sort:
 ---
 spatial types unsupported in 8.11:
   - skip:
-      version: " - 8.10.99, 8.12.0 - "
+      version: " - "
       reason: "Elasticsearch 8.11 did not support any spatial types"
 
   - do:

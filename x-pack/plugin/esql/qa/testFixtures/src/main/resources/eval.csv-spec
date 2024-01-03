@@ -222,6 +222,24 @@ emp_no:integer  | foldable:keyword | folded_mv:keyword
 10002           | "foo,bar"        | [foo, bar]
 ;
 
+docsConcat
+// tag::docsConcat[]
+FROM employees
+| KEEP first_name, last_name
+| EVAL fullname = CONCAT(first_name, " ", last_name)
+// end::docsConcat[]
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::docsConcat-result[]
+first_name:keyword   |   last_name:keyword   |     fullname:keyword
+Alejandro      |McAlpine       |Alejandro McAlpine
+Amabile        |Gomatam        |Amabile Gomatam
+Anneke         |Preusig        |Anneke Preusig
+// end::docsConcat-result[]
+;
+
 docsGettingStartedEval
 // tag::gs-eval[]
 FROM sample_data

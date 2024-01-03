@@ -8,14 +8,26 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public EsqlClientYamlIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

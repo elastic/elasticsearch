@@ -575,7 +575,9 @@ public class ComputeService {
             final var parentTask = (CancellableTask) task;
             final var sessionId = request.sessionId();
             final var exchangeSink = exchangeService.getSinkHandler(sessionId);
-            parentTask.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException("task cancelled")));
+            parentTask.addListener(
+                () -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
+            );
             final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
             final EsqlConfiguration configuration = request.configuration();
             acquireSearchContexts(
@@ -651,7 +653,9 @@ public class ComputeService {
         ActionListener<ComputeResponse> listener
     ) {
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
-        parentTask.addListener(() -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException("request cancelled")));
+        parentTask.addListener(
+            () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
+        );
         ThreadPool threadPool = transportService.getThreadPool();
         final var responseHeadersCollector = new ResponseHeadersCollector(threadPool.getThreadContext());
         listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);

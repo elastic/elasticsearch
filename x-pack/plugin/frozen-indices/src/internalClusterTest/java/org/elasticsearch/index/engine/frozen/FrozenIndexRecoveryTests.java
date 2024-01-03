@@ -7,6 +7,7 @@
 
 package org.elasticsearch.index.engine.frozen;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -57,12 +58,13 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
                 .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                 .build()
         );
-        indexRandom(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 50)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
-        );
+        List<IndexRequestBuilder> indexRequestBuilders = IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> prepareIndex(indexName).setSource("num", n))
+            .collect(toList());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), indexRequestBuilders);
+        for (IndexRequestBuilder indexRequestBuilder : indexRequestBuilders) {
+            indexRequestBuilder.request().decRef();
+        }
         ensureGreen(indexName);
         indicesAdmin().prepareFlush(indexName).get();
         // index more documents while one shard copy is offline
@@ -72,7 +74,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
                 Client client = client(dataNodes.get(0));
                 int moreDocs = randomIntBetween(1, 50);
                 for (int i = 0; i < moreDocs; i++) {
-                    client.prepareIndex(indexName).setSource("num", i).get();
+                    indexDoc(indexName, null, "num", i);
                 }
                 assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
                 return super.onNodeStopped(nodeName);

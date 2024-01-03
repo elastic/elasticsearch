@@ -12,6 +12,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
@@ -94,14 +95,11 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testCloseFreezeAndOpen() throws Exception {
         String indexName = "index";
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 2).build());
-        prepareIndex(indexName).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(indexName).setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(indexName).setId("3").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate(indexName, "1", "field", "value");
+        indexDocImmediate(indexName, "2", "field", "value");
+        indexDocImmediate(indexName, "3", "field", "value");
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
-        expectThrows(
-            ClusterBlockException.class,
-            prepareIndex(indexName).setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE)
-        );
+        expectThrows(ClusterBlockException.class, () -> indexDocImmediate(indexName, "4", "field", "value"));
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         Index index = resolveIndex(indexName);
         IndexService indexService = indexServices.indexServiceSafe(index);
@@ -185,7 +183,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         String indexName = "index";
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 2).build(), mapping);
         for (int i = 0; i < 10; i++) {
-            prepareIndex(indexName).setId("" + i).setSource("field", "foo bar baz").get();
+            indexDoc(indexName, "" + i, "field", "foo bar baz");
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         int numRequests = randomIntBetween(20, 50);
@@ -223,9 +221,9 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         final IndexService originalIndexService = createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
         assertThat(originalIndexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
 
-        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("index").setId("3").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("index", "1", "field", "value");
+        indexDocImmediate("index", "2", "field", "value");
+        indexDocImmediate("index", "3", "field", "value");
 
         if (randomBoolean()) {
             // sometimes close it
@@ -256,7 +254,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertThat(engine, Matchers.instanceOf(InternalEngine.class));
             assertThat(indexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         }
-        prepareIndex("index").setId("4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("index", "4", "field", "value");
     }
 
     private void assertIndexFrozen(String idx) {
@@ -284,9 +282,9 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testUnfreezeClosedIndices() {
         createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
-        prepareIndex("idx").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("idx", "1", "field", "value");
         createIndex("idx-closed", Settings.builder().put("index.number_of_shards", 1).build());
-        prepareIndex("idx-closed").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("idx-closed", "1", "field", "value");
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("idx")).actionGet());
         assertAcked(indicesAdmin().prepareClose("idx-closed").get());
         assertAcked(
@@ -304,9 +302,9 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testFreezePattern() {
         String indexName = "test-idx";
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build());
-        prepareIndex(indexName).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate(indexName, "1", "field", "value");
         createIndex("test-idx-1", Settings.builder().put("index.number_of_shards", 1).build());
-        prepareIndex("test-idx-1").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test-idx-1", "1", "field", "value");
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         assertIndexFrozen(indexName);
 
@@ -328,8 +326,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testCanMatch() throws IOException {
         createIndex("index");
-        prepareIndex("index").setId("1").setSource("field", "2010-01-05T02:00").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex("index").setId("2").setSource("field", "2010-01-06T02:00").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("index", "1", "field", "2010-01-05T02:00");
+        indexDocImmediate("index", "2", "field", "2010-01-06T02:00");
         {
             IndicesService indexServices = getInstanceFromNode(IndicesService.class);
             Index index = resolveIndex("index");
@@ -466,10 +464,10 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testWriteToFrozenIndex() {
         createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
-        prepareIndex("idx").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("idx", "1", "field", "value");
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("idx")).actionGet());
         assertIndexFrozen("idx");
-        expectThrows(ClusterBlockException.class, prepareIndex("idx").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE));
+        expectThrows(ClusterBlockException.class, () -> indexDocImmediate("idx", "2", "field", "value"));
     }
 
     public void testIgnoreUnavailable() {
@@ -511,7 +509,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testFreezeIndexIncreasesIndexSettingsVersion() {
         final String index = "test";
         createIndex(index, indexSettings(1, 0).build());
-        prepareIndex(index).setSource("field", "value").get();
+        indexDoc(index, null, "field", "value");
 
         final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index(index).getSettingsVersion();
 
@@ -551,7 +549,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final long nbDocs = randomIntBetween(0, 50);
         for (long i = 0; i < nbDocs; i++) {
-            final DocWriteResponse indexResponse = prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            final DocWriteResponse indexResponse = indexDoc(indexName, Long.toString(i), "field", i);
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
         }
 
@@ -582,7 +580,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
         for (long i = 0; i < nbDocs; i++) {
-            final DocWriteResponse indexResponse = prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            final DocWriteResponse indexResponse = indexDoc(indexName, Long.toString(i), "field", i);
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
             if (rarely()) {
                 indicesAdmin().prepareFlush(indexName).get();
@@ -616,8 +614,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testComputesTimestampRangeFromMilliseconds() {
         final int shardCount = between(1, 3);
         createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build());
-        prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:02:03.456Z").get();
-        prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z").get();
+        indexDoc("index", null, DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:02:03.456Z");
+        indexDoc("index", null, DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z");
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
 
@@ -648,8 +646,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final int shardCount = between(1, 3);
         createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build(), mapping);
-        prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:02:03.456789012Z").get();
-        prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567890123Z").get();
+        indexDoc("index", null, DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:02:03.456789012Z");
+        indexDoc("index", null, DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567890123Z");
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
 
@@ -667,4 +665,21 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertThat(timestampFieldRange.getMax(), equalTo(resolution.convert(Instant.parse("2010-01-06T02:03:04.567890123Z"))));
     }
 
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
+
+    private DocWriteResponse indexDoc(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
+    }
 }

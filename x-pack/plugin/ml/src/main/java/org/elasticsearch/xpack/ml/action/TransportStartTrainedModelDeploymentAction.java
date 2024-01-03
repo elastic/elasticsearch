@@ -38,6 +38,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -416,8 +417,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         String modelId
     ) {
         return ActionListener.wrap(response -> {
-            SearchHit[] hits = response.getHits().getHits();
-            if (hits.length == 0) {
+            SearchHits hits = response.getHits();
+            if (hits.getHits().length == 0) {
                 failOrRespondWith0(
                     () -> new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)),
                     errorIfDefinitionIsMissing,
@@ -428,14 +429,14 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             }
 
             long firstTotalLength;
-            DocumentField firstTotalLengthField = hits[0].field(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+            DocumentField firstTotalLengthField = hits.getAt(0).field(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
             if (firstTotalLengthField != null && firstTotalLengthField.getValue() instanceof Long firstTotalDefinitionLength) {
                 firstTotalLength = firstTotalDefinitionLength;
             } else {
                 failOrRespondWith0(
                     () -> missingFieldsError(
                         modelId,
-                        hits[0].getId(),
+                        hits.getAt(0).getId(),
                         List.of(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())
                     ),
                     errorIfDefinitionIsMissing,
@@ -484,7 +485,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                             finalTotalLength,
                             TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
                             firstTotalLength,
-                            TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits[0].getId()))
+                            TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits.getAt(0).getId()))
                         ),
                         errorIfDefinitionIsMissing,
                         modelId,

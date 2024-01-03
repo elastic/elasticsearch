@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
@@ -153,7 +154,7 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
     private Deque<T> mapHits(SearchResponse searchResponse) {
         Deque<T> results = new ArrayDeque<>();
 
-        SearchHit[] hits = searchResponse.getHits().getHits();
+        SearchHits hits = searchResponse.getHits();
         for (SearchHit hit : hits) {
             T mapped = map(hit);
             if (mapped != null) {
@@ -162,12 +163,12 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
         }
 
         // fewer hits than we requested, this is the end of the search
-        if (hits.length < batchSize) {
+        if (hits.getHits().length < batchSize) {
             lastSearchReturnedResults.set(false);
         }
 
-        if (hits.length > 0) {
-            extractSearchAfterFields(hits[hits.length - 1]);
+        if (hits.getHits().length > 0) {
+            extractSearchAfterFields(hits.getAt(hits.getHits().length - 1));
         }
 
         return results;

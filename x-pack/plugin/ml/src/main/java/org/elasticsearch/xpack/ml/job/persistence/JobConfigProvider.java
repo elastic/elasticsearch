@@ -428,9 +428,8 @@ public class JobConfigProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
-                SearchHit[] hits = response.getHits().getHits();
                 List<String> matchedIds = new ArrayList<>();
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits().getHits()) {
                     matchedIds.add(hit.field(Job.ID.getPreferredName()).getValue());
                 }
                 listener.onResponse(matchedIds);
@@ -520,8 +519,7 @@ public class JobConfigProvider {
             ActionListener.<SearchResponse>wrap(response -> {
                 SortedSet<String> jobIds = new TreeSet<>();
                 SortedSet<String> groupsIds = new TreeSet<>();
-                SearchHit[] hits = response.getHits().getHits();
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits().getHits()) {
                     jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
                     List<Object> groups = hit.field(Job.GROUPS.getPreferredName()).getValues();
                     if (groups != null) {
@@ -591,8 +589,7 @@ public class JobConfigProvider {
                 List<Job.Builder> jobs = new ArrayList<>();
                 Set<String> jobAndGroupIds = new HashSet<>();
 
-                SearchHit[] hits = response.getHits().getHits();
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits().getHits()) {
                     try {
                         BytesReference source = hit.getSourceRef();
                         Job.Builder job = parseJobLenientlyFromSource(source);
@@ -646,8 +643,7 @@ public class JobConfigProvider {
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
                 SortedSet<String> jobIds = new TreeSet<>();
-                SearchHit[] hits = response.getHits().getHits();
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits()) {
                     jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
                 }
 
@@ -721,11 +717,9 @@ public class JobConfigProvider {
             ActionListener.<SearchResponse>wrap(response -> {
                 List<Job> jobs = new ArrayList<>();
 
-                SearchHit[] hits = response.getHits().getHits();
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits()) {
                     try {
-                        BytesReference source = hit.getSourceRef();
-                        Job job = parseJobLenientlyFromSource(source).build();
+                        Job job = parseJobLenientlyFromSource(hit.getSourceRef()).build();
                         jobs.add(job);
                     } catch (IOException e) {
                         // TODO A better way to handle this rather than just ignoring the error?

@@ -426,10 +426,9 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     checkpointAndVersionListener.onResponse(null);
                     return;
                 }
-                SearchHit hit = searchResponse.getHits().getHits()[0];
-                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+                SearchHit hit = searchResponse.getHits().getAt(0);
                 parseCheckpointsLenientlyFromSource(
-                    source,
+                    hit.getSourceRef(),
                     transformId,
                     ActionListener.wrap(
                         parsedCheckpoint -> checkpointAndVersionListener.onResponse(
@@ -471,8 +470,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     );
                     return;
                 }
-                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
-                parseTransformLenientlyFromSource(source, transformId, resultListener);
+                parseTransformLenientlyFromSource(searchResponse.getHits().getAt(0).getSourceRef(), transformId, resultListener);
             }, resultListener::onFailure)
         );
     }
@@ -502,7 +500,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 );
                 return;
             }
-            SearchHit hit = searchResponse.getHits().getHits()[0];
+            SearchHit hit = searchResponse.getHits().getAt(0);
             BytesReference source = hit.getSourceRef();
             parseTransformLenientlyFromSource(
                 source,

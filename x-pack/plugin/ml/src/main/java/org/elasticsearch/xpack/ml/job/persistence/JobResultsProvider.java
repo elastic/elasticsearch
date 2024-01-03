@@ -218,7 +218,7 @@ public class JobResultsProvider {
         ActionListener<MultiSearchResponse> searchResponseActionListener = new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(MultiSearchResponse response) {
-                List<SearchHit> searchHits = new ArrayList<>();
+                List<String> searchHits = new ArrayList<>();
                 // Consider the possibility that some of the responses are exceptions
                 for (int i = 0; i < response.getResponses().length; i++) {
                     MultiSearchResponse.Item itemResponse = response.getResponses()[i];
@@ -243,7 +243,9 @@ public class JobResultsProvider {
                         delegate.onFailure(e);
                         return;
                     }
-                    searchHits.addAll(Arrays.asList(itemResponse.getResponse().getHits().getHits()));
+                    for (SearchHit hit : itemResponse.getResponse().getHits().getHits()) {
+                        searchHits.add(hit.getId());
+                    }
                 }
 
                 if (searchHits.isEmpty()) {
@@ -252,12 +254,11 @@ public class JobResultsProvider {
                     int quantileDocCount = 0;
                     int categorizerStateDocCount = 0;
                     int resultDocCount = 0;
-                    for (SearchHit hit : searchHits) {
-                        if (hit.getId().equals(Quantiles.documentId(job.getId()))
-                            || hit.getId().equals(Quantiles.v54DocumentId(job.getId()))) {
+                    for (String hitId : searchHits) {
+                        if (hitId.equals(Quantiles.documentId(job.getId())) || hitId.equals(Quantiles.v54DocumentId(job.getId()))) {
                             quantileDocCount++;
-                        } else if (hit.getId().startsWith(CategorizerState.documentPrefix(job.getId()))
-                            || hit.getId().startsWith(CategorizerState.v54DocumentPrefix(job.getId()))) {
+                        } else if (hitId.startsWith(CategorizerState.documentPrefix(job.getId()))
+                            || hitId.startsWith(CategorizerState.v54DocumentPrefix(job.getId()))) {
                                 categorizerStateDocCount++;
                             } else {
                                 resultDocCount++;
@@ -1071,9 +1072,8 @@ public class JobResultsProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
-                SearchHit[] hits = searchResponse.getHits().getHits();
-                List<CategoryDefinition> results = new ArrayList<>(hits.length);
-                for (SearchHit hit : hits) {
+                List<CategoryDefinition> results = new ArrayList<>(searchResponse.getHits().getHits().length);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
                     BytesReference source = hit.getSourceRef();
                     try (
                         InputStream stream = source.streamInput();
@@ -1729,9 +1729,8 @@ public class JobResultsProvider {
             request.request(),
             ActionListener.<SearchResponse>wrap(response -> {
                 List<ScheduledEvent> events = new ArrayList<>();
-                SearchHit[] hits = response.getHits().getHits();
                 try {
-                    for (SearchHit hit : hits) {
+                    for (SearchHit hit : response.getHits().getHits()) {
                         ScheduledEvent.Builder event = MlParserUtils.parse(hit, ScheduledEvent.LENIENT_PARSER);
 
                         event.eventId(hit.getId());

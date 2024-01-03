@@ -154,11 +154,11 @@ public class DataFrameDataExtractor {
                     return;
                 }
 
-                final SearchHit[] hits = searchResponse.getHits().getHits();
-                List<Row> rows = new ArrayList<>(hits.length);
-                for (SearchHit hit : hits) {
-                    String[] extractedValues = extractValues(hit);
-                    rows.add(extractedValues == null ? new Row(null, hit, true) : new Row(extractedValues, hit, false));
+                List<Row> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    var unpooled = hit.asUnpooled();
+                    String[] extractedValues = extractValues(unpooled);
+                    rows.add(extractedValues == null ? new Row(null, unpooled, true) : new Row(extractedValues, unpooled, false));
                 }
                 listener.onResponse(rows);
             }, listener::onFailure)
@@ -317,12 +317,13 @@ public class DataFrameDataExtractor {
     }
 
     private Row createRow(SearchHit hit) {
-        String[] extractedValues = extractValues(hit);
+        var unpooled = hit.asUnpooled();
+        String[] extractedValues = extractValues(unpooled);
         if (extractedValues == null) {
-            return new Row(null, hit, true);
+            return new Row(null, unpooled, true);
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        Row row = new Row(extractedValues, hit, isTraining);
+        Row row = new Row(extractedValues, unpooled, isTraining);
         LOGGER.trace(
             () -> format(
                 "[%s] Extracted row: sort key = [%s], is_training = [%s], values = %s",

@@ -260,8 +260,7 @@ public class DatafeedConfigProvider {
                 Map<String, DatafeedConfig.Builder> datafeedsByJobId = new HashMap<>();
                 // There cannot be more than one datafeed per job
                 assert response.getHits().getTotalHits().value <= jobIds.size();
-                SearchHit[] hits = response.getHits().getHits();
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits().getHits()) {
                     DatafeedConfig.Builder builder = parseLenientlyFromSource(hit.getSourceRef());
                     datafeedsByJobId.put(builder.getJobId(), builder);
                 }
@@ -505,8 +504,7 @@ public class DatafeedConfigProvider {
             ActionListener.<SearchResponse>wrap(response -> {
                 List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
                 Set<String> datafeedIds = new HashSet<>();
-                SearchHit[] hits = response.getHits().getHits();
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits().getHits()) {
                     try {
                         BytesReference source = hit.getSourceRef();
                         DatafeedConfig.Builder datafeed = parseLenientlyFromSource(source);

@@ -99,10 +99,11 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
             incRef();
             return this;
         }
-        vector.incRef();
         if (nullsMask == null) {
+            vector.incRef();
             return vector.asBlock();
         }
+
         BooleanBigArrayBlock expanded = new BooleanBigArrayBlock(
             vector,
             vector.getPositionCount(),
@@ -113,6 +114,8 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
             blockFactory()
         );
         blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
         return expanded;
     }
 

@@ -102,19 +102,23 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
             incRef();
             return this;
         }
-        vector.incRef();
         if (nullsMask == null) {
+            vector.incRef();
             return vector.asBlock();
         }
+
         BytesRefArrayBlock expanded = new BytesRefArrayBlock(
             vector,
             vector.getPositionCount(),
             null,
+            // TODO: we probably need to adjust the breaker before computing the shifted null mask
             shiftNullsToExpandedPositions(),
             MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             blockFactory()
         );
         blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
         return expanded;
     }
 

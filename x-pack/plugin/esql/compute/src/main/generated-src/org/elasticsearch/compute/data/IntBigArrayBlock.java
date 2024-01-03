@@ -99,10 +99,11 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
             incRef();
             return this;
         }
-        vector.incRef();
         if (nullsMask == null) {
+            vector.incRef();
             return vector.asBlock();
         }
+
         IntBigArrayBlock expanded = new IntBigArrayBlock(
             vector,
             vector.getPositionCount(),
@@ -113,6 +114,8 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
             blockFactory()
         );
         blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
         return expanded;
     }
 

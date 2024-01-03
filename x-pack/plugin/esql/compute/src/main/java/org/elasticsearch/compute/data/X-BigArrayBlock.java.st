@@ -99,10 +99,11 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
             incRef();
             return this;
         }
-        vector.incRef();
         if (nullsMask == null) {
+            vector.incRef();
             return vector.asBlock();
         }
+
         $Type$BigArrayBlock expanded = new $Type$BigArrayBlock(
             vector,
             vector.getPositionCount(),
@@ -113,6 +114,8 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
             blockFactory()
         );
         blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
         return expanded;
     }
 

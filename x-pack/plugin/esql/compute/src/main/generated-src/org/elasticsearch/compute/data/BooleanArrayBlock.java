@@ -98,19 +98,23 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
             incRef();
             return this;
         }
-        vector.incRef();
         if (nullsMask == null) {
+            vector.incRef();
             return vector.asBlock();
         }
+
         BooleanArrayBlock expanded = new BooleanArrayBlock(
             vector,
             vector.getPositionCount(),
             null,
+            // TODO: we probably need to adjust the breaker before computing the shifted null mask
             shiftNullsToExpandedPositions(),
             MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             blockFactory()
         );
         blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock(), true);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
         return expanded;
     }
 

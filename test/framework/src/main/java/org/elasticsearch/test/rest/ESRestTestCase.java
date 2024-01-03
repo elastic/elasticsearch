@@ -2375,8 +2375,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
     }
 
+    @UpdateForV9 // remove this once we're not running REST tests against ancient 7.x versions any more
+    private static final Version VND_CONTENT_TYPES_SUPPORTED = Version.V_7_10_0; // support was added in #63071
+
+    private static XContentType randomSupportedContentType() {
+        final var oldClusterVersionString = System.getProperty("tests.old_cluster_version");
+        return oldClusterVersionString == null || Version.fromString(oldClusterVersionString).onOrAfter(VND_CONTENT_TYPES_SUPPORTED)
+            ? randomFrom(XContentType.values())
+            : randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE);
+    }
+
     public static void addXContentBody(Request request, ToXContent body) throws IOException {
-        final var xContentType = randomFrom(XContentType.values());
+        final var xContentType = randomSupportedContentType();
         final var bodyBytes = XContentHelper.toXContent(body, xContentType, EMPTY_PARAMS, randomBoolean());
         request.setEntity(
             new InputStreamEntity(

@@ -432,6 +432,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
      * Returns bytes reference, also uncompress the source if needed.
      */
     public BytesReference getSourceRef() {
+        assert hasReferences();
         if (this.source == null) {
             return null;
         }
@@ -479,6 +480,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
      * The source of the document as a map (can be {@code null}).
      */
     public Map<String, Object> getSourceAsMap() {
+        assert hasReferences();
         if (source == null) {
             return null;
         }

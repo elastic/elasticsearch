@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -78,14 +78,13 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
         }
         return channel -> {
-            RestChunkedToXContentListener<AsyncSearchResponse> listener = new RestChunkedToXContentListener<>(channel) {
+            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, new RestRefCountedChunkedToXContentListener<>(channel) {
                 @Override
                 protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
                     return asyncSearchResponse.status();
                 }
-            };
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, listener);
+            });
         };
     }
 

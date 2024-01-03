@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -41,10 +41,10 @@ public class InMapper extends ExpressionMapper<In> {
             ExpressionEvaluator.Factory eqEvaluator = ((ExpressionMapper) EQUALS).map(eq, layout);
             listEvaluators.add(eqEvaluator);
         });
-        return dvrCtx -> new InExpressionEvaluator(dvrCtx.blockFactory(), listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());
+        return dvrCtx -> new InExpressionEvaluator(dvrCtx, listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());
     }
 
-    record InExpressionEvaluator(BlockFactory blockFactory, List<EvalOperator.ExpressionEvaluator> listEvaluators)
+    record InExpressionEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> listEvaluators)
         implements
             EvalOperator.ExpressionEvaluator {
         @Override
@@ -70,7 +70,7 @@ public class InMapper extends ExpressionMapper<In> {
                 }
             }
 
-            return evalWithNulls(blockFactory(), values, nulls, nullInValues);
+            return evalWithNulls(driverContext.blockFactory(), values, nulls, nullInValues);
         }
 
         private static void updateValues(BooleanVector vector, boolean[] values) {
@@ -98,7 +98,7 @@ public class InMapper extends ExpressionMapper<In> {
 
         private static Block evalWithNulls(BlockFactory blockFactory, boolean[] values, BitSet nulls, boolean nullInValues) {
             if (nulls.isEmpty() && nullInValues == false) {
-                return new BooleanArrayVector(values, values.length).asBlock();
+                return blockFactory.newBooleanArrayVector(values, values.length).asBlock();
             } else {
                 // 3VL: true trumps null; null trumps false.
                 for (int i = 0; i < values.length; i++) {
@@ -110,7 +110,7 @@ public class InMapper extends ExpressionMapper<In> {
                 }
                 if (nulls.isEmpty()) {
                     // no nulls and no multi-values means we must use a Vector
-                    return new BooleanArrayVector(values, values.length).asBlock();
+                    return blockFactory.newBooleanArrayVector(values, values.length).asBlock();
                 } else {
                     return blockFactory.newBooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
                 }

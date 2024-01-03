@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
-import org.elasticsearch.compute.data.LongArrayVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
@@ -27,6 +25,9 @@ import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.arrayWithSize;
 
 public class TextFormatterTests extends ESTestCase {
+
+    static BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+
     private final List<ColumnInfo> columns = Arrays.asList(
         new ColumnInfo("foo", "keyword"),
         new ColumnInfo("bar", "long"),
@@ -42,23 +43,23 @@ public class TextFormatterTests extends ESTestCase {
         columns,
         List.of(
             new Page(
-                BytesRefBlock.newBlockBuilder(2)
+                blockFactory.newBytesRefBlockBuilder(2)
                     .appendBytesRef(new BytesRef("15charwidedata!"))
                     .appendBytesRef(new BytesRef("dog"))
                     .build(),
-                new LongArrayVector(new long[] { 1, 2 }, 2).asBlock(),
-                new DoubleArrayVector(new double[] { 6.888, 123124.888 }, 2).asBlock(),
-                Block.constantNullBlock(2),
-                new DoubleArrayVector(new double[] { 12, 9912 }, 2).asBlock(),
-                BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("rabbit")).appendBytesRef(new BytesRef("goat")).build(),
-                new LongArrayVector(
+                blockFactory.newLongArrayVector(new long[] { 1, 2 }, 2).asBlock(),
+                blockFactory.newDoubleArrayVector(new double[] { 6.888, 123124.888 }, 2).asBlock(),
+                blockFactory.newConstantNullBlock(2),
+                blockFactory.newDoubleArrayVector(new double[] { 12, 9912 }, 2).asBlock(),
+                blockFactory.newBytesRefBlockBuilder(2).appendBytesRef(new BytesRef("rabbit")).appendBytesRef(new BytesRef("goat")).build(),
+                blockFactory.newLongArrayVector(
                     new long[] {
                         UTC_DATE_TIME_FORMATTER.parseMillis("1953-09-02T00:00:00.000Z"),
                         UTC_DATE_TIME_FORMATTER.parseMillis("2000-03-15T21:34:37.443Z") },
                     2
                 ).asBlock(),
-                new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                Block.constantNullBlock(2)
+                blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
+                blockFactory.newConstantNullBlock(2)
             )
         ),
         null,
@@ -109,20 +110,26 @@ public class TextFormatterTests extends ESTestCase {
             columns,
             List.of(
                 new Page(
-                    BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("doggie")).appendBytesRef(new BytesRef("dog")).build(),
-                    new LongArrayVector(new long[] { 4, 2 }, 2).asBlock(),
-                    new DoubleArrayVector(new double[] { 1, 123124.888 }, 2).asBlock(),
-                    Block.constantNullBlock(2),
-                    new DoubleArrayVector(new double[] { 77.0, 9912.0 }, 2).asBlock(),
-                    BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("wombat")).appendBytesRef(new BytesRef("goat")).build(),
-                    new LongArrayVector(
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef("doggie"))
+                        .appendBytesRef(new BytesRef("dog"))
+                        .build(),
+                    blockFactory.newLongArrayVector(new long[] { 4, 2 }, 2).asBlock(),
+                    blockFactory.newDoubleArrayVector(new double[] { 1, 123124.888 }, 2).asBlock(),
+                    blockFactory.newConstantNullBlock(2),
+                    blockFactory.newDoubleArrayVector(new double[] { 77.0, 9912.0 }, 2).asBlock(),
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef("wombat"))
+                        .appendBytesRef(new BytesRef("goat"))
+                        .build(),
+                    blockFactory.newLongArrayVector(
                         new long[] {
                             UTC_DATE_TIME_FORMATTER.parseMillis("1955-01-21T01:02:03.342Z"),
                             UTC_DATE_TIME_FORMATTER.parseMillis("2231-12-31T23:59:59.999Z") },
                         2
                     ).asBlock(),
-                    new LongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
-                    Block.constantNullBlock(2)
+                    blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
+                    blockFactory.newConstantNullBlock(2)
                 )
             ),
             null,
@@ -159,7 +166,7 @@ public class TextFormatterTests extends ESTestCase {
                         List.of(new ColumnInfo("foo", "keyword")),
                         List.of(
                             new Page(
-                                BytesRefBlock.newBlockBuilder(2)
+                                blockFactory.newBytesRefBlockBuilder(2)
                                     .appendBytesRef(new BytesRef(smallFieldContent))
                                     .appendBytesRef(new BytesRef(largeFieldContent))
                                     .build()

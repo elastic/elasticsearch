@@ -2,7 +2,6 @@
 |===
 lhs | rhs | result
 date_period | date_period | date_period
-date_period | datetime | datetime
 datetime | date_period | datetime
 datetime | time_duration | datetime
 double | double | double

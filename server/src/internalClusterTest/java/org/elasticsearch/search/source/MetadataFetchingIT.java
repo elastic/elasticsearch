@@ -103,7 +103,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException exc = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch("test").setFetchSource(true).storedFields("_none_")
+                () -> prepareSearch("test").setFetchSource(true).storedFields("_none_").get()
             );
             Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
             assertNotNull(rootCause);
@@ -113,7 +113,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException exc = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch("test").storedFields("_none_").addFetchField("field")
+                () -> prepareSearch("test").storedFields("_none_").addFetchField("field").get()
             );
             Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
             assertNotNull(rootCause);
@@ -123,14 +123,14 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         {
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
-                () -> prepareSearch("test").storedFields("_none_", "field1")
+                () -> prepareSearch("test").storedFields("_none_", "field1").setVersion(true).get()
             );
             assertThat(exc.getMessage(), equalTo("cannot combine _none_ with other fields"));
         }
         {
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
-                () -> prepareSearch("test").storedFields("_none_").storedFields("field1")
+                () -> prepareSearch("test").storedFields("_none_").storedFields("field1").setVersion(true).get()
             );
             assertThat(exc.getMessage(), equalTo("cannot combine _none_ with other fields"));
         }

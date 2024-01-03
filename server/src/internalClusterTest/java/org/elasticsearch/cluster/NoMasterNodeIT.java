@@ -344,11 +344,14 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = client(randomFrom(nodesWithShards)).prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        expectThrows(Exception.class, client(partitionedNode).prepareGet("test1", "1"));
+        expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
 
         assertHitCount(client(randomFrom(nodesWithShards)).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
 
-        expectThrows(Exception.class, client(partitionedNode).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0));
+        expectThrows(
+            Exception.class,
+            () -> client(partitionedNode).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get()
+        );
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         client(randomFrom(nodesWithShards)).prepareUpdate("test1", "1")
@@ -358,7 +361,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         expectThrows(
             Exception.class,
-            client(partitionedNode).prepareUpdate("test1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout)
+            () -> client(partitionedNode).prepareUpdate("test1", "1")
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
+                .setTimeout(timeout)
+                .get()
         );
 
         client(randomFrom(nodesWithShards)).prepareIndex("test1")
@@ -370,27 +376,30 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         // dynamic mapping updates fail
         expectThrows(
             MasterNotDiscoveredException.class,
-            client(randomFrom(nodesWithShards)).prepareIndex("test1")
+            () -> client(randomFrom(nodesWithShards)).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("new_field", "value").endObject())
                 .setTimeout(timeout)
+                .get()
         );
 
         // dynamic index creation fails
         expectThrows(
             MasterNotDiscoveredException.class,
-            client(randomFrom(nodesWithShards)).prepareIndex("test2")
+            () -> client(randomFrom(nodesWithShards)).prepareIndex("test2")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
+                .get()
         );
 
         expectThrows(
             Exception.class,
-            client(partitionedNode).prepareIndex("test1")
+            () -> client(partitionedNode).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
+                .get()
         );
 
         internalCluster().clearDisruptionScheme(true);

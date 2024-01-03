@@ -97,7 +97,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         });
 
         assertThat(
-            expectThrows(SearchPhaseExecutionException.class, prepareSearch("test").setQuery(matchAllQuery())).getMessage(),
+            expectThrows(SearchPhaseExecutionException.class, () -> prepareSearch("test").setQuery(matchAllQuery()).get()).getMessage(),
             containsString("all shards failed")
         );
 

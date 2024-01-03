@@ -49,8 +49,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
         "ABORTED",
         "MISSING",
         "WAITING",
-        "QUEUED",
-        "PAUSED_FOR_NODE_REMOVAL" };
+        "QUEUED" };
 
     @Override
     protected ClusterSnapshotStats createTestInstance() {
@@ -371,9 +370,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                                 SnapshotsInProgress.ShardState.WAITING,
                                 0,
                                 SnapshotsInProgress.ShardState.QUEUED,
-                                1,
-                                SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
-                                0
+                                1
                             )
                         )
                     )
@@ -395,7 +392,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                                 new Snapshot("test-repo", new SnapshotId("snapshot", "uuid")),
                                 randomBoolean(),
                                 randomBoolean(),
-                                SnapshotsInProgress.State.STARTED,
+                                SnapshotsInProgress.State.INIT,
                                 Map.of("index", new IndexId("index", "uuid")),
                                 List.of(),
                                 List.of(),

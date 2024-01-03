@@ -1,5 +1,0 @@
-pr: 103546
-summary: Handle timeout on standalone rewrite calls
-area: Search
-type: bug
-issues: []

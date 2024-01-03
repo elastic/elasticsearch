@@ -68,7 +68,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
             final SnapshotMissingException e = expectThrows(
                 SnapshotMissingException.class,
-                startDeleteSnapshot("test-repo", "does-not-exist")
+                () -> startDeleteSnapshot("test-repo", "does-not-exist").actionGet()
             );
             assertThat(e.getMessage(), containsString("[test-repo:does-not-exist] is missing"));
             assertThat(startDeleteSnapshot("test-repo", "test-snapshot").actionGet().isAcknowledged(), is(true));
@@ -106,7 +106,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 // Failure when listing root blobs
                 final MockRepository mockRepository = getRepositoryOnMaster("test-repo");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
-                final Exception e = expectThrows(Exception.class, startDeleteSnapshot("test-repo", "test-snapshot"));
+                final Exception e = expectThrows(Exception.class, () -> startDeleteSnapshot("test-repo", "test-snapshot").actionGet());
                 assertThat(e.getCause().getMessage(), containsString("Random IOException"));
             } else {
                 // Failure when finalizing on index-N file
@@ -115,7 +115,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 deleteFuture = startDeleteSnapshot("test-repo", "test-snapshot");
                 waitForBlock(internalCluster().getMasterName(), "test-repo");
                 unblockNode("test-repo", internalCluster().getMasterName());
-                final Exception e = expectThrows(Exception.class, deleteFuture);
+                final Exception e = expectThrows(Exception.class, deleteFuture::actionGet);
                 assertThat(e.getCause().getMessage(), containsString("exception after block"));
             }
 

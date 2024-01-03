@@ -16,7 +16,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.util.List;
 
@@ -48,7 +48,7 @@ public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
         return channel -> client.execute(
             ExplainDataStreamLifecycleAction.INSTANCE,
             explainRequest,
-            new RestRefCountedChunkedToXContentListener<>(channel)
+            new RestChunkedToXContentListener<>(channel)
         );
     }
 

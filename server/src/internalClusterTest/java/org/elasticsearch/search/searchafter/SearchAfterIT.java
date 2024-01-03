@@ -69,10 +69,11 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch("test").addSort("field1", SortOrder.ASC)
+                () -> prepareSearch("test").addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 0 })
                     .setScroll("1m")
+                    .get()
             );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
@@ -83,7 +84,11 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch("test").addSort("field1", SortOrder.ASC).setQuery(matchAllQuery()).searchAfter(new Object[] { 0 }).setFrom(10)
+                () -> prepareSearch("test").addSort("field1", SortOrder.ASC)
+                    .setQuery(matchAllQuery())
+                    .searchAfter(new Object[] { 0 })
+                    .setFrom(10)
+                    .get()
             );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
@@ -94,7 +99,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch("test").setQuery(matchAllQuery()).searchAfter(new Object[] { 0.75f })
+                () -> prepareSearch("test").setQuery(matchAllQuery()).searchAfter(new Object[] { 0.75f }).get()
             );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
@@ -105,10 +110,11 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch("test").addSort("field2", SortOrder.DESC)
+                () -> prepareSearch("test").addSort("field2", SortOrder.DESC)
                     .addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 1 })
+                    .get()
             );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
@@ -119,7 +125,10 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch("test").setQuery(matchAllQuery()).addSort("field1", SortOrder.ASC).searchAfter(new Object[] { 1, 2 })
+                () -> prepareSearch("test").setQuery(matchAllQuery())
+                    .addSort("field1", SortOrder.ASC)
+                    .searchAfter(new Object[] { 1, 2 })
+                    .get()
             );
             for (ShardSearchFailure failure : e.shardFailures()) {
                 assertTrue(e.shardFailures().length > 0);
@@ -130,7 +139,10 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                prepareSearch("test").setQuery(matchAllQuery()).addSort("field1", SortOrder.ASC).searchAfter(new Object[] { "toto" })
+                () -> prepareSearch("test").setQuery(matchAllQuery())
+                    .addSort("field1", SortOrder.ASC)
+                    .searchAfter(new Object[] { "toto" })
+                    .get()
             );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {

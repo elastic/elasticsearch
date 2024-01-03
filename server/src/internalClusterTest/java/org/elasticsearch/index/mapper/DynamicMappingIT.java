@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -182,10 +184,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
             });
 
         masterBlockedLatch.await();
+        final IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar"));
         try {
             assertThat(
-                expectThrows(IllegalArgumentException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
-                    .getMessage(),
+                expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
         } finally {
@@ -217,8 +219,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
             });
 
         masterBlockedLatch.await();
+        final IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
-            Exception e = expectThrows(DocumentParsingException.class, prepareIndex("index").setId("2").setSource("field2", "value2"));
+            Exception e = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
             assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(
@@ -260,11 +263,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         {
             // introduction of a new object with 2 new sub-fields fails
-            Exception exc = expectThrows(
-                DocumentParsingException.class,
-                prepareIndex("index1").setId("1")
-                    .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"))
-            );
+            final IndexRequestBuilder indexRequestBuilder = prepareIndex("index1").setId("1")
+                .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
+            Exception exc = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(
@@ -500,7 +501,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")), 1);
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1")), 1);
 
-        Exception exception = expectThrows(DocumentParsingException.class, prepareIndex("test").setSource("obj.runtime", "value"));
+        Exception exception = expectThrows(
+            DocumentParsingException.class,
+            () -> prepareIndex("test").setSource("obj.runtime", "value").get()
+        );
         assertThat(
             exception.getMessage(),
             containsString("object mapping for [obj.runtime] tried to parse field [runtime] as object, but found a concrete value")
@@ -543,7 +547,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         // a doc with the same field but a different type causes a conflict
         Exception e = expectThrows(
             DocumentParsingException.class,
-            prepareIndex("test").setId("id").setSource("obj.runtime.dynamic.number", "string")
+            () -> prepareIndex("test").setId("id").setSource("obj.runtime.dynamic.number", "string").get()
         );
         assertThat(
             e.getMessage(),

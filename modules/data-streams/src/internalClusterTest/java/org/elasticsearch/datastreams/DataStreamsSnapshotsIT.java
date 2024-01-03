@@ -554,7 +554,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(
             SnapshotRestoreException.class,
-            client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds")
+            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds").get()
         );
 
         client.admin()
@@ -671,7 +671,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(
             SnapshotRestoreException.class,
-            client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds")
+            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds").get()
         );
 
         // delete data stream
@@ -708,7 +708,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(
             SnapshotRestoreException.class,
-            client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds")
+            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setIndices("ds").get()
         );
 
         // restore data stream attempting to rename the backing index
@@ -787,7 +787,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, status);
         expectThrows(
             Exception.class,
-            client.admin().cluster().prepareRestoreSnapshot(REPO, "snap2").setWaitForCompletion(true).setIndices("ds")
+            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, "snap2").setWaitForCompletion(true).setIndices("ds").get()
         );
     }
 
@@ -815,7 +815,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
         GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request(new String[] { "ds" });
-        expectThrows(ResourceNotFoundException.class, client.execute(GetDataStreamAction.INSTANCE, getRequest));
+        expectThrows(ResourceNotFoundException.class, () -> client.execute(GetDataStreamAction.INSTANCE, getRequest).actionGet());
     }
 
     public void testDataStreamNotIncludedInLimitedSnapshot() throws ExecutionException, InterruptedException {
@@ -957,7 +957,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         if (partial) {
             assertTrue(rolloverResponse.get().isRolledOver());
         } else {
-            SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class, rolloverResponse);
+            SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class, rolloverResponse::actionGet);
             assertThat(e.getMessage(), containsString("Cannot roll over data stream that is being snapshotted:"));
         }
         unblockAllDataNodes(repoName);
@@ -1065,7 +1065,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertAcked(client.execute(CreateDataStreamAction.INSTANCE, request).actionGet());
             var e = expectThrows(
                 IllegalStateException.class,
-                client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true)
+                () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
             );
             assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
         } finally {
@@ -1086,7 +1086,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         var e = expectThrows(
             IllegalStateException.class,
-            client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true)
+            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
         );
         assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
     }

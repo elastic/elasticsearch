@@ -8,8 +8,6 @@
 
 package org.elasticsearch.http;
 
-import io.netty.handler.codec.http.HttpMethod;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -20,7 +18,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -216,12 +213,22 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assert indices.length > 0;
 
         for (String index : indices) {
-            final var request = ESRestTestCase.newXContentRequest(HttpMethod.PUT, "/" + index, (builder, params) -> {
-                builder.startObject("settings").startObject("index");
-                builder.field("number_of_shards", 1).field("number_of_replicas", 2);
-                builder.startObject("routing").startObject("allocation").field("total_shards_per_node", 1).endObject().endObject();
-                return builder.endObject().endObject();
-            });
+            String indexSettings = """
+                {
+                  "settings": {
+                    "index": {
+                      "number_of_shards": 1,
+                      "number_of_replicas": 2,
+                      "routing": {
+                        "allocation": {
+                          "total_shards_per_node": 1
+                        }
+                      }
+                    }
+                  }
+                }""";
+            Request request = new Request("PUT", "/" + index);
+            request.setJsonEntity(indexSettings);
             assertOK(getRestClient().performRequest(request));
         }
         ensureGreen(indices);

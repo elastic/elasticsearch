@@ -153,8 +153,13 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     public void testSystemIndicesAutoCreateRejectedWhenNotHidden() {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         request.settings(Settings.builder().put(SETTING_INDEX_HIDDEN, false).build());
+        ExecutionException exception = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(AutoCreateAction.INSTANCE, request).get()
+        );
+
         assertThat(
-            expectThrows(IllegalStateException.class, client().execute(AutoCreateAction.INSTANCE, request)).getMessage(),
+            exception.getCause().getMessage(),
             containsString("Cannot auto-create system index [.unmanaged-system-idx] with [index.hidden] set to 'false'")
         );
     }

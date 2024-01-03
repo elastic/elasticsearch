@@ -8,16 +8,12 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.delete.TransportDeleteDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
-import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,9 +28,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -101,7 +95,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME);
 
-        final ListDanglingIndicesResponse response = executeListDanglingIndicesAction();
+        final ListDanglingIndicesResponse response = clusterAdmin().listDanglingIndices(new ListDanglingIndicesRequest()).actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
 
         final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
@@ -129,22 +123,27 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
-        importDanglingIndex(new ImportDanglingIndexRequest(danglingIndexUUID, true));
+        final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, true);
+        clusterAdmin().importDanglingIndex(request).get();
 
         assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME));
     }
 
     /**
-     * Check that when sending an import-dangling-indices request, the specified UUIDs are validated as being dangling.
+     * Check that the when sending an import-dangling-indices request, the specified UUIDs are validated as
+     * being dangling.
      */
     public void testDanglingIndicesMustExistToBeImported() {
         internalCluster().startNodes(1, buildSettings(0, true));
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest("NonExistentUUID", true);
-        assertThat(
-            expectThrows(ExecutionException.class, IllegalArgumentException.class, () -> importDanglingIndex(request)).getMessage(),
-            containsString("No dangling index found for UUID [NonExistentUUID]")
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterAdmin().importDanglingIndex(request).actionGet()
         );
+
+        assertThat(e.getMessage(), containsString("No dangling index found for UUID [NonExistentUUID]"));
     }
 
     /**
@@ -158,10 +157,9 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, false);
 
-        assertThat(
-            expectThrows(Exception.class, () -> importDanglingIndex(request)).getMessage(),
-            containsString("accept_data_loss must be set to true")
-        );
+        Exception e = expectThrows(Exception.class, () -> clusterAdmin().importDanglingIndex(request).actionGet());
+
+        assertThat(e.getMessage(), containsString("accept_data_loss must be set to true"));
     }
 
     /**
@@ -182,7 +180,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
         final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
-        deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, true));
+        clusterAdmin().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, true)).actionGet();
 
         // The dangling index that we deleted ought to have been removed from disk. Check by
         // creating and deleting another index, which creates a new tombstone entry, which should
@@ -233,7 +231,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         danglingIndices.set(results);
 
         // Try to delete the index - this request should succeed
-        deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndices.get().get(0).getIndexUUID(), true));
+        clusterAdmin().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndices.get().get(0).getIndexUUID(), true)).actionGet();
 
         // The dangling index that we deleted ought to have been removed from disk. Check by
         // creating and deleting another index, which creates a new tombstone entry, which should
@@ -254,16 +252,12 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
         final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
-        assertThat(
-            ExceptionsHelper.unwrapCause(
-                expectThrows(
-                    ExecutionException.class,
-                    Exception.class,
-                    () -> deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, false))
-                )
-            ).getMessage(),
-            containsString("accept_data_loss must be set to true")
+        Exception e = expectThrows(
+            Exception.class,
+            () -> clusterAdmin().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, false)).actionGet()
         );
+
+        assertThat(e.getMessage(), containsString("accept_data_loss must be set to true"));
     }
 
     /**
@@ -285,7 +279,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 safeAwait(startLatch);
                 while (isImporting.get()) {
                     try {
-                        importDanglingIndex(new ImportDanglingIndexRequest(danglingIndexUUID, true));
+                        clusterAdmin().importDanglingIndex(new ImportDanglingIndexRequest(danglingIndexUUID, true)).get();
                     } catch (Exception e) {
                         // failures are expected
                     }
@@ -331,8 +325,8 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     /**
      * Helper that fetches the current list of dangling indices.
      */
-    private static List<DanglingIndexInfo> listDanglingIndices() {
-        final ListDanglingIndicesResponse response = executeListDanglingIndicesAction();
+    private List<DanglingIndexInfo> listDanglingIndices() {
+        final ListDanglingIndicesResponse response = clusterAdmin().listDanglingIndices(new ListDanglingIndicesRequest()).actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
 
         final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();
@@ -344,30 +338,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         }
 
         return results;
-    }
-
-    private static ListDanglingIndicesResponse executeListDanglingIndicesAction() {
-        try {
-            return client().execute(TransportListDanglingIndicesAction.TYPE, new ListDanglingIndicesRequest()).get(10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            return fail(e);
-        }
-    }
-
-    private static void importDanglingIndex(ImportDanglingIndexRequest request) throws ExecutionException {
-        try {
-            client().execute(TransportImportDanglingIndexAction.TYPE, request).get(10, TimeUnit.SECONDS);
-        } catch (InterruptedException | TimeoutException ex) {
-            fail(ex);
-        }
-    }
-
-    private static void deleteDanglingIndex(DeleteDanglingIndexRequest request) throws ExecutionException {
-        try {
-            client().execute(TransportDeleteDanglingIndexAction.TYPE, request).get(10, TimeUnit.SECONDS);
-        } catch (InterruptedException | TimeoutException ex) {
-            fail(ex);
-        }
     }
 
     /**
@@ -420,7 +390,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     private String findDanglingIndexForNode(String stoppedNodeName, String indexName) {
         String danglingIndexUUID = null;
 
-        final ListDanglingIndicesResponse response = executeListDanglingIndicesAction();
+        final ListDanglingIndicesResponse response = clusterAdmin().listDanglingIndices(new ListDanglingIndicesRequest()).actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
 
         final List<NodeListDanglingIndicesResponse> nodeResponses = response.getNodes();

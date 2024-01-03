@@ -64,8 +64,13 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testSearchNullIndex() {
-        expectThrows(NullPointerException.class, () -> prepareSearch((String) null));
-        expectThrows(NullPointerException.class, () -> prepareSearch((String[]) null));
+        expectThrows(NullPointerException.class, () -> prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
+
+        expectThrows(
+            NullPointerException.class,
+            () -> prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get()
+        );
+
     }
 
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
@@ -472,7 +477,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         }
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", regexp.toString()))
+            () -> prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", regexp.toString())).get()
         );
         assertThat(
             e.getRootCause().getMessage(),
@@ -522,7 +527,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     private void assertWindowFails(SearchRequestBuilder search) {
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, search);
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> search.get());
         assertThat(
             e.toString(),
             containsString(
@@ -535,7 +540,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     private void assertRescoreWindowFails(int windowSize) {
         SearchRequestBuilder search = prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(windowSize));
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, search);
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> search.get());
         assertThat(
             e.toString(),
             containsString(

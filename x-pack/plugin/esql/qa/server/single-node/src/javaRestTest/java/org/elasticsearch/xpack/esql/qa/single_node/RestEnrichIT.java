@@ -7,20 +7,6 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
-import org.elasticsearch.test.TestClustersThreadFilter;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.RestEnrichTestCase;
-import org.junit.ClassRule;
 
-@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class RestEnrichIT extends RestEnrichTestCase {
-    @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-}
+public class RestEnrichIT extends RestEnrichTestCase {}

@@ -280,7 +280,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         });
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            prepareSearch().setPointInTime(new PointInTimeBuilder(pit))
+            () -> prepareSearch().setPointInTime(new PointInTimeBuilder(pit)).get()
         );
         for (ShardSearchFailure failure : e.shardFailures()) {
             assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(SearchContextMissingException.class));
@@ -323,7 +323,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             // Do not allow partial search result
             expectThrows(
                 ElasticsearchException.class,
-                prepareSearch().setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pit))
+                () -> prepareSearch().setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pit)).get()
             );
         } finally {
             closePointInTime(pit);
@@ -476,7 +476,10 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testCloseInvalidPointInTime() {
-        expectThrows(Exception.class, client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest("")));
+        expectThrows(
+            Exception.class,
+            () -> client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest("")).actionGet()
+        );
         List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(TransportClosePointInTimeAction.TYPE.name()).get().getTasks();
         assertThat(tasks, empty());
     }

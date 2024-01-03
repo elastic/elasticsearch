@@ -36,7 +36,6 @@ import java.util.Optional;
 
 public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContentObject, Releasable {
 
-    @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
 
     private final List<ColumnInfo> columns;

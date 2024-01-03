@@ -11,8 +11,9 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,12 +35,9 @@ public class RestGetFlamegraphAction extends BaseRestHandler {
         getStackTracesRequest.setAdjustSampleCount(true);
 
         return channel -> {
+            RestActionListener<GetFlamegraphResponse> listener = new RestChunkedToXContentListener<>(channel);
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(
-                GetFlamegraphAction.INSTANCE,
-                getStackTracesRequest,
-                new RestRefCountedChunkedToXContentListener<>(channel)
-            );
+            cancelClient.execute(GetFlamegraphAction.INSTANCE, getStackTracesRequest, listener);
         };
     }
 

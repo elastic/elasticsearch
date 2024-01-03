@@ -272,7 +272,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         TestRequest subRequest = generateTestRequest(nodes, 0, between(0, 1), false);
         beforeSendLatches.get(subRequest).countDown();
         mainAction.startSubTask(taskId, subRequest, future);
-        TaskCancelledException te = expectThrows(TaskCancelledException.class, future);
+        TaskCancelledException te = expectThrows(TaskCancelledException.class, future::actionGet);
         assertThat(te.getMessage(), equalTo("parent task was cancelled [by user request]"));
         allowEntireRequest(rootRequest);
         waitForRootTask(rootTaskFuture, false);

@@ -1388,9 +1388,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertEquals(SingleValueQuery.Builder.class, query.getClass());
-        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(WildcardQueryBuilder.class));
-        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) ((SingleValueQuery.Builder) query).next());
+        assertEquals(WildcardQueryBuilder.class, query.getClass());
+        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) query);
         assertEquals("first_name", wildcard.fieldName());
         assertEquals("*foo*", wildcard.value());
     }
@@ -1454,9 +1453,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertEquals(SingleValueQuery.Builder.class, query.getClass());
-        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(RegexpQueryBuilder.class));
-        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) ((SingleValueQuery.Builder) query).next());
+        assertEquals(RegexpQueryBuilder.class, query.getClass());
+        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) query);
         assertEquals("first_name", wildcard.fieldName());
         assertEquals(".*foo.*", wildcard.value());
     }
@@ -1477,9 +1475,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         QueryBuilder query = source.query();
         assertNotNull(query);
-        assertThat(query, instanceOf(SingleValueQuery.Builder.class));
-        assertThat(((SingleValueQuery.Builder) query).next(), instanceOf(BoolQueryBuilder.class));
-        var boolQuery = (BoolQueryBuilder) ((SingleValueQuery.Builder) query).next();
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
         List<QueryBuilder> mustNot = boolQuery.mustNot();
         assertThat(mustNot.size(), is(1));
         assertThat(mustNot.get(0), instanceOf(RegexpQueryBuilder.class));

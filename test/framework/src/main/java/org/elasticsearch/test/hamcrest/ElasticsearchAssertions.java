@@ -41,7 +41,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -179,7 +178,7 @@ public class ElasticsearchAssertions {
      * @param expectedBlockId the expected block id
      */
     public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
-        var e = ESTestCase.expectThrows(ClusterBlockException.class, builder);
+        var e = expectThrows(ClusterBlockException.class, builder::get);
         assertThat(e.blocks(), not(empty()));
         RestStatus status = checkRetryableBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
         assertThat(e.status(), equalTo(status));
@@ -685,6 +684,13 @@ public class ElasticsearchAssertions {
         assertThat(q.clauses(), hasSize(greaterThan(i)));
         assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
         return subqueryType.cast(q.clauses().get(i).getQuery());
+    }
+
+    /**
+     * Run the request from a given builder and check that it throws an exception of the right type
+     */
+    public static <E extends Throwable> void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass) {
+        assertFutureThrows(builder.execute(), exceptionClass);
     }
 
     /**

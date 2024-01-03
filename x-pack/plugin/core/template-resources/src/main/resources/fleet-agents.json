@@ -270,9 +270,6 @@
                 "download_percent": {
                   "type": "double"
                 },
-                "download_rate": {
-                  "type": "double"
-                },
                 "failed_state": {
                   "type": "keyword"
                 },
@@ -284,18 +281,6 @@
                       "ignore_above": 1024
                     }
                   }
-                },
-                "retry_error_msg": {
-                  "type": "text",
-                  "fields": {
-                    "keyword": {
-                      "type": "keyword",
-                      "ignore_above": 1024
-                    }
-                  }
-                },
-                "retry_until": {
-                  "type": "date"
                 }
               }
             }

@@ -19,6 +19,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -89,7 +90,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> indexing against [alias1], should fail now");
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            client().index(new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON))
+            () -> client().index(new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON)).actionGet()
         );
         assertThat(
             exception.getMessage(),
@@ -123,7 +124,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> indexing against [alias1], should fail now");
         exception = expectThrows(
             IllegalArgumentException.class,
-            client().index(new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON))
+            () -> client().index(new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON)).actionGet()
         );
         assertThat(
             exception.getMessage(),
@@ -135,7 +136,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
 
         logger.info("--> deleting against [alias1], should fail now");
-        exception = expectThrows(IllegalArgumentException.class, client().delete(new DeleteRequest("alias1").id("1")));
+        exception = expectThrows(IllegalArgumentException.class, () -> client().delete(new DeleteRequest("alias1").id("1")).actionGet());
         assertThat(
             exception.getMessage(),
             equalTo(
@@ -182,11 +183,17 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("test");
 
         // invalid filter, invalid json
-        Exception e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAliases().addAlias("test", "alias1", "abcde"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indicesAdmin().prepareAliases().addAlias("test", "alias1", "abcde").get()
+        );
         assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
 
         // valid json , invalid filter
-        e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAliases().addAlias("test", "alias1", "{ \"test\": {} }"));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indicesAdmin().prepareAliases().addAlias("test", "alias1", "{ \"test\": {} }").get()
+        );
         assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias1]"));
     }
 
@@ -217,7 +224,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> aliasing index [test] with [alias1] and empty filter");
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            indicesAdmin().prepareAliases().addAlias("test", "alias1", "{}")
+            () -> indicesAdmin().prepareAliases().addAlias("test", "alias1", "{}").get()
         );
         assertEquals("failed to parse filter for alias [alias1]", iae.getMessage());
     }
@@ -670,7 +677,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertFalse(indicesAdmin().prepareGetAliases("foo").setIndices("bar_bar").get().getAliases().isEmpty());
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo").alias("foo"))
+            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo").alias("foo")).get()
         );
         assertEquals(
             "The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
@@ -1083,7 +1090,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("week_20").alias("tmp"))
+            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("week_20").alias("tmp")).get()
         );
         assertEquals(
             "The provided expression [week_20] matches an alias, specify the corresponding concrete indices instead.",
@@ -1204,7 +1211,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
             assertAcked(indicesAdmin().prepareAliases().addAlias("bar_bar", "foo"));
         });
 
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAliases().removeIndex("foo"));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> indicesAdmin().prepareAliases().removeIndex("foo").get()
+        );
         assertEquals(
             "The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
             iae.getMessage()
@@ -1239,10 +1249,11 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias)));
 
-        IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
-        );
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
+            AcknowledgedResponse res = indicesAdmin().prepareAliases()
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
+                .get();
+        });
         logger.error("exception: {}", ex.getMessage());
         assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
 
@@ -1250,18 +1261,18 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(false)));
         expectThrows(
             IllegalStateException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true))
+            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true)).get()
         );
 
         assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index(index1).alias(alias)));
         assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true)));
         expectThrows(
             IllegalStateException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false))
+            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false)).get()
         );
         expectThrows(
             IllegalStateException.class,
-            indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias))
+            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias)).get()
         );
 
         // Both visible
@@ -1348,7 +1359,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final String indexName = "index-name";
         final IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            indicesAdmin().prepareCreate(indexName).addAlias(new Alias(indexName))
+            () -> indicesAdmin().prepareCreate(indexName).addAlias(new Alias(indexName)).get()
         );
         assertEquals("alias name [" + indexName + "] self-conflicts with index name", iae.getMessage());
     }

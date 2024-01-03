@@ -25,7 +25,7 @@ import java.util.EnumSet;
 import java.util.Map;
 
 /**
- * Request for {@link TransportIndicesShardStoresAction}
+ * Request for {@link IndicesShardStoresAction}
  */
 public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShardStoresRequest> implements IndicesRequest.Replaceable {
 

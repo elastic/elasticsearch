@@ -102,7 +102,10 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         indexingResult = indexDocs(rejectedRequests, between(1, 8));
         assertThat(indexingResult.numFailures, equalTo(rejectedRequests));
         assertThat(indexingResult.numSuccess, equalTo(0));
-        final IllegalArgumentException deleteError = expectThrows(IllegalArgumentException.class, client().prepareDelete("test", "any-id"));
+        final IllegalArgumentException deleteError = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareDelete("test", "any-id").get()
+        );
         assertThat(deleteError.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
         indicesAdmin().prepareRefresh("test").get();
         assertNoFailuresAndResponse(

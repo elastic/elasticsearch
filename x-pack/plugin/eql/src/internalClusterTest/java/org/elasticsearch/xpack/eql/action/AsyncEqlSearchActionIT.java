@@ -150,7 +150,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(response, notNullValue());
             assertThat(response.hits().events().size(), equalTo(1));
         } else {
-            Exception ex = expectThrows(Exception.class, future);
+            Exception ex = expectThrows(Exception.class, future::actionGet);
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
         AcknowledgedResponse deleteResponse = client().execute(

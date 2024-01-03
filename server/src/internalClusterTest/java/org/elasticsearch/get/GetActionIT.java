@@ -205,7 +205,10 @@ public class GetActionIT extends ESIntegTestCase {
         DocWriteResponse indexResponse = prepareIndex("index1").setId("id").setSource(Collections.singletonMap("foo", "bar")).get();
         assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, client().prepareGet("alias1", "_alias_id"));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareGet("alias1", "_alias_id").get()
+        );
         assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
     }
 
@@ -547,13 +550,13 @@ public class GetActionIT extends ESIntegTestCase {
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            client().prepareGet(indexOrAlias(), "1").setStoredFields("field1")
+            () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get()
         );
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
 
         flush();
 
-        exc = expectThrows(IllegalArgumentException.class, client().prepareGet(indexOrAlias(), "1").setStoredFields("field1"));
+        exc = expectThrows(IllegalArgumentException.class, () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get());
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
     }
 
@@ -819,7 +822,7 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetRemoteIndex() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, client().prepareGet("cluster:index", "id"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> client().prepareGet("cluster:index", "id").get());
         assertEquals(
             "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
             iae.getMessage()

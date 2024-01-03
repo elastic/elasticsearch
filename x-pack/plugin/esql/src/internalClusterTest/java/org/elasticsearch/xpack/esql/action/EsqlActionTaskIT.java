@@ -279,7 +279,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     }
 
     private void assertCancelled(ActionFuture<EsqlQueryResponse> response) throws Exception {
-        Exception e = expectThrows(Exception.class, response);
+        Exception e = expectThrows(Exception.class, response::actionGet);
         Throwable cancelException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
         assertNotNull(cancelException);
         /*

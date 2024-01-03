@@ -767,7 +767,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> snapshot");
         final SnapshotException sne = expectThrows(
             SnapshotException.class,
-            clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx")
+            () -> clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").get()
         );
         assertThat(sne.getMessage(), containsString("Indices don't have primary shards"));
         assertThat(getRepositoryData("test-repo"), is(RepositoryData.EMPTY));
@@ -1180,7 +1180,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // test that getting an unavailable snapshot status throws an exception if ignoreUnavailable is false on the request
         SnapshotMissingException ex = expectThrows(
             SnapshotMissingException.class,
-            client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist")
+            () -> client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist").get()
         );
         assertEquals("[test-repo:test-snap-doesnt-exist] is missing", ex.getMessage());
         // test that getting an unavailable snapshot status does not throw an exception if ignoreUnavailable is true on the request
@@ -1453,7 +1453,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             logger.info("--> try deleting the snapshot while the restore is in progress (should throw an error)");
             ConcurrentSnapshotExecutionException e = expectThrows(
                 ConcurrentSnapshotExecutionException.class,
-                clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName)
+                () -> clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get()
             );
             assertEquals(repoName, e.getRepositoryName());
             assertEquals(snapshotName, e.getSnapshotName());
@@ -1483,10 +1483,16 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createRepository("test-repo", "fs");
 
-        expectThrows(InvalidSnapshotNameException.class, client.admin().cluster().prepareCreateSnapshot("test-repo", "_foo"));
-        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("_foo"));
-        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareDeleteSnapshot("test-repo", "_foo"));
-        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("_foo"));
+        expectThrows(InvalidSnapshotNameException.class, () -> client.admin().cluster().prepareCreateSnapshot("test-repo", "_foo").get());
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("_foo").get()
+        );
+        expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareDeleteSnapshot("test-repo", "_foo").get());
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("_foo").get()
+        );
     }
 
     public void testListCorruptedSnapshot() throws Exception {
@@ -1532,7 +1538,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         final SnapshotException ex = expectThrows(
             SnapshotException.class,
-            client.admin().cluster().prepareGetSnapshots("test-repo").setIgnoreUnavailable(false)
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").setIgnoreUnavailable(false).get()
         );
         assertThat(ex.getRepositoryName(), equalTo("test-repo"));
         assertThat(ex.getSnapshotName(), equalTo("test-snap-2"));
@@ -1574,7 +1580,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         SnapshotException ex = expectThrows(
             SnapshotException.class,
-            clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName).setRestoreGlobalState(true).setWaitForCompletion(true)
+            () -> clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName).setRestoreGlobalState(true).setWaitForCompletion(true).get()
         );
         assertThat(ex.getRepositoryName(), equalTo(repoName));
         assertThat(ex.getSnapshotName(), equalTo(snapshotName));

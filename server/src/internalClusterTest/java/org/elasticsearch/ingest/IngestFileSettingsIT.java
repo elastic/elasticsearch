@@ -177,7 +177,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                 + "[[my_ingest_pipeline] set as read-only by [file_settings]]",
             expectThrows(
                 IllegalArgumentException.class,
-                client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline"))
+                () -> client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline")).actionGet()
             ).getMessage()
         );
     }

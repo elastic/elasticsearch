@@ -81,7 +81,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         // if we only query the remote we should get back an exception only
         ex = expectThrows(
             IllegalArgumentException.class,
-            client().prepareFieldCaps("remote_cluster:*").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            () -> client().prepareFieldCaps("remote_cluster:*").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder()).get()
         );
         assertEquals("I throw because I choose to.", ex.getMessage());
 

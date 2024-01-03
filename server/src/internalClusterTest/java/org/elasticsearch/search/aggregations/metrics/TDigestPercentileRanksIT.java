@@ -126,6 +126,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
             IllegalArgumentException.class,
             () -> prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.TDIGEST).field("value"))
+                .get()
         );
         assertThat(e.getMessage(), equalTo("[values] must not be null: [percentile_ranks]"));
     }
@@ -136,6 +137,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
             IllegalArgumentException.class,
             () -> prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.TDIGEST).field("value"))
+                .get()
         );
         assertThat(e.getMessage(), equalTo("[values] must not be an empty array: [percentile_ranks]"));
     }

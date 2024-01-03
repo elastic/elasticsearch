@@ -157,6 +157,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         bulk.get();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103746")
     public void testCancel() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = new EsqlQueryRequest();

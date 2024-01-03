@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -21,7 +20,6 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -120,14 +118,12 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103747")
     public void testProfile() {
         final int localOnlyProfiles;
-        // uses shard partitioning as segments can be merged during these queries
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("FROM logs* | stats sum(v)");
-            request.pragmas(pragmas);
             request.profile(true);
             try (EsqlQueryResponse resp = runQuery(request)) {
                 List<List<Object>> values = getValuesList(resp);
@@ -142,7 +138,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("FROM *:logs* | stats sum(v)");
-            request.pragmas(pragmas);
             request.profile(true);
             try (EsqlQueryResponse resp = runQuery(request)) {
                 List<List<Object>> values = getValuesList(resp);
@@ -157,7 +152,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("FROM logs*,*:logs* | stats total = sum(v)");
-            request.pragmas(pragmas);
             request.profile(true);
             try (EsqlQueryResponse resp = runQuery(request)) {
                 List<List<Object>> values = getValuesList(resp);

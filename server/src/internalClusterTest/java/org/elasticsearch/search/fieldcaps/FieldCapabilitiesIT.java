@@ -426,7 +426,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         // if all requested indices failed, we fail the request by throwing the exception
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            client().prepareFieldCaps("index1-error", "index2-error").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            () -> client().prepareFieldCaps("index1-error", "index2-error")
+                .setFields("*")
+                .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+                .get()
         );
         assertEquals("I throw because I choose to.", ex.getMessage());
     }
@@ -496,7 +499,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         {
             final ElasticsearchException ex = expectThrows(
                 ElasticsearchException.class,
-                client().prepareFieldCaps("log-index-*").setFields("*")
+                () -> client().prepareFieldCaps("log-index-*").setFields("*").get()
             );
             assertThat(ex.getMessage(), equalTo("index [log-index-inactive] has no active shard copy"));
         }

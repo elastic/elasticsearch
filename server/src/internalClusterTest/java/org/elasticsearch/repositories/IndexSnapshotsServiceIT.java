@@ -64,7 +64,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 );
             }
         } else {
-            expectThrows(RepositoryException.class, responseFuture);
+            expectThrows(RepositoryException.class, responseFuture::actionGet);
         }
 
         disableRepoConsistencyCheck("This test checks an empty repository");

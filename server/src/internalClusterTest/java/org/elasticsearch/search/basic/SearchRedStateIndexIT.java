@@ -81,7 +81,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException ex = expectThrows(
             SearchPhaseExecutionException.class,
-            prepareSearch().setSize(0).setAllowPartialSearchResults(false)
+            () -> prepareSearch().setSize(0).setAllowPartialSearchResults(false).get()
         );
         assertThat(ex.getDetailedMessage(), containsString("Search rejected due to missing shard"));
     }
@@ -90,7 +90,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         buildRedIndex(cluster().numDataNodes() + 2);
 
         setClusterDefaultAllowPartialResults(false);
-        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, prepareSearch().setSize(0));
+        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, () -> prepareSearch().setSize(0).get());
         assertThat(ex.getDetailedMessage(), containsString("Search rejected due to missing shard"));
     }
 

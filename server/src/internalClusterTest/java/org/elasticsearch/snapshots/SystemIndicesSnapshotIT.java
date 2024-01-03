@@ -312,9 +312,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String fakeFeatureStateName = "NonExistentTestPlugin";
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
-            clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setFeatureStates("SystemIndexTestPlugin", fakeFeatureStateName)
+                .get()
         );
 
         assertThat(
@@ -331,10 +332,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            () -> clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
                 .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
                 .setWaitForCompletion(true)
                 .setIncludeGlobalState(randomBoolean())
+                .get()
         );
         assertThat(
             error.getMessage(),
@@ -374,9 +376,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+                .get()
         );
         assertThat(
             ex.getMessage(),
@@ -608,10 +611,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // run a snapshot including global state
         IllegalArgumentException createEx = expectThrows(
             IllegalArgumentException.class,
-            clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            () -> clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setIncludeGlobalState(randomBoolean())
                 .setFeatureStates("SystemIndexTestPlugin", "none", "AnotherSystemIndexTestPlugin")
+                .get()
         );
         assertThat(
             createEx.getMessage(),
@@ -630,10 +634,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         SnapshotRestoreException restoreEx = expectThrows(
             SnapshotRestoreException.class,
-            clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setRestoreGlobalState(randomBoolean())
                 .setFeatureStates("SystemIndexTestPlugin", "none")
+                .get()
         );
         assertThat(
             restoreEx.getMessage(),

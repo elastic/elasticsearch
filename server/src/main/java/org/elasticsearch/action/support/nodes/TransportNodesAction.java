@@ -25,8 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -98,23 +96,6 @@ public abstract class TransportNodesAction<
 
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
-            {
-                addReleaseOnCancellationListener();
-            }
-
-            private void addReleaseOnCancellationListener() {
-                if (task instanceof CancellableTask cancellableTask) {
-                    cancellableTask.addListener(() -> {
-                        final List<NodeResponse> drainedResponses;
-                        synchronized (responses) {
-                            drainedResponses = List.copyOf(responses);
-                            responses.clear();
-                        }
-                        Releasables.wrap(Iterators.map(drainedResponses.iterator(), r -> r::decRef)).close();
-                    });
-                }
-            }
-
             @Override
             protected void sendItemRequest(DiscoveryNode discoveryNode, ActionListener<NodeResponse> listener) {
                 final var nodeRequest = newNodeRequest(request);
@@ -137,14 +118,9 @@ public abstract class TransportNodesAction<
 
             @Override
             protected void onItemResponse(DiscoveryNode discoveryNode, NodeResponse nodeResponse) {
-                nodeResponse.mustIncRef();
                 synchronized (responses) {
-                    if ((task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) == false) {
-                        responses.add(nodeResponse);
-                        return;
-                    }
+                    responses.add(nodeResponse);
                 }
-                nodeResponse.decRef();
             }
 
             @Override
@@ -158,11 +134,7 @@ public abstract class TransportNodesAction<
             @Override
             protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
-                return l -> {
-                    try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
-                        newResponseAsync(task, request, responses, exceptions, l);
-                    }
-                };
+                return l -> newResponseAsync(task, request, responses, exceptions, l);
             }
 
             @Override
@@ -182,11 +154,9 @@ public abstract class TransportNodesAction<
     }
 
     /**
-     * Create a new {@link NodesResponse}. This method is executed on {@link #finalExecutor}.
+     * Create a new {@link NodesResponse} (multi-node response).
      *
-     * @param request The request whose response we are constructing. {@link TransportNodesAction} may have already released all its
-     *                references to this object before calling this method, so it's up to individual implementations to retain their own
-     *                reference to the request if still needed here.
+     * @param request The associated request.
      * @param responses All successful node-level responses.
      * @param failures All node-level failures.
      * @return Never {@code null}.
@@ -196,11 +166,7 @@ public abstract class TransportNodesAction<
 
     /**
      * Create a new {@link NodesResponse}, possibly asynchronously. The default implementation is synchronous and calls
-     * {@link #newResponse(BaseNodesRequest, List, List)}. This method is executed on {@link #finalExecutor}.
-     *
-     * @param request The request whose response we are constructing. {@link TransportNodesAction} may have already released all its
-     *                references to this object before calling this method, so it's up to individual implementations to retain their own
-     *                reference to the request if still needed here.
+     * {@link #newResponse(BaseNodesRequest, List, List)}
      */
     protected void newResponseAsync(
         Task task,

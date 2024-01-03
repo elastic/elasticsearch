@@ -154,7 +154,9 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         expectThrows(
             IndexNotFoundException.class,
-            indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1001))
+            () -> indicesAdmin().prepareGetIndex()
+                .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1001))
+                .get()
         );
 
         if (destructiveRequiresName) {

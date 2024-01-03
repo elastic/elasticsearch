@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
-import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -275,37 +273,37 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         }
     }
 
-    private void reloadSecureSettings() {
+    private void reloadSecureSettings() throws InterruptedException {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
-
-        final var request = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
-        request.setSecureStorePassword(emptyPassword);
-        client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                try {
-                    assertThat(nodesReloadResponse, notNullValue());
-                    final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                    assertThat(nodesMap.size(), equalTo(1));
-                    for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                        assertThat(nodeResponse.reloadException(), nullValue());
+        clusterAdmin().prepareReloadSecureSettings()
+            .setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY)
+            .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(1));
+                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                            assertThat(nodeResponse.reloadException(), nullValue());
+                        }
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
+                        latch.countDown();
                     }
-                } catch (final AssertionError e) {
-                    reloadSettingsError.set(e);
-                } finally {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
                     latch.countDown();
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                reloadSettingsError.set(new AssertionError("Nodes request failed", e));
-                latch.countDown();
-            }
-        });
-        safeAwait(latch);
+            });
+        latch.await();
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();
         }

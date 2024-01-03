@@ -103,7 +103,10 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void expectMasterNotFound() {
-        expectThrows(MasterNotDiscoveredException.class, clusterAdmin().prepareState().setMasterNodeTimeout("100ms"));
+        expectThrows(
+            MasterNotDiscoveredException.class,
+            () -> clusterAdmin().prepareState().setMasterNodeTimeout("100ms").get().getState().nodes().getMasterNodeId()
+        );
     }
 
     public void testReadinessDuringRestarts() throws Exception {

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test.rest;
 
-import io.netty.handler.codec.http.HttpMethod;
-
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
@@ -17,8 +15,6 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
@@ -72,7 +68,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -112,7 +108,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -126,7 +121,6 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -316,7 +310,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
-            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
+            testFeatureService = createTestFeatureService(adminClient, semanticNodeVersions);
         }
 
         assert testFeatureService != null;
@@ -327,21 +321,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected static TestFeatureService createTestFeatureService(
-        Map<String, Set<String>> clusterStateFeatures,
-        Set<Version> semanticNodeVersions
-    ) {
+    protected static TestFeatureService createTestFeatureService(RestClient adminClient, Set<Version> semanticNodeVersions)
+        throws IOException {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
         var providers = hasHistoricalFeaturesInformation
             ? List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures())
             : List.of(new RestTestLegacyFeatures());
 
-        return new ESRestTestFeatureService(
+        return new TestFeatureService(
             hasHistoricalFeaturesInformation,
             providers,
             semanticNodeVersions,
-            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
+            ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures(adminClient).values())
         );
     }
 
@@ -1159,25 +1151,27 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static void wipeClusterSettings() throws IOException {
         Map<?, ?> getResponse = entityAsMap(adminClient().performRequest(new Request("GET", "/_cluster/settings")));
 
-        final var mustClear = new AtomicBoolean();
-        final var request = newXContentRequest(HttpMethod.PUT, "/_cluster/settings", (clearCommand, params) -> {
-            for (Map.Entry<?, ?> entry : getResponse.entrySet()) {
-                String type = entry.getKey().toString();
-                Map<?, ?> settings = (Map<?, ?>) entry.getValue();
-                if (settings.isEmpty()) {
-                    continue;
-                }
-                mustClear.set(true);
-                clearCommand.startObject(type);
-                for (Object key : settings.keySet()) {
-                    clearCommand.field(key + ".*").nullValue();
-                }
-                clearCommand.endObject();
+        boolean mustClear = false;
+        XContentBuilder clearCommand = JsonXContent.contentBuilder();
+        clearCommand.startObject();
+        for (Map.Entry<?, ?> entry : getResponse.entrySet()) {
+            String type = entry.getKey().toString();
+            Map<?, ?> settings = (Map<?, ?>) entry.getValue();
+            if (settings.isEmpty()) {
+                continue;
             }
-            return clearCommand;
-        });
+            mustClear = true;
+            clearCommand.startObject(type);
+            for (Object key : settings.keySet()) {
+                clearCommand.field(key + ".*").nullValue();
+            }
+            clearCommand.endObject();
+        }
+        clearCommand.endObject();
 
-        if (mustClear.get()) {
+        if (mustClear) {
+            Request request = new Request("PUT", "/_cluster/settings");
+
             request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
                 if (warnings.isEmpty()) {
                     return false;
@@ -1187,6 +1181,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                     return warnings.get(0).contains("xpack.monitoring") == false;
                 }
             }));
+
+            request.setJsonEntity(Strings.toString(clearCommand));
             adminClient().performRequest(request);
         }
     }
@@ -1584,12 +1580,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Updates the cluster with the provided settings (as persistent settings)
      **/
     public static void updateClusterSettings(RestClient client, Settings settings) throws IOException {
-        final var request = newXContentRequest(HttpMethod.PUT, "/_cluster/settings", (builder, params) -> {
-            builder.startObject("persistent");
-            settings.toXContent(builder, params);
-            return builder.endObject();
-        });
-        assertOK(client.performRequest(request));
+        Request request = new Request("PUT", "/_cluster/settings");
+        String entity = "{ \"persistent\":" + Strings.toString(settings) + "}";
+        request.setJsonEntity(entity);
+        Response response = client.performRequest(request);
+        assertOK(response);
     }
 
     /**
@@ -1688,41 +1683,33 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
         throws IOException {
-
-        final Request request = newXContentRequest(HttpMethod.PUT, "/" + name, (builder, params) -> {
-            if (settings != null) {
-                builder.startObject("settings");
-                settings.toXContent(builder, params);
-                builder.endObject();
+        Request request = new Request("PUT", "/" + name);
+        String entity = "{";
+        if (settings != null) {
+            entity += "\"settings\": " + Strings.toString(settings);
+            if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
+                expectSoftDeletesWarning(request, name);
             }
-
-            if (mapping != null) {
-                try (
-                    var mappingParser = XContentType.JSON.xContent()
-                        .createParser(XContentParserConfiguration.EMPTY, mapping.trim().startsWith("{") ? mapping : '{' + mapping + '}')
-                ) {
-                    builder.field("mappings");
-                    builder.copyCurrentStructure(mappingParser);
-                }
-            }
-
-            if (aliases != null) {
-                try (
-                    var aliasesParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, '{' + aliases + '}')
-                ) {
-                    builder.field("aliases");
-                    builder.copyCurrentStructure(aliasesParser);
-                }
-            }
-
-            return builder;
-        });
-
-        if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            expectSoftDeletesWarning(request, name);
         }
-
-        final Response response = client.performRequest(request);
+        if (mapping != null) {
+            if (settings != null) {
+                entity += ",";
+            }
+            if (mapping.trim().startsWith("{")) {
+                entity += "\"mappings\" : " + mapping + "";
+            } else {
+                entity += "\"mappings\" : {" + mapping + "}";
+            }
+        }
+        if (aliases != null) {
+            if (settings != null || mapping != null) {
+                entity += ",";
+            }
+            entity += "\"aliases\": {" + aliases + "}";
+        }
+        entity += "}";
+        request.setJsonEntity(entity);
+        Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
             return CreateIndexResponse.fromXContent(parser);
         }
@@ -1745,8 +1732,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static void updateIndexSettings(String index, Settings settings) throws IOException {
-        final var request = newXContentRequest(HttpMethod.PUT, "/" + index + "/_settings", settings);
-        assertOK(client.performRequest(request));
+        Request request = new Request("PUT", "/" + index + "/_settings");
+        request.setJsonEntity(Strings.toString(settings));
+        client().performRequest(request);
     }
 
     protected static void expectSoftDeletesWarning(Request request, String indexName) throws IOException {
@@ -1770,11 +1758,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         request.addParameter("flat_settings", "true");
         Response response = client().performRequest(request);
         try (InputStream is = response.getEntity().getContent()) {
-            return XContentHelper.convertToMap(
-                XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
-                is,
-                true
-            );
+            return XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
     }
 
@@ -1864,11 +1848,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     public static XContentParser responseAsParser(Response response) throws IOException {
-        return XContentHelper.createParser(
-            XContentParserConfiguration.EMPTY,
-            responseAsBytes(response),
-            XContentType.fromMediaType(response.getEntity().getContentType().getValue())
-        );
+        return XContentHelper.createParser(XContentParserConfiguration.EMPTY, responseAsBytes(response), XContentType.JSON);
     }
 
     protected static BytesReference responseAsBytes(Response response) throws IOException {
@@ -1881,13 +1861,9 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void registerRepository(RestClient restClient, String repository, String type, boolean verify, Settings settings)
         throws IOException {
-
-        final Request request = newXContentRequest(
-            HttpMethod.PUT,
-            "/_snapshot/" + repository,
-            new PutRepositoryRequest(repository).type(type).settings(settings)
-        );
+        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
         request.addParameter("verify", Boolean.toString(verify));
+        request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
 
         final Response response = restClient.performRequest(request);
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
@@ -2118,7 +2094,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    protected static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
+    private static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
         final Request request = new Request("GET", "_cluster/state");
         request.addParameter("filter_path", "nodes_features");
 
@@ -2211,7 +2187,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return fallbackSupplier.get();
     }
 
-    public static Optional<Version> parseLegacyVersion(String version) {
+    protected static Optional<Version> parseLegacyVersion(String version) {
         var semanticVersionMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
         if (semanticVersionMatcher.matches()) {
             return Optional.of(Version.fromString(semanticVersionMatcher.group(1)));
@@ -2314,11 +2290,15 @@ public abstract class ESRestTestCase extends ESTestCase {
             request.addParameter("filters", fieldFilters);
         }
         if (indexFilter != null) {
-            addXContentBody(request, (body, params) -> body.field("index_filter", indexFilter));
+            XContentBuilder body = JsonXContent.contentBuilder();
+            body.startObject();
+            body.field("index_filter", indexFilter);
+            body.endObject();
+            request.setJsonEntity(Strings.toString(body));
         }
         Response response = restClient.performRequest(request);
         assertOK(response);
-        try (XContentParser parser = responseAsParser(response)) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);
         }
     }
@@ -2373,23 +2353,5 @@ public abstract class ESRestTestCase extends ESTestCase {
             IGNORE_RESPONSE_CODES_PARAM,
             Arrays.stream(restStatuses).map(restStatus -> Integer.toString(restStatus.getStatus())).collect(Collectors.joining(","))
         );
-    }
-
-    public static void addXContentBody(Request request, ToXContent body) throws IOException {
-        final var xContentType = randomFrom(XContentType.values());
-        final var bodyBytes = XContentHelper.toXContent(body, xContentType, EMPTY_PARAMS, randomBoolean());
-        request.setEntity(
-            new InputStreamEntity(
-                bodyBytes.streamInput(),
-                bodyBytes.length(),
-                ContentType.create(xContentType.mediaTypeWithoutParameters())
-            )
-        );
-    }
-
-    public static Request newXContentRequest(HttpMethod method, String endpoint, ToXContent body) throws IOException {
-        final var request = new Request(method.name(), endpoint);
-        addXContentBody(request, body);
-        return request;
     }
 }

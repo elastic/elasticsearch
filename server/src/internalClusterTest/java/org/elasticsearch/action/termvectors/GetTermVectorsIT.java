@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -419,7 +420,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             for (TestConfig test : testConfigs) {
                 TermVectorsRequestBuilder request = getRequestForConfig(test);
                 if (test.expectedException != null) {
-                    expectThrows(test.expectedException, request);
+                    assertRequestBuilderThrows(request, test.expectedException);
                     continue;
                 }
 

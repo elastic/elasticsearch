@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.shards;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.Failure;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus;
@@ -63,8 +62,6 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     IndicesShardStoresRequest,
     IndicesShardStoresResponse> {
 
-    public static final ActionType<IndicesShardStoresResponse> TYPE = ActionType.localOnly("indices:monitor/shard_stores");
-
     private static final Logger logger = LogManager.getLogger(TransportIndicesShardStoresAction.class);
 
     private final NodeClient client;
@@ -79,7 +76,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         NodeClient client
     ) {
         super(
-            TYPE.name(),
+            IndicesShardStoresAction.NAME,
             transportService,
             clusterService,
             threadPool,

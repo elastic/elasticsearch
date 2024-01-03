@@ -8,19 +8,13 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -44,7 +38,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,10 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSerializationTestCase<Custom> {
 
-    public static final ClusterState CLUSTER_STATE_FOR_NODE_SHUTDOWNS = ClusterState.builder(ClusterName.DEFAULT)
-        .putCompatibilityVersions("local", new CompatibilityVersions(TransportVersion.current(), Map.of()))
-        .build();
-
     @Override
     protected Custom createTestInstance() {
         int numberOfSnapshots = randomInt(10);
@@ -64,37 +53,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         for (int i = 0; i < numberOfSnapshots; i++) {
             snapshotsInProgress = snapshotsInProgress.withAddedEntry(randomSnapshot());
         }
-
-        final var nodeIdsForRemoval = randomList(3, ESTestCase::randomUUID);
-        if (nodeIdsForRemoval.isEmpty() == false) {
-            snapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(
-                getClusterStateWithNodeShutdownMetadata(nodeIdsForRemoval)
-            );
-        }
-
         return snapshotsInProgress;
-    }
-
-    private ClusterState getClusterStateWithNodeShutdownMetadata(List<String> nodeIdsForRemoval) {
-        return CLUSTER_STATE_FOR_NODE_SHUTDOWNS.copyAndUpdateMetadata(
-            mdb -> mdb.putCustom(
-                NodesShutdownMetadata.TYPE,
-                new NodesShutdownMetadata(
-                    nodeIdsForRemoval.stream()
-                        .collect(
-                            Collectors.toMap(
-                                Function.identity(),
-                                nodeId -> SingleNodeShutdownMetadata.builder()
-                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                                    .setNodeId(nodeId)
-                                    .setStartedAtMillis(randomNonNegativeLong())
-                                    .setReason(getTestName())
-                                    .build()
-                            )
-                        )
-                )
-            )
-        );
     }
 
     private Entry randomSnapshot() {
@@ -211,30 +170,20 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     @Override
     protected Custom mutateInstance(Custom instance) {
         final SnapshotsInProgress snapshotsInProgress = (SnapshotsInProgress) instance;
-        if (randomBoolean()) {
-            if (snapshotsInProgress.isEmpty()) {
-                // add an entry
-                return snapshotsInProgress.withAddedEntry(randomSnapshot());
-            } else {
-                // mutate or remove an entry
-                final String repo = randomFrom(
-                    snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::repository).collect(Collectors.toSet())
-                );
-                final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
-                int index = randomIntBetween(0, forRepo.size() - 1);
-                Entry entry = forRepo.get(index);
-                final List<Entry> updatedEntries = new ArrayList<>(forRepo);
-                if (randomBoolean()) {
-                    updatedEntries.set(index, mutateEntry(entry));
-                } else {
-                    updatedEntries.remove(index);
-                }
-                return snapshotsInProgress.withUpdatedEntriesForRepo(repo, updatedEntries);
-            }
+        if (snapshotsInProgress.isEmpty()) {
+            // add or remove an entry
+            return snapshotsInProgress.withAddedEntry(randomSnapshot());
         } else {
-            return snapshotsInProgress.withUpdatedNodeIdsForRemoval(
-                getClusterStateWithNodeShutdownMetadata(randomList(1, 3, ESTestCase::randomUUID))
+            // mutate an entry
+            final String repo = randomFrom(
+                snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::repository).collect(Collectors.toSet())
             );
+            final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
+            int index = randomIntBetween(0, forRepo.size() - 1);
+            Entry entry = forRepo.get(index);
+            final List<Entry> updatedEntries = new ArrayList<>(forRepo);
+            updatedEntries.set(index, mutateEntry(entry));
+            return snapshotsInProgress.withUpdatedEntriesForRepo(repo, updatedEntries);
         }
     }
 
@@ -465,27 +414,9 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 null,
                 IndexVersion.current()
             )
-        )
-            .withUpdatedNodeIdsForRemoval(
-                CLUSTER_STATE_FOR_NODE_SHUTDOWNS.copyAndUpdateMetadata(
-                    b -> b.putCustom(
-                        NodesShutdownMetadata.TYPE,
-                        new NodesShutdownMetadata(
-                            Map.of(
-                                "node-id",
-                                SingleNodeShutdownMetadata.builder()
-                                    .setNodeId("node-id")
-                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                                    .setStartedAtMillis(randomNonNegativeLong())
-                                    .setReason("test")
-                                    .build()
-                            )
-                        )
-                    )
-                )
-            );
+        );
 
-        AbstractChunkedSerializingTestCase.assertChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 5));
+        AbstractChunkedSerializingTestCase.assertChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 2));
         final var json = Strings.toString(sip, false, true);
         assertThat(
             json,
@@ -536,8 +467,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                           "feature_states": [],
                           "data_streams": []
                         }
-                      ],
-                      "node_ids_for_removal":["node-id"]
+                      ]
                     }""")),
                 // or the shards might be in the other order:
                 equalTo(XContentHelper.stripWhitespace("""
@@ -586,8 +516,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                           "feature_states": [],
                           "data_streams": []
                         }
-                      ],
-                      "node_ids_for_removal":["node-id"]
+                      ]
                     }"""))
             )
         );
@@ -603,6 +532,6 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             .allMatch(st -> st.completed() || st == ShardState.ABORTED)) {
             return State.ABORTED;
         }
-        return State.STARTED;
+        return randomFrom(State.STARTED, State.INIT);
     }
 }

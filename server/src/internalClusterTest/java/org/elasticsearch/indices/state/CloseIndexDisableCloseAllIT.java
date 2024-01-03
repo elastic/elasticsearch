@@ -37,7 +37,7 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            indicesAdmin().prepareClose("test_no_close")
+            () -> indicesAdmin().prepareClose("test_no_close").get()
         );
         assertEquals(
             illegalStateException.getMessage(),

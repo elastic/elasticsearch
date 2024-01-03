@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -49,6 +48,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -92,7 +92,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot));
+        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot).get());
     }
 
     public void testConcurrentlyChangeRepositoryContents() throws Exception {
@@ -162,7 +162,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot));
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
+        );
     }
 
     public void testFindDanglingLatestGeneration() throws Exception {
@@ -229,7 +232,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 2));
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot));
+        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots(repoName).addSnapshots(snapshot).get());
     }
 
     public void testHandlingMissingRootLevelSnapshotMetadata() throws Exception {
@@ -575,7 +578,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> make sure snapshot doesn't exist");
 
-        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"));
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get()
+        );
 
         for (String index : indices) {
             assertTrue(Files.notExists(indicesPath.resolve(indexIds.get(index).getId())));
@@ -612,7 +618,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"));
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get()
+        );
     }
 
     public void testDeleteSnapshotWithCorruptedSnapshotFile() throws Exception {
@@ -653,7 +662,10 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"));
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().getSnapshots()
+        );
 
         logger.info("--> make sure that we can create the snapshot again");
         createSnapshotResponse = client.admin()
@@ -711,9 +723,11 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotStatusResponse.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("test-snap"));
 
         assertAcked(startDeleteSnapshot("test-repo", "test-snap").get());
-        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap"));
-        ActionRequestBuilder<?, ?> builder = clusterAdmin().prepareSnapshotStatus("test-repo").addSnapshots("test-snap");
-        expectThrows(SnapshotMissingException.class, builder);
+        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get());
+        assertRequestBuilderThrows(
+            clusterAdmin().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
+            SnapshotMissingException.class
+        );
 
         createFullSnapshot("test-repo", "test-snap");
     }
@@ -783,14 +797,14 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> try to delete snapshot");
         final RepositoryException ex = expectThrows(
             RepositoryException.class,
-            clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot)
+            () -> clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot).get()
         );
         assertThat(ex.getMessage(), containsString("concurrent modification of the index-N file"));
 
         logger.info("--> try to create snapshot");
         final RepositoryException ex2 = expectThrows(
             RepositoryException.class,
-            clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot)
+            () -> clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot).get()
         );
         assertThat(ex2.getMessage(), containsString("The repository has been disabled to prevent data corruption"));
 

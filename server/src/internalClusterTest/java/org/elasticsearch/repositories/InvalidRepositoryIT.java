@@ -106,7 +106,7 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
         // verification should fail with some node has InvalidRepository
         final var expectedException = expectThrows(
             RepositoryVerificationException.class,
-            clusterAdmin().prepareVerifyRepository(repositoryName)
+            () -> clusterAdmin().prepareVerifyRepository(repositoryName).get()
         );
         for (Throwable suppressed : expectedException.getSuppressed()) {
             Throwable outerCause = suppressed.getCause();

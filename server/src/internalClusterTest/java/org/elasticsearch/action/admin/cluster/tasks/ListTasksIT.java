@@ -56,7 +56,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
 
         ActionRequestValidationException ex = expectThrows(
             ActionRequestValidationException.class,
-            clusterAdmin().prepareListTasks().setDescriptions("*")
+            () -> clusterAdmin().prepareListTasks().setDescriptions("*").get()
         );
         assertThat(ex.getMessage(), containsString("matching on descriptions is not available when [detailed] is false"));
 

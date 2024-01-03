@@ -435,7 +435,7 @@ g:keyword  | l:integer
  null      | 5
 ;
 
-repetitiveAggregation#[skip:-8.11.99,reason:ReplaceDuplicateAggWithEval breaks bwc]
+repetitiveAggregation
 from employees | stats m1 = max(salary), m2 = min(salary), m3 = min(salary), m4 = max(salary);
 
 m1:i | m2:i | m3:i | m4:i

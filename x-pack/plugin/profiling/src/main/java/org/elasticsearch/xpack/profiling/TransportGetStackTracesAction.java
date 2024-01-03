@@ -537,8 +537,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         }
 
         public void onHostsResponse(SearchResponse searchResponse) {
-            SearchHit[] hits = searchResponse.getHits().getHits();
-            for (SearchHit hit : hits) {
+            for (SearchHit hit : searchResponse.getHits()) {
                 HostMetadata host = HostMetadata.fromSource(hit.getSourceAsMap());
                 hostMetadata.put(host.hostID, host);
             }

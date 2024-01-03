@@ -1935,13 +1935,12 @@ public class JobResultsProvider {
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
                 List<Calendar> calendars = new ArrayList<>();
-                SearchHit[] hits = response.getHits().getHits();
                 try {
-                    if (queryBuilder.isForAllCalendars() == false && hits.length == 0) {
+                    if (queryBuilder.isForAllCalendars() == false && response.getHits().getHits().length == 0) {
                         listener.onFailure(queryBuilder.buildNotFoundException());
                         return;
                     }
-                    for (SearchHit hit : hits) {
+                    for (SearchHit hit : response.getHits()) {
                         calendars.add(MlParserUtils.parse(hit, Calendar.LENIENT_PARSER).build());
                     }
                     listener.onResponse(new QueryPage<>(calendars, response.getHits().getTotalHits().value, Calendar.RESULTS_FIELD));

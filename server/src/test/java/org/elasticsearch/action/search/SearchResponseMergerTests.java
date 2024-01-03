@@ -331,7 +331,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchProfileResults profile = SearchProfileResultsTests.createTestItem();
                 expectedProfile.putAll(profile.getShardResults());
                 SearchResponse searchResponse = new SearchResponse(
-                    SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN, null, null, null),
+                    SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                     null,
                     null,
                     false,
@@ -409,7 +409,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
                 SearchResponse searchResponse = new SearchResponse(
-                    SearchHits.unpooled(SearchHits.EMPTY, null, Float.NaN, null, null, null),
+                    SearchHits.unpooled(SearchHits.EMPTY, null, Float.NaN),
                     null,
                     suggest,
                     false,
@@ -495,7 +495,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 suggestions.add(completionSuggestion);
                 Suggest suggest = new Suggest(suggestions);
                 SearchResponse searchResponse = new SearchResponse(
-                    SearchHits.unpooled(SearchHits.EMPTY, null, Float.NaN, null, null, null),
+                    SearchHits.unpooled(SearchHits.EMPTY, null, Float.NaN),
                     null,
                     suggest,
                     false,
@@ -564,7 +564,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        SearchHits searchHits = SearchHits.unpooled(SearchHits.EMPTY, null, Float.NaN, null, null, null);
+        SearchHits searchHits = SearchHits.unpooled(SearchHits.EMPTY, null, Float.NaN);
         try (
             SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
                 0,
@@ -645,7 +645,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
                 InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));
                 SearchResponse searchResponse = new SearchResponse(
-                    SearchHits.unpooled(SearchHits.EMPTY, null, Float.NaN, null, null, null),
+                    SearchHits.unpooled(SearchHits.EMPTY, null, Float.NaN),
                     aggs,
                     null,
                     false,
@@ -978,7 +978,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             }
             {
                 SearchResponse searchResponse = new SearchResponse(
-                    SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN, null, null, null),
+                    SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                     null,
                     null,
                     false,
@@ -1034,7 +1034,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     expectedTotalHits = new TotalHits(Math.min(previousValue + totalHits.value, trackTotalHitsUpTo), totalHitsRelation);
                 }
                 SearchResponse searchResponse = new SearchResponse(
-                    SearchHits.unpooled(new SearchHit[0], totalHits, Float.NaN, null, null, null),
+                    SearchHits.unpooled(new SearchHit[0], totalHits, Float.NaN),
                     null,
                     null,
                     false,

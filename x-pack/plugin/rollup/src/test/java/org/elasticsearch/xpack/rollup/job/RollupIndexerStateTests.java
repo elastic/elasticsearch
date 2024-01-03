@@ -108,7 +108,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             ActionListener.respondAndRelease(
                 nextPhase,
                 new SearchResponse(
-                    new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                    SearchHits.EMPTY_WITH_TOTAL_HITS,
                     aggs,
                     null,
                     false,
@@ -699,7 +699,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             return new SearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,
                 false,
@@ -829,7 +829,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             return new SearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,
                 false,
@@ -1008,7 +1008,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             return new SearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,
                 false,

@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -251,8 +252,8 @@ public class DataFrameDataExtractor {
             return null;
         }
 
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        List<Row> rows = new ArrayList<>(hits.length);
+        SearchHits hits = searchResponse.getHits();
+        List<Row> rows = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
             if (isCancelled) {
                 hasNext = false;

@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -327,8 +328,8 @@ public class DataFrameAnalyticsConfigProvider {
             new DelegatingActionListener<SearchResponse, List<DataFrameAnalyticsConfig>>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    SearchHit[] hits = searchResponse.getHits().getHits();
-                    List<DataFrameAnalyticsConfig> configs = new ArrayList<>(hits.length);
+                    SearchHits hits = searchResponse.getHits();
+                    List<DataFrameAnalyticsConfig> configs = new ArrayList<>(hits.getHits().length);
                     for (SearchHit hit : hits) {
                         BytesReference sourceBytes = hit.getSourceRef();
                         try (

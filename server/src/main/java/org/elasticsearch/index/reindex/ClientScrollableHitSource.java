@@ -144,8 +144,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         } else {
             hits = new ArrayList<>(response.getHits().getHits().length);
             for (SearchHit hit : response.getHits().getHits()) {
-                // TODO: used pooled hits here
-                hits.add(new ClientHit(hit.asUnpooled()));
+                hits.add(new ClientHit(hit));
             }
             hits = unmodifiableList(hits);
         }

@@ -227,9 +227,7 @@ public class DatafeedConfigProvider {
                 Set<String> datafeedIds = new HashSet<>();
                 // There cannot be more than one datafeed per job
                 assert response.getHits().getTotalHits().value <= jobIds.size();
-                SearchHit[] hits = response.getHits().getHits();
-
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits().getHits()) {
                     datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
                 }
 
@@ -441,8 +439,7 @@ public class DatafeedConfigProvider {
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
                 SortedSet<String> datafeedIds = new TreeSet<>();
-                SearchHit[] hits = response.getHits().getHits();
-                for (SearchHit hit : hits) {
+                for (SearchHit hit : response.getHits().getHits()) {
                     datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
                 }
                 if (allowMissingConfigs) {

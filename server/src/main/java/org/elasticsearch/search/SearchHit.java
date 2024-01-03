@@ -459,6 +459,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
      * {@code _source} or if source is disabled in the mapping.
      */
     public boolean hasSource() {
+        assert hasReferences();
         return source != null;
     }
 
@@ -466,6 +467,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
      * The source of the document as string (can be {@code null}).
      */
     public String getSourceAsString() {
+        assert hasReferences();
         if (source == null) {
             return null;
         }
@@ -496,6 +498,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
      * The hit field matching the given field name.
      */
     public DocumentField field(String fieldName) {
+        assert hasReferences();
         DocumentField result = documentFields.get(fieldName);
         if (result != null) {
             return result;
@@ -686,6 +689,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Poolable<Se
      * @return Inner hits or <code>null</code> if there are none
      */
     public Map<String, SearchHits> getInnerHits() {
+        assert hasReferences();
         return innerHits;
     }
 

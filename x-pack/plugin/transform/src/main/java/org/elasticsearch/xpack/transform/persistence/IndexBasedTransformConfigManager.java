@@ -390,7 +390,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     resultListener.onResponse(TransformCheckpoint.EMPTY);
                     return;
                 }
-                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+                BytesReference source = searchResponse.getHits().getAt(0).getSourceRef();
                 parseCheckpointsLenientlyFromSource(source, transformId, resultListener);
             }, resultListener::onFailure)
         );
@@ -767,7 +767,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     }
                     return;
                 }
-                SearchHit searchHit = searchResponse.getHits().getHits()[0];
+                SearchHit searchHit = searchResponse.getHits().getAt(0);
                 BytesReference source = searchHit.getSourceRef();
                 try (
                     InputStream stream = source.streamInput();

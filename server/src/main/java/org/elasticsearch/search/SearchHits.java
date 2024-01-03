@@ -70,6 +70,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             @Override
             protected void closeInternal() {
                 for (int i = 0; i < hits.length; i++) {
+                    assert hits[i] != null;
                     hits[i].decRef();
                     hits[i] = null;
                 }

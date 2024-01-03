@@ -1,6 +1,6 @@
 steps:
-  - label: "debug-saml-tests-{{matrix}}"
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed :x-pack:qa:saml-idp-tests:cleanJavaRestTest :x-pack:qa:saml-idp-tests:javaRestTest  --no-build-cache
+  - label: "debug-saml-tests-checkPart2-{{matrix}}"
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2  --no-build-cache
     timeout_in_minutes: 300
     matrix:
       - "1"

@@ -6,6 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name 'counted-keyword'
@@ -17,6 +18,14 @@ base {
   archivesName = 'x-pack-counted-keyword'
 }
 
+restResources {
+  restApi {
+    include '_common', 'indices.create', 'bulk', 'search'
+  }
+}
+
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  // for YAML REST tests
+  clusterPlugins project(':x-pack:plugin:mapper-counted-keyword')
 }

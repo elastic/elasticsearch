@@ -372,11 +372,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // Step 3: Collect all the data streams that need to be rolled over before writing
         Set<String> dataStreamsToBeRolledOver = indices.keySet().stream().filter(target -> {
             DataStream dataStream = state.metadata().dataStreams().get(target);
-            if (dataStream != null) {
-                return dataStream.rolloverOnWrite();
-            } else {
-                return false;
-            }
+            return dataStream != null && dataStream.rolloverOnWrite();
         }).collect(Collectors.toSet());
 
         // Step 4: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
@@ -437,21 +433,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                     }
                 }, refs.acquire()));
-                for (String dataStream : dataStreamsToBeRolledOver) {
-                    rolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+            }
+            for (String dataStream : dataStreamsToBeRolledOver) {
+                rolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
 
-                        @Override
-                        public void onResponse(RolloverResponse result) {
-                            assert result.isRolledOver()
-                                : "An successful unconditional rollover should always result in a rolled over data stream";
-                        }
+                    @Override
+                    public void onResponse(RolloverResponse result) {
+                        assert result.isRolledOver()
+                            : "An successful unconditional rollover should always result in a rolled over data stream";
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            failRequestsWhenPrerequisiteActionFailed(dataStream, bulkRequest, responses, e);
-                        }
-                    }, refs.acquire()));
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        failRequestsWhenPrerequisiteActionFailed(dataStream, bulkRequest, responses, e);
+                    }
+                }, refs.acquire()));
             }
         }
     }

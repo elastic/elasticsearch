@@ -50,6 +50,23 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
+        checkInvariants();
+    }
+
+    private void checkInvariants() {
+        if (firstValueIndexes != null) {
+            assert firstValueIndexes.length == getPositionCount() + 1;
+            assert firstValueIndexes[getPositionCount()] <= vector.getPositionCount();
+            for (int i = 0; i < getPositionCount(); i++) {
+                assert (firstValueIndexes[i + 1] - firstValueIndexes[i]) >= 0;
+            }
+        }
+        if (firstValueIndexes != null && nullsMask != null) {
+            for (int i = 0; i < getPositionCount(); i++) {
+                // Either we have multi-values or a null but never both.
+                assert ((nullsMask.get(i) == false) || (firstValueIndexes[i + 1] - firstValueIndexes[i]) == 1);
+            }
+        }
     }
 
     @Override

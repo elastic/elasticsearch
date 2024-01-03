@@ -79,7 +79,6 @@ public class HotThreadsIT extends ESIntegTestCase {
                             hasErrors.set(true);
                         }
                         latch.countDown();
-                        nodeHotThreads.decRef();
                     }
                 }
 
@@ -128,16 +127,12 @@ public class HotThreadsIT extends ESIntegTestCase {
                     TransportNodesHotThreadsAction.TYPE,
                     new NodesHotThreadsRequest().ignoreIdleThreads(false).threads(Integer.MAX_VALUE),
                     l.map(response -> {
-                        try {
-                            int length = 0;
-                            for (NodeHotThreads node : response.getNodesMap().values()) {
-                                length += node.getHotThreads().length();
-                                assertThat(node.getHotThreads(), containsCachedTimeThreadRunMethod);
-                            }
-                            return length;
-                        } finally {
-                            response.decRef();
+                        int length = 0;
+                        for (NodeHotThreads node : response.getNodesMap().values()) {
+                            length += node.getHotThreads().length();
+                            assertThat(node.getHotThreads(), containsCachedTimeThreadRunMethod);
                         }
+                        return length;
                     })
                 )
             )
@@ -149,16 +144,12 @@ public class HotThreadsIT extends ESIntegTestCase {
         assertTrue(request.ignoreIdleThreads());
         final var totSizeIgnoreIdle = safeAwait(
             SubscribableListener.<Integer>newForked(l -> client().execute(TransportNodesHotThreadsAction.TYPE, request, l.map(response -> {
-                try {
-                    int length = 0;
-                    for (NodeHotThreads node : response.getNodesMap().values()) {
-                        length += node.getHotThreads().length();
-                        assertThat(node.getHotThreads(), not(containsCachedTimeThreadRunMethod));
-                    }
-                    return length;
-                } finally {
-                    response.decRef();
+                int length = 0;
+                for (NodeHotThreads node : response.getNodesMap().values()) {
+                    length += node.getHotThreads().length();
+                    assertThat(node.getHotThreads(), not(containsCachedTimeThreadRunMethod));
                 }
+                return length;
             })))
         );
 
@@ -170,28 +161,24 @@ public class HotThreadsIT extends ESIntegTestCase {
         safeAwait(
             SubscribableListener.<Void>newForked(
                 l -> client().execute(TransportNodesHotThreadsAction.TYPE, new NodesHotThreadsRequest(), l.map(response -> {
-                    try {
-                        if (Constants.FREE_BSD) {
-                            for (NodeHotThreads node : response.getNodesMap().values()) {
-                                assertThat(node.getHotThreads(), containsString("hot_threads is not supported"));
-                            }
-                        } else {
-                            for (NodeHotThreads node : response.getNodesMap().values()) {
-                                assertThat(
-                                    node.getHotThreads(),
-                                    allOf(
-                                        containsString("Hot threads at"),
-                                        containsString("interval=500ms"),
-                                        containsString("busiestThreads=3"),
-                                        containsString("ignoreIdleThreads=true")
-                                    )
-                                );
-                            }
+                    if (Constants.FREE_BSD) {
+                        for (NodeHotThreads node : response.getNodesMap().values()) {
+                            assertThat(node.getHotThreads(), containsString("hot_threads is not supported"));
                         }
-                        return null;
-                    } finally {
-                        response.decRef();
+                    } else {
+                        for (NodeHotThreads node : response.getNodesMap().values()) {
+                            assertThat(
+                                node.getHotThreads(),
+                                allOf(
+                                    containsString("Hot threads at"),
+                                    containsString("interval=500ms"),
+                                    containsString("busiestThreads=3"),
+                                    containsString("ignoreIdleThreads=true")
+                                )
+                            );
+                        }
                     }
+                    return null;
                 }))
             )
         );

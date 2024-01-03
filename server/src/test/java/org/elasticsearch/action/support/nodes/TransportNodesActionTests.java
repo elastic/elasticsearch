@@ -37,6 +37,7 @@ import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
@@ -125,6 +126,7 @@ public class TransportNodesActionTests extends ESTestCase {
         final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
         action.execute(null, new TestNodesRequest(), listener.delegateFailure((l, response) -> {
             assertTrue(response.getNodes().stream().allMatch(TestNodeResponse::hasReferences));
+            assertTrue(response.hasReferences());
             l.onResponse(response);
         }));
         assertFalse(listener.isDone());
@@ -152,12 +154,14 @@ public class TransportNodesActionTests extends ESTestCase {
 
         final var allResponsesReleasedListener = new SubscribableListener<Void>();
         try (var listeners = new RefCountingListener(allResponsesReleasedListener)) {
+            response.addCloseListener(listeners.acquire());
             for (final var nodeResponse : response.getNodes()) {
                 nodeResponse.addCloseListener(listeners.acquire());
             }
         }
         safeAwait(allResponsesReleasedListener);
         assertTrue(response.getNodes().stream().noneMatch(TestNodeResponse::hasReferences));
+        assertFalse(response.hasReferences());
 
         for (TestNodeResponse nodeResponse : response.getNodes()) {
             assertThat(successfulNodes, Matchers.hasItem(nodeResponse.getNode()));
@@ -407,6 +411,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static class TestNodesResponse extends BaseNodesResponse<TestNodeResponse> {
 
+        private final SubscribableListener<Void> onClose = new SubscribableListener<>();
+        private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> onClose.onResponse(null)));
+
         TestNodesResponse(ClusterName clusterName, List<TestNodeResponse> nodeResponses, List<FailedNodeException> failures) {
             super(clusterName, nodeResponses, failures);
         }
@@ -419,6 +426,30 @@ public class TransportNodesActionTests extends ESTestCase {
         @Override
         protected void writeNodesTo(StreamOutput out, List<TestNodeResponse> nodes) throws IOException {
             out.writeCollection(nodes);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
+
+        void addCloseListener(ActionListener<Void> listener) {
+            onClose.addListener(listener);
         }
     }
 
@@ -455,7 +486,7 @@ public class TransportNodesActionTests extends ESTestCase {
     private static class TestNodeResponse extends BaseNodeResponse {
 
         private final SubscribableListener<Void> onClose = new SubscribableListener<>();
-        private final RefCounted refCounted = AbstractRefCounted.of(() -> onClose.onResponse(null));
+        private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> onClose.onResponse(null)));
 
         TestNodeResponse() {
             this(mock(DiscoveryNode.class));

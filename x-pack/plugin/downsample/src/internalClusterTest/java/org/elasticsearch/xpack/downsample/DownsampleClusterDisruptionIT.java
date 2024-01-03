@@ -430,7 +430,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         assertAcked(
             internalCluster().client()
                 .execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
-                .actionGet(TIMEOUT.millis())
+                .actionGet(TIMEOUT)
         );
     }
 

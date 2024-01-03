@@ -49,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -400,11 +401,12 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var searchRequest = new SearchRequest("pattern-*");
             searchRequest.setPreFilterShardSize(1);
             searchRequest.source(matchingRange);
-            var searchResponse = client().search(searchRequest).actionGet();
-            ElasticsearchAssertions.assertHitCount(searchResponse, 2);
-            assertThat(searchResponse.getTotalShards(), equalTo(2));
-            assertThat(searchResponse.getSkippedShards(), equalTo(0));
-            assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+            assertResponse(client().search(searchRequest), searchResponse -> {
+                ElasticsearchAssertions.assertHitCount(searchResponse, 2);
+                assertThat(searchResponse.getTotalShards(), equalTo(2));
+                assertThat(searchResponse.getSkippedShards(), equalTo(0));
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+            });
         }
         {
             var nonMatchingRange = new SearchSourceBuilder().query(
@@ -414,11 +416,12 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var searchRequest = new SearchRequest("pattern-*");
             searchRequest.setPreFilterShardSize(1);
             searchRequest.source(nonMatchingRange);
-            var searchResponse = client().search(searchRequest).actionGet();
-            ElasticsearchAssertions.assertNoSearchHits(searchResponse);
-            assertThat(searchResponse.getTotalShards(), equalTo(2));
-            assertThat(searchResponse.getSkippedShards(), equalTo(1));
-            assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+            assertResponse(client().search(searchRequest), searchResponse -> {
+                ElasticsearchAssertions.assertNoSearchHits(searchResponse);
+                assertThat(searchResponse.getTotalShards(), equalTo(2));
+                assertThat(searchResponse.getSkippedShards(), equalTo(1));
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
+            });
         }
     }
 
@@ -537,17 +540,19 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         );
 
         // Check the search api can synthesize _id
+        final String idxName = indexName;
         var searchRequest = new SearchRequest(dataStreamName);
         searchRequest.source().trackTotalHits(true);
-        var searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
-        String id = searchResponse.getHits().getHits()[0].getId();
-        assertThat(id, notNullValue());
+        assertResponse(client().search(searchRequest), searchResponse -> {
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
+            String id = searchResponse.getHits().getHits()[0].getId();
+            assertThat(id, notNullValue());
 
-        // Check that the _id is gettable:
-        var getResponse = client().get(new GetRequest(indexName).id(id)).actionGet();
-        assertThat(getResponse.isExists(), is(true));
-        assertThat(getResponse.getId(), equalTo(id));
+            // Check that the _id is gettable:
+            var getResponse = client().get(new GetRequest(idxName).id(id)).actionGet();
+            assertThat(getResponse.isExists(), is(true));
+            assertThat(getResponse.getId(), equalTo(id));
+        });
     }
 
     static String formatInstant(Instant instant) {

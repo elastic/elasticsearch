@@ -409,7 +409,7 @@ public class TasksIT extends ESIntegTestCase {
         headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().filterWithHeader(headers).admin().cluster().prepareListTasks().get()
+            client().filterWithHeader(headers).admin().cluster().prepareListTasks()
         );
         assertThat(ex.getMessage(), startsWith("Request exceeded the maximum size of task headers "));
     }
@@ -509,7 +509,7 @@ public class TasksIT extends ESIntegTestCase {
         CancelTasksResponse cancelTasksResponse = clusterAdmin().prepareCancelTasks().setActions(TEST_TASK_ACTION.name()).get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
-        expectThrows(TaskCancelledException.class, future::actionGet);
+        expectThrows(TaskCancelledException.class, future);
 
         logger.info("--> checking that test tasks are not running");
         assertEquals(0, clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").get().getTasks().size());
@@ -643,7 +643,7 @@ public class TasksIT extends ESIntegTestCase {
         waitForTimeoutTestCase(id -> {
             Exception e = expectThrows(
                 Exception.class,
-                () -> clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).setTimeout(timeValueMillis(100)).get()
+                clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).setTimeout(timeValueMillis(100))
             );
             return singleton(e);
         });

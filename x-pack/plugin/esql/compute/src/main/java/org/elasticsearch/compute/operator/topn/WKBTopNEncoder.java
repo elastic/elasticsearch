@@ -40,7 +40,7 @@ final class WKBTopNEncoder extends UnsortableTopNEncoder {
 
     @Override
     public TopNEncoder toSortable() {
-        throw new UnsupportedOperationException("Cannot sort spatial types");
+        return this;
     }
 
     @Override

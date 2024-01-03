@@ -59,8 +59,7 @@ public class SkipSection {
         }
 
         public void withXPack(boolean xpackRequired) {
-            if (xpackRequired && xpackRequested == XPackRequested.NO ||
-                xpackRequired == false && xpackRequested == XPackRequested.YES) {
+            if (xpackRequired && xpackRequested == XPackRequested.NO || xpackRequired == false && xpackRequested == XPackRequested.YES) {
                 xpackRequested = XPackRequested.MISMATCHED;
             } else {
                 xpackRequested = xpackRequired ? XPackRequested.YES : XPackRequested.NO;
@@ -73,8 +72,10 @@ public class SkipSection {
         }
 
         void validate(XContentLocation contentLocation) {
-            if ((Strings.hasLength(version) == false) && testFeatures.isEmpty() && operatingSystems.isEmpty() &&
-                xpackRequested == XPackRequested.NOT_SPECIFIED) {
+            if ((Strings.hasLength(version) == false)
+                && testFeatures.isEmpty()
+                && operatingSystems.isEmpty()
+                && xpackRequested == XPackRequested.NOT_SPECIFIED) {
                 throw new ParsingException(
                     contentLocation,
                     "at least one criteria (version, test features, os) is mandatory within a skip section"

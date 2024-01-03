@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.yaml.YamlXContent;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -43,10 +44,10 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         );
 
         var outOfRangeMockContext = mock(ClientYamlTestExecutionContext.class);
-        when(outOfRangeMockContext.esVersion()).thenReturn(Version.CURRENT)
-            .thenReturn(Version.fromString("6.2.0"))
-            .thenReturn(Version.fromString("7.0.0"))
-            .thenReturn(Version.fromString("7.6.0"));
+        when(outOfRangeMockContext.nodesVersions()).thenReturn(Set.of(Version.CURRENT.toString()))
+            .thenReturn(Set.of("6.2.0"))
+            .thenReturn(Set.of("7.0.0"))
+            .thenReturn(Set.of("7.6.0"));
 
         assertFalse(section.skip(outOfRangeMockContext));
         assertFalse(section.skip(outOfRangeMockContext));
@@ -54,10 +55,10 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         assertFalse(section.skip(outOfRangeMockContext));
 
         var inRangeMockContext = mock(ClientYamlTestExecutionContext.class);
-        when(inRangeMockContext.esVersion()).thenReturn(Version.fromString("6.0.0"))
-            .thenReturn(Version.fromString("6.1.0"))
-            .thenReturn(Version.fromString("7.1.0"))
-            .thenReturn(Version.fromString("7.5.0"));
+        when(inRangeMockContext.nodesVersions()).thenReturn(Set.of("6.0.0"))
+            .thenReturn(Set.of("6.1.0"))
+            .thenReturn(Set.of("7.1.0"))
+            .thenReturn(Set.of("7.5.0"));
 
         assertTrue(section.skip(inRangeMockContext));
         assertTrue(section.skip(inRangeMockContext));
@@ -73,18 +74,18 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         );
 
         var outOfRangeMockContext = mock(ClientYamlTestExecutionContext.class);
-        when(outOfRangeMockContext.esVersion()).thenReturn(Version.CURRENT)
-            .thenReturn(Version.fromString("7.0.1"))
-            .thenReturn(Version.fromString("7.6.0"));
+        when(outOfRangeMockContext.nodesVersions()).thenReturn(Set.of("7.1.1")).thenReturn(Set.of("7.6.0"));
 
         assertFalse(section.skip(outOfRangeMockContext));
         assertFalse(section.skip(outOfRangeMockContext));
 
         var inRangeMockContext = mock(ClientYamlTestExecutionContext.class);
-        when(inRangeMockContext.esVersion()).thenReturn(Version.fromString("7.0.0"))
-            .thenReturn(Version.fromString("7.3.0"))
-            .thenReturn(Version.fromString("8.0.0"));
+        when(inRangeMockContext.nodesVersions()).thenReturn(Set.of("7.0.0"))
+            .thenReturn(Set.of("7.3.0"))
+            .thenReturn(Set.of("8.0.0"))
+            .thenReturn(Set.of(Version.CURRENT.toString()));
 
+        assertTrue(section.skip(inRangeMockContext));
         assertTrue(section.skip(inRangeMockContext));
         assertTrue(section.skip(inRangeMockContext));
         assertTrue(section.skip(inRangeMockContext));
@@ -94,10 +95,15 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         SkipSection section = new SkipSection(List.of(SkipCriteria.fromVersionRange("6.0.0 - 6.1.0")), Collections.emptyList(), "foobar");
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
-        when(mockContext.esVersion()).thenReturn(Version.CURRENT).thenReturn(Version.fromString("6.0.0"));
+        when(mockContext.nodesVersions()).thenReturn(Set.of(Version.CURRENT.toString()))
+            .thenReturn(Set.of("6.0.0"))
+            .thenReturn(Set.of("6.0.0", "6.1.0"))
+            .thenReturn(Set.of("6.0.0", "5.2.0"));
 
         assertFalse(section.skip(mockContext));
         assertTrue(section.skip(mockContext));
+        assertTrue(section.skip(mockContext));
+        assertFalse(section.skip(mockContext));
     }
 
     public void testSkipVersionWithTestFeatures() {
@@ -108,7 +114,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         );
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
-        when(mockContext.esVersion()).thenReturn(Version.CURRENT).thenReturn(Version.fromString("6.0.0"));
+        when(mockContext.nodesVersions()).thenReturn(Set.of(Version.CURRENT.toString())).thenReturn(Set.of("6.0.0"));
 
         assertFalse(section.skip(mockContext));
         assertTrue(section.skip(mockContext));

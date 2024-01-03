@@ -8,10 +8,13 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -27,7 +30,18 @@ public class SkipCriteria {
         return new Predicate<>() {
             @Override
             public boolean test(ClientYamlTestExecutionContext context) {
-                return versionRanges.stream().anyMatch(range -> range.contains(context.esVersion()));
+                // Try to extract the minimum node version. Assume CURRENT if nodes have non-semantic versions
+                // TODO: push this logic down to VersionRange.
+                // This way will have version parsing only when we actually have to skip on a version, we can remove the default and throw
+                // IllegalArgumentException instead (attempting to skip on version where version is not semantic)
+                var oldestNodeVersion = context.nodesVersions()
+                    .stream()
+                    .map(ESRestTestCase::parseLegacyVersion)
+                    .flatMap(Optional::stream)
+                    .min(VersionId::compareTo)
+                    .orElse(Version.CURRENT);
+
+                return versionRanges.stream().anyMatch(range -> range.contains(oldestNodeVersion));
             }
 
             @Override

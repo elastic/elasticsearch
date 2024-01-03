@@ -81,6 +81,9 @@ public class ObjectMapper extends Mapper {
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
         private final Set<String> subMapperNames = new HashSet<>(); // keeps track of dynamically added subfields
+        // caches the ObjectMapper instance created by build()
+        // Without the cache, we run into the risk of increased runtime complexity due to the recursive nature of the build() method.
+        private ObjectMapper objectMapperCache;
 
         public Builder(String name, Explicit<Boolean> subobjects) {
             super(name);
@@ -89,17 +92,20 @@ public class ObjectMapper extends Mapper {
 
         public Builder enabled(boolean enabled) {
             this.enabled = Explicit.explicitBoolean(enabled);
+            clearObjectMapperCache();
             return this;
         }
 
         public Builder dynamic(Dynamic dynamic) {
             this.dynamic = dynamic;
+            clearObjectMapperCache();
             return this;
         }
 
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
             subMapperNames.add(builder.name);
+            clearObjectMapperCache();
             return this;
         }
 
@@ -176,7 +182,10 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
-            return new ObjectMapper(
+            if (objectMapperCache != null) {
+                return objectMapperCache;
+            }
+            objectMapperCache = new ObjectMapper(
                 name,
                 context.buildFullName(name),
                 enabled,
@@ -184,6 +193,11 @@ public class ObjectMapper extends Mapper {
                 dynamic,
                 buildMappers(context.createChildContext(name))
             );
+            return objectMapperCache;
+        }
+
+        private void clearObjectMapperCache() {
+            objectMapperCache = null;
         }
     }
 

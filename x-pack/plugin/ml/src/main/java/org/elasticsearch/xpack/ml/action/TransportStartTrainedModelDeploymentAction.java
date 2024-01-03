@@ -297,11 +297,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ActionListener<GetInferenceModelAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
             if (getInferenceModelResponse.getModels().isEmpty() == false) {
                 listener.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        "Model IDs must be unique. Requested model ID [{}] matches existing model IDs [{}], but must not.",
-                        request.getModelId(),
-                        getInferenceModelResponse.getModels()
-                    )
+                    ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
                 );
                 return;
             } else {

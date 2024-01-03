@@ -16,8 +16,15 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import java.util.Map;
 
 public class RestFeatures implements FeatureSpecification {
+    public static final NodeFeature SUPPORTS_VENDOR_XCONTENT_TYPES = new NodeFeature("rest.supports_vendor_xcontent_types");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(RestClusterGetSettingsAction.SUPPORTS_GET_SETTINGS_ACTION, Version.V_8_3_0);
+        return Map.of(
+            RestClusterGetSettingsAction.SUPPORTS_GET_SETTINGS_ACTION,
+            Version.V_8_3_0,
+            SUPPORTS_VENDOR_XCONTENT_TYPES,
+            Version.V_7_10_0 // support was added in #63071
+        );
     }
 }

@@ -68,6 +68,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.rest.RestFeatures;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -2375,12 +2376,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
     }
 
-    @UpdateForV9 // remove this once we're not running REST tests against ancient 7.x versions any more
-    private static final Version VND_CONTENT_TYPES_SUPPORTED = Version.V_7_10_0; // support was added in #63071
-
     private static XContentType randomSupportedContentType() {
-        final var oldClusterVersionString = System.getProperty("tests.old_cluster_version");
-        return oldClusterVersionString == null || Version.fromString(oldClusterVersionString).onOrAfter(VND_CONTENT_TYPES_SUPPORTED)
+        return clusterHasFeature(RestFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES)
             ? randomFrom(XContentType.values())
             : randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE);
     }

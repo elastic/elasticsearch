@@ -97,6 +97,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
+    /**
+     * Configuration for a field to load.
+     *
+     * {@code blockLoader} maps shard index to the {@link BlockLoader}s
+     * which load the actual blocks.
+     */
+    public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
+
     public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader) {}
 
     private final FieldWork[] fields;
@@ -106,13 +114,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
 
-    /**
-     * Configuration for a field to load.
-     *
-     * {@code blockLoader} maps shard index to the {@link BlockLoader}s
-     * which load the actual blocks.
-     */
-    public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
+    int lastShard = -1;
+    int lastSegment = -1;
 
     /**
      * Creates a new extractor
@@ -157,10 +160,51 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         return page.appendBlocks(blocks);
     }
 
+    private void positionFieldWork(int shard, int segment, int firstDoc) {
+        if (lastShard == shard) {
+            if (lastSegment == segment) {
+                for (FieldWork w : fields) {
+                    w.sameSegment(firstDoc);
+                }
+                return;
+            }
+            lastSegment = segment;
+            for (FieldWork w : fields) {
+                w.sameShardNewSegment();
+            }
+            return;
+        }
+        lastShard = shard;
+        lastSegment = segment;
+        for (FieldWork w : fields) {
+            w.newShard(shard);
+        }
+    }
+
+    private boolean positionFieldWorkDocGuarteedAscending(int shard, int segment) {
+        if (lastShard == shard) {
+            if (lastSegment == segment) {
+                return false;
+            }
+            lastSegment = segment;
+            for (FieldWork w : fields) {
+                w.sameShardNewSegment();
+            }
+            return true;
+        }
+        lastShard = shard;
+        lastSegment = segment;
+        for (FieldWork w : fields) {
+            w.newShard(shard);
+        }
+        return true;
+    }
+
     private void loadFromSingleLeaf(Block[] blocks, DocVector docVector) throws IOException {
         int shard = docVector.shards().getInt(0);
         int segment = docVector.segments().getInt(0);
         int firstDoc = docVector.docs().getInt(0);
+        positionFieldWork(shard, segment, firstDoc);
         IntVector docs = docVector.docs();
         BlockLoader.Docs loaderDocs = new BlockLoader.Docs() {
             @Override
@@ -180,7 +224,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         try {
             for (int f = 0; f < fields.length; f++) {
                 FieldWork field = fields[f];
-                field.moveTo(shard, segment, firstDoc);
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (columnAtATime != null) {
                     blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, loaderDocs);
@@ -213,7 +256,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 trackStoredFields(storedFieldsSpec, false);
             }
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                // TODO enable the optimization by passing non-null to docs if correct
                 storedFieldLoader.getLoader(ctx, null),
                 storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
             );
@@ -271,27 +313,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 builders[f] = fields[f].info.type.newBlockBuilder(docs.getPositionCount(), blockFactory);
             }
             int p = forwards[0];
-            int lastShard = shards.getInt(p);
-            int lastSegment = segments.getInt(p);
+            int shard = shards.getInt(p);
+            int segment = segments.getInt(p);
             int firstDoc = docs.getInt(p);
-            LeafReaderContext ctx = ctx(lastShard, lastSegment);
-            for (FieldWork field : fields) {
-                field.moveTo(lastShard, lastSegment, firstDoc);
-            }
-            fieldsMoved(ctx, lastShard, lastSegment);
+            positionFieldWork(shard, segment, firstDoc);
+            LeafReaderContext ctx = ctx(shard, segment);
+            fieldsMoved(ctx, shard);
             read(firstDoc);
             for (int i = 1; i < forwards.length; i++) {
                 p = forwards[i];
-                int shard = shards.getInt(p);
-                int segment = segments.getInt(p);
-                if (shard != lastShard || segment != lastSegment) {
-                    lastShard = shard;
-                    lastSegment = segment;
-                    for (FieldWork field : fields) {
-                        field.clearAndMoveTo(shard, segment);
-                    }
+                shard = shards.getInt(p);
+                segment = segments.getInt(p);
+                boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
+                if (changedSegment) {
                     ctx = ctx(shard, segment);
-                    fieldsMoved(ctx, shard, segment);
+                    fieldsMoved(ctx, shard);
                 }
                 read(docs.getInt(p));
             }
@@ -302,7 +338,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
         }
 
-        private void fieldsMoved(LeafReaderContext ctx, int shard, int segment) throws IOException {
+        private void fieldsMoved(LeafReaderContext ctx, int shard) throws IOException {
             StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
             for (int f = 0; f < fields.length; f++) {
                 FieldWork field = fields[f];
@@ -358,8 +394,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     private class FieldWork {
         final FieldInfo info;
 
-        int lastShard = -1;
-        int lastSegment = -1;
         BlockLoader loader;
         BlockLoader.ColumnAtATimeReader columnAtATime;
         BlockLoader.RowStrideReader rowStride;
@@ -368,32 +402,22 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             this.info = info;
         }
 
-        void moveTo(int shard, int segment, int firstDoc) {
-            if (lastShard == shard) {
-                if (lastSegment == segment) {
-                    if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
-                        columnAtATime = null;
-                    }
-                    if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
-                        rowStride = null;
-                    }
-                } else {
-                    lastSegment = segment;
-                    columnAtATime = null;
-                    rowStride = null;
-                }
-            } else {
-                lastShard = shard;
-                loader = info.blockLoader.apply(shard);
-                lastSegment = segment;
+        void sameSegment(int firstDoc) {
+            if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
                 columnAtATime = null;
+            }
+            if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
                 rowStride = null;
             }
         }
 
-        void clearAndMoveTo(int shard, int segment) {
-            lastShard = shard;
-            lastSegment = segment;
+        void sameShardNewSegment() {
+            columnAtATime = null;
+            rowStride = null;
+        }
+
+        void newShard(int shard) {
+            loader = info.blockLoader.apply(shard);
             columnAtATime = null;
             rowStride = null;
         }

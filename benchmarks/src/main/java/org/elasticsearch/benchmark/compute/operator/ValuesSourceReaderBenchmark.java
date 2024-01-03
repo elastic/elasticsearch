@@ -127,12 +127,7 @@ public class ValuesSourceReaderBenchmark {
     }
 
     private static ElementType elementType(String name) {
-        if (name.startsWith("stored_")) {
-            name = name.substring("stored_".length());
-        } else if (name.startsWith("source_")) {
-            name = name.substring("source_".length());
-        }
-        switch (name) {
+        switch (WhereAndBaseName.fromName(name).name) {
             case "long":
                 return ElementType.LONG;
             case "int":
@@ -147,28 +142,21 @@ public class ValuesSourceReaderBenchmark {
     }
 
     private static BlockLoader blockLoader(String name) {
-        Where where = Where.DOC_VALUES;
-        if (name.startsWith("stored_")) {
-            name = name.substring("stored_".length());
-            where = Where.STORED;
-        } else if (name.startsWith("source_")) {
-            name = name.substring("source_".length());
-            where = Where.SOURCE;
-        }
-        switch (name) {
+        WhereAndBaseName w = WhereAndBaseName.fromName(name);
+        switch (w.name) {
             case "long":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.LONG);
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.LONG);
             case "int":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.INTEGER);
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.INTEGER);
             case "double":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.DOUBLE);
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.DOUBLE);
             case "keyword":
-                name = "keyword_1";
+                w = new WhereAndBaseName(w.where, "keyword_1");
         }
-        if (name.startsWith("keyword")) {
+        if (w.name.startsWith("keyword")) {
             boolean syntheticSource = false;
             FieldType ft = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-            switch (where) {
+            switch (w.where) {
                 case DOC_VALUES:
                     break;
                 case SOURCE:
@@ -214,10 +202,21 @@ public class ValuesSourceReaderBenchmark {
         throw new IllegalArgumentException("can't read [" + name + "]");
     }
 
-    private static BlockLoader numericBlockLoader(String name, Where where, NumberFieldMapper.NumberType numberType) {
+    private record WhereAndBaseName(Where where, String name) {
+        static WhereAndBaseName fromName(String name) {
+            if (name.startsWith("stored_")) {
+                return new WhereAndBaseName(Where.STORED, name.substring("stored_".length()));
+            } else if (name.startsWith("source_")) {
+                return new WhereAndBaseName(Where.SOURCE, name.substring("source_".length()));
+            }
+            return new WhereAndBaseName(Where.DOC_VALUES, name);
+        }
+    }
+
+    private static BlockLoader numericBlockLoader(WhereAndBaseName w, NumberFieldMapper.NumberType numberType) {
         boolean stored = false;
         boolean docValues = true;
-        switch (where) {
+        switch (w.where) {
             case DOC_VALUES:
                 break;
             case SOURCE:
@@ -228,7 +227,7 @@ public class ValuesSourceReaderBenchmark {
                 throw new UnsupportedOperationException();
         }
         return new NumberFieldMapper.NumberFieldType(
-            name,
+            w.name,
             numberType,
             true,
             stored,

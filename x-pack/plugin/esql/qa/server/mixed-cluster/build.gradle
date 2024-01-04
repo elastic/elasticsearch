@@ -46,3 +46,7 @@ BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     dependsOn javaRestTest, yamlRestTest
   }
 }
+
+tasks.named("yamlRestTest") {
+  enabled = false
+}

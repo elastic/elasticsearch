@@ -70,7 +70,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer")
         );
 
-        prepareIndex("test").setId("1").setSource("field", "foo").get();
+        indexDoc("test", "1", "field", "foo");
         assertNoFailures(indicesAdmin().prepareRefresh("test").get());
 
         assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);

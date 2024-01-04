@@ -17,9 +17,6 @@ import java.util.Map;
 public class IndexLifecycleFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(
-            ILMHistoryTemplateRegistry.MANAGED_BY_DATA_STREAM_LIFECYCLE,
-            Version.V_8_12_0
-        );
+        return Map.of(ILMHistoryTemplateRegistry.MANAGED_BY_DATA_STREAM_LIFECYCLE, Version.V_8_12_0);
     }
 }

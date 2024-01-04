@@ -27,8 +27,8 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
         assertThat(versionRange, notNullValue());
-        assertThat(versionRange, contains(instanceOf(VersionRange.BoundedVersionRange.class)));
-        var boundedVersionRange = (VersionRange.BoundedVersionRange) versionRange.get(0);
+        assertThat(versionRange, contains(instanceOf(VersionRange.MinimumContainedInVersionRange.class)));
+        var boundedVersionRange = (VersionRange.MinimumContainedInVersionRange) versionRange.get(0);
         assertThat(boundedVersionRange.lower, equalTo(VersionUtils.getFirstVersion()));
         assertThat(boundedVersionRange.upper, equalTo(version));
     }
@@ -39,8 +39,8 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
         assertThat(versionRange, notNullValue());
-        assertThat(versionRange, contains(instanceOf(VersionRange.BoundedVersionRange.class)));
-        var boundedVersionRange = (VersionRange.BoundedVersionRange) versionRange.get(0);
+        assertThat(versionRange, contains(instanceOf(VersionRange.MinimumContainedInVersionRange.class)));
+        var boundedVersionRange = (VersionRange.MinimumContainedInVersionRange) versionRange.get(0);
         assertThat(boundedVersionRange.lower, equalTo(version));
         assertThat(boundedVersionRange.upper, equalTo(Version.CURRENT));
     }
@@ -61,10 +61,13 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
         assertThat(versionRange, notNullValue());
         assertThat(
             versionRange,
-            contains(instanceOf(VersionRange.BoundedVersionRange.class), instanceOf(VersionRange.BoundedVersionRange.class))
+            contains(
+                instanceOf(VersionRange.MinimumContainedInVersionRange.class),
+                instanceOf(VersionRange.MinimumContainedInVersionRange.class)
+            )
         );
-        var range1 = (VersionRange.BoundedVersionRange) versionRange.get(0);
-        var range2 = (VersionRange.BoundedVersionRange) versionRange.get(1);
+        var range1 = (VersionRange.MinimumContainedInVersionRange) versionRange.get(0);
+        var range2 = (VersionRange.MinimumContainedInVersionRange) versionRange.get(1);
         assertThat(range1.lower, equalTo(Version.fromString("6.0.0")));
         assertThat(range1.upper, equalTo(Version.fromString("6.1.0")));
         assertThat(range2.lower, equalTo(Version.fromString("7.1.0")));
@@ -77,5 +80,37 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
             e.getMessage(),
             containsString("illegal revision version format - only one or two digit numbers are supported but found 999")
         );
+    }
+
+    public void testParseCurrent() {
+
+    }
+
+    public void testParseNonCurrent() {
+
+    }
+
+    public void testParseMixed() {
+
+    }
+
+    public void testMatchRange() {
+
+    }
+
+    public void testMatchAll() {
+
+    }
+
+    public void testMatchCurrent() {
+
+    }
+
+    public void testMatchNonCurrent() {
+
+    }
+
+    public void testMatchMixed() {
+
     }
 }

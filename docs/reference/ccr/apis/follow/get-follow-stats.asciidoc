@@ -74,6 +74,8 @@ task. In this situation, the following task must be resumed manually with the
 
 `index`::
 (string) The name of the follower index.
+`follower_to_leader_lagging_docs_count`::
+(long) Total document count difference between leader and follower indices
 
 //Begin shards
 `shards`::
@@ -196,6 +198,12 @@ sent to the leader to the time a reply was returned to the follower.
 
 `write_buffer_size_in_bytes`::
 (long) The total number of bytes of operations currently queued for writing.
+
+`follower_docs_count`::
+(long) The number of docs on the follower shard
+
+`leader_docs_count`::
+(long) The number of docs on the leader shard
 =====
 //End shards
 ====
@@ -219,6 +227,7 @@ The API returns the following results:
   "indices" : [
     {
       "index" : "follower_index",
+      "follower_to_leader_lagging_docs_count" : 0,
       "shards" : [
         {
           "remote_cluster" : "remote_cluster",
@@ -248,7 +257,9 @@ The API returns the following results:
           "failed_write_requests" : 0,
           "operations_written" : 832,
           "read_exceptions" : [ ],
-          "time_since_last_read_millis" : 8
+          "time_since_last_read_millis" : 8,
+          "follower_docs_count" : 0,
+          "leader_docs_count" : 0
         }
       ]
     }
@@ -278,3 +289,5 @@ The API returns the following results:
 // TESTRESPONSE[s/"failed_write_requests" : 0/"failed_write_requests" : $body.indices.0.shards.0.failed_write_requests/]
 // TESTRESPONSE[s/"operations_written" : 832/"operations_written" : $body.indices.0.shards.0.operations_written/]
 // TESTRESPONSE[s/"time_since_last_read_millis" : 8/"time_since_last_read_millis" : $body.indices.0.shards.0.time_since_last_read_millis/]
+// TESTRESPONSE[s/"follower_docs_count" : 0/"follower_docs_count" : $body.indices.0.shards.0.follower_docs_count/]
+// TESTRESPONSE[s/"leader_docs_count" : 0/"leader_docs_count" : $body.indices.0.shards.0.leader_docs_count/]

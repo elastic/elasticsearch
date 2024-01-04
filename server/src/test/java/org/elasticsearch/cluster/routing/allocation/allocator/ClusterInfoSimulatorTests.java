@@ -322,8 +322,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 new ClusterInfoTestBuilder() //
                     .withNode("node-0", new DiskUsageBuilder(1000, 1000))
                     .withNode("node-1", new DiskUsageBuilder(1000, 1000))
-                    .withShard(shard, 0) // partial searchable snapshot uses DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS resulting
-                                         // in a 0 size reported
+                    .withShard(shard, 0) // partial searchable snapshot always reports 0 size
                     .build()
             )
         );
@@ -375,7 +374,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 new ClusterInfoTestBuilder() //
                     .withNode(fromNodeId, new DiskUsageBuilder(1000, 1000))
                     .withNode(toNodeId, new DiskUsageBuilder(1000, 1000))
-                    .withShard(shard, 0)
+                    .withShard(shard, 0)  // partial searchable snapshot always reports 0 size
                     .build()
             )
         );

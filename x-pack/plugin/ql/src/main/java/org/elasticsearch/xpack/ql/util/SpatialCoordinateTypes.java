@@ -144,7 +144,11 @@ public enum SpatialCoordinateTypes {
     }
 
     public BytesRef pointAsWKB(SpatialPoint point) {
-        return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
+        return pointAsWKB(new Point(point.getX(), point.getY()));
+    }
+
+    public BytesRef pointAsWKB(Point point) {
+        return new BytesRef(WellKnownBinary.toWKB(point, ByteOrder.LITTLE_ENDIAN));
     }
 
     public BytesRef longAsWKB(long encoded) {

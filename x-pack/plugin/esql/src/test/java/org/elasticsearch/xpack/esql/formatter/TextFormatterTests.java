@@ -63,8 +63,8 @@ public class TextFormatterTests extends ESTestCase {
                 ).asBlock(),
                 blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
                 blockFactory.newBytesRefBlockBuilder(2)
-                    .appendBytesRef(CARTESIAN.pointAsWKB(CARTESIAN.pointAsPoint(new Point(1234, 5678))))
-                    .appendBytesRef(CARTESIAN.pointAsWKB(CARTESIAN.pointAsPoint(new Point(-9753, 2611))))
+                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(1234, 5678)))
+                    .appendBytesRef(CARTESIAN.pointAsWKB(new Point(-9753, 2611)))
                     .build(),
                 blockFactory.newConstantNullBlock(2)
             )
@@ -137,8 +137,8 @@ public class TextFormatterTests extends ESTestCase {
                     ).asBlock(),
                     blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
                     blockFactory.newBytesRefBlockBuilder(2)
-                        .appendBytesRef(CARTESIAN.pointAsWKB(CARTESIAN.pointAsPoint(new Point(1234, 5678))))
-                        .appendBytesRef(CARTESIAN.pointAsWKB(CARTESIAN.pointAsPoint(new Point(-9753, 2611))))
+                        .appendBytesRef(CARTESIAN.pointAsWKB(new Point(1234, 5678)))
+                        .appendBytesRef(CARTESIAN.pointAsWKB(new Point(-9753, 2611)))
                         .build(),
                     blockFactory.newConstantNullBlock(2)
                 )

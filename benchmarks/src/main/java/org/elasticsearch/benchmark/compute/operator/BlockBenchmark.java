@@ -72,39 +72,52 @@ public class BlockBenchmark {
      * It is important to be exhaustive here so that all implementers of {@link IntBlock#getInt(int)} are actually loaded when we benchmark
      * {@link IntBlock}s etc.
      */
-    // We could also consider DocBlocks/DocVectors but they do not implement any of the typed block interfaces like IntBlock etc.
+    // We could also consider DocBlocks/DocVectors, but they do not implement any of the typed block interfaces like IntBlock etc.
     public static final String[] RELEVANT_TYPE_BLOCK_COMBINATIONS = {
-        // TODO: add filtered blocks
         "boolean/array",
         "boolean/array-multivalue-null",
+        "boolean/array-multivalue-null-filtered",
         "boolean/big-array",
         "boolean/big-array-multivalue-null",
+        "boolean/big-array-multivalue-null-filtered",
         "boolean/vector",
+        "boolean/vector-filtered",
         "boolean/vector-big-array",
         "boolean/vector-const",
         "BytesRef/array",
         "BytesRef/array-multivalue-null",
+        "BytesRef/array-multivalue-null-filtered",
         "BytesRef/vector",
+        "BytesRef/vector-filtered",
         "BytesRef/vector-const",
         "double/array",
         "double/array-multivalue-null",
+        "double/array-multivalue-null-filtered",
         "double/big-array",
         "double/big-array-multivalue-null",
+        "double/big-array-multivalue-null-filtered",
         "double/vector",
+        "double/vector-filtered",
         "double/vector-big-array",
         "double/vector-const",
         "int/array",
         "int/array-multivalue-null",
+        "int/array-multivalue-null-filtered",
         "int/big-array",
         "int/big-array-multivalue-null",
+        "int/big-array-multivalue-null-filtered",
         "int/vector",
+        "int/vector-filtered",
         "int/vector-big-array",
         "int/vector-const",
         "long/array",
         "long/array-multivalue-null",
+        "long/array-multivalue-null-filtered",
         "long/big-array",
         "long/big-array-multivalue-null",
+        "long/big-array-multivalue-null-filtered",
         "long/vector",
+        "long/vector-filtered",
         "long/vector-big-array",
         "long/vector-const" };
     public static final int NUM_BLOCKS_PER_ITERATION = 1024;
@@ -112,6 +125,7 @@ public class BlockBenchmark {
 
     private static final double MV_PERCENTAGE = 0.3;
     private static final double NULL_PERCENTAGE = 0.1;
+    private static final double FILTER_PERCENTAGE = 0.2;
     private static final int MAX_MV_ELEMENTS = 100;
     private static final int MAX_BYTES_REF_LENGTH = 255;
 
@@ -182,6 +196,20 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            var block = blockFactory.newBooleanArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "big-array" -> {
                             BitArray valuesBigArray = new BitArray(totalPositions, BigArrays.NON_RECYCLING_INSTANCE);
                             for (int i = 0; i < values.length; i++) {
@@ -219,9 +247,34 @@ public class BlockBenchmark {
                                 blockFactory
                             );
                         }
+                        case "big-array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+                            BitArray valuesBigArray = new BitArray(totalPositions, BigArrays.NON_RECYCLING_INSTANCE);
+                            for (int i = 0; i < values.length; i++) {
+                                if (values[i]) {
+                                    valuesBigArray.set(i);
+                                }
+                            }
+
+                            var block = new BooleanBigArrayBlock(
+                                valuesBigArray,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED,
+                                blockFactory
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "vector" -> {
                             BooleanVector vector = blockFactory.newBooleanArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
+                        }
+                        case "vector-filtered" -> {
+                            var vector = blockFactory.newBooleanArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock().filter(randomFilter(vector.getPositionCount()));
                         }
                         case "vector-big-array" -> {
                             BitArray valuesBigArray = new BitArray(totalPositions, BigArrays.NON_RECYCLING_INSTANCE);
@@ -286,9 +339,27 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            var block = blockFactory.newBytesRefArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "vector" -> {
                             BytesRefVector vector = blockFactory.newBytesRefArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
+                        }
+                        case "vector-filtered" -> {
+                            var vector = blockFactory.newBytesRefArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock().filter(randomFilter(vector.getPositionCount()));
                         }
                         default -> {
                             throw new IllegalStateException("illegal block kind [" + blockKind + "]");
@@ -337,6 +408,20 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            var block = blockFactory.newDoubleArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "big-array" -> {
                             DoubleArray valuesBigArray = blockFactory.bigArrays().newDoubleArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
@@ -370,9 +455,32 @@ public class BlockBenchmark {
                                 blockFactory
                             );
                         }
+                        case "big-array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+                            DoubleArray valuesBigArray = blockFactory.bigArrays().newDoubleArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            var block = new DoubleBigArrayBlock(
+                                valuesBigArray,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED,
+                                blockFactory
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "vector" -> {
                             DoubleVector vector = blockFactory.newDoubleArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
+                        }
+                        case "vector-filtered" -> {
+                            var vector = blockFactory.newDoubleArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock().filter(randomFilter(vector.getPositionCount()));
                         }
                         case "vector-big-array" -> {
                             DoubleArray valuesBigArray = blockFactory.bigArrays().newDoubleArray(totalPositions, false);
@@ -429,6 +537,20 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            var block = blockFactory.newIntArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "big-array" -> {
                             IntArray valuesBigArray = blockFactory.bigArrays().newIntArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
@@ -462,9 +584,32 @@ public class BlockBenchmark {
                                 blockFactory
                             );
                         }
+                        case "big-array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+                            IntArray valuesBigArray = blockFactory.bigArrays().newIntArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            var block = new IntBigArrayBlock(
+                                valuesBigArray,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED,
+                                blockFactory
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "vector" -> {
                             IntVector vector = blockFactory.newIntArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
+                        }
+                        case "vector-filtered" -> {
+                            var vector = blockFactory.newIntArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock().filter(randomFilter(vector.getPositionCount()));
                         }
                         case "vector-big-array" -> {
                             IntArray valuesBigArray = blockFactory.bigArrays().newIntArray(totalPositions, false);
@@ -521,6 +666,20 @@ public class BlockBenchmark {
                                 Block.MvOrdering.UNORDERED
                             );
                         }
+                        case "array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+
+                            var block = blockFactory.newLongArrayBlock(
+                                values,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "big-array" -> {
                             LongArray valuesBigArray = blockFactory.bigArrays().newLongArray(totalPositions, false);
                             for (int i = 0; i < values.length; i++) {
@@ -554,9 +713,32 @@ public class BlockBenchmark {
                                 blockFactory
                             );
                         }
+                        case "big-array-multivalue-null-filtered" -> {
+                            int[] firstValueIndexes = randomFirstValueIndexes(totalPositions);
+                            int positionCount = firstValueIndexes.length - 1;
+                            BitSet nulls = randomNulls(positionCount);
+                            LongArray valuesBigArray = blockFactory.bigArrays().newLongArray(totalPositions, false);
+                            for (int i = 0; i < values.length; i++) {
+                                valuesBigArray.set(i, values[i]);
+                            }
+
+                            var block = new LongBigArrayBlock(
+                                valuesBigArray,
+                                positionCount,
+                                firstValueIndexes,
+                                nulls,
+                                Block.MvOrdering.UNORDERED,
+                                blockFactory
+                            );
+                            blocks[blockIndex] = block.filter(randomFilter(block.getPositionCount()));
+                        }
                         case "vector" -> {
                             LongVector vector = blockFactory.newLongArrayVector(values, totalPositions);
                             blocks[blockIndex] = vector.asBlock();
+                        }
+                        case "vector-filtered" -> {
+                            var vector = blockFactory.newLongArrayVector(values, totalPositions);
+                            blocks[blockIndex] = vector.asBlock().filter(randomFilter(vector.getPositionCount()));
                         }
                         case "vector-big-array" -> {
                             LongArray valuesBigArray = blockFactory.bigArrays().newLongArray(totalPositions, false);
@@ -620,6 +802,16 @@ public class BlockBenchmark {
         }
 
         return firstValueIndexes.stream().mapToInt(x -> x).toArray();
+    }
+
+    private static int[] randomFilter(int positions) {
+        ArrayList<Integer> filteredPositions = new ArrayList<>();
+
+        for (int i = 0; i < positions; i++) {
+            if (random.nextDouble() < FILTER_PERCENTAGE) filteredPositions.add(i);
+        }
+
+        return filteredPositions.stream().mapToInt(x -> x).toArray();
     }
 
     private static BitSet randomNulls(int positionCount) {
@@ -782,34 +974,48 @@ public class BlockBenchmark {
         {
             "boolean/array",
             "boolean/array-multivalue-null",
+            "boolean/array-multivalue-null-filtered",
             "boolean/big-array",
             "boolean/big-array-multivalue-null",
+            "boolean/big-array-multivalue-null-filtered",
             "boolean/vector",
+            "boolean/vector-filtered",
             "boolean/vector-big-array",
             "boolean/vector-const",
             "BytesRef/array",
             "BytesRef/array-multivalue-null",
+            "BytesRef/array-multivalue-null-filtered",
             "BytesRef/vector",
+            "BytesRef/vector-filtered",
             "BytesRef/vector-const",
             "double/array",
             "double/array-multivalue-null",
+            "double/array-multivalue-null-filtered",
             "double/big-array",
             "double/big-array-multivalue-null",
+            "double/big-array-multivalue-null-filtered",
             "double/vector",
+            "double/vector-filtered",
             "double/vector-big-array",
             "double/vector-const",
             "int/array",
             "int/array-multivalue-null",
+            "int/array-multivalue-null-filtered",
             "int/big-array",
             "int/big-array-multivalue-null",
+            "int/big-array-multivalue-null-filtered",
             "int/vector",
+            "int/vector-filtered",
             "int/vector-big-array",
             "int/vector-const",
             "long/array",
             "long/array-multivalue-null",
+            "long/array-multivalue-null-filtered",
             "long/big-array",
             "long/big-array-multivalue-null",
+            "long/big-array-multivalue-null-filtered",
             "long/vector",
+            "long/vector-filtered",
             "long/vector-big-array",
             "long/vector-const" }
     )

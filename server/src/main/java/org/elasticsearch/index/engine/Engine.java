@@ -1871,9 +1871,8 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Method to close the engine while the write lock is held.
-     * Must decrement the supplied when closing work is done and resources are
-     * freed.
+     * Closes the engine without acquiring any refs or locks. The caller should either have changed {@link #isClosing} from {@code false} to
+     * {@code true} or else must hold the {@link #failEngineLock}. The implementation must decrement the supplied latch when done.
      */
     protected abstract void closeNoLock(String reason, CountDownLatch closedLatch);
 
@@ -1893,10 +1892,21 @@ public abstract class Engine implements Closeable {
         return Releasables.assertOnce(releaseEnsureOpenRef);
     }
 
-    protected final void drainForClose() {
-        if (isClosing.compareAndSet(false, true)) {
-            releaseEnsureOpenRef.close();
+    /**
+     * When called for the first time, puts the engine into a closing state in which further calls to {@link #acquireEnsureOpenRef()} will
+     * fail with an {@link AlreadyClosedException} and waits for all outstanding ensure-open refs to be released, before returning {@code
+     * true}. If called again, returns {@code false} without waiting.
+     *
+     * @return a flag indicating whether this was the first call or not.
+     */
+    private boolean drainForClose() {
+        if (isClosing.compareAndSet(false, true) == false) {
+            logger.trace("drainForClose(): already closing");
+            return false;
         }
+
+        logger.debug("drainForClose(): draining ops");
+        releaseEnsureOpenRef.close();
         final var future = new PlainActionFuture<Void>() {
             @Override
             protected boolean blockingAllowed() {
@@ -1908,6 +1918,7 @@ public abstract class Engine implements Closeable {
         drainOnCloseListener.addListener(future);
         try {
             future.get();
+            return true;
         } catch (ExecutionException e) {
             logger.error("failure while draining operations on close", e);
             assert false : e;
@@ -1920,13 +1931,11 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Flush the engine (committing segments to disk and truncating the
-     * translog) and close it.
+     * Flush the engine (committing segments to disk and truncating the translog) and close it.
      */
     public void flushAndClose() throws IOException {
-        if (isClosed.get() == false) {
-            logger.trace("flushAndClose now draining ops");
-            drainForClose();
+        logger.trace("flushAndClose() maybe draining ops");
+        if (isClosed.get() == false && drainForClose()) {
             logger.trace("flushAndClose drained ops");
             try {
                 logger.debug("flushing shard on close - this might take some time to sync files to disk");
@@ -1937,7 +1946,7 @@ public abstract class Engine implements Closeable {
                     logger.debug("engine already closed - skipping flushAndClose");
                 }
             } finally {
-                close(); // double close is not a problem
+                closeNoLock("flushAndClose", closedLatch);
             }
         }
         awaitPendingClose();
@@ -1945,9 +1954,8 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
-            logger.debug("close now draining ops");
-            drainForClose();
+        logger.debug("close() maybe draining ops");
+        if (isClosed.get() == false && drainForClose()) {
             logger.debug("close drained ops");
             closeNoLock("api", closedLatch);
         }

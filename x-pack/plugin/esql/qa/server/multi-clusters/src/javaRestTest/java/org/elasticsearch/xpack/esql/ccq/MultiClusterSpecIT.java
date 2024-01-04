@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.ccq;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
@@ -20,18 +21,25 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
+import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -51,6 +59,25 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
 
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    public static List<Object[]> readScriptSpec() throws Exception {
+        List<URL> urls = classpathResources("/*.csv-spec");
+        assertTrue("Not enough specs found " + urls, urls.size() > 0);
+        List<Object[]> specs = SpecReader.readScriptSpec(urls, specParser());
+
+        int len = specs.get(0).length;
+        List<Object[]> testcases = new ArrayList<>();
+        for (var spec : specs) {
+            for (Mode mode : List.of(SYNC)) { // No async, for now
+                Object[] obj = new Object[len + 1];
+                System.arraycopy(spec, 0, obj, 0, len);
+                obj[len] = mode;
+                testcases.add(obj);
+            }
+        }
+        return testcases;
+    }
+
     public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
     }
@@ -61,7 +88,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("CCQ doesn't support enrich yet", hasEnrich(testCase.query));
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
-        // assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
     }
 
     @Override

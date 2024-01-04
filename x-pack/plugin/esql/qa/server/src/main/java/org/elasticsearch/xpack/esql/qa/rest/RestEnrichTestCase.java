@@ -25,7 +25,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 
-public class RestEnrichTestCase extends ESRestTestCase {
+public abstract class RestEnrichTestCase extends ESRestTestCase {
 
     private static final String sourceIndexName = "countries";
     private static final String testIndexName = "test";
@@ -40,7 +40,7 @@ public class RestEnrichTestCase extends ESRestTestCase {
 
     @ParametersFactory
     public static List<Object[]> modes() {
-        return Arrays.stream(RestEsqlTestCase.Mode.values()).map(m -> new Object[] { m }).toList();
+        return Arrays.stream(Mode.values()).map(m -> new Object[] { m }).toList();
     }
 
     protected RestEnrichTestCase(Mode mode) {

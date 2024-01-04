@@ -51,6 +51,8 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -282,7 +284,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testCSVNoHeaderMode() throws IOException {
         bulkLoadTestData(1);
         var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100");
-        Request request = prepareRequest(false);
+        Request request = prepareRequest(SYNC);
         String mediaType = attachBody(builder.build(), request);
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Content-Type", mediaType);
@@ -297,7 +299,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         int count = randomFrom(10, 40, 60);
         bulkLoadTestData(count);
 
-        Request request = prepareRequest(false);
+        Request request = prepareRequest(SYNC);
         var query = fromIndex() + " | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword)) | limit 1000";
         var mediaType = attachBody(new RequestObjectBuilder().query(query).build(), request);
 
@@ -488,7 +490,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     static Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings, Mode mode) throws IOException {
-        if (mode == Mode.ASYNC) {
+        if (mode == ASYNC) {
             return runEsqlAsync(requestObject, expectedWarnings);
         } else {
             return runEsqlSync(requestObject, expectedWarnings);
@@ -497,7 +499,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
         requestObject.build();
-        Request request = prepareRequest(false);
+        Request request = prepareRequest(SYNC);
         String mediaType = attachBody(requestObject, request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -518,7 +520,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
         addAsyncParameters(requestObject);
         requestObject.build();
-        Request request = prepareRequest(true);
+        Request request = prepareRequest(ASYNC);
         String mediaType = attachBody(requestObject, request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -622,7 +624,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter) throws IOException {
-        Request request = prepareRequest(false);
+        Request request = prepareRequest(SYNC);
         String mediaType = attachBody(builder.build(), request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -646,8 +648,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
     }
 
-    private static Request prepareRequest(boolean async) {
-        Request request = new Request("POST", "/_query" + (async ? "/async" : ""));
+    private static Request prepareRequest(Mode mode) {
+        Request request = new Request("POST", "/_query" + (mode == ASYNC ? "/async" : ""));
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         return request;

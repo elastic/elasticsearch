@@ -20,7 +20,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
@@ -31,6 +33,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -81,6 +84,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            // noop for now
+        }
+    });
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -211,6 +221,26 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
     public RestStatus status() {
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
@@ -219,6 +249,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * The search hits.
      */
     public SearchHits getHits() {
+        assert hasReferences();
         return hits;
     }
 
@@ -345,6 +376,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        assert hasReferences();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             this.innerToXContentChunked(params),
@@ -515,6 +547,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         hits.writeTo(out);
         out.writeOptionalWriteable((InternalAggregations) aggregations);
         out.writeOptionalWriteable(suggest);

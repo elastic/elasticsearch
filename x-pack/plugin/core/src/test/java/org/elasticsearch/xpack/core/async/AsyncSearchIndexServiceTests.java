@@ -111,6 +111,26 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         public TestAsyncResponse convertToFailure(Exception exc) {
             return new TestAsyncResponse(test, expirationTimeMillis, exc.getMessage());
         }
+
+        @Override
+        public void incRef() {
+
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return false;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return false;
+        }
     }
 
     @Before

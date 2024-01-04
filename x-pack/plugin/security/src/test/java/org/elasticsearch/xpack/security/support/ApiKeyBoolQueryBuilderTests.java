@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -35,6 +40,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.FIELD_NAME_TRANSLATORS;
@@ -48,7 +54,9 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
 
@@ -273,7 +281,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null
         );
 
-        final SearchExecutionContext context1 = mock(SearchExecutionContext.class);
+        SearchExecutionContext context = getMockSearchExecutionContext();
         doAnswer(invocationOnMock -> {
             final Object[] args = invocationOnMock.getArguments();
             @SuppressWarnings("unchecked")
@@ -281,17 +289,17 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             assertTrue(predicate.getClass().getName().startsWith(ApiKeyBoolQueryBuilder.class.getName()));
             testAllowedIndexFieldName(predicate);
             return null;
-        }).when(context1).setAllowedFields(any());
+        }).when(context).setAllowedFields(any());
         try {
             if (randomBoolean()) {
-                apiKeyQb1.doToQuery(context1);
+                apiKeyQb1.doToQuery(context);
             } else {
-                apiKeyQb1.doRewrite(context1);
+                apiKeyQb1.doRewrite(context);
             }
         } catch (Exception e) {
             // just ignore any exception from superclass since we only need verify the allowedFields are set
         } finally {
-            verify(context1).setAllowedFields(any());
+            verify(context).setAllowedFields(any());
         }
     }
 
@@ -359,5 +367,38 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
                 .from(Instant.now().minus(1, ChronoUnit.DAYS).toEpochMilli(), randomBoolean())
                 .to(Instant.now().toEpochMilli(), randomBoolean());
         };
+    }
+
+    private static SearchExecutionContext getMockSearchExecutionContext() {
+        IndexSettings settings = new IndexSettings(
+            IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 1)).build(),
+            Settings.EMPTY
+        );
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        when(indexMetadata.getIndex()).thenReturn(settings.getIndex());
+        when(indexMetadata.getSettings()).thenReturn(settings.getSettings());
+        return spy(
+            new SearchExecutionContext(
+                1,
+                1,
+                new IndexSettings(indexMetadata, Settings.EMPTY),
+                null,
+                null,
+                null,
+                MappingLookup.EMPTY,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Map.of()
+            )
+        );
     }
 }

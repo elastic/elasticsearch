@@ -1611,13 +1611,13 @@ public final class PlanNamedTypes {
             if (value instanceof List<?> list) {
                 return list.stream().map(v -> mapFromLiteralValue(out, dataType, v)).toList();
             }
-            if (value instanceof BytesRef wkb) {
-                return wkb;
-            }
             // Picked an existing transport version that is clearly in between the doc-values and WKB versions of the point literals
             // This simplification works since ESQL is not supported in serverless, so we're only differentiating between 8.12 and 8.13
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
                 // 8.13.0 uses WKB for serializing point literals
+                if (value instanceof BytesRef wkb) {
+                    return wkb;
+                }
                 if (value instanceof SpatialPoint point) {
                     return pointAsWKB(point);
                 }
@@ -1626,6 +1626,9 @@ public final class PlanNamedTypes {
                 }
             } else {
                 // 8.12.0 uses encoded longs for serializing point literals
+                if (value instanceof BytesRef wkb) {
+                    return wkbAsLong(dataType, wkb);
+                }
                 if (value instanceof SpatialPoint point) {
                     return pointAsLong(dataType, point);
                 }
@@ -1633,6 +1636,7 @@ public final class PlanNamedTypes {
                     return encoded;
                 }
             }
+            throw new IllegalArgumentException("Unsupported point literal value: " + value);
         }
         return value;
     }
@@ -1667,6 +1671,10 @@ public final class PlanNamedTypes {
 
     private static BytesRef longAsWKB(DataType dataType, long encoded) {
         return dataType == GEO_POINT ? GEO.longAsWKB(encoded) : CARTESIAN.longAsWKB(encoded);
+    }
+
+    private static long wkbAsLong(DataType dataType, BytesRef wkb) {
+        return dataType == GEO_POINT ? GEO.wkbAsLong(wkb) : CARTESIAN.wkbAsLong(wkb);
     }
 
     private static long pointAsLong(DataType dataType, SpatialPoint point) {

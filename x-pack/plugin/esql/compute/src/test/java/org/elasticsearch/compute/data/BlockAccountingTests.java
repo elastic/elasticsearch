@@ -318,6 +318,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
+        // TODO: UPPER_BOUND is too small, ends up being smaller than emptyPlusSome's size.
         assertThat(filterBlock.ramBytesUsed(), between(emptyPlusSome.ramBytesUsed(), UPPER_BOUND));
         Releasables.close(filterBlock);
     }

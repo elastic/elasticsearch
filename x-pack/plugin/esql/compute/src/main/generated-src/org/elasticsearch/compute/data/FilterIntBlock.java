@@ -9,17 +9,21 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.util.Arrays;
+
 /**
  * Filter block for IntBlocks.
  * This class is generated. Do not edit it.
  */
 // TODO: check if javadoc needs updating, both here, in the interfaces and in the abstract filter block
-final class FilterIntBlock extends AbstractFilterBlock<IntBlock> implements IntBlock {
+final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterIntBlock.class);
+    private final IntArrayBlock block;
 
-    FilterIntBlock(IntBlock block, int... positions) {
-        super(block, positions);
+    FilterIntBlock(IntArrayBlock block, int... positions) {
+        super(positions, block.blockFactory());
+        this.block = block;
     }
 
     @Override
@@ -38,10 +42,64 @@ final class FilterIntBlock extends AbstractFilterBlock<IntBlock> implements IntB
     }
 
     @Override
+    public boolean isNull(int position) {
+        return block.isNull(mapPosition(position));
+    }
+
+    @Override
+    public boolean mayHaveNulls() {
+        return block.mayHaveNulls();
+    }
+
+    @Override
+    public boolean areAllValuesNull() {
+        return block.areAllValuesNull();
+    }
+
+    @Override
+    public boolean mayHaveMultivaluedFields() {
+        /*
+         * This could return a false positive. The block may have multivalued
+         * fields, but we're not pointing to any of them. That's acceptable.
+         */
+        return block.mayHaveMultivaluedFields();
+    }
+
+    @Override
+    public final int getTotalValueCount() {
+        // TODO this is expensive. maybe cache or something.
+        int total = 0;
+        for (int p = 0; p < positions.length; p++) {
+            total += getValueCount(p);
+        }
+        return total;
+    }
+
+    @Override
+    public final int getValueCount(int position) {
+        return block.getValueCount(mapPosition(position));
+    }
+
+    @Override
+    public final int getPositionCount() {
+        return positions.length;
+    }
+
+    @Override
+    public final int getFirstValueIndex(int position) {
+        return block.getFirstValueIndex(mapPosition(position));
+    }
+
+    @Override
+    public MvOrdering mvOrdering() {
+        return block.mvOrdering();
+    }
+
+    @Override
     public IntBlock filter(int... positions) {
-        // TODO: avoid multi-layered FilterIntBlocks; compute subset of filter instead.
-        IntBlock filtered = new FilterIntBlock(this, positions);
-        this.incRef();
+        int[] mappedPositions = Arrays.stream(positions).map(this::mapPosition).toArray();
+        IntBlock filtered = new FilterIntBlock(block, mappedPositions);
+        block.incRef();
         return filtered;
     }
 
@@ -78,6 +136,17 @@ final class FilterIntBlock extends AbstractFilterBlock<IntBlock> implements IntB
         // from a usage and resource point of view filter blocks encapsulate
         // their inner block, rather than listing it as a child resource
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(block) + RamUsageEstimator.sizeOf(positions);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        block.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    protected void closeInternal() {
+        block.close();
     }
 
     @Override

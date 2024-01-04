@@ -55,9 +55,7 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        $Type$Block filtered = new Filter$Type$Block(this, positions);
-        this.incRef();
-        return filtered;
+        return vector.filter(positions).asBlock();
     }
 
     @Override

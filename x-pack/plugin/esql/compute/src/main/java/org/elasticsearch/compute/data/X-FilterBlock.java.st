@@ -12,17 +12,21 @@ import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.util.Arrays;
+
 /**
  * Filter block for $Type$Blocks.
  * This class is generated. Do not edit it.
  */
 // TODO: check if javadoc needs updating, both here, in the interfaces and in the abstract filter block
-final class Filter$Type$Block extends AbstractFilterBlock<$Type$Block> implements $Type$Block {
+final class Filter$Type$Block extends AbstractFilterBlock implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Filter$Type$Block.class);
+    private final $Type$ArrayBlock block;
 
-    Filter$Type$Block($Type$Block block, int... positions) {
-        super(block, positions);
+    Filter$Type$Block($Type$ArrayBlock block, int... positions) {
+        super(positions, block.blockFactory());
+        this.block = block;
     }
 
     @Override
@@ -46,10 +50,64 @@ $endif$
     }
 
     @Override
+    public boolean isNull(int position) {
+        return block.isNull(mapPosition(position));
+    }
+
+    @Override
+    public boolean mayHaveNulls() {
+        return block.mayHaveNulls();
+    }
+
+    @Override
+    public boolean areAllValuesNull() {
+        return block.areAllValuesNull();
+    }
+
+    @Override
+    public boolean mayHaveMultivaluedFields() {
+        /*
+         * This could return a false positive. The block may have multivalued
+         * fields, but we're not pointing to any of them. That's acceptable.
+         */
+        return block.mayHaveMultivaluedFields();
+    }
+
+    @Override
+    public final int getTotalValueCount() {
+        // TODO this is expensive. maybe cache or something.
+        int total = 0;
+        for (int p = 0; p < positions.length; p++) {
+            total += getValueCount(p);
+        }
+        return total;
+    }
+
+    @Override
+    public final int getValueCount(int position) {
+        return block.getValueCount(mapPosition(position));
+    }
+
+    @Override
+    public final int getPositionCount() {
+        return positions.length;
+    }
+
+    @Override
+    public final int getFirstValueIndex(int position) {
+        return block.getFirstValueIndex(mapPosition(position));
+    }
+
+    @Override
+    public MvOrdering mvOrdering() {
+        return block.mvOrdering();
+    }
+
+    @Override
     public $Type$Block filter(int... positions) {
-        // TODO: avoid multi-layered Filter$Type$Blocks; compute subset of filter instead.
-        $Type$Block filtered = new Filter$Type$Block(this, positions);
-        this.incRef();
+        int[] mappedPositions = Arrays.stream(positions).map(this::mapPosition).toArray();
+        $Type$Block filtered = new Filter$Type$Block(block, mappedPositions);
+        block.incRef();
         return filtered;
     }
 
@@ -94,6 +152,17 @@ $endif$
         // from a usage and resource point of view filter blocks encapsulate
         // their inner block, rather than listing it as a child resource
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(block) + RamUsageEstimator.sizeOf(positions);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        block.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    protected void closeInternal() {
+        block.close();
     }
 
     @Override

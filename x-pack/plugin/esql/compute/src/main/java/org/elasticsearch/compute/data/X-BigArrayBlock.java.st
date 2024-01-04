@@ -68,9 +68,27 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
 
     @Override
     public $Type$Block filter(int... positions) {
-        $Type$Block filtered = new Filter$Type$Block(this, positions);
-        this.incRef();
-        return filtered;
+        // TODO use reference counting to share the vector
+        try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.append$Type$(get$Type$(first + c$if(BytesRef)$, scratch$endif$));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override

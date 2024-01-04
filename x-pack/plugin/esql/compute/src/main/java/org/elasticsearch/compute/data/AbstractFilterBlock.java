@@ -7,48 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
-
-abstract class AbstractFilterBlock<B extends Block> extends AbstractBlock implements Block {
+abstract class AbstractFilterBlock extends AbstractBlock implements Block {
 
     // TODO: positions need to be tracked and released from the breaker on closeInternal
     protected final int[] positions;
-    protected final B block;
 
-    AbstractFilterBlock(B block, int[] positions) {
+    AbstractFilterBlock(int[] positions, BlockFactory blockFactory) {
         // TODO: assert positions here, also check that we map to valid positions
-        super(positions.length, block.blockFactory());
+        super(positions.length, blockFactory);
         this.positions = positions;
-        this.block = block;
-    }
-
-    @Override
-    public ElementType elementType() {
-        return block.elementType();
-    }
-
-    @Override
-    public boolean isNull(int position) {
-        return block.isNull(mapPosition(position));
-    }
-
-    @Override
-    public boolean mayHaveNulls() {
-        return block.mayHaveNulls();
-    }
-
-    @Override
-    public boolean areAllValuesNull() {
-        return block.areAllValuesNull();
-    }
-
-    @Override
-    public boolean mayHaveMultivaluedFields() {
-        /*
-         * This could return a false positive. The block may have multivalued
-         * fields, but we're not pointing to any of them. That's acceptable.
-         */
-        return block.mayHaveMultivaluedFields();
     }
 
     @Override
@@ -68,70 +35,15 @@ abstract class AbstractFilterBlock<B extends Block> extends AbstractBlock implem
         }
     }
 
-    @Override
-    public final int getTotalValueCount() {
-        if (positions.length == block.getPositionCount()) {
-            // TODO: incorrect in case of multi-values and positions occurring twice.
-            // All the positions are still in the block, just jumbled.
-            return block.getTotalValueCount();
-        }
-        // TODO this is expensive. maybe cache or something.
-        int total = 0;
-        for (int p = 0; p < positions.length; p++) {
-            total += getValueCount(p);
-        }
-        return total;
-    }
-
-    @Override
-    public final int getValueCount(int position) {
-        return block.getValueCount(mapPosition(position));
-    }
-
-    @Override
-    public final int getPositionCount() {
-        return positions.length;
-    }
-
-    @Override
-    public final int getFirstValueIndex(int position) {
-        return block.getFirstValueIndex(mapPosition(position));
-    }
-
-    @Override
-    public MvOrdering mvOrdering() {
-        return block.mvOrdering();
-    }
-
-    @Override
-    public BlockFactory blockFactory() {
-        return block.blockFactory();
-    }
-
-    private int mapPosition(int position) {
+    protected int mapPosition(int position) {
         assert assertPosition(position);
         return positions[position];
     }
 
-    @Override
-    public String toString() {
-        return "FilteredBlock{" + "positions=" + Arrays.toString(positions) + ", block=" + block + '}';
-    }
 
     protected final boolean assertPosition(int position) {
         assert (position >= 0 || position < getPositionCount())
             : "illegal position, " + position + ", position count:" + getPositionCount();
         return true;
-    }
-
-    @Override
-    public void allowPassingToDifferentDriver() {
-        super.allowPassingToDifferentDriver();
-        block.allowPassingToDifferentDriver();
-    }
-
-    @Override
-    protected void closeInternal() {
-        block.close();
     }
 }

@@ -14,26 +14,43 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public record VersionRange(Version lower, Version upper) {
+public interface VersionRange {
 
-    public boolean contains(Version currentVersion) {
-        return lower != null && upper != null && currentVersion.onOrAfter(lower) && currentVersion.onOrBefore(upper);
-    }
+    boolean contains(Version currentVersion);
 
-    @Override
-    public String toString() {
-        return "[" + lower + " - " + upper + "]";
+    VersionRange NEVER = v -> false;
+
+    VersionRange ALWAYS = v -> true;
+
+    class BoundedVersionRange implements VersionRange {
+
+        final Version lower;
+        final Version upper;
+
+        public BoundedVersionRange(Version lower, Version upper) {
+            this.lower = lower;
+            this.upper = upper;
+        }
+
+        public boolean contains(Version currentVersion) {
+            return lower != null && upper != null && currentVersion.onOrAfter(lower) && currentVersion.onOrBefore(upper);
+        }
+
+        @Override
+        public String toString() {
+            return "[" + lower + " - " + upper + "]";
+        }
     }
 
     static List<VersionRange> parseVersionRanges(String rawRanges) {
         if (rawRanges == null) {
-            return Collections.singletonList(new VersionRange(null, null));
+            return Collections.singletonList(NEVER);
         }
         String[] ranges = rawRanges.split(",");
         List<VersionRange> versionRanges = new ArrayList<>();
         for (String rawRange : ranges) {
             if (rawRange.trim().equals("all")) {
-                return Collections.singletonList(new VersionRange(VersionUtils.getFirstVersion(), Version.CURRENT));
+                return Collections.singletonList(ALWAYS);
             }
             String[] skipVersions = rawRange.split("-", -1);
             if (skipVersions.length > 2) {
@@ -42,7 +59,7 @@ public record VersionRange(Version lower, Version upper) {
 
             String lower = skipVersions[0].trim();
             String upper = skipVersions[1].trim();
-            VersionRange versionRange = new VersionRange(
+            VersionRange versionRange = new BoundedVersionRange(
                 lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
                 upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
             );

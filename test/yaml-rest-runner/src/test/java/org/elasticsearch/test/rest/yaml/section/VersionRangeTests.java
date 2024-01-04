@@ -12,9 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestCase {
@@ -25,9 +27,10 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
         assertThat(versionRange, notNullValue());
-        assertThat(versionRange, hasSize(1));
-        assertThat(versionRange.get(0).lower(), equalTo(VersionUtils.getFirstVersion()));
-        assertThat(versionRange.get(0).upper(), equalTo(version));
+        assertThat(versionRange, contains(instanceOf(VersionRange.BoundedVersionRange.class)));
+        var boundedVersionRange = (VersionRange.BoundedVersionRange) versionRange.get(0);
+        assertThat(boundedVersionRange.lower, equalTo(VersionUtils.getFirstVersion()));
+        assertThat(boundedVersionRange.upper, equalTo(version));
     }
 
     public void testParseVersionNoUpperBound() {
@@ -36,9 +39,10 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
         assertThat(versionRange, notNullValue());
-        assertThat(versionRange, hasSize(1));
-        assertThat(versionRange.get(0).lower(), equalTo(version));
-        assertThat(versionRange.get(0).upper(), equalTo(Version.CURRENT));
+        assertThat(versionRange, contains(instanceOf(VersionRange.BoundedVersionRange.class)));
+        var boundedVersionRange = (VersionRange.BoundedVersionRange) versionRange.get(0);
+        assertThat(boundedVersionRange.lower, equalTo(version));
+        assertThat(boundedVersionRange.upper, equalTo(Version.CURRENT));
     }
 
     public void testParseAllVersions() {
@@ -47,8 +51,7 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
         assertThat(versionRange, notNullValue());
         assertThat(versionRange, hasSize(1));
-        assertThat(versionRange.get(0).lower(), equalTo(VersionUtils.getFirstVersion()));
-        assertThat(versionRange.get(0).upper(), equalTo(Version.CURRENT));
+        assertThat(versionRange.get(0), equalTo(VersionRange.ALWAYS));
     }
 
     public void testParseMultipleRanges() {
@@ -56,11 +59,16 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
 
         var versionRange = VersionRange.parseVersionRanges(versionRangeString);
         assertThat(versionRange, notNullValue());
-        assertThat(versionRange, hasSize(2));
-        assertThat(versionRange.get(0).lower(), equalTo(Version.fromString("6.0.0")));
-        assertThat(versionRange.get(0).upper(), equalTo(Version.fromString("6.1.0")));
-        assertThat(versionRange.get(1).lower(), equalTo(Version.fromString("7.1.0")));
-        assertThat(versionRange.get(1).upper(), equalTo(Version.fromString("7.5.0")));
+        assertThat(
+            versionRange,
+            contains(instanceOf(VersionRange.BoundedVersionRange.class), instanceOf(VersionRange.BoundedVersionRange.class))
+        );
+        var range1 = (VersionRange.BoundedVersionRange) versionRange.get(0);
+        var range2 = (VersionRange.BoundedVersionRange) versionRange.get(1);
+        assertThat(range1.lower, equalTo(Version.fromString("6.0.0")));
+        assertThat(range1.upper, equalTo(Version.fromString("6.1.0")));
+        assertThat(range2.lower, equalTo(Version.fromString("7.1.0")));
+        assertThat(range2.upper, equalTo(Version.fromString("7.5.0")));
     }
 
     public void testParseWithThreeDigitVersion() {

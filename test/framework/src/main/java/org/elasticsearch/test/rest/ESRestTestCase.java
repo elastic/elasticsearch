@@ -2376,7 +2376,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     public static void addXContentBody(Request request, ToXContent body) throws IOException {
-        final var xContentType = randomFrom(XContentType.values());
+        final var xContentType = XContentType.JSON;
         final var bodyBytes = XContentHelper.toXContent(body, xContentType, EMPTY_PARAMS, randomBoolean());
         request.setEntity(
             new InputStreamEntity(

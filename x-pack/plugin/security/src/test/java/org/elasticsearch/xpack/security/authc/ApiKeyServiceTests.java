@@ -2119,6 +2119,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         } else {
             oldKeyRoles = randomList(3, RoleDescriptorTests::randomRoleDescriptor);
         }
+        final long now = randomMillisUpToYear9999();
+        when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
         final Map<String, Object> oldMetadata = ApiKeyTests.randomMetadata();
         final Version oldVersion = VersionUtils.randomVersion(random());
         final ApiKeyDoc oldApiKeyDoc = ApiKeyDoc.fromXContent(
@@ -2147,6 +2149,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final boolean changeMetadata = randomBoolean();
         final boolean changeVersion = randomBoolean();
         final boolean changeCreator = randomBoolean();
+        final boolean changeExpiration = randomBoolean();
+
         final Set<RoleDescriptor> newUserRoles = changeUserRoles
             ? randomValueOtherThan(oldUserRoles, () -> randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor))
             : oldUserRoles;
@@ -2180,11 +2184,14 @@ public class ApiKeyServiceTests extends ESTestCase {
                     .build(false)
             )
             : oldAuthentication;
+        final TimeValue newExpiration = changeExpiration ? randomFrom(ApiKeyTests.randomFutureExpirationTime()) : null;
         final String apiKeyId = randomAlphaOfLength(10);
         final BaseUpdateApiKeyRequest request = mock(BaseUpdateApiKeyRequest.class);
         when(request.getType()).thenReturn(type);
         when(request.getRoleDescriptors()).thenReturn(newKeyRoles);
         when(request.getMetadata()).thenReturn(newMetadata);
+        when(request.getExpiration()).thenReturn(newExpiration);
+
         final var service = createApiKeyService();
 
         final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
@@ -2193,10 +2200,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             newVersion,
             newAuthentication,
             request,
-            newUserRoles
+            newUserRoles,
+            clock
         );
 
-        final boolean noop = (changeCreator || changeMetadata || changeKeyRoles || changeUserRoles || changeVersion) == false;
+        final boolean noop = (changeCreator
+            || changeMetadata
+            || changeKeyRoles
+            || changeUserRoles
+            || changeVersion
+            || changeExpiration) == false;
         if (noop) {
             assertNull(builder);
         } else {
@@ -2207,7 +2220,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(oldApiKeyDoc.type, updatedApiKeyDoc.type);
             assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
             assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
-            assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);
             assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
             assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
             assertEquals(newVersion.id, updatedApiKeyDoc.version);
@@ -2236,6 +2248,11 @@ public class ApiKeyServiceTests extends ESTestCase {
                 assertEquals(oldApiKeyDoc.metadataFlattened, updatedApiKeyDoc.metadataFlattened);
             } else {
                 assertEquals(newMetadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
+            }
+            if (newExpiration != null) {
+                assertEquals(clock.instant().plusSeconds(newExpiration.getSeconds()).toEpochMilli(), updatedApiKeyDoc.expirationTime);
+            } else {
+                assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);
             }
             assertEquals(newAuthentication.getEffectiveSubject().getUser().principal(), updatedApiKeyDoc.creator.get("principal"));
             assertEquals(newAuthentication.getEffectiveSubject().getUser().fullName(), updatedApiKeyDoc.creator.get("full_name"));
@@ -2602,7 +2619,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
             randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 5)),
             roleDescriptorsWithWorkflowsRestriction,
-            Map.of()
+            Map.of(),
+            ApiKeyTests.randomFutureExpirationTime()
         );
         final PlainActionFuture<BulkUpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
         service.updateApiKeys(authentication, updateRequest, Set.of(), updateFuture);
@@ -2664,7 +2682,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
             randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 5)),
             requestRoleDescriptors,
-            Map.of()
+            Map.of(),
+            ApiKeyTests.randomFutureExpirationTime()
         );
         final PlainActionFuture<BulkUpdateApiKeyResponse> updateFuture = new PlainActionFuture<>();
         service.updateApiKeys(authentication, updateRequest, userRoleDescriptorsWithWorkflowsRestriction, updateFuture);

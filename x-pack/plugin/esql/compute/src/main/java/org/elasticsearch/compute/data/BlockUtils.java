@@ -9,14 +9,9 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.geo.SpatialPoint;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -24,6 +19,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
@@ -216,13 +212,6 @@ public final class BlockUtils {
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
-    }
-
-    private static BytesRef toBytesRef(Object val) {
-        if (val instanceof SpatialPoint point) {
-            return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
-        }
-        return BytesRefs.toBytesRef(val);
     }
 
     public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {

@@ -68,27 +68,9 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
 
     @Override
     public DoubleBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
-        try (var builder = blockFactory().newDoubleBlockBuilder(positions.length)) {
-            for (int pos : positions) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int valueCount = getValueCount(pos);
-                int first = getFirstValueIndex(pos);
-                if (valueCount == 1) {
-                    builder.appendDouble(getDouble(getFirstValueIndex(pos)));
-                } else {
-                    builder.beginPositionEntry();
-                    for (int c = 0; c < valueCount; c++) {
-                        builder.appendDouble(getDouble(first + c));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.mvOrdering(mvOrdering()).build();
-        }
+        DoubleBlock filtered = new FilterDoubleBlock(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override

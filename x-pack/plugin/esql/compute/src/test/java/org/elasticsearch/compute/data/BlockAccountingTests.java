@@ -169,7 +169,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
-        assertThat(filterBlock.ramBytesUsed(), greaterThan(emptyPlusSome.ramBytesUsed()));
+        assertThat(filterBlock.ramBytesUsed(), between(emptyPlusSome.ramBytesUsed(), UPPER_BOUND));
         Releasables.close(filterBlock);
     }
 
@@ -219,7 +219,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
-        assertThat(filterBlock.ramBytesUsed(), greaterThan(emptyPlusSome.ramBytesUsed()));
+        assertThat(filterBlock.ramBytesUsed(), between(emptyPlusSome.ramBytesUsed(), UPPER_BOUND));
         Releasables.close(filterBlock);
     }
 
@@ -266,7 +266,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
-        assertThat(filterBlock.ramBytesUsed(), greaterThan(emptyPlusSome.ramBytesUsed()));
+        assertThat(filterBlock.ramBytesUsed(), between(emptyPlusSome.ramBytesUsed(), UPPER_BOUND));
         Releasables.close(filterBlock);
     }
 
@@ -319,7 +319,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
-        assertThat(filterBlock.ramBytesUsed(), greaterThan(emptyPlusSome.ramBytesUsed()));
+        assertThat(filterBlock.ramBytesUsed(), between(emptyPlusSome.ramBytesUsed(), UPPER_BOUND));
         Releasables.close(filterBlock);
     }
 

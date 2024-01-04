@@ -65,7 +65,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -113,7 +112,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
@@ -533,21 +531,19 @@ public class TransportSearchActionTests extends ESTestCase {
                 latch
             );
 
-            Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
-                searchRequest.source(),
-                timeProvider,
-                emptyReduceContextBuilder()
-            );
+            TaskId parentTaskId = new TaskId("n", 1);
+            SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
             TransportSearchAction.ccsRemoteReduce(
-                new TaskId("n", 1),
+                task,
+                parentTaskId,
                 searchRequest,
                 localIndices,
                 remoteIndicesByCluster,
                 new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                 timeProvider,
+                emptyReduceContextBuilder(),
                 remoteClusterService,
                 threadPool,
-                searchResponseMergerSupplier,
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l))
             );
@@ -608,21 +604,19 @@ public class TransportSearchActionTests extends ESTestCase {
                     }),
                     latch
                 );
-                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
-                    searchRequest.source(),
-                    timeProvider,
-                    emptyReduceContextBuilder()
-                );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
+                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -667,21 +661,19 @@ public class TransportSearchActionTests extends ESTestCase {
                     }),
                     latch
                 );
-                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
-                    searchRequest.source(),
-                    timeProvider,
-                    emptyReduceContextBuilder()
-                );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
+                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -752,21 +744,19 @@ public class TransportSearchActionTests extends ESTestCase {
                     latch
                 );
 
-                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
-                    searchRequest.source(),
-                    timeProvider,
-                    emptyReduceContextBuilder()
-                );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
+                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -848,21 +838,19 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(r -> fail("no response expected"), failure::set),
                     latch
                 );
-                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
-                    searchRequest.source(),
-                    timeProvider,
-                    emptyReduceContextBuilder()
-                );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
+                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -902,22 +890,19 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
-                AggregationReduceContext.Builder aggReduceContextBuilder = null;
-                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
-                    searchRequest.source(),
-                    timeProvider,
-                    emptyReduceContextBuilder()
-                );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
+                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -979,21 +964,19 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
-                Supplier<SearchResponseMerger> searchResponseMergerSupplier = () -> SearchTask.createSearchResponseMerger(
-                    searchRequest.source(),
-                    timeProvider,
-                    emptyReduceContextBuilder()
-                );
+                TaskId parentTaskId = new TaskId("n", 1);
+                SearchTask task = new SearchTask(2, "search", "search", () -> "desc", parentTaskId, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
-                    new TaskId("n", 1),
+                    task,
+                    parentTaskId,
                     searchRequest,
                     localIndices,
                     remoteIndicesByCluster,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
+                    emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    searchResponseMergerSupplier,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );

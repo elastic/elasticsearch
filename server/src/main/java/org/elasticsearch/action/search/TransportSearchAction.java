@@ -99,7 +99,6 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -362,21 +361,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task.getProgressListener()
                             .notifyListShards(Collections.emptyList(), Collections.emptyList(), clusters, false, timeProvider);
                     }
-                    Supplier<SearchResponseMerger> searchResponseMergerSupplier = task.getSearchResponseMergerSupplier(
-                        rewritten.source(),
-                        timeProvider,
-                        aggregationReduceContextBuilder
-                    );
                     ccsRemoteReduce(
+                        task,
                         parentTaskId,
                         rewritten,
                         localIndices,
                         remoteClusterIndices,
                         clusters,
                         timeProvider,
+                        aggregationReduceContextBuilder,
                         remoteClusterService,
                         threadPool,
-                        searchResponseMergerSupplier,
                         delegate,
                         (r, l) -> executeLocalSearch(
                             task,
@@ -502,15 +497,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Handles ccs_minimize_roundtrips=true
      */
     static void ccsRemoteReduce(
+        SearchTask task,
         TaskId parentTaskId,
         SearchRequest searchRequest,
         OriginalIndices localIndices,
         Map<String, OriginalIndices> remoteIndices,
         SearchResponse.Clusters clusters,
         SearchTimeProvider timeProvider,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
-        Supplier<SearchResponseMerger> searchResponseMergerSupplier,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
     ) {
@@ -538,7 +534,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
                     // overwrite the existing cluster entry with the updated one
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, skipUnavailable);
                     Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
@@ -581,7 +576,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             });
         } else {
-            SearchResponseMerger searchResponseMerger = searchResponseMergerSupplier.get();
+            SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
+                searchRequest.source(),
+                timeProvider,
+                aggReduceContextBuilder
+            );
+            task.setSearchResponseMerger(searchResponseMerger);
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             final CountDown countDown = new CountDown(totalClusters);
@@ -636,8 +636,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    // TODO: remove this - and move the tests for it in TransportSearchActionTests somewhere else
-    // this method is now in the SearchTask class and is redundant/unused here (other than by tests)
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
@@ -775,6 +773,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
+                // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
                 ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, skipUnavailable);
                 searchResponseMerger.add(searchResponse);
             }
@@ -1474,6 +1473,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
+                // skippedClusters.incrementAndGet();
             } else {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);

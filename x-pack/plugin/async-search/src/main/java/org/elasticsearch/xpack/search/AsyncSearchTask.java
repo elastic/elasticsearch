@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseMerger;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -28,7 +27,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -74,7 +72,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
     private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
-    private SearchResponseMerger searchResponseMerger; // used for CCS minimize_roundtrips
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -133,22 +130,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
     Listener getSearchProgressActionListener() {
         return progressListener;
-    }
-
-    @Override
-    protected Supplier<SearchResponseMerger> getSearchResponseMergerSupplier(
-        SearchSourceBuilder source,
-        TransportSearchAction.SearchTimeProvider timeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
-    ) {
-        return () -> {
-            searchResponseMerger = SearchTask.createSearchResponseMerger(source, timeProvider, aggReduceContextBuilder);
-            return searchResponseMerger;
-        };
-    }
-
-    public SearchResponseMerger getSearchResponseMerger() {
-        return searchResponseMerger;
     }
 
     /**
@@ -455,14 +436,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
-            MutableSearchResponse mutableSearchResponse = new MutableSearchResponse(
-                shards.size() + skipped.size(),
-                skipped.size(),
-                clusters,
-                threadPool.getThreadContext()
+            searchResponse.compareAndSet(
+                null,
+                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
             );
-            searchResponse.compareAndSet(null, mutableSearchResponse);
-
             executeInitListeners();
         }
 

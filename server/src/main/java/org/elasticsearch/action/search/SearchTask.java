@@ -8,10 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
@@ -25,6 +21,7 @@ public class SearchTask extends CancellableTask {
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
+    private SearchResponseMerger searchResponseMerger;  // used for CCS minimize_roundtrips=true
 
     public SearchTask(
         long id,
@@ -58,38 +55,18 @@ public class SearchTask extends CancellableTask {
     }
 
     /**
-     * @return a Supplier that provides SearchResponseMerger. Needed for CCS minimize_roundtrips=true.
+     * @return the {@link SearchResponseMerger} attached to this task. Will be null
+     * for local-only search and cross-cluster searches with minimize_roundtrips=false.
      */
-    protected Supplier<SearchResponseMerger> getSearchResponseMergerSupplier(
-        SearchSourceBuilder source,
-        TransportSearchAction.SearchTimeProvider timeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
-    ) {
-        return () -> createSearchResponseMerger(source, timeProvider, aggReduceContextBuilder);
+    public SearchResponseMerger getSearchResponseMerger() {
+        return searchResponseMerger;
     }
 
-    protected static SearchResponseMerger createSearchResponseMerger(
-        SearchSourceBuilder source,
-        TransportSearchAction.SearchTimeProvider timeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
-    ) {
-        final int from;
-        final int size;
-        final int trackTotalHitsUpTo;
-        if (source == null) {
-            from = SearchService.DEFAULT_FROM;
-            size = SearchService.DEFAULT_SIZE;
-            trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
-        } else {
-            from = source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
-            size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
-            trackTotalHitsUpTo = source.trackTotalHitsUpTo() == null
-                ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : source.trackTotalHitsUpTo();
-            // here we modify the original source so we can re-use it by setting it to each outgoing search request
-            source.from(0);
-            source.size(from + size);
-        }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder);
+    /**
+     * @param searchResponseMerger Attach a {@link SearchResponseMerger} to this task.
+     *                             For use with CCS minimize_roundtrips=true
+     */
+    public void setSearchResponseMerger(SearchResponseMerger searchResponseMerger) {
+        this.searchResponseMerger = searchResponseMerger;
     }
 }

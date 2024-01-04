@@ -17,7 +17,11 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
+import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
+import org.elasticsearch.xpack.security.metric.SecurityMetricType;
+import org.elasticsearch.xpack.security.metric.SecurityMetrics;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
@@ -25,22 +29,27 @@ import static org.elasticsearch.core.Strings.format;
 
 class ApiKeyAuthenticator implements Authenticator {
 
-    public static final String ATTRIBUTE_API_KEY_ID = AuthenticationMetrics.ATTRIBUTE_NAMESPACE_PREFIX + "api_key_id";
-    public static final String ATTRIBUTE_API_KEY_TYPE = AuthenticationMetrics.ATTRIBUTE_NAMESPACE_PREFIX + "api_key_type";
+    public static final String ATTRIBUTE_API_KEY_ID = "es.security.api_key_id";
+    public static final String ATTRIBUTE_API_KEY_TYPE = "es.security.api_key_type";
+    public static final String ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON = "es.security.api_key_authc_failure_reason";
 
     private static final Logger logger = LogManager.getLogger(ApiKeyAuthenticator.class);
 
+    private final SecurityMetrics<ApiKeyCredentials> authenticationMetrics;
     private final ApiKeyService apiKeyService;
     private final String nodeName;
-
-    private final AuthenticationMetrics<ApiKeyCredentials> authenticationMetrics;
 
     ApiKeyAuthenticator(ApiKeyService apiKeyService, String nodeName, MeterRegistry meterRegistry) {
         this(apiKeyService, nodeName, meterRegistry, System::nanoTime);
     }
 
     ApiKeyAuthenticator(ApiKeyService apiKeyService, String nodeName, MeterRegistry meterRegistry, LongSupplier nanoTimeSupplier) {
-        this.authenticationMetrics = new AuthenticationMetrics<>(meterRegistry, "api_key", this::buildMetricAttributes, nanoTimeSupplier);
+        this.authenticationMetrics = new SecurityMetrics<>(
+            SecurityMetricType.AUTHC_API_KEY,
+            meterRegistry,
+            this::buildMetricAttributes,
+            nanoTimeSupplier
+        );
         this.apiKeyService = apiKeyService;
         this.nodeName = nodeName;
     }
@@ -68,7 +77,7 @@ class ApiKeyAuthenticator implements Authenticator {
         apiKeyService.tryAuthenticate(
             context.getThreadContext(),
             apiKeyCredentials,
-            authenticationMetrics.wrap(apiKeyCredentials, ActionListener.wrap(authResult -> {
+            InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, apiKeyCredentials, ActionListener.wrap(authResult -> {
                 if (authResult.isAuthenticated()) {
                     final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
                     listener.onResponse(AuthenticationResult.success(authentication));
@@ -96,10 +105,13 @@ class ApiKeyAuthenticator implements Authenticator {
         );
     }
 
-    private Map<String, Object> buildMetricAttributes(ApiKeyCredentials credentials) {
-        return Map.ofEntries(
-            Map.entry(ATTRIBUTE_API_KEY_ID, credentials.getId()),
-            Map.entry(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value())
-        );
+    private Map<String, Object> buildMetricAttributes(ApiKeyCredentials credentials, String failureReason) {
+        final Map<String, Object> attributes = new HashMap<>(failureReason != null ? 3 : 2);
+        attributes.put(ATTRIBUTE_API_KEY_ID, credentials.getId());
+        attributes.put(ATTRIBUTE_API_KEY_TYPE, credentials.getExpectedType().value());
+        if (failureReason != null) {
+            attributes.put(ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, failureReason);
+        }
+        return attributes;
     }
 }

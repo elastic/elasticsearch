@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableRequest;
+import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
 import java.util.List;
 import java.util.Map;
@@ -112,7 +113,9 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         final AuthenticationResult<Authentication> authResult = future.actionGet();
         assertThat(authResult.isAuthenticated(), equalTo(true));
 
-        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement("es.security.authc.api_key.success.count");
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(
+            SecurityMetricType.AUTHC_API_KEY.successMetricInfo().name()
+        );
         assertThat(successMetrics.size(), equalTo(1));
 
         // verify that we always record a single authentication
@@ -228,7 +231,9 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         ApiKeyCredentials apiKeyCredentials,
         String failureMessage
     ) {
-        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement("es.security.authc.api_key.failures.count");
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(
+            SecurityMetricType.AUTHC_API_KEY.failuresMetricInfo().name()
+        );
         assertThat(failuresMetrics.size(), equalTo(1));
         assertThat(
             failuresMetrics.get(0).attributes(),
@@ -236,7 +241,7 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
                 Map.ofEntries(
                     Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
                     Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                    Map.entry("es.security.api_key_authc_failure_reason", failureMessage)
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, failureMessage)
                 )
             )
         );
@@ -247,7 +252,9 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
         ApiKeyCredentials credentials,
         long expectedAuthenticationTime
     ) {
-        List<Measurement> authTimeMetrics = telemetryPlugin.getLongHistogramMeasurement("es.security.authc.api_key.time");
+        List<Measurement> authTimeMetrics = telemetryPlugin.getLongHistogramMeasurement(
+            SecurityMetricType.AUTHC_API_KEY.timeMetricInfo().name()
+        );
         assertThat(authTimeMetrics.size(), equalTo(1));
         assertThat(authTimeMetrics.get(0).getLong(), equalTo(expectedAuthenticationTime));
         assertThat(
@@ -262,12 +269,16 @@ public class ApiKeyAuthenticatorTests extends ESTestCase {
     }
 
     private void assertZeroSuccessAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement("es.security.authc.api_key.success.count");
+        List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(
+            SecurityMetricType.AUTHC_API_KEY.successMetricInfo().name()
+        );
         assertThat(successMetrics.size(), equalTo(0));
     }
 
     private void assertZeroFailedAuthMetrics(TestTelemetryPlugin telemetryPlugin) {
-        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement("es.security.authc.api_key.failures.count");
+        List<Measurement> failuresMetrics = telemetryPlugin.getLongCounterMeasurement(
+            SecurityMetricType.AUTHC_API_KEY.failuresMetricInfo().name()
+        );
         assertThat(failuresMetrics.size(), equalTo(0));
     }
 

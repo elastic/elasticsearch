@@ -61,6 +61,9 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override
@@ -124,7 +127,7 @@ $endif$
 
         // The following line is correct because positions with multi-values are never null.
         int expandedPositionCount = vector.getPositionCount();
-        long bitSetRamUsedEstimate = BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount);
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
         blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
 
         $Type$ArrayBlock expanded = new $Type$ArrayBlock(

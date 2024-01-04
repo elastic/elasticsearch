@@ -124,9 +124,6 @@ public class Types {
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
 
-    static final ClassName POINT = ClassName.get("org.elasticsearch.common.geo", "SpatialPoint");
-    static final ClassName GEOMETRY = ClassName.get("org.elasticsearch.geometry", "Geometry");
-
     static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
@@ -145,12 +142,6 @@ public class Types {
         }
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_BLOCK;
-        }
-        if (elementType.equals(POINT)) {
-            return BYTES_REF_BLOCK;
-        }
-        if (elementType.equals(GEOMETRY)) {
-            return BYTES_REF_BLOCK;
         }
         throw new IllegalArgumentException("unknown block type for [" + elementType + "]");
     }
@@ -171,12 +162,6 @@ public class Types {
         if (elementType.equalsIgnoreCase(TypeName.DOUBLE.toString())) {
             return DOUBLE_BLOCK;
         }
-        if (elementType.equalsIgnoreCase("POINT")) {
-            return BYTES_REF_BLOCK;
-        }
-        if (elementType.equalsIgnoreCase("GEOMETRY")) {
-            return BYTES_REF_BLOCK;
-        }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }
 
@@ -196,12 +181,6 @@ public class Types {
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_VECTOR;
         }
-        if (elementType.equals(POINT)) {
-            return BYTES_REF_VECTOR;
-        }
-        if (elementType.equals(GEOMETRY)) {
-            return BYTES_REF_VECTOR;
-        }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }
 
@@ -220,12 +199,6 @@ public class Types {
         }
         if (elementType.equalsIgnoreCase(TypeName.DOUBLE.toString())) {
             return DOUBLE_VECTOR;
-        }
-        if (elementType.equalsIgnoreCase("POINT")) {
-            return BYTES_REF_VECTOR;
-        }
-        if (elementType.equalsIgnoreCase("GEOMETRY")) {
-            return BYTES_REF_VECTOR;
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }

@@ -13,7 +13,6 @@ import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 
@@ -222,9 +221,6 @@ public final class BlockUtils {
     private static BytesRef toBytesRef(Object val) {
         if (val instanceof SpatialPoint point) {
             return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
-        }
-        if (val instanceof Geometry geometry) {
-            return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
         }
         return BytesRefs.toBytesRef(val);
     }

@@ -41,8 +41,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int sizeRequested, int limit, SearchResponse response) {
         super(exts, mask);
 
-        this.hits = response.getHits();
-        this.hits.incRef();
+        this.hits = response.getHits().asUnpooled();
 
         // Since the results might contain nested docs, the iteration is similar to that of Aggregation
         // namely it discovers the nested docs and then, for iteration, increments the deepest level first
@@ -196,7 +195,6 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
             return true;
         }
-        hits.decRef();
         return false;
     }
 

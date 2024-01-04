@@ -51,10 +51,10 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
-        checkInvariants();
+        assert assertInvariants();
     }
 
-    private void checkInvariants() {
+    private boolean assertInvariants() {
         if (firstValueIndexes != null) {
             assert firstValueIndexes.length == getPositionCount() + 1;
             assert firstValueIndexes[getPositionCount()] <= vector.getPositionCount();
@@ -68,6 +68,7 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
                 assert ((nullsMask.get(i) == false) || (firstValueIndexes[i + 1] - firstValueIndexes[i]) == 1);
             }
         }
+        return true;
     }
 
     @Override

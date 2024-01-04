@@ -10,6 +10,8 @@ package org.elasticsearch.test.fixtures.idp;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.wait.strategy.HttpWaitStrategy;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.io.IOException;
@@ -51,17 +53,16 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
                         "/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif"
                     )
                     .copy("openldap/certs", "/container/service/slapd/assets/certs")
-
                     .build()
             )
                 .withFileFromClasspath("openldap/certs", "/openldap/certs/")
                 .withFileFromClasspath("openldap/ldif/users.ldif", "/openldap/ldif/users.ldif")
                 .withFileFromClasspath("openldap/ldif/config.ldif", "/openldap/ldif/config.ldif")
         );
-        // withLogConsumer(new Slf4jLogConsumer(logger()));
         withNetworkAliases("openldap");
         withNetwork(network);
         withExposedPorts(389, 636);
+        waitingFor(Wait.forListeningPorts(389));
     }
 
     public String getLdapUrl() {

@@ -75,7 +75,7 @@ To start using `ENRICH`, follow these steps:
 . <<esql-execute-enrich-policy>>.
 . <<esql-use-enrich>>
 
-Once you have enrich policies set up, you can <<esql-update-enrich-data,update
+Once you have enrich policies set up, you can <<esql-update-enrich-data, update
 your enrich data>> and <<esql-update-enrich-policies, update your enrich
 policies>>.
 

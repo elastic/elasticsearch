@@ -20,7 +20,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -100,7 +99,6 @@ public final class DatafeedManager {
     public void putDatafeed(
         PutDatafeedAction.Request request,
         ClusterState state,
-        XPackLicenseState licenseState,
         SecurityContext securityContext,
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener

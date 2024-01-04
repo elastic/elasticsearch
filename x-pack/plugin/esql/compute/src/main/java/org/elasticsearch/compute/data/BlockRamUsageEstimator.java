@@ -27,6 +27,8 @@ public final class BlockRamUsageEstimator {
     }
 
     public static long sizeOfBitSet(long size) {
-        return BITSET_BASE_RAM_USAGE + (size / Byte.SIZE);
+        // BitSet is normally made up of words, represented by longs. So we need to divide and round up.
+        long wordCount = (size + Long.SIZE - 1) / Long.SIZE;
+        return BITSET_BASE_RAM_USAGE + wordCount * Long.BYTES;
     }
 }

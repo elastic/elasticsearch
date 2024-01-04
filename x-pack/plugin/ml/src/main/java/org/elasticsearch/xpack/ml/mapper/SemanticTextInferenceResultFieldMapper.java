@@ -212,6 +212,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         String fieldName) {
 
         // TODO: Use keyword field type for text?
+        // TODO: Why add text field to mapper if it's not indexed or stored?
         SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(SPARSE_VECTOR_SUBFIELD_NAME);
         TextFieldMapper.Builder textMapperBuilder = new TextFieldMapper.Builder(
             TEXT_SUBFIELD_NAME,

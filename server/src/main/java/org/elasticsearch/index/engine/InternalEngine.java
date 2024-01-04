@@ -879,64 +879,68 @@ public class InternalEngine extends Engine {
             // we need to lock here to access the version map to do this truly in RT
             versionValue = getVersionFromMap(get.uid().bytes());
         }
-        boolean getFromSearcherIfNotInTranslog = getFromSearcher;
-        if (versionValue != null) {
-            /*
-             * Once we've seen the ID in the live version map, in two cases it is still possible not to
-             * be able to follow up with serving the get from the translog:
-             *  1. It is possible that once attempt handling the get, we won't see the doc in the translog
-             *     since it might have been moved out.
-             *     TODO: ideally we should keep around translog entries long enough to cover this case
-             *  2. We might not be tracking translog locations in the live version map (see @link{trackTranslogLocation})
-             *
-             * In these cases, we should always fall back to get the doc from the internal searcher.
-             */
+        try {
+            boolean getFromSearcherIfNotInTranslog = getFromSearcher;
+            if (versionValue != null) {
+                /*
+                 * Once we've seen the ID in the live version map, in two cases it is still possible not to
+                 * be able to follow up with serving the get from the translog:
+                 *  1. It is possible that once attempt handling the get, we won't see the doc in the translog
+                 *     since it might have been moved out.
+                 *     TODO: ideally we should keep around translog entries long enough to cover this case
+                 *  2. We might not be tracking translog locations in the live version map (see @link{trackTranslogLocation})
+                 *
+                 * In these cases, we should always fall back to get the doc from the internal searcher.
+                 */
 
-            getFromSearcherIfNotInTranslog = true;
-            if (versionValue.isDelete()) {
-                return GetResult.NOT_EXISTS;
-            }
-            if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
-                throw new VersionConflictEngineException(
-                    shardId,
-                    "[" + get.id() + "]",
-                    get.versionType().explainConflictForReads(versionValue.version, get.version())
-                );
-            }
-            if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
-                throw new VersionConflictEngineException(
-                    shardId,
-                    get.id(),
-                    get.getIfSeqNo(),
-                    get.getIfPrimaryTerm(),
-                    versionValue.seqNo,
-                    versionValue.term
-                );
-            }
-            if (get.isReadFromTranslog()) {
-                if (versionValue.getLocation() != null) {
-                    try {
-                        final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
-                        if (operation != null) {
-                            return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
-                        }
-                    } catch (IOException e) {
-                        maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
-                        throw new EngineException(shardId, "failed to read operation from translog", e);
-                    }
-                } else {
-                    // We need to start tracking translog locations in the live version map.
-                    trackTranslogLocation.set(true);
+                getFromSearcherIfNotInTranslog = true;
+                if (versionValue.isDelete()) {
+                    return GetResult.NOT_EXISTS;
                 }
+                if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
+                    throw new VersionConflictEngineException(
+                        shardId,
+                        "[" + get.id() + "]",
+                        get.versionType().explainConflictForReads(versionValue.version, get.version())
+                    );
+                }
+                if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                    && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
+                    throw new VersionConflictEngineException(
+                        shardId,
+                        get.id(),
+                        get.getIfSeqNo(),
+                        get.getIfPrimaryTerm(),
+                        versionValue.seqNo,
+                        versionValue.term
+                    );
+                }
+                if (get.isReadFromTranslog()) {
+                    if (versionValue.getLocation() != null) {
+                        try {
+                            final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                            if (operation != null) {
+                                return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
+                            }
+                        } catch (IOException e) {
+                            maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
+                            throw new EngineException(shardId, "failed to read operation from translog", e);
+                        }
+                    } else {
+                        // We need to start tracking translog locations in the live version map.
+                        trackTranslogLocation.set(true);
+                    }
+                }
+                assert versionValue.seqNo >= 0 : versionValue;
+                refreshIfNeeded(REAL_TIME_GET_REFRESH_SOURCE, versionValue.seqNo);
             }
-            assert versionValue.seqNo >= 0 : versionValue;
-            refreshIfNeeded(REAL_TIME_GET_REFRESH_SOURCE, versionValue.seqNo);
+            if (getFromSearcherIfNotInTranslog) {
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+            }
+            return null;
+        } finally {
+            assert isDrainedForClose() == false;
         }
-        if (getFromSearcherIfNotInTranslog) {
-            return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
-        }
-        return null;
     }
 
     /**
@@ -1996,6 +2000,8 @@ public class InternalEngine extends Engine {
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
             return noOpResult;
+        } finally {
+            assert isDrainedForClose() == false;
         }
     }
 
@@ -2585,11 +2591,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    /**
-     * Closes the engine without acquiring the write lock. This should only be
-     * called while the write lock is hold or in a disaster condition ie. if the engine
-     * is failed.
-     */
     @Override
     protected final void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {

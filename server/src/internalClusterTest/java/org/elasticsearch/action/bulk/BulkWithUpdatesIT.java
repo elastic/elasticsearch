@@ -172,7 +172,6 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(getResponse.getVersion(), equalTo(2L));
             assertThat(getResponse.getSource().get("field1").toString(), equalTo("test"));
         }
-        System.err.println("***** starting");
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
             UpdateRequestBuilder updateRequestBuilder1 = client().prepareUpdate()
                 .setIndex(indexOrAlias())
@@ -185,13 +184,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 .add(updateRequestBuilder2)
                 .add(updateRequestBuilder3)
                 .get();
-            System.err.println("***** here1");
             updateRequestBuilder1.request().decRef();
-            System.err.println("***** here2");
             updateRequestBuilder2.request().decRef();
-            System.err.println("***** here3");
             updateRequestBuilder3.request().decRef();
-            System.err.println("***** here4");
 
             assertThat(bulkResponse.hasFailures(), equalTo(true));
             assertThat(bulkResponse.getItems().length, equalTo(3));
@@ -205,7 +200,6 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(bulkResponse.getItems()[2].getResponse().getIndex(), equalTo("test"));
             assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(3L));
         }
-        System.err.println("***** ending");
 
         GetResponse getResponse = client().prepareGet().setIndex("test").setId("6").get();
         assertThat(getResponse.isExists(), equalTo(true));

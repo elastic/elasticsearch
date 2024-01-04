@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -20,6 +21,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103913")
 public class BulkUpdateApiKeyRequestSerializationTests extends AbstractWireSerializingTestCase<BulkUpdateApiKeyRequest> {
     public void testSerializationBackwardsCompatibility() throws IOException {
         BulkUpdateApiKeyRequest testInstance = createTestInstance();

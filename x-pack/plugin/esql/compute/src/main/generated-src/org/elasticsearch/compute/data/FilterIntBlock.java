@@ -13,6 +13,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for IntBlocks.
  * This class is generated. Do not edit it.
  */
+// TODO: check if javadoc needs updating, both here, in the interfaces and in the abstract filter block
 final class FilterIntBlock extends AbstractFilterBlock<IntBlock> implements IntBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterIntBlock.class);

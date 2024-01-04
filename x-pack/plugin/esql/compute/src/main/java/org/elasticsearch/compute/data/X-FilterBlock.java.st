@@ -16,6 +16,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for $Type$Blocks.
  * This class is generated. Do not edit it.
  */
+// TODO: check if javadoc needs updating, both here, in the interfaces and in the abstract filter block
 final class Filter$Type$Block extends AbstractFilterBlock<$Type$Block> implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Filter$Type$Block.class);

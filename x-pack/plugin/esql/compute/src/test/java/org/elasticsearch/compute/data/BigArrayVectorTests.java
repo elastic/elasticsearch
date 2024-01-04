@@ -49,7 +49,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(block.getValueCount(i), is(1));
                 assertThat(block.getFirstValueIndex(i), is(i));
                 try (BooleanBlock filter = block.filter(i)) {
-                    assertThat(filter.getBoolean(0), is(values[i]));
+                    assertThat(filter.getBoolean(filter.getFirstValueIndex(0)), is(values[i]));
                 }
             });
             BasicBlockTests.assertSingleValueDenseBlock(vector.asBlock());
@@ -80,7 +80,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(block.getValueCount(i), is(1));
                 assertThat(block.getFirstValueIndex(i), is(i));
                 try (IntBlock filter = block.filter(i)) {
-                    assertThat(filter.getInt(0), is(values[i]));
+                    assertThat(filter.getInt(filter.getFirstValueIndex(0)), is(values[i]));
                 }
             });
             BasicBlockTests.assertSingleValueDenseBlock(vector.asBlock());
@@ -111,7 +111,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(block.getValueCount(i), is(1));
                 assertThat(block.getFirstValueIndex(i), is(i));
                 try (LongBlock filter = block.filter(i)) {
-                    assertThat(filter.getLong(0), is(values[i]));
+                    assertThat(filter.getLong(filter.getFirstValueIndex(0)), is(values[i]));
                 }
             });
             BasicBlockTests.assertSingleValueDenseBlock(vector.asBlock());
@@ -142,7 +142,7 @@ public class BigArrayVectorTests extends SerializationTestCase {
                 assertThat(block.getValueCount(i), is(1));
                 assertThat(block.getFirstValueIndex(i), is(i));
                 try (DoubleBlock filter = block.filter(i)) {
-                    assertThat(filter.getDouble(0), is(values[i]));
+                    assertThat(filter.getDouble(filter.getFirstValueIndex(0)), is(values[i]));
                 }
             });
             BasicBlockTests.assertSingleValueDenseBlock(vector.asBlock());

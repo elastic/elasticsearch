@@ -23,7 +23,6 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
             blockFactory.newDoubleArrayVector(new double[] {}, 0),
             blockFactory.newDoubleArrayVector(new double[] { 0 }, 0),
             blockFactory.newConstantDoubleVector(0, 0),
-            blockFactory.newConstantDoubleBlockWith(0, 0).filter().asVector(),
             blockFactory.newDoubleBlockBuilder(0).build().asVector(),
             blockFactory.newDoubleBlockBuilder(0).appendDouble(1).build().asVector().filter()
         );
@@ -74,14 +73,6 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
                 .appendDouble(2)
                 .appendDouble(3)
                 .build()
-                .filter(0, 2, 3)
-                .asVector(),
-            blockFactory.newDoubleBlockBuilder(3)
-                .appendDouble(1)
-                .appendDouble(4)
-                .appendDouble(2)
-                .appendDouble(3)
-                .build()
                 .asVector()
                 .filter(0, 2, 3)
         );
@@ -99,14 +90,6 @@ public class DoubleBlockEqualityTests extends ComputeTestCase {
             blockFactory.newConstantDoubleBlockWith(1, 3).asVector(),
             blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector(),
             blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector().filter(0, 1, 2),
-            blockFactory.newDoubleBlockBuilder(3)
-                .appendDouble(1)
-                .appendDouble(4)
-                .appendDouble(1)
-                .appendDouble(1)
-                .build()
-                .filter(0, 2, 3)
-                .asVector(),
             blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
                 .appendDouble(4)

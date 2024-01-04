@@ -55,10 +55,11 @@ public class FilteredBlockTests extends ESTestCase {
         expectThrows(ArrayIndexOutOfBoundsException.class, () -> filteredVector.getInt(0));
         filteredVector.close();
 
-        var filteredBlock = vector.asBlock().filter();
+        var block = vector.asBlock();
+
+        var filteredBlock = block.filter();
         assertEquals(0, filteredBlock.getPositionCount());
-        expectThrows(ArrayIndexOutOfBoundsException.class, () -> filteredBlock.getInt(0));
-        vector.close();
+        block.close();
         releaseAndAssertBreaker(filteredBlock);
     }
 
@@ -92,10 +93,11 @@ public class FilteredBlockTests extends ESTestCase {
         assertEquals(anyPosition * 2, filteredVector.asBlock().getInt(anyPosition));
         filteredVector.close();
 
-        var filteredBlock = vector.asBlock().filter(positions);
+        var block = vector.asBlock();
+        var filteredBlock = block.filter(positions);
         assertEquals(positionCount / 2, filteredBlock.getPositionCount());
-        assertEquals(anyPosition * 2, filteredBlock.getInt(anyPosition));
-        vector.close();
+        assertEquals(anyPosition * 2, filteredBlock.getInt(filteredBlock.getFirstValueIndex(anyPosition)));
+        block.close();
         releaseAndAssertBreaker(filteredBlock);
     }
 
@@ -187,9 +189,9 @@ public class FilteredBlockTests extends ESTestCase {
         assertEquals(0, filtered.nullValuesCount());
         assertEquals(3, filtered.getTotalValueCount());
 
-        assertEquals(20, filtered.asVector().getInt(0));
-        assertEquals(30, filtered.asVector().getInt(1));
-        assertEquals(40, filtered.asVector().getInt(2));
+        assertEquals(20, filtered.getInt(filtered.getFirstValueIndex(0)));
+        assertEquals(30, filtered.getInt(filtered.getFirstValueIndex(1)));
+        assertEquals(40, filtered.getInt(filtered.getFirstValueIndex(2)));
         block.close();
         releaseAndAssertBreaker(filtered);
     }

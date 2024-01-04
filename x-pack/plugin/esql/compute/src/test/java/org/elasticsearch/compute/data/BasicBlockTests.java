@@ -748,16 +748,16 @@ public class BasicBlockTests extends ESTestCase {
             }
             for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
                 try (var filter = block.filter(0)) {
-                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
+                    assertThat(filter.toString(), containsString("FilterIntBlock[positions=1, values=[1]]"));
                 }
                 try (var filter = block.filter(1)) {
-                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
+                    assertThat(filter.toString(), containsString("FilterIntBlock[positions=1, values=[2]]"));
                 }
                 try (var filter = block.filter(0, 1)) {
-                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]"));
+                    assertThat(filter.toString(), containsString("FilterIntBlock[positions=2, values=[1, 2]]"));
                 }
                 try (var filter = block.filter()) {
-                    assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
+                    assertThat(filter.toString(), containsString("FilterIntBlock[positions=0, values=[]]"));
                 }
             }
             for (IntVector vector : List.of(intVector, intBlock.asVector())) {

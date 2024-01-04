@@ -22,7 +22,6 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayVector(new long[] {}, 0),
             blockFactory.newLongArrayVector(new long[] { 0 }, 0),
             blockFactory.newConstantLongBlockWith(0, 0).asVector(),
-            blockFactory.newConstantLongBlockWith(0, 0).filter().asVector(),
             blockFactory.newLongBlockBuilder(0).build().asVector(),
             blockFactory.newLongBlockBuilder(0).appendLong(1).build().asVector().filter()
         );
@@ -66,7 +65,6 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayVector(new long[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().asVector(),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().asVector().filter(0, 1, 2),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(2).appendLong(3).build().filter(0, 2, 3).asVector(),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(2).appendLong(3).build().asVector().filter(0, 2, 3)
         );
         assertAllEquals(vectors);
@@ -83,7 +81,6 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newConstantLongBlockWith(1, 3).asVector(),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(1).appendLong(1).build().asVector(),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(1).appendLong(1).build().asVector().filter(0, 1, 2),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(1).appendLong(1).build().filter(0, 2, 3).asVector(),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(1).appendLong(1).build().asVector().filter(0, 2, 3)
         );
         assertAllEquals(moreVectors);

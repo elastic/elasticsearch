@@ -66,7 +66,6 @@ public class IntBlockEqualityTests extends ComputeTestCase {
             blockFactory.newIntArrayVector(new int[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().asVector(),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(2).appendInt(3).build().asVector().filter(0, 1, 2),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().filter(0, 2, 3).asVector(),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(2).appendInt(3).build().asVector().filter(0, 2, 3)
         );
         assertAllEquals(vectors);
@@ -83,7 +82,6 @@ public class IntBlockEqualityTests extends ComputeTestCase {
             blockFactory.newConstantIntBlockWith(1, 3).asVector(),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(1).appendInt(1).build().asVector(),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(1).appendInt(1).build().asVector().filter(0, 1, 2),
-            blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(1).appendInt(1).build().filter(0, 2, 3).asVector(),
             blockFactory.newIntBlockBuilder(3).appendInt(1).appendInt(4).appendInt(1).appendInt(1).build().asVector().filter(0, 2, 3)
         );
         assertAllEquals(moreVectors);

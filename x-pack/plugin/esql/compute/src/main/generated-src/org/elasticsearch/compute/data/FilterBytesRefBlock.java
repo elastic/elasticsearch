@@ -14,6 +14,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for BytesRefBlocks.
  * This class is generated. Do not edit it.
  */
+// TODO: check if javadoc needs updating, both here, in the interfaces and in the abstract filter block
 final class FilterBytesRefBlock extends AbstractFilterBlock<BytesRefBlock> implements BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterBytesRefBlock.class);

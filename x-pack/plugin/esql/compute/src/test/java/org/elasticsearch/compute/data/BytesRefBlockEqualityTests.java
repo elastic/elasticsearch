@@ -31,7 +31,6 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 new BytesRefArrayVector(bytesRefArray1, 0, blockFactory),
                 new BytesRefArrayVector(bytesRefArray2, 0, blockFactory),
                 blockFactory.newConstantBytesRefBlockWith(new BytesRef(), 0).asVector(),
-                blockFactory.newConstantBytesRefBlockWith(new BytesRef(), 0).filter().asVector(),
                 blockFactory.newBytesRefBlockBuilder(0).build().asVector(),
                 blockFactory.newBytesRefBlockBuilder(0).appendBytesRef(new BytesRef()).build().asVector().filter()
             );
@@ -96,14 +95,6 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .appendBytesRef(new BytesRef("2"))
                     .appendBytesRef(new BytesRef("3"))
                     .build()
-                    .filter(0, 2, 3)
-                    .asVector(),
-                blockFactory.newBytesRefBlockBuilder(3)
-                    .appendBytesRef(new BytesRef("1"))
-                    .appendBytesRef(new BytesRef("4"))
-                    .appendBytesRef(new BytesRef("2"))
-                    .appendBytesRef(new BytesRef("3"))
-                    .build()
                     .asVector()
                     .filter(0, 2, 3)
             );
@@ -132,14 +123,6 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                     .build()
                     .asVector()
                     .filter(0, 1, 2),
-                blockFactory.newBytesRefBlockBuilder(3)
-                    .appendBytesRef(new BytesRef("1"))
-                    .appendBytesRef(new BytesRef("4"))
-                    .appendBytesRef(new BytesRef("1"))
-                    .appendBytesRef(new BytesRef("1"))
-                    .build()
-                    .filter(0, 2, 3)
-                    .asVector(),
                 blockFactory.newBytesRefBlockBuilder(3)
                     .appendBytesRef(new BytesRef("1"))
                     .appendBytesRef(new BytesRef("4"))

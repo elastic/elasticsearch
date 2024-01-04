@@ -96,7 +96,6 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         ActionListener<NodesReloadSecureSettingsResponse> listener
     ) {
         if (request.hasPassword() && isNodeLocal(request) == false && isNodeTransportTLSEnabled() == false) {
-            request.close();
             listener.onFailure(
                 new ElasticsearchException(
                     "Secure settings cannot be updated cluster wide when TLS for the transport layer"
@@ -104,16 +103,15 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                 )
             );
         } else {
-            super.doExecute(task, request, ActionListener.runBefore(listener, request::close));
+            super.doExecute(task, request, listener);
         }
     }
 
     @Override
     protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(
-        NodesReloadSecureSettingsRequest.NodeRequest nodeReloadRequest,
+        NodesReloadSecureSettingsRequest.NodeRequest request,
         Task task
     ) {
-        final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
         // We default to using an empty string as the keystore password so that we mimic pre 7.3 API behavior
         try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
             // reread keystore from config file
@@ -143,8 +141,6 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
         } catch (final Exception e) {
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);
-        } finally {
-            request.close();
         }
     }
 

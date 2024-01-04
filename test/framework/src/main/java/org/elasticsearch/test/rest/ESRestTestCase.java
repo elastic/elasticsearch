@@ -68,7 +68,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.rest.RestFeatures;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -2377,7 +2376,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static XContentType randomSupportedContentType() {
-        return clusterHasFeature(RestFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES)
+        return clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES)
             ? randomFrom(XContentType.values())
             : randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE);
     }

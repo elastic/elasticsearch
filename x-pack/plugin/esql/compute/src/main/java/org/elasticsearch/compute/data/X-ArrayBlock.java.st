@@ -61,7 +61,8 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
-        assert firstValueIndexes == null ? vector.getPositionCount() == getPositionCount()
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
             : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 

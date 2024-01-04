@@ -51,7 +51,8 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
-        assert firstValueIndexes == null ? vector.getPositionCount() == getPositionCount()
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
             : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 

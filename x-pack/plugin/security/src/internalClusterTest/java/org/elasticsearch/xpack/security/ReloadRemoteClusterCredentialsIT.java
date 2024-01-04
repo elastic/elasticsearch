@@ -279,31 +279,36 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
         final CountDownLatch latch = new CountDownLatch(1);
         final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
 
-        final var request = new NodesReloadSecureSettingsRequest(Strings.EMPTY_ARRAY);
-        request.setSecureStorePassword(emptyPassword);
-        client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                try {
-                    assertThat(nodesReloadResponse, notNullValue());
-                    final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                    assertThat(nodesMap.size(), equalTo(1));
-                    for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                        assertThat(nodeResponse.reloadException(), nullValue());
+        final var request = new NodesReloadSecureSettingsRequest();
+        try {
+            request.nodesIds(Strings.EMPTY_ARRAY);
+            request.setSecureStorePassword(emptyPassword);
+            client().execute(TransportNodesReloadSecureSettingsAction.TYPE, request, new ActionListener<>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(1));
+                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                            assertThat(nodeResponse.reloadException(), nullValue());
+                        }
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
+                        latch.countDown();
                     }
-                } catch (final AssertionError e) {
-                    reloadSettingsError.set(e);
-                } finally {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
                     latch.countDown();
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                reloadSettingsError.set(new AssertionError("Nodes request failed", e));
-                latch.countDown();
-            }
-        });
+            });
+        } finally {
+            request.decRef();
+        }
         safeAwait(latch);
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();

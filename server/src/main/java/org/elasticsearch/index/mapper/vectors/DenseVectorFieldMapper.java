@@ -1103,11 +1103,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         bytes[i] = (byte) queryVector[i];
                     }
                     yield parentFilter != null
-                        ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
+                        ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter, 1)
                         : new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
                 case FLOAT -> parentFilter != null
-                    ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                    ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter, 1)
                     : new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
 

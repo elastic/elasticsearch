@@ -9,8 +9,8 @@
 package org.elasticsearch.search.vectors;
 
 
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorEncoding;
@@ -27,7 +27,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
+import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -37,11 +37,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery {
+public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery {
 
     private final int numChildrenPerParent;
     private final BitSetProducer parentsFilter;
-    private final byte[] query;
+    private final float[] query;
     /**
      * Create a ToParentBlockJoinByteVectorQuery.
      *
@@ -51,9 +51,9 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
      * @param k             how many parent documents to return given the matching children
      * @param parentsFilter Filter identifying the parent documents.
      */
-    public ESDiversifyingChildrenByteKnnVectorQuery(
+    public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
-        byte[] query,
+        float[] query,
         Query childFilter,
         int k,
         BitSetProducer parentsFilter,
@@ -105,7 +105,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
                 continue;
             }
             Scorer childFilterScorer = childrenFilter == null ? null : childrenFilter.scorer(context);
-            ByteVectorValues values = context.reader().getByteVectorValues(field);
+            FloatVectorValues values = context.reader().getFloatVectorValues(field);
             VectorSimilarityFunction function = fi.getVectorSimilarityFunction();
             DocIdSetIterator childFilterIterator = childFilterScorer == null ?
                 DocIdSetIterator.all(context.reader().maxDoc()) :

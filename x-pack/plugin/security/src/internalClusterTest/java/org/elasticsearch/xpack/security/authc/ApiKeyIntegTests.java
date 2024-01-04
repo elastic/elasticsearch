@@ -1959,12 +1959,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 null
             )
         );
-        final var request = new UpdateApiKeyRequest(
-            apiKeyId,
-            newRoleDescriptors,
-            ApiKeyTests.randomMetadata(),
-            ApiKeyTests.randomFutureExpirationTime()
-        );
+        final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata(), null);
 
         final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, request);
 

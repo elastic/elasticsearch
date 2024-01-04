@@ -10,12 +10,9 @@ package org.elasticsearch.xpack.esql.io.stream;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.dissect.DissectParser;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
@@ -186,7 +183,6 @@ import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1618,9 +1614,6 @@ public final class PlanNamedTypes {
                 if (value instanceof BytesRef wkb) {
                     return wkb;
                 }
-                if (value instanceof SpatialPoint point) {
-                    return pointAsWKB(point);
-                }
                 if (value instanceof Long encoded) {
                     return longAsWKB(dataType, encoded);
                 }
@@ -1628,9 +1621,6 @@ public final class PlanNamedTypes {
                 // 8.12.0 uses encoded longs for serializing point literals
                 if (value instanceof BytesRef wkb) {
                     return wkbAsLong(dataType, wkb);
-                }
-                if (value instanceof SpatialPoint point) {
-                    return pointAsLong(dataType, point);
                 }
                 if (value instanceof Long encoded) {
                     return encoded;
@@ -1665,20 +1655,12 @@ public final class PlanNamedTypes {
         return value;
     }
 
-    private static BytesRef pointAsWKB(SpatialPoint point) {
-        return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
-    }
-
     private static BytesRef longAsWKB(DataType dataType, long encoded) {
         return dataType == GEO_POINT ? GEO.longAsWKB(encoded) : CARTESIAN.longAsWKB(encoded);
     }
 
     private static long wkbAsLong(DataType dataType, BytesRef wkb) {
         return dataType == GEO_POINT ? GEO.wkbAsLong(wkb) : CARTESIAN.wkbAsLong(wkb);
-    }
-
-    private static long pointAsLong(DataType dataType, SpatialPoint point) {
-        return dataType == GEO_POINT ? GEO.pointAsLong(point) : CARTESIAN.pointAsLong(point);
     }
 
     static Order readOrder(PlanStreamInput in) throws IOException {

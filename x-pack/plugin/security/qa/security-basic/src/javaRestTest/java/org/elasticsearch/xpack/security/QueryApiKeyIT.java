@@ -372,7 +372,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         });
 
         assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
-            {"query": {"query_string": {"query": "invalidated: false" }}}""", apiKeys -> {
+            {"query": {"query_string": {"query": "invalidated:false" }}}""", apiKeys -> {
             assertThat(apiKeys.stream().map(k -> (String) k.get("id")).toList(), containsInAnyOrder(apiKeyIds.toArray(new String[0])));
         });
     }

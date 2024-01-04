@@ -48,6 +48,8 @@ public class ExpectedShardSizeEstimator {
             case PEER -> true;
 
             // Snapshot restore (unless it is partial) require downloading all segments locally from the blobstore to start the shard.
+            // See org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction.buildIndexSettings
+            // and DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS
             case SNAPSHOT -> metadata.getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false;
 
             // shrink/split/clone operation is going to clone existing locally placed shards using file system hard links

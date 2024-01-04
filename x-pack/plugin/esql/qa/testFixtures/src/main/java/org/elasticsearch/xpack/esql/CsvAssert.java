@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
@@ -156,15 +155,7 @@ public final class CsvAssert {
     }
 
     static void assertData(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertData(expected, actual.values(), ignoreOrder, logger, CsvAssert::pointNormalizer);
-    }
-
-    private static Object pointNormalizer(Object obj) {
-        if (obj instanceof GeoPoint geoPoint) {
-            // In tests the block type for all points is SpatialPoint and knowledge of the CRS is lost
-            return CARTESIAN.pointAsPoint(geoPoint);
-        }
-        return obj;
+        assertData(expected, actual.values(), ignoreOrder, logger, v -> v);
     }
 
     public static void assertData(

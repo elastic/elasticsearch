@@ -155,7 +155,7 @@ public class RolloverIT extends ESIntegTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareRolloverIndex("alias").dryRun(randomBoolean()).get()
+            indicesAdmin().prepareRolloverIndex("alias").dryRun(randomBoolean())
         );
         assertThat(exception.getMessage(), equalTo("rollover target [alias] does not point to a write index"));
     }
@@ -590,7 +590,7 @@ public class RolloverIT extends ESIntegTestCase {
         ensureYellow("logs-write");
         final IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareRolloverIndex("logs-write").get()
+            indicesAdmin().prepareRolloverIndex("logs-write")
         );
         assertThat(
             error.getMessage(),
@@ -777,7 +777,7 @@ public class RolloverIT extends ESIntegTestCase {
         });
 
         // We should *NOT* have a third index, it should have rolled over *exactly* once
-        expectThrows(Exception.class, () -> indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000003").get());
+        expectThrows(Exception.class, indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000003"));
     }
 
     public void testRolloverConcurrently() throws Exception {

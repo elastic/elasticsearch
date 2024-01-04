@@ -12,7 +12,8 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed BooleanArray.
+ * Vector implementation that defers to an enclosed {@link BitArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class BooleanBigArrayVector extends AbstractVector implements BooleanVector, Releasable {
@@ -65,6 +66,8 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
 
     @Override
     public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BitArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

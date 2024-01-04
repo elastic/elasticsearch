@@ -87,9 +87,9 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     @Override
-    protected final ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big array so never breaks", false);
-        return null;
+    protected ByteSizeValue memoryLimitForSimple() {
+        // This is a super conservative limit that should cause all aggs to break
+        return ByteSizeValue.ofBytes(20);
     }
 
     public final void testIgnoresNulls() {

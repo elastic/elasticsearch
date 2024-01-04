@@ -46,7 +46,7 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 new BytesRefArrayBlock(
                     bytesRefArray1,
                     0,
-                    new int[] {},
+                    new int[] { 0 },
                     BitSet.valueOf(new byte[] { 0b00 }),
                     randomFrom(Block.MvOrdering.values()),
                     blockFactory
@@ -54,7 +54,7 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 new BytesRefArrayBlock(
                     bytesRefArray2,
                     0,
-                    new int[] {},
+                    new int[] { 0 },
                     BitSet.valueOf(new byte[] { 0b00 }),
                     randomFrom(Block.MvOrdering.values()),
                     blockFactory

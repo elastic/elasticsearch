@@ -42,6 +42,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -69,12 +70,14 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,6 +85,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.mockSearchContext;
@@ -129,19 +135,20 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 throw new RuntimeException(e);
             }
         }
-        return factory(reader, docValuesNumberField("long", NumberFieldMapper.NumberType.LONG));
+        return factory(reader, docValuesNumberField("long", NumberFieldMapper.NumberType.LONG), ElementType.LONG);
     }
 
-    static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft) {
-        return factory(reader, ft.name(), ft.blockLoader(null));
+    static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft, ElementType elementType) {
+        return factory(reader, ft.name(), elementType, ft.blockLoader(null));
     }
 
-    static Operator.OperatorFactory factory(IndexReader reader, String name, BlockLoader loader) {
-        return new ValuesSourceReaderOperator.Factory(
-            List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(loader))),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-            0
-        );
+    static Operator.OperatorFactory factory(IndexReader reader, String name, ElementType elementType, BlockLoader loader) {
+        return new ValuesSourceReaderOperator.Factory(List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
+            if (shardIdx != 0) {
+                fail("unexpected shardIdx [" + shardIdx + "]");
+            }
+            return loader;
+        })), List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)), 0);
     }
 
     @Override
@@ -160,7 +167,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             throw new RuntimeException(e);
         }
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(mockSearchContext(reader)),
+            List.of(mockSearchContext(reader, 0)),
             ctx -> new MatchAllDocsQuery(),
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
@@ -172,6 +179,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     private void initIndex(int size, int commitEvery) throws IOException {
         keyToTags.clear();
+        reader = initIndex(directory, size, commitEvery);
+    }
+
+    private IndexReader initIndex(Directory directory, int size, int commitEvery) throws IOException {
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
@@ -240,7 +251,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 }
             }
         }
-        reader = DirectoryReader.open(directory);
+        return DirectoryReader.open(directory);
     }
 
     @Override
@@ -272,9 +283,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+    protected ByteSizeValue memoryLimitForSimple() {
+        assumeFalse("strange exception in the test, fix soon", true);
+        return ByteSizeValue.ofKb(1);
     }
 
     public void testLoadAll() {
@@ -308,12 +319,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         Checks checks = new Checks(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         FieldCase testCase = new FieldCase(
             new KeywordFieldMapper.KeywordFieldType("kwd"),
+            ElementType.BYTES_REF,
             checks::tags,
             StatusChecks::keywordsFromDocValues
         );
         operators.add(
             new ValuesSourceReaderOperator.Factory(
-                List.of(testCase.info, fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER))),
+                List.of(testCase.info, fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER), ElementType.INT)),
                 List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                 0
             ).get(driverContext)
@@ -356,8 +368,17 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED);
     }
 
-    private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), List.of(ft.blockLoader(new MappedFieldType.BlockLoaderContext() {
+    private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
+        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, shardIdx -> {
+            if (shardIdx != 0) {
+                fail("unexpected shardIdx [" + shardIdx + "]");
+            }
+            return ft.blockLoader(blContext());
+        });
+    }
+
+    private static MappedFieldType.BlockLoaderContext blContext() {
+        return new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
                 return "test_index";
@@ -377,7 +398,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             public String parentField(String field) {
                 return null;
             }
-        })));
+        };
     }
 
     private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input, Block.MvOrdering docValuesMvOrdering) {
@@ -386,7 +407,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<Operator> operators = new ArrayList<>();
         operators.add(
             new ValuesSourceReaderOperator.Factory(
-                List.of(fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER))),
+                List.of(fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER), ElementType.INT)),
                 List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                 0
             ).get(driverContext)
@@ -439,13 +460,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     record FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResults checkResults, CheckReadersWithName checkReaders) {
-        FieldCase(MappedFieldType ft, CheckResults checkResults, CheckReadersWithName checkReaders) {
-            this(fieldInfo(ft), checkResults, checkReaders);
+        FieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReadersWithName checkReaders) {
+            this(fieldInfo(ft, elementType), checkResults, checkReaders);
         }
 
-        FieldCase(MappedFieldType ft, CheckResults checkResults, CheckReaders checkReaders) {
+        FieldCase(MappedFieldType ft, ElementType elementType, CheckResults checkResults, CheckReaders checkReaders) {
             this(
                 ft,
+                elementType,
                 checkResults,
                 (name, forcedRowByRow, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
                     forcedRowByRow,
@@ -506,11 +528,17 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         Checks checks = new Checks(docValuesMvOrdering);
         List<FieldCase> r = new ArrayList<>();
         r.add(
-            new FieldCase(docValuesNumberField("long", NumberFieldMapper.NumberType.LONG), checks::longs, StatusChecks::longsFromDocValues)
+            new FieldCase(
+                docValuesNumberField("long", NumberFieldMapper.NumberType.LONG),
+                ElementType.LONG,
+                checks::longs,
+                StatusChecks::longsFromDocValues
+            )
         );
         r.add(
             new FieldCase(
                 docValuesNumberField("mv_long", NumberFieldMapper.NumberType.LONG),
+                ElementType.LONG,
                 checks::mvLongsFromDocValues,
                 StatusChecks::mvLongsFromDocValues
             )
@@ -518,26 +546,39 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("missing_long", NumberFieldMapper.NumberType.LONG),
+                ElementType.LONG,
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
         );
         r.add(
-            new FieldCase(sourceNumberField("source_long", NumberFieldMapper.NumberType.LONG), checks::longs, StatusChecks::longsFromSource)
+            new FieldCase(
+                sourceNumberField("source_long", NumberFieldMapper.NumberType.LONG),
+                ElementType.LONG,
+                checks::longs,
+                StatusChecks::longsFromSource
+            )
         );
         r.add(
             new FieldCase(
                 sourceNumberField("mv_source_long", NumberFieldMapper.NumberType.LONG),
+                ElementType.LONG,
                 checks::mvLongsUnordered,
                 StatusChecks::mvLongsFromSource
             )
         );
         r.add(
-            new FieldCase(docValuesNumberField("int", NumberFieldMapper.NumberType.INTEGER), checks::ints, StatusChecks::intsFromDocValues)
+            new FieldCase(
+                docValuesNumberField("int", NumberFieldMapper.NumberType.INTEGER),
+                ElementType.INT,
+                checks::ints,
+                StatusChecks::intsFromDocValues
+            )
         );
         r.add(
             new FieldCase(
                 docValuesNumberField("mv_int", NumberFieldMapper.NumberType.INTEGER),
+                ElementType.INT,
                 checks::mvIntsFromDocValues,
                 StatusChecks::mvIntsFromDocValues
             )
@@ -545,16 +586,23 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("missing_int", NumberFieldMapper.NumberType.INTEGER),
+                ElementType.INT,
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
         );
         r.add(
-            new FieldCase(sourceNumberField("source_int", NumberFieldMapper.NumberType.INTEGER), checks::ints, StatusChecks::intsFromSource)
+            new FieldCase(
+                sourceNumberField("source_int", NumberFieldMapper.NumberType.INTEGER),
+                ElementType.INT,
+                checks::ints,
+                StatusChecks::intsFromSource
+            )
         );
         r.add(
             new FieldCase(
                 sourceNumberField("mv_source_int", NumberFieldMapper.NumberType.INTEGER),
+                ElementType.INT,
                 checks::mvIntsUnordered,
                 StatusChecks::mvIntsFromSource
             )
@@ -562,6 +610,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("short", NumberFieldMapper.NumberType.SHORT),
+                ElementType.INT,
                 checks::shorts,
                 StatusChecks::shortsFromDocValues
             )
@@ -569,6 +618,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("mv_short", NumberFieldMapper.NumberType.SHORT),
+                ElementType.INT,
                 checks::mvShorts,
                 StatusChecks::mvShortsFromDocValues
             )
@@ -576,16 +626,23 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("missing_short", NumberFieldMapper.NumberType.SHORT),
+                ElementType.INT,
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
         );
         r.add(
-            new FieldCase(docValuesNumberField("byte", NumberFieldMapper.NumberType.BYTE), checks::bytes, StatusChecks::bytesFromDocValues)
+            new FieldCase(
+                docValuesNumberField("byte", NumberFieldMapper.NumberType.BYTE),
+                ElementType.INT,
+                checks::bytes,
+                StatusChecks::bytesFromDocValues
+            )
         );
         r.add(
             new FieldCase(
                 docValuesNumberField("mv_byte", NumberFieldMapper.NumberType.BYTE),
+                ElementType.INT,
                 checks::mvBytes,
                 StatusChecks::mvBytesFromDocValues
             )
@@ -593,6 +650,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("missing_byte", NumberFieldMapper.NumberType.BYTE),
+                ElementType.INT,
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
@@ -600,6 +658,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("double", NumberFieldMapper.NumberType.DOUBLE),
+                ElementType.DOUBLE,
                 checks::doubles,
                 StatusChecks::doublesFromDocValues
             )
@@ -607,6 +666,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("mv_double", NumberFieldMapper.NumberType.DOUBLE),
+                ElementType.DOUBLE,
                 checks::mvDoubles,
                 StatusChecks::mvDoublesFromDocValues
             )
@@ -614,39 +674,106 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 docValuesNumberField("missing_double", NumberFieldMapper.NumberType.DOUBLE),
+                ElementType.DOUBLE,
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
         );
-        r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("bool"), checks::bools, StatusChecks::boolFromDocValues));
-        r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("mv_bool"), checks::mvBools, StatusChecks::mvBoolFromDocValues));
-        r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("missing_bool"), checks::constantNulls, StatusChecks::constantNulls));
-        r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("kwd"), checks::tags, StatusChecks::keywordsFromDocValues));
+        r.add(
+            new FieldCase(
+                new BooleanFieldMapper.BooleanFieldType("bool"),
+                ElementType.BOOLEAN,
+                checks::bools,
+                StatusChecks::boolFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(
+                new BooleanFieldMapper.BooleanFieldType("mv_bool"),
+                ElementType.BOOLEAN,
+                checks::mvBools,
+                StatusChecks::mvBoolFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(
+                new BooleanFieldMapper.BooleanFieldType("missing_bool"),
+                ElementType.BOOLEAN,
+                checks::constantNulls,
+                StatusChecks::constantNulls
+            )
+        );
+        r.add(
+            new FieldCase(
+                new KeywordFieldMapper.KeywordFieldType("kwd"),
+                ElementType.BYTES_REF,
+                checks::tags,
+                StatusChecks::keywordsFromDocValues
+            )
+        );
         r.add(
             new FieldCase(
                 new KeywordFieldMapper.KeywordFieldType("mv_kwd"),
+                ElementType.BYTES_REF,
                 checks::mvStringsFromDocValues,
                 StatusChecks::mvKeywordsFromDocValues
             )
         );
-        r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("missing_kwd"), checks::constantNulls, StatusChecks::constantNulls));
-        r.add(new FieldCase(storedKeywordField("stored_kwd"), checks::strings, StatusChecks::keywordsFromStored));
-        r.add(new FieldCase(storedKeywordField("mv_stored_kwd"), checks::mvStringsUnordered, StatusChecks::mvKeywordsFromStored));
-        r.add(new FieldCase(sourceKeywordField("source_kwd"), checks::strings, StatusChecks::keywordsFromSource));
-        r.add(new FieldCase(sourceKeywordField("mv_source_kwd"), checks::mvStringsUnordered, StatusChecks::mvKeywordsFromSource));
-        r.add(new FieldCase(new TextFieldMapper.TextFieldType("source_text", false), checks::strings, StatusChecks::textFromSource));
+        r.add(
+            new FieldCase(
+                new KeywordFieldMapper.KeywordFieldType("missing_kwd"),
+                ElementType.BYTES_REF,
+                checks::constantNulls,
+                StatusChecks::constantNulls
+            )
+        );
+        r.add(new FieldCase(storedKeywordField("stored_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromStored));
+        r.add(
+            new FieldCase(
+                storedKeywordField("mv_stored_kwd"),
+                ElementType.BYTES_REF,
+                checks::mvStringsUnordered,
+                StatusChecks::mvKeywordsFromStored
+            )
+        );
+        r.add(new FieldCase(sourceKeywordField("source_kwd"), ElementType.BYTES_REF, checks::strings, StatusChecks::keywordsFromSource));
+        r.add(
+            new FieldCase(
+                sourceKeywordField("mv_source_kwd"),
+                ElementType.BYTES_REF,
+                checks::mvStringsUnordered,
+                StatusChecks::mvKeywordsFromSource
+            )
+        );
+        r.add(
+            new FieldCase(
+                new TextFieldMapper.TextFieldType("source_text", false),
+                ElementType.BYTES_REF,
+                checks::strings,
+                StatusChecks::textFromSource
+            )
+        );
         r.add(
             new FieldCase(
                 new TextFieldMapper.TextFieldType("mv_source_text", false),
+                ElementType.BYTES_REF,
                 checks::mvStringsUnordered,
                 StatusChecks::mvTextFromSource
             )
         );
-        r.add(new FieldCase(storedTextField("stored_text"), checks::strings, StatusChecks::textFromStored));
-        r.add(new FieldCase(storedTextField("mv_stored_text"), checks::mvStringsUnordered, StatusChecks::mvTextFromStored));
+        r.add(new FieldCase(storedTextField("stored_text"), ElementType.BYTES_REF, checks::strings, StatusChecks::textFromStored));
+        r.add(
+            new FieldCase(
+                storedTextField("mv_stored_text"),
+                ElementType.BYTES_REF,
+                checks::mvStringsUnordered,
+                StatusChecks::mvTextFromStored
+            )
+        );
         r.add(
             new FieldCase(
                 textFieldWithDelegate("text_with_delegate", new KeywordFieldMapper.KeywordFieldType("kwd")),
+                ElementType.BYTES_REF,
                 checks::tags,
                 StatusChecks::textWithDelegate
             )
@@ -654,6 +781,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 textFieldWithDelegate("mv_text_with_delegate", new KeywordFieldMapper.KeywordFieldType("mv_kwd")),
+                ElementType.BYTES_REF,
                 checks::mvStringsFromDocValues,
                 StatusChecks::mvTextWithDelegate
             )
@@ -661,22 +789,27 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         r.add(
             new FieldCase(
                 textFieldWithDelegate("missing_text_with_delegate", new KeywordFieldMapper.KeywordFieldType("missing_kwd")),
+                ElementType.BYTES_REF,
                 checks::constantNulls,
                 StatusChecks::constantNullTextWithDelegate
             )
         );
-        r.add(new FieldCase(new ProvidedIdFieldMapper(() -> false).fieldType(), checks::ids, StatusChecks::id));
-        r.add(new FieldCase(TsidExtractingIdFieldMapper.INSTANCE.fieldType(), checks::ids, StatusChecks::id));
+        r.add(new FieldCase(new ProvidedIdFieldMapper(() -> false).fieldType(), ElementType.BYTES_REF, checks::ids, StatusChecks::id));
+        r.add(new FieldCase(TsidExtractingIdFieldMapper.INSTANCE.fieldType(), ElementType.BYTES_REF, checks::ids, StatusChecks::id));
         r.add(
             new FieldCase(
-                new ValuesSourceReaderOperator.FieldInfo("constant_bytes", List.of(BlockLoader.constantBytes(new BytesRef("foo")))),
+                new ValuesSourceReaderOperator.FieldInfo(
+                    "constant_bytes",
+                    ElementType.BYTES_REF,
+                    shardIdx -> BlockLoader.constantBytes(new BytesRef("foo"))
+                ),
                 checks::constantBytes,
                 StatusChecks::constantBytes
             )
         );
         r.add(
             new FieldCase(
-                new ValuesSourceReaderOperator.FieldInfo("null", List.of(BlockLoader.CONSTANT_NULLS)),
+                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
@@ -1149,7 +1282,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(mockSearchContext(reader)),
+            List.of(mockSearchContext(reader, 0)),
             ctx -> new MatchAllDocsQuery(),
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
@@ -1161,10 +1294,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
-                    factory(reader, intFt).get(driverContext),
-                    factory(reader, longFt).get(driverContext),
-                    factory(reader, doubleFt).get(driverContext),
-                    factory(reader, kwFt).get(driverContext)
+                    factory(reader, intFt, ElementType.INT).get(driverContext),
+                    factory(reader, longFt, ElementType.LONG).get(driverContext),
+                    factory(reader, doubleFt, ElementType.DOUBLE).get(driverContext),
+                    factory(reader, kwFt, ElementType.BYTES_REF).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
                     try {
@@ -1286,8 +1419,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 List.of(
                     new ValuesSourceReaderOperator.Factory(
                         List.of(
-                            new ValuesSourceReaderOperator.FieldInfo("null1", List.of(BlockLoader.CONSTANT_NULLS)),
-                            new ValuesSourceReaderOperator.FieldInfo("null2", List.of(BlockLoader.CONSTANT_NULLS))
+                            new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
+                            new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS)
                         ),
                         List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                         0
@@ -1331,8 +1464,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         assertTrue(source.get(0).<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
         Operator op = new ValuesSourceReaderOperator.Factory(
             List.of(
-                fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER)),
-                fieldInfo(storedTextField("stored_text"))
+                fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER), ElementType.INT),
+                fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF)
             ),
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
             0
@@ -1366,6 +1499,65 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
             assertThat(op.toString(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
+        }
+    }
+
+    public void testManyShards() throws IOException {
+        int shardCount = between(2, 10);
+        int size = between(100, 1000);
+        Directory[] dirs = new Directory[shardCount];
+        IndexReader[] readers = new IndexReader[shardCount];
+        Closeable[] closeMe = new Closeable[shardCount * 2];
+        Set<Integer> seenShards = new TreeSet<>();
+        Map<Integer, Integer> keyCounts = new TreeMap<>();
+        try {
+            for (int d = 0; d < dirs.length; d++) {
+                closeMe[d * 2 + 1] = dirs[d] = newDirectory();
+                closeMe[d * 2] = readers[d] = initIndex(dirs[d], size, between(10, size * 2));
+            }
+            List<SearchContext> contexts = new ArrayList<>();
+            List<ValuesSourceReaderOperator.ShardContext> readerShardContexts = new ArrayList<>();
+            for (int s = 0; s < shardCount; s++) {
+                contexts.add(mockSearchContext(readers[s], s));
+                readerShardContexts.add(new ValuesSourceReaderOperator.ShardContext(readers[s], () -> SourceLoader.FROM_STORED_SOURCE));
+            }
+            var luceneFactory = new LuceneSourceOperator.Factory(
+                contexts,
+                ctx -> new MatchAllDocsQuery(),
+                DataPartitioning.SHARD,
+                randomIntBetween(1, 10),
+                1000,
+                LuceneOperator.NO_LIMIT
+            );
+            MappedFieldType ft = docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER);
+            var readerFactory = new ValuesSourceReaderOperator.Factory(
+                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, shardIdx -> {
+                    seenShards.add(shardIdx);
+                    return ft.blockLoader(blContext());
+                })),
+                readerShardContexts,
+                0
+            );
+            DriverContext driverContext = driverContext();
+            List<Page> results = drive(
+                readerFactory.get(driverContext),
+                CannedSourceOperator.collectPages(luceneFactory.get(driverContext)).iterator(),
+                driverContext
+            );
+            assertThat(seenShards, equalTo(IntStream.range(0, shardCount).boxed().collect(Collectors.toCollection(TreeSet::new))));
+            for (Page p : results) {
+                IntBlock keyBlock = p.getBlock(1);
+                IntVector keys = keyBlock.asVector();
+                for (int i = 0; i < keys.getPositionCount(); i++) {
+                    keyCounts.merge(keys.getInt(i), 1, (prev, one) -> prev + one);
+                }
+            }
+            assertThat(keyCounts.keySet(), hasSize(size));
+            for (int k = 0; k < size; k++) {
+                assertThat(keyCounts.get(k), equalTo(shardCount));
+            }
+        } finally {
+            IOUtils.close(closeMe);
         }
     }
 }

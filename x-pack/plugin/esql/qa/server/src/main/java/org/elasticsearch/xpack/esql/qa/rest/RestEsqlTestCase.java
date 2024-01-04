@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RestEsqlTestCase extends ESRestTestCase {
+public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     // Test runner will run multiple suites in parallel, with some of them requiring preserving state between
     // tests (like EsqlSpecTestCase), so test data (like index name) needs not collide and cleanup must be done locally.
@@ -67,8 +67,21 @@ public class RestEsqlTestCase extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlTestCase.class);
 
+    private static final List<String> NO_WARNINGS = List.of();
+
     public static boolean shouldLog() {
         return true; // TODO: change to false
+    }
+
+    public enum Mode {
+        SYNC,
+        ASYNC
+    }
+
+    protected final Mode mode;
+
+    protected RestEsqlTestCase(Mode mode) {
+        this.mode = mode;
     }
 
     public static class RequestObjectBuilder {
@@ -336,6 +349,9 @@ public class RestEsqlTestCase extends ESRestTestCase {
         var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
         assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+
+        assertThat(deleteIndex(testIndexName() + "-1").isAcknowledged(), is(true)); // clean up
+        assertThat(deleteIndex(testIndexName() + "-2").isAcknowledged(), is(true)); // clean up
     }
 
     public void testErrorMessageForEmptyParams() throws IOException {
@@ -407,7 +423,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         assertExceptionForDateMath("-(-9223372036854775807 second - 1 second)", "Exceeds capacity of Duration");
     }
 
-    private static void assertExceptionForDateMath(String dateMathString, String errorSubstring) throws IOException {
+    private void assertExceptionForDateMath(String dateMathString, String errorSubstring) throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = now() + (" + dateMathString + ")"))
@@ -463,26 +479,20 @@ public class RestEsqlTestCase extends ESRestTestCase {
         return sb.toString();
     }
 
-    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
-        return runEsql(requestObject, List.of(), randomBoolean());
+    public Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
+        return runEsql(requestObject, NO_WARNINGS, mode);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject) throws IOException {
-        return runEsqlSync(requestObject, List.of());
+        return runEsqlSync(requestObject, NO_WARNINGS);
     }
 
-    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, boolean async) throws IOException {
-        return runEsql(requestObject, List.of(), async);
-    }
-
-    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
-        return runEsql(requestObject, expectedWarnings, false);
-    }
-
-    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings, boolean async)
-        throws IOException {
-        return runEsqlAsync(requestObject, expectedWarnings);
-        // return async ? runEsqlAsync(requestObject, expectedWarnings) : runEsqlSync(requestObject, expectedWarnings);
+    static Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings, Mode mode) throws IOException {
+        if (mode == Mode.ASYNC) {
+            return runEsqlAsync(requestObject, expectedWarnings);
+        } else {
+            return runEsqlSync(requestObject, expectedWarnings);
+        }
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {

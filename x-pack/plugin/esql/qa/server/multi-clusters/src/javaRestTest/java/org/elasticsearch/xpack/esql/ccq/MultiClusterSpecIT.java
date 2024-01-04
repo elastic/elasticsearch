@@ -19,6 +19,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
+import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -50,8 +51,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
 
-    public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvSpecReader.CsvTestCase testCase) {
-        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase));
+    public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
     }
 
     @Override
@@ -60,6 +61,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("CCQ doesn't support enrich yet", hasEnrich(testCase.query));
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
+        // assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
     }
 
     @Override

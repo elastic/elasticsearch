@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.qa.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -15,13 +17,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.containsString;
 
 public class RestEnrichTestCase extends ESRestTestCase {
@@ -29,6 +30,22 @@ public class RestEnrichTestCase extends ESRestTestCase {
     private static final String sourceIndexName = "countries";
     private static final String testIndexName = "test";
     private static final String policyName = "countries";
+
+    public enum Mode {
+        SYNC,
+        ASYNC
+    }
+
+    protected final Mode mode;
+
+    @ParametersFactory
+    public static List<Object[]> modes() {
+        return Arrays.stream(RestEsqlTestCase.Mode.values()).map(m -> new Object[] { m }).toList();
+    }
+
+    protected RestEnrichTestCase(Mode mode) {
+        this.mode = mode;
+    }
 
     @Before
     @After
@@ -127,7 +144,7 @@ public class RestEnrichTestCase extends ESRestTestCase {
     public void testNonExistentEnrichPolicy() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"), List.of())
+            () -> RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"), List.of())
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -138,7 +155,9 @@ public class RestEnrichTestCase extends ESRestTestCase {
     public void testNonExistentEnrichPolicy_KeepField() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris | keep number"))
+            () -> RestEsqlTestCase.runEsqlSync(
+                new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris | keep number")
+            )
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -166,6 +185,16 @@ public class RestEnrichTestCase extends ESRestTestCase {
 
         assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
     }
+
+    private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        if (mode == Mode.ASYNC) {
+            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS);
+        } else {
+            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS);
+        }
+    }
+
+    private static final List<String> NO_WARNINGS = List.of();
 
     @Override
     protected boolean preserveClusterUponCompletion() {

@@ -85,11 +85,11 @@ public class DatafeedWithoutSecurityRestIT extends ESRestTestCase {
             """);
         client().performRequest(createDatafeedRequest);
 
-         Request getFeed = new Request("GET", "/_ml/datafeeds/" + datafeedId + "/_preview");
-         RequestOptions.Builder options = getFeed.getOptions().toBuilder();
-         getFeed.setOptions(options);
-         var previewResponse = client().performRequest(getFeed);
-         assertXProductResponseHeader(previewResponse);
+        Request getFeed = new Request("GET", "/_ml/datafeeds/" + datafeedId + "/_preview");
+        RequestOptions.Builder options = getFeed.getOptions().toBuilder();
+        getFeed.setOptions(options);
+        var previewResponse = client().performRequest(getFeed);
+        assertXProductResponseHeader(previewResponse);
 
         client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_open"));
         Request startRequest = new Request("POST", "/_ml/datafeeds/" + datafeedId + "/_start");
@@ -159,6 +159,5 @@ public class DatafeedWithoutSecurityRestIT extends ESRestTestCase {
         String bulkResponse = EntityUtils.toString(client().performRequest(bulkRequest).getEntity());
         assertThat(bulkResponse, not(containsString("\"errors\": false")));
     }
-
 
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -94,7 +95,9 @@ public final class SourceFilter {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(1024);
                 XContent xContent = in.sourceContentType().xContent();
                 XContentBuilder builder = new XContentBuilder(xContent, streamOutput);
-                try (XContentParser parser = xContent.createParser(parserConfig, in.internalSourceRef().streamInput())) {
+                try (
+                    XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, in.internalSourceRef(), xContent.type())
+                ) {
                     if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
                         return Source.empty(in.sourceContentType());
                     }

@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -84,12 +84,11 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             content.putIfAbsent(TransformField.ID.getPreferredName(), "transform-preview");
             try (
                 XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
-                XContentParser newParser = XContentType.JSON.xContent()
-                    .createParser(
-                        parser.getXContentRegistry(),
-                        LoggingDeprecationHandler.INSTANCE,
-                        BytesReference.bytes(xContentBuilder).streamInput()
-                    )
+                XContentParser newParser = XContentHelper.createParserNotCompressed(
+                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(parser.getXContentRegistry()),
+                    BytesReference.bytes(xContentBuilder),
+                    XContentType.JSON
+                )
             ) {
                 return new Request(TransformConfig.fromXContent(newParser, null, false), timeout);
             }

@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -45,7 +45,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -540,12 +539,11 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         throws IOException {
         try (
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-            XContentParser sourceParser = XContentType.JSON.xContent()
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
-                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                    BytesReference.bytes(xContentBuilder).streamInput()
-                )
+            XContentParser sourceParser = XContentHelper.createParserNotCompressed(
+                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(namedXContentRegistry),
+                BytesReference.bytes(xContentBuilder),
+                XContentType.JSON
+            )
         ) {
 
             XContentParser.Token token = sourceParser.nextToken();

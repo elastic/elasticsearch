@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.watcher.input.http;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -24,7 +22,6 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,9 +87,11 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         if (contentType != null) {
             // EMPTY is safe here because we never use namedObject
             try (
-                InputStream stream = response.body().streamInput();
-                XContentParser parser = contentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                    response.body(),
+                    contentType
+                )
             ) {
                 if (input.getExtractKeys() != null) {
                     payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));

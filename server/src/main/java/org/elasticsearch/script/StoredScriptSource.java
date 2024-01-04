@@ -17,7 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -26,11 +26,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -186,9 +184,11 @@ public class StoredScriptSource implements SimpleDiffable<StoredScriptSource>, W
      */
     public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
         try (
-            InputStream stream = content.streamInput();
-            XContentParser parser = xContentType.xContent()
-                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                content,
+                xContentType
+            )
         ) {
             Token token = parser.nextToken();
 

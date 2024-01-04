@@ -14,8 +14,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.CharBuffer;
 import java.util.Locale;
 
@@ -93,9 +91,11 @@ public class ChangePasswordRequestBuilder extends ActionRequestBuilder<ChangePas
     public ChangePasswordRequestBuilder source(BytesReference source, XContentType xContentType, Hasher hasher) throws IOException {
         // EMPTY is ok here because we never call namedObject
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                source,
+                xContentType
+            )
         ) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;

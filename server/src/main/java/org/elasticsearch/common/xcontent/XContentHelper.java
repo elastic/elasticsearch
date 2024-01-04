@@ -47,6 +47,9 @@ import java.util.Set;
 @SuppressWarnings("unchecked")
 public class XContentHelper {
 
+    public static final XContentParserConfiguration LOG_DEPRECATIONS_CONFIGURATION = XContentParserConfiguration.EMPTY
+        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+
     /**
      * Creates a parser based on the bytes provided
      * @deprecated use {@link #createParser(XContentParserConfiguration, BytesReference, XContentType)}

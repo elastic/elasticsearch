@@ -479,7 +479,7 @@ public abstract class FieldMapper extends Mapper {
             private final Map<String, FieldMapperOrBuilder> mapperBuilders = new HashMap<>();
 
             public Builder add(FieldMapper.Builder builder) {
-                mapperBuilders.put(builder.name(), FieldMapperOrBuilder.of(builder));
+            mapperBuilders.put(builder.name(), FieldMapperOrBuilder.of(builder));
                 return this;
             }
 

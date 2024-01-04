@@ -39,7 +39,9 @@ final class FilterLongBlock extends AbstractFilterBlock<LongBlock> implements Lo
     @Override
     public LongBlock filter(int... positions) {
         // TODO: avoid multi-layered FilterLongBlocks; compute subset of filter instead.
-        return new FilterLongBlock(this, positions);
+        LongBlock filtered = new FilterLongBlock(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override
@@ -95,7 +97,6 @@ final class FilterLongBlock extends AbstractFilterBlock<LongBlock> implements Lo
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
         sb.append("[positions=" + getPositionCount());
-        sb.append(", released=" + isReleased());
         if (isReleased() == false) {
             sb.append(", values=[");
             appendValues(sb);

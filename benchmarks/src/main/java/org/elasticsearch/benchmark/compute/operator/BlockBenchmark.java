@@ -74,6 +74,7 @@ public class BlockBenchmark {
      */
     // We could also consider DocBlocks/DocVectors but they do not implement any of the typed block interfaces like IntBlock etc.
     public static final String[] RELEVANT_TYPE_BLOCK_COMBINATIONS = {
+        // TODO: add filtered blocks
         "boolean/array",
         "boolean/array-multivalue-null",
         "boolean/big-array",

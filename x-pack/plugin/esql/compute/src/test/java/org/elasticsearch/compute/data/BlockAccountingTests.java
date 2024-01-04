@@ -25,6 +25,7 @@ import java.util.stream.IntStream;
 
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -168,7 +169,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
-        assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        assertThat(filterBlock.ramBytesUsed(), greaterThan(emptyPlusSome.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
 
@@ -218,7 +219,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
-        assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        assertThat(filterBlock.ramBytesUsed(), greaterThan(emptyPlusSome.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
 
@@ -265,7 +266,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
-        assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        assertThat(filterBlock.ramBytesUsed(), greaterThan(emptyPlusSome.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
 
@@ -318,7 +319,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
-        assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        assertThat(filterBlock.ramBytesUsed(), greaterThan(emptyPlusSome.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
 

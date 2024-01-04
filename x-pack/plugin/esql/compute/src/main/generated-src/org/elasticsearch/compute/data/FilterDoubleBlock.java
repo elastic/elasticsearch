@@ -39,7 +39,9 @@ final class FilterDoubleBlock extends AbstractFilterBlock<DoubleBlock> implement
     @Override
     public DoubleBlock filter(int... positions) {
         // TODO: avoid multi-layered FilterDoubleBlocks; compute subset of filter instead.
-        return new FilterDoubleBlock(this, positions);
+        DoubleBlock filtered = new FilterDoubleBlock(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override
@@ -95,7 +97,6 @@ final class FilterDoubleBlock extends AbstractFilterBlock<DoubleBlock> implement
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
         sb.append("[positions=" + getPositionCount());
-        sb.append(", released=" + isReleased());
         if (isReleased() == false) {
             sb.append(", values=[");
             appendValues(sb);

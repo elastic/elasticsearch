@@ -47,7 +47,9 @@ $endif$
     @Override
     public $Type$Block filter(int... positions) {
         // TODO: avoid multi-layered Filter$Type$Blocks; compute subset of filter instead.
-        return new Filter$Type$Block(this, positions);
+        $Type$Block filtered = new Filter$Type$Block(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override
@@ -111,7 +113,6 @@ $endif$
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
         sb.append("[positions=" + getPositionCount());
-        sb.append(", released=" + isReleased());
         if (isReleased() == false) {
             sb.append(", values=[");
             appendValues(sb);

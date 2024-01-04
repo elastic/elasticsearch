@@ -39,7 +39,9 @@ final class FilterBooleanBlock extends AbstractFilterBlock<BooleanBlock> impleme
     @Override
     public BooleanBlock filter(int... positions) {
         // TODO: avoid multi-layered FilterBooleanBlocks; compute subset of filter instead.
-        return new FilterBooleanBlock(this, positions);
+        BooleanBlock filtered = new FilterBooleanBlock(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override
@@ -95,7 +97,6 @@ final class FilterBooleanBlock extends AbstractFilterBlock<BooleanBlock> impleme
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
         sb.append("[positions=" + getPositionCount());
-        sb.append(", released=" + isReleased());
         if (isReleased() == false) {
             sb.append(", values=[");
             appendValues(sb);

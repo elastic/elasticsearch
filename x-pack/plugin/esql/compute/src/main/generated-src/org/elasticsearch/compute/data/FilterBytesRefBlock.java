@@ -40,7 +40,9 @@ final class FilterBytesRefBlock extends AbstractFilterBlock<BytesRefBlock> imple
     @Override
     public BytesRefBlock filter(int... positions) {
         // TODO: avoid multi-layered FilterBytesRefBlocks; compute subset of filter instead.
-        return new FilterBytesRefBlock(this, positions);
+        BytesRefBlock filtered = new FilterBytesRefBlock(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override
@@ -98,7 +100,6 @@ final class FilterBytesRefBlock extends AbstractFilterBlock<BytesRefBlock> imple
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
         sb.append("[positions=" + getPositionCount());
-        sb.append(", released=" + isReleased());
         if (isReleased() == false) {
             sb.append(", values=[");
             appendValues(sb);

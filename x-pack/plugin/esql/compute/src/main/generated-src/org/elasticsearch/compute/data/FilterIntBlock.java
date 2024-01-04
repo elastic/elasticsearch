@@ -39,7 +39,9 @@ final class FilterIntBlock extends AbstractFilterBlock<IntBlock> implements IntB
     @Override
     public IntBlock filter(int... positions) {
         // TODO: avoid multi-layered FilterIntBlocks; compute subset of filter instead.
-        return new FilterIntBlock(this, positions);
+        IntBlock filtered = new FilterIntBlock(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override
@@ -95,7 +97,6 @@ final class FilterIntBlock extends AbstractFilterBlock<IntBlock> implements IntB
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
         sb.append("[positions=" + getPositionCount());
-        sb.append(", released=" + isReleased());
         if (isReleased() == false) {
             sb.append(", values=[");
             appendValues(sb);

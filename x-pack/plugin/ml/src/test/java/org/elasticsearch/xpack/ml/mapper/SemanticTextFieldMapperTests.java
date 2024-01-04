@@ -30,12 +30,6 @@ import static org.hamcrest.Matchers.containsString;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
 
-    @Override
-    public void testMapperBuilderSizeMultiField() throws IOException {
-        super.testMapperBuilderSizeMultiField();
-        assertWarnings("Adding multifields to [semantic_text] mappers has no effect and will be forbidden in future");
-    }
-
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

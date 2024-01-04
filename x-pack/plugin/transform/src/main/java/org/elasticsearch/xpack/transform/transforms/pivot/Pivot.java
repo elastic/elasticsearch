@@ -43,6 +43,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -92,6 +93,10 @@ public class Pivot extends AbstractCompositeAggFunction {
         SourceConfig sourceConfig,
         final ActionListener<Map<String, String>> listener
     ) {
+        if (Boolean.FALSE.equals(settings.getDeduceMappings())) {
+            listener.onResponse(emptyMap());
+            return;
+        }
         SchemaUtil.deduceMappings(
             client,
             headers,
@@ -204,11 +209,18 @@ public class Pivot extends AbstractCompositeAggFunction {
 
             builder.endArray();
             builder.endObject(); // sources
-            XContentParser parser = builder.generator()
-                .contentType()
-                .xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-            compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
+            try (
+                XContentParser parser = builder.generator()
+                    .contentType()
+                    .xContent()
+                    .createParser(
+                        NamedXContentRegistry.EMPTY,
+                        LoggingDeprecationHandler.INSTANCE,
+                        BytesReference.bytes(builder).streamInput()
+                    )
+            ) {
+                compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
+            }
         } catch (IOException e) {
             throw new RuntimeException(
                 TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "pivot"),

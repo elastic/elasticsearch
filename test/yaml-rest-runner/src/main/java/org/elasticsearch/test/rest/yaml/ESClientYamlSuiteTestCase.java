@@ -523,8 +523,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     @Deprecated
-    protected final Settings getGlobalTemplateSettings(List<String> features) {
-        return this.getGlobalTemplateSettings(features.contains("default_shards"));
+    protected Settings getGlobalTemplateSettings(List<String> features) {
+        if (features.contains("default_shards")) {
+            return Settings.EMPTY;
+        } else {
+            return globalTemplateIndexSettings;
+        }
     }
 
     protected Settings getGlobalTemplateSettings(boolean defaultShardsFeature) {

@@ -64,10 +64,11 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     private void setupTestIndex() {
         assertAcked(indicesAdmin().prepareCreate("test").get());
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            bulkRequestBuilder.add(new IndexRequest("test").id("1").source("field", "bar"))
-                .add(new IndexRequest("test").id("2").source("field", "baz"))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            IndexRequest indexRequest1 = new IndexRequest("test").id("1").source("field", "bar");
+            IndexRequest indexRequest2 = new IndexRequest("test").id("2").source("field", "baz");
+            bulkRequestBuilder.add(indexRequest1).add(indexRequest2).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            indexRequest1.decRef();
+            indexRequest2.decRef();
         }
         ensureYellow("test");
     }

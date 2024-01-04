@@ -22,10 +22,11 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
     public void testSqlAction() {
         assertAcked(indicesAdmin().prepareCreate("test").get());
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
-            bulkRequestBuilder.add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
-                .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            IndexRequest indexRequest1 = new IndexRequest("test").id("1").source("data", "bar", "count", 42);
+            IndexRequest indexRequest2 = new IndexRequest("test").id("2").source("data", "baz", "count", 43);
+            bulkRequestBuilder.add(indexRequest1).add(indexRequest2).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+            indexRequest1.decRef();
+            indexRequest2.decRef();
             ensureYellow("test");
         }
 

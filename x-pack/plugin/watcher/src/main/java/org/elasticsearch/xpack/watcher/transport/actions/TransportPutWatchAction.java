@@ -146,26 +146,31 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                     );
                 } else {
                     IndexRequest indexRequest = new IndexRequest(Watch.INDEX).id(request.getId());
-                    indexRequest.source(builder);
-                    indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                    executeAsyncWithOrigin(
-                        client.threadPool().getThreadContext(),
-                        WATCHER_ORIGIN,
-                        indexRequest,
-                        ActionListener.<DocWriteResponse>wrap(response -> {
-                            boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
-                            listener.onResponse(
-                                new PutWatchResponse(
-                                    response.getId(),
-                                    response.getVersion(),
-                                    response.getSeqNo(),
-                                    response.getPrimaryTerm(),
-                                    created
-                                )
-                            );
-                        }, listener::onFailure),
-                        client::index
-                    );
+                    try {
+                        indexRequest.source(builder);
+                        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                        executeAsyncWithOrigin(
+                            client.threadPool().getThreadContext(),
+                            WATCHER_ORIGIN,
+                            indexRequest,
+                            ActionListener.runAfter(ActionListener.<DocWriteResponse>wrap(response -> {
+                                boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
+                                listener.onResponse(
+                                    new PutWatchResponse(
+                                        response.getId(),
+                                        response.getVersion(),
+                                        response.getSeqNo(),
+                                        response.getPrimaryTerm(),
+                                        created
+                                    )
+                                );
+                            }, listener::onFailure), indexRequest::decRef),
+                            client::index
+                        );
+                    } catch (Exception e) {
+                        indexRequest.decRef();
+                        throw e;
+                    }
                 }
             }
         } catch (Exception e) {

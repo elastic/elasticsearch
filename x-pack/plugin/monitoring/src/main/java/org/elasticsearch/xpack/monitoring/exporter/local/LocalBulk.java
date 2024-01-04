@@ -62,24 +62,28 @@ public class LocalBulk extends ExportBulk {
                 final String index = MonitoringTemplateUtils.indexName(formatter, doc.getSystem(), doc.getTimestamp());
 
                 final IndexRequest request = new IndexRequest(index);
-                if (Strings.hasText(doc.getId())) {
-                    request.id(doc.getId());
-                }
+                try {
+                    if (Strings.hasText(doc.getId())) {
+                        request.id(doc.getId());
+                    }
 
-                final BytesReference source = XContentHelper.toXContent(doc, XContentType.SMILE, false);
-                request.source(source, XContentType.SMILE);
+                    final BytesReference source = XContentHelper.toXContent(doc, XContentType.SMILE, false);
+                    request.source(source, XContentType.SMILE);
 
-                requestBuilder.add(request);
+                    requestBuilder.add(request);
 
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "local exporter [{}] - added index request [index={}, id={}, pipeline={}, monitoring data type={}]",
-                        name,
-                        request.index(),
-                        request.id(),
-                        request.getPipeline(),
-                        doc.getType()
-                    );
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "local exporter [{}] - added index request [index={}, id={}, pipeline={}, monitoring data type={}]",
+                            name,
+                            request.index(),
+                            request.id(),
+                            request.getPipeline(),
+                            doc.getType()
+                        );
+                    }
+                } finally {
+                    request.decRef();
                 }
             } catch (Exception e) {
                 if (exception == null) {

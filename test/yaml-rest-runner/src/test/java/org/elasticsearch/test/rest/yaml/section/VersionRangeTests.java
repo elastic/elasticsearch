@@ -8,15 +8,19 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
+
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestCase {
@@ -83,34 +87,106 @@ public class VersionRangeTests extends AbstractClientYamlTestFragmentParserTestC
     }
 
     public void testParseCurrent() {
+        String versionRangeString = "   current ";
 
+        var versionRange = VersionRange.parseVersionRanges(versionRangeString);
+        assertThat(versionRange, notNullValue());
+        assertThat(versionRange, hasSize(1));
+        assertThat(versionRange.get(0), is(VersionRange.CURRENT));
     }
 
     public void testParseNonCurrent() {
+        String versionRangeString = "   non_current ";
 
+        var versionRange = VersionRange.parseVersionRanges(versionRangeString);
+        assertThat(versionRange, notNullValue());
+        assertThat(versionRange, hasSize(1));
+        assertThat(versionRange.get(0), is(VersionRange.NON_CURRENT));
     }
 
     public void testParseMixed() {
+        String versionRangeString = "   mixed ";
 
+        var versionRange = VersionRange.parseVersionRanges(versionRangeString);
+        assertThat(versionRange, notNullValue());
+        assertThat(versionRange, hasSize(1));
+        assertThat(versionRange.get(0), is(VersionRange.MIXED));
     }
 
     public void testMatchRange() {
+        String versionRangeString = "6.0.0 - 6.1.0, 7.1.0 - 7.5.0";
 
+        var versionRanges = VersionRange.parseVersionRanges(versionRangeString);
+
+        var match1 = versionRanges.stream().filter(range -> range.matches(Set.of("6.1.0"))).findFirst();
+        var match2 = versionRanges.stream().filter(range -> range.matches(Set.of("7.1.0"))).findFirst();
+        var nonMatch1 = versionRanges.stream().filter(range -> range.matches(Set.of("5.1.0"))).findFirst();
+        var nonMatch2 = versionRanges.stream().filter(range -> range.matches(Set.of("8.1.0"))).findFirst();
+
+        assertTrue(match1.isPresent());
+        assertThat(match1.get(), is(versionRanges.get(0)));
+        assertTrue(match2.isPresent());
+        assertThat(match2.get(), is(versionRanges.get(1)));
+
+        assertFalse(nonMatch1.isPresent());
+        assertFalse(nonMatch2.isPresent());
+    }
+
+    public void testMatchRangeMultipleNodeVersions() {
+        String versionRangeString = "6.0.0 - 6.1.0, 7.1.0 - 7.5.0";
+
+        var versionRanges = VersionRange.parseVersionRanges(versionRangeString);
+
+        var match1 = versionRanges.stream().filter(range -> range.matches(Set.of("6.1.0", "6.0.0"))).findFirst();
+        var match2 = versionRanges.stream().filter(range -> range.matches(Set.of("7.1.0", "8.0.0"))).findFirst();
+        var nonMatch1 = versionRanges.stream().filter(range -> range.matches(Set.of("5.1.0", "6.1.0"))).findFirst();
+        var nonMatch2 = versionRanges.stream().filter(range -> range.matches(Set.of("8.0.0", "8.1.0"))).findFirst();
+
+        assertTrue(match1.isPresent());
+        assertThat(match1.get(), is(versionRanges.get(0)));
+        assertTrue(match2.isPresent());
+        assertThat(match2.get(), is(versionRanges.get(1)));
+
+        assertFalse(nonMatch1.isPresent());
+        assertFalse(nonMatch2.isPresent());
     }
 
     public void testMatchAll() {
+        String versionRangeString = "all";
 
+        var versionRange = VersionRange.parseVersionRanges(versionRangeString);
+
+        assertTrue(versionRange.get(0).matches(Set.of(randomAlphaOfLength(10))));
     }
 
     public void testMatchCurrent() {
+        String versionRangeString = "current";
 
+        var versionRange = VersionRange.parseVersionRanges(versionRangeString);
+
+        assertFalse(versionRange.get(0).matches(Set.of(randomAlphaOfLength(10))));
+        assertTrue(versionRange.get(0).matches(Set.of(Build.current().version())));
+        assertFalse(versionRange.get(0).matches(Set.of(Build.current().version(), "8.10.0")));
     }
 
     public void testMatchNonCurrent() {
+        String versionRangeString = "non_current";
 
+        var versionRange = VersionRange.parseVersionRanges(versionRangeString);
+
+        assertTrue(versionRange.get(0).matches(Set.of(randomAlphaOfLength(10))));
+        assertFalse(versionRange.get(0).matches(Set.of(Build.current().version())));
+        assertTrue(versionRange.get(0).matches(Set.of(Build.current().version(), "8.10.0")));
     }
 
     public void testMatchMixed() {
+        String versionRangeString = "mixed";
 
+        var versionRange = VersionRange.parseVersionRanges(versionRangeString);
+
+        assertFalse(versionRange.get(0).matches(Set.of(randomAlphaOfLength(10))));
+        assertFalse(versionRange.get(0).matches(Set.of(Build.current().version())));
+        assertTrue(versionRange.get(0).matches(Set.of(Build.current().version(), "8.10.0")));
+        assertTrue(versionRange.get(0).matches(Set.of("8.9.0", "8.10.0")));
     }
 }

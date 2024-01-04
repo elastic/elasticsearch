@@ -29,6 +29,7 @@ import org.elasticsearch.transport.TransportInfo;
 
 import java.net.InetAddress;
 import java.util.Arrays;
+import java.util.Locale;
 
 import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
 import static org.hamcrest.Matchers.allOf;
@@ -51,7 +52,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (randomPort == -1) {
             randomPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS);
-            randomPortRange = Strings.format("%s-%s", randomPort, randomPort + NUMBER_OF_CLIENT_PORTS);
+            randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort + NUMBER_OF_CLIENT_PORTS);
         }
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))

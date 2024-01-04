@@ -50,6 +50,8 @@ mv_avg                   |? mv_avg(arg1:?)                                      
 mv_concat                |"keyword mv_concat(v:text|keyword, delim:text|keyword)" |[v, delim]               |["text|keyword", "text|keyword"] |["values to join", "delimiter"]      |keyword              | "Reduce a multivalued string field to a single valued field by concatenating all values." | [false, false]       | false
 mv_count                 |"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v      | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" | integer | "Reduce a multivalued field to a single valued field containing the count of values."       | false                | false
 mv_dedupe                |"? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)" |v | "boolean|date|double|ip|text|integer|keyword|version|long" | "" |?   | "Remove duplicate values from a multivalued field."                      | false                | false
+mv_first                 |"? mv_first(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" |?   | "Reduce a multivalued field to a single valued field containing the first value."                      | false                | false
+mv_last                  |"? mv_last(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point" | "" |?   | "Reduce a multivalued field to a single valued field containing the last value."                      | false                | false
 mv_max                   |"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the maximum value." | false                | false
 mv_median                |? mv_median(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 mv_min                   |"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the minimum value." | false                | false
@@ -141,6 +143,8 @@ boolean is_nan(n:double)
 "keyword mv_concat(v:text|keyword, delim:text|keyword)"
 "integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
 "? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)"
+"? mv_first(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
+"? mv_last(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long|geo_point|cartesian_point)"
 "? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
 ? mv_median(arg1:?)
 "? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
@@ -209,5 +213,5 @@ countFunctions#[skip:-8.11.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-84     | 84     | 84
+86     | 86     | 86
 ;

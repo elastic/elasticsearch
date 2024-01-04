@@ -118,7 +118,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;
-        public final NumberType type;
+        private final NumberType type;
 
         private boolean allowMultipleValues = true;
         private final IndexVersion indexCreatedVersion;
@@ -1730,6 +1730,10 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public NumberFieldType fieldType() {
         return (NumberFieldType) super.fieldType();
+    }
+
+    public NumberType type() {
+        return type;
     }
 
     @Override

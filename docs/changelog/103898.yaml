@@ -1,6 +1,5 @@
 pr: 103898
-summary: Change `index.look_ahead_time` index setting's default value from 2 hours
-  to 30 minutes.
+summary: Change `index.look_ahead_time` index setting's default value from 2 hours to 30 minutes.
 area: TSDB
 type: breaking
 issues: []

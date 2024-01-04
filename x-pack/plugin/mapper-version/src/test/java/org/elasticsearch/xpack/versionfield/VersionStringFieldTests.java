@@ -414,7 +414,8 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         );
 
         // string stats
-        assertResponse( client().prepareSearch(indexName).addAggregation(new StringStatsAggregationBuilder("stats").field("version")),
+        assertResponse(
+            client().prepareSearch(indexName).addAggregation(new StringStatsAggregationBuilder("stats").field("version")),
             response -> {
                 InternalStringStats stats = response.getAggregations().get("stats");
                 assertEquals(3, stats.getMinLength());

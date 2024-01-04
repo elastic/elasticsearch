@@ -1236,7 +1236,7 @@ public class PersistedClusterStateService {
         }
 
         private boolean assertOnCommit() {
-            if (assertOnCommit != null && Randomness.get().nextInt(100) == 0) {
+            if (assertOnCommit != null) {
                 // only rarely run this assertion since reloading the whole state can be quite expensive
                 for (final var metadataIndexWriter : metadataIndexWriters) {
                     try (var directoryReader = DirectoryReader.open(metadataIndexWriter.indexWriter)) {

@@ -125,6 +125,12 @@ abstract class AbstractFilterBlock<B extends Block> extends AbstractBlock implem
     }
 
     @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        block.allowPassingToDifferentDriver();
+    }
+
+    @Override
     protected void closeInternal() {
         block.close();
     }

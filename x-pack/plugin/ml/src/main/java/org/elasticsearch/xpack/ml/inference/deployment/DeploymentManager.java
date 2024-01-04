@@ -156,11 +156,9 @@ public class DeploymentManager {
 
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener = ActionListener.wrap(finalListener::onResponse, failure -> {
             ProcessContext failedContext = processContextByAllocation.remove(task.getId());
-            logger.info("failedContext is " + failedContext);
             if (failedContext != null) {
                 failedContext.forcefullyStopProcess();
             }
-            logger.info("before final listener");
             finalListener.onFailure(failure);
         });
 
@@ -207,9 +205,7 @@ public class DeploymentManager {
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.info("before failedDeploymentListener.onFailure");
                                 failedDeploymentListener.onFailure(e);
-                                logger.info("after failedDeploymentListener.onFailure");
                             }
 
                             @Override

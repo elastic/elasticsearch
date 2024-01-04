@@ -687,7 +687,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static HttpEntity assertWarnings(Response response, List<String> allowedWarnings) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
-        LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
+        if (shouldLog()) {
+            LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
+        }
         assertMap(warnings, matchesList(allowedWarnings));
         return response.getEntity();
     }

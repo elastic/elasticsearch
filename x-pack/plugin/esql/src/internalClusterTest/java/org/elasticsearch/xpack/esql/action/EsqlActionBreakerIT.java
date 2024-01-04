@@ -103,9 +103,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .get();
         int numDocs = between(1000, 5000);
         for (int i = 0; i < numDocs; i++) {
-            DocWriteResponse response = prepareIndex("test_breaker").setId(Integer.toString(i))
-                .setSource("foo", "foo-" + i, "bar", "bar-" + (i * 2))
-                .get();
+            DocWriteResponse response = indexDoc("test_breaker", Integer.toString(i), "foo", "foo-" + i, "bar", "bar-" + (i * 2));
             assertThat(Strings.toString(response), response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
         }
         client().admin().indices().prepareRefresh("test_breaker").get();

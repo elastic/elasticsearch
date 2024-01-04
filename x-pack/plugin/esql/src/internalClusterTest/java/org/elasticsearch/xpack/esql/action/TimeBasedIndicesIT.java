@@ -28,12 +28,16 @@ public class TimeBasedIndicesIT extends AbstractEsqlIntegTestCase {
         int oldDocs = between(10, 100);
         for (int i = 0; i < oldDocs; i++) {
             long timestamp = epoch - TimeValue.timeValueHours(between(1, 2)).millis();
-            bulk.add(new IndexRequest().source("@timestamp", timestamp, "value", -i));
+            IndexRequest indexRequest = new IndexRequest().source("@timestamp", timestamp, "value", -i);
+            bulk.add(indexRequest);
+            indexRequest.decRef();
         }
         int newDocs = between(10, 100);
         for (int i = 0; i < newDocs; i++) {
             long timestamp = epoch + TimeValue.timeValueHours(between(1, 2)).millis();
-            bulk.add(new IndexRequest().source("@timestamp", timestamp, "value", i));
+            IndexRequest indexRequest = new IndexRequest().source("@timestamp", timestamp, "value", i);
+            bulk.add(indexRequest);
+            indexRequest.decRef();
         }
         bulk.get();
         {

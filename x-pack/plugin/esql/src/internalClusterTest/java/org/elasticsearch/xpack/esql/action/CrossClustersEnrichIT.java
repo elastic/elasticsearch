@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -93,7 +94,9 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         }
         var hosts = List.of(new Host("192.168.1.3", "Windows"));
         for (var h : hosts) {
-            localClient.prepareIndex("hosts").setSource("ip", h.ip, "os", h.os).get();
+            IndexRequestBuilder indexRequestBuilder = localClient.prepareIndex("hosts").setSource("ip", h.ip, "os", h.os);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         localClient.admin().indices().prepareRefresh("hosts").get();
         EnrichPolicy policy = new EnrichPolicy("match", null, List.of("hosts"), "ip", List.of("ip", "os"));
@@ -108,7 +111,10 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             var events = List.of(new Event("192.168.1.4", "access denied"), new Event("192.168.1.3", "restart"));
             assertAcked(client(cluster).admin().indices().prepareCreate("events").setMapping("ip", "type=ip", "message", "type=text"));
             for (Event e : events) {
-                client(cluster).prepareIndex("events").setSource("ip", e.ip, "message", e.message).get();
+                IndexRequestBuilder indexRequestBuilder = client(cluster).prepareIndex("events")
+                    .setSource("ip", e.ip, "message", e.message);
+                indexRequestBuilder.get();
+                indexRequestBuilder.request().decRef();
             }
             client(cluster).admin().indices().prepareRefresh("events").get();
         }

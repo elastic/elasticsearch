@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -14,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -57,6 +59,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .add(new IndexRequest().source("@timestamp", "2022-05-02", "uid", "u1"))
                 .add(new IndexRequest().source("@timestamp", "2022-12-15", "uid", "u1"))
                 .get();
+            decRefAllRequestsInBulkRequestBuilder(bulkRequestBuilder);
         }
         ElasticsearchAssertions.assertAcked(
             client().admin().indices().prepareCreate("events_2023").setMapping("@timestamp", "type=date", "uid", "type=keyword")
@@ -68,6 +71,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .add(new IndexRequest().source("@timestamp", "2023-02-11", "uid", "u1"))
                 .add(new IndexRequest().source("@timestamp", "2023-03-25", "uid", "u1"))
                 .get();
+            decRefAllRequestsInBulkRequestBuilder(bulkRequestBuilder);
         }
         try {
             Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
@@ -139,6 +143,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .add(new IndexRequest().source("emp_no", 105, "dept", "engineering", "hired", "2012-06-30", "salary", 25))
                 .add(new IndexRequest().source("emp_no", 106, "dept", "sales", "hired", "2012-08-09", "salary", 30.1))
                 .get();
+            decRefAllRequestsInBulkRequestBuilder(bulkRequestBuilder);
         }
 
         ElasticsearchAssertions.assertAcked(
@@ -230,6 +235,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .add(new IndexRequest().source("timestamp", 2, "message", "b"))
                 .add(new IndexRequest().source("timestamp", 3, "message", "c"))
                 .get();
+            decRefAllRequestsInBulkRequestBuilder(bulkRequestBuilder);
         }
         ElasticsearchAssertions.assertAcked(
             client().admin()
@@ -247,6 +253,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .add(new IndexRequest().source("timestamp", 10, "message", "aa"))
                 .add(new IndexRequest().source("timestamp", 11, "message", "bb"))
                 .get();
+            decRefAllRequestsInBulkRequestBuilder(bulkRequestBuilder);
         }
         try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message")) {
             assertThat(getValuesList(resp), hasSize(5));
@@ -254,6 +261,15 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             ensureClusterSizeConsistency();
             Exception error = expectThrows(Exception.class, () -> run("from events,logs | KEEP timestamp,message"));
             assertThat(error.getMessage(), containsString("no shard copies found"));
+        }
+    }
+
+    private void decRefAllRequestsInBulkRequestBuilder(BulkRequestBuilder bulkRequestBuilder) {
+        List<DocWriteRequest<?>> requests = bulkRequestBuilder.request().requests();
+        for (DocWriteRequest<?> request : requests) {
+            if (request instanceof RefCounted refCounted) {
+                refCounted.decRef();
+            }
         }
     }
 }

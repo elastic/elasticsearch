@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -92,7 +93,9 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         try {
             for (int i = 0; i < numberOfDocs(); i++) {
-                bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i);
+                bulk.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
             bulk.get();
         } finally {

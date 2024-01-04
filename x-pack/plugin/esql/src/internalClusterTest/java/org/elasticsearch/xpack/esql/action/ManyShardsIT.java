@@ -45,7 +45,9 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 for (int d = 0; d < numDocs; d++) {
                     String user = randomFrom("u1", "u2", "u3");
                     String tag = randomFrom("java", "elasticsearch", "lucene");
-                    bulk.add(new IndexRequest().source(Map.of("user", user, "tags", tag)));
+                    IndexRequest indexRequest = new IndexRequest().source(Map.of("user", user, "tags", tag));
+                    bulk.add(indexRequest);
+                    indexRequest.decRef();
                 }
                 bulk.get();
             }

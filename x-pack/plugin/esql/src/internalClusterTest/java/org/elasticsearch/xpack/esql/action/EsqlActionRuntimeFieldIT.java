@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -113,7 +114,9 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
 
         try (BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
             for (int i = 0; i < SIZE; i++) {
-                bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i);
+                bulk.add(indexRequestBuilder);
+                indexRequestBuilder.request().decRef();
             }
             bulk.get();
         }

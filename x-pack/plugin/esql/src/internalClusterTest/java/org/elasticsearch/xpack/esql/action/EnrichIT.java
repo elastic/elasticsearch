@@ -147,7 +147,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             new Song("s4", "The Sound Of Silence", "Disturbed", 4.08)
         );
         for (var s : songs) {
-            client().prepareIndex("songs").setSource("song_id", s.id, "title", s.title, "artist", s.artist, "length", s.length).get();
+            indexDoc("songs", null, "song_id", s.id, "title", s.title, "artist", s.artist, "length", s.length);
         }
         client().admin().indices().prepareRefresh("songs").get();
         EnrichPolicy policy = new EnrichPolicy("match", null, List.of("songs"), "song_id", List.of("title", "artist", "length"));
@@ -180,9 +180,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             .setMapping("timestamp", "type=long", "song_id", "type=keyword", "duration", "type=double")
             .get();
         for (Listen listen : localListens) {
-            client().prepareIndex("listens")
-                .setSource("timestamp", listen.timestamp, "song_id", listen.songId, "duration", listen.duration)
-                .get();
+            indexDoc("listens", null, "timestamp", listen.timestamp, "song_id", listen.songId, "duration", listen.duration);
         }
         client().admin().indices().prepareRefresh("listens").get();
     }

@@ -42,7 +42,7 @@ public class WarningsIT extends AbstractEsqlIntegTestCase {
                 .setMapping("host", "type=keyword")
         );
         for (int i = 0; i < numDocs1; i++) {
-            client().prepareIndex("index-1").setSource("host", "192." + i).get();
+            indexDoc("index-1", null, "host", "192." + i);
         }
         int numDocs2 = randomIntBetween(1, 15);
         assertAcked(
@@ -53,7 +53,7 @@ public class WarningsIT extends AbstractEsqlIntegTestCase {
                 .setMapping("host", "type=keyword")
         );
         for (int i = 0; i < numDocs2; i++) {
-            client().prepareIndex("index-2").setSource("host", "10." + i).get();
+            indexDoc("index-2", null, "host", "10." + i);
         }
 
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());

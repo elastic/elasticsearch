@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Setting;
@@ -78,7 +79,10 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
         );
         for (int i = 0; i < 10; i++) {
-            localClient.prepareIndex("logs-1").setSource("id", "local-" + i, "tag", "local", "v", i).get();
+            IndexRequestBuilder indexRequestBuilder = localClient.prepareIndex("logs-1")
+                .setSource("id", "local-" + i, "tag", "local", "v", i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         localClient.admin().indices().prepareRefresh("logs-1").get();
     }
@@ -94,7 +98,10 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
         );
         for (int i = 0; i < 10; i++) {
-            remoteClient.prepareIndex("logs-2").setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
+            IndexRequestBuilder indexRequestBuilder = remoteClient.prepareIndex("logs-2")
+                .setSource("id", "remote-" + i, "tag", "remote", "v", i * i);
+            indexRequestBuilder.get();
+            indexRequestBuilder.request().decRef();
         }
         remoteClient.admin().indices().prepareRefresh("logs-2").get();
     }

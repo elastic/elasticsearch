@@ -41,6 +41,7 @@ public class SyntheticSourceIT extends AbstractEsqlIntegTestCase {
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             }
             indexRequest.get();
+            indexRequest.request().decRef();
         }
         client().admin().indices().prepareRefresh("test").get();
 
@@ -62,6 +63,7 @@ public class SyntheticSourceIT extends AbstractEsqlIntegTestCase {
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             }
             indexRequest.get();
+            indexRequest.request().decRef();
         }
         client().admin().indices().prepareRefresh("test").get();
         try (EsqlQueryResponse resp = run("from test | keep field, id | sort id asc | limit 1")) {

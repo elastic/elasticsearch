@@ -1,0 +1,5 @@
+pr: 103898
+summary: Change `index.look_ahead_time` index setting's default value
+area: TSDB
+type: bug
+issues: []

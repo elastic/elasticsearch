@@ -15,7 +15,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 
@@ -75,7 +74,6 @@ public class TransportEqlStatsAction extends TransportNodesAction<
     @Override
     protected EqlStatsResponse.NodeStatsResponse nodeOperation(
         EqlStatsRequest.NodeStatsRequest request,
-        TransportChannel unused,
         Task task
     ) {
         EqlStatsResponse.NodeStatsResponse statsResponse = new EqlStatsResponse.NodeStatsResponse(clusterService.localNode());

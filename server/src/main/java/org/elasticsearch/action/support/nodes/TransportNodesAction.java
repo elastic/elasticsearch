@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -221,17 +221,19 @@ public abstract class TransportNodesAction<
     protected abstract NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException;
 
     /**
-     * Implements the command logic on the node. The given `channel` may be used directly in the implementation, or the return object will
-     * be sent on the same channel: the implementation must do one or the other, never both.
-     *
-     * @param request
-     * @param channel The same transport channel on which returning a non-null response will be sent, but can alternatively be used directly
-     * to send a response (and then the implementation should return a null object).
-     * @param task
-     * @return Returns either a response to send on the TransportChannel, or null. If null, then the node logic handles the sending the
-     * response back on the given channel.
+     * Implements the request recipient logic.
+     * If access to the channel listener is needed, override
+     * {@link #nodeOperationAsync(TransportRequest, ChannelActionListener, Task)}.
      */
-    protected abstract @Nullable NodeResponse nodeOperation(NodeRequest request, TransportChannel channel, Task task);
+    protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
+
+    /**
+     * This method can be overridden if a subclass needs to asynchronously respond to the node request via a listener.
+     * The default implementation is to fall through to {@link #nodeOperation}.
+     */
+    protected void nodeOperationAsync(NodeRequest request, ChannelActionListener<NodeResponse> listener, Task task) {
+        ActionListener.completeWith(listener, () -> nodeOperation(request, task));
+    }
 
     /**
      * resolve node ids to concrete nodes of the incoming request
@@ -245,11 +247,8 @@ public abstract class TransportNodesAction<
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
-            var optResponse = nodeOperation(request, channel, task);
-            //// TODO: how can I ensure sendResponse is not called twice? Add counter in TransportChannel?
-            if (optResponse != null) {
-                channel.sendResponse(nodeOperation(request, channel, task));
-            }
+            ActionListener.run(
+                new ChannelActionListener<NodeResponse>(channel), channelListener -> nodeOperationAsync(request, channelListener, task));
         }
     }
 

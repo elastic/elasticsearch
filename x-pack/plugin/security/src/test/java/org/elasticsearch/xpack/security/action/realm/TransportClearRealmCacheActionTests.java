@@ -86,7 +86,7 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         final String[] usersToClear = new String[] { user };
         ClearRealmCacheRequest.Node clearCacheRequest = mockClearCacheRequest(realmsToClear, usersToClear);
 
-        ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, channel, mock(Task.class));
+        ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, mock(Task.class));
         assertThat(response.getNode(), notNullValue());
 
         // We expect that caches of all realms are cleared for the given user,
@@ -110,7 +110,7 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         final String[] usersToClear = new String[] { user };
         ClearRealmCacheRequest.Node clearCacheRequest = mockClearCacheRequest(realmsToClear, usersToClear);
 
-        ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, channel, mock(Task.class));
+        ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, mock(Task.class));
         assertThat(response, notNullValue());
 
         // We expect that only native cache is cleared,
@@ -132,7 +132,7 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         final String[] usersToClear = randomFrom(Strings.EMPTY_ARRAY, null);
         ClearRealmCacheRequest.Node clearCacheRequest = mockClearCacheRequest(realmsToClear, usersToClear);
 
-        ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, channel, mock(Task.class));
+        ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, mock(Task.class));
         assertThat(response, notNullValue());
 
         // We expect that whole native cache is cleared,
@@ -149,7 +149,7 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         final String[] usersToClear = randomFrom(Strings.EMPTY_ARRAY, null);
         ClearRealmCacheRequest.Node clearCacheRequest = mockClearCacheRequest(realmsToClear, usersToClear);
 
-        ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, channel, mock(Task.class));
+        ClearRealmCacheResponse.Node response = action.nodeOperation(clearCacheRequest, mock(Task.class));
         assertThat(response, notNullValue());
 
         verify(fileRealm).expireAll();

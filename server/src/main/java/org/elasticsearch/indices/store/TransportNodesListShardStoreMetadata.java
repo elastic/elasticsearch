@@ -44,7 +44,6 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -116,7 +115,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     }
 
     @Override
-    protected NodeStoreFilesMetadata nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
+    protected NodeStoreFilesMetadata nodeOperation(NodeRequest request, Task task) {
         try {
             return new NodeStoreFilesMetadata(clusterService.localNode(), listStoreMetadata(request));
         } catch (IOException e) {

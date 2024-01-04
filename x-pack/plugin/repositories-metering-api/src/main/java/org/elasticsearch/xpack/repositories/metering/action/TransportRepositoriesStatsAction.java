@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -71,7 +70,7 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
     }
 
     @Override
-    protected RepositoriesNodeMeteringResponse nodeOperation(RepositoriesNodeStatsRequest request, TransportChannel unused, Task task) {
+    protected RepositoriesNodeMeteringResponse nodeOperation(RepositoriesNodeStatsRequest request, Task task) {
         return new RepositoriesNodeMeteringResponse(clusterService.localNode(), repositoriesService.repositoriesStats());
     }
 

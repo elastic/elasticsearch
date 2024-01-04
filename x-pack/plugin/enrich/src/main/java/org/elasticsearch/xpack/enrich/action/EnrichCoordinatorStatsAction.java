@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -159,7 +158,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         }
 
         @Override
-        protected NodeResponse nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
+        protected NodeResponse nodeOperation(NodeRequest request, Task task) {
             DiscoveryNode node = clusterService.localNode();
             return new NodeResponse(node, enrichCache.getStats(node.getId()), coordinator.getStats(node.getId()));
         }

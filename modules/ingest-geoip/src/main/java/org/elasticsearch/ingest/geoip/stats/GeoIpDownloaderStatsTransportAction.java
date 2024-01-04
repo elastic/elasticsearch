@@ -24,7 +24,6 @@ import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.Request;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.Response;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -74,7 +73,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     }
 
     @Override
-    protected NodeResponse nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
+    protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
         GeoIpDownloaderStats stats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
         return new NodeResponse(

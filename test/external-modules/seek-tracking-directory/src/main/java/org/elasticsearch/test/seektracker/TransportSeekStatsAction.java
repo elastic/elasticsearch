@@ -17,7 +17,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -65,7 +64,7 @@ public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequ
     }
 
     @Override
-    protected NodeSeekStats nodeOperation(SeekStatsRequest request, TransportChannel unused, Task task) {
+    protected NodeSeekStats nodeOperation(SeekStatsRequest request, Task task) {
         Map<String, List<ShardSeekStats>> seeks = new HashMap<>();
         if (request.getIndices().length == 0) {
             for (Map.Entry<String, IndexSeekTracker> entry : seekStatsService.getSeekStats().entrySet()) {

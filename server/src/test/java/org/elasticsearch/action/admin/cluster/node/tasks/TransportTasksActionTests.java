@@ -46,7 +46,6 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -308,7 +307,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 testNodes[i].transportService
             ) {
                 @Override
-                protected NodeResponse nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
+                protected NodeResponse nodeOperation(NodeRequest request, Task task) {
                     logger.info("Action on node {}", node);
                     actionLatch.countDown();
                     try {
@@ -580,7 +579,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 testNodes[i].transportService
             ) {
                 @Override
-                protected NodeResponse nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
+                protected NodeResponse nodeOperation(NodeRequest request, Task task) {
                     TransportTasksActionTests.this.logger.info("Action on node {}", node);
                     throw new RuntimeException("Test exception");
                 }

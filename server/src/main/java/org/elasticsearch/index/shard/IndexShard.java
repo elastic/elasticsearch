@@ -4225,8 +4225,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Registers a listener to run when the shard either opens the engine during recovery or is closed after failing recovery.
+     * If the shard is already recovered, then the listener will run immediately.
      */
-    public void waitForShardRecovery(ActionListener<Void> listener) {
+    public void waitForShardRecoveryIfNeeded(ActionListener<Void> listener) {
         waitForEngineOrClosedShardListeners.addListener(listener);
     }
 
@@ -4234,7 +4235,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Registers a listener for an event when the shard advances to the provided primary term and segment generation
      */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
-        waitForShardRecovery(
+        waitForShardRecoveryIfNeeded(
             listener.delegateFailureAndWrap(
                 (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
             )

@@ -258,6 +258,10 @@ public interface ActionListener<Response> {
     /**
      * Completes the given listener with the result from the provided supplier accordingly.
      * This method is mainly used to complete a listener with a block of synchronous code.
+     * {@link #run(ActionListener, CheckedConsumer)} can be used for asynchronous code tasks.
+     *
+     * Think of this method as declaring the 'end of the line' for the listener: there will be no further indirections because the
+     * 'supplier' is not given access to the listener.
      *
      * If the supplier fails, the listener's onFailure handler will be called.
      * It is the responsibility of {@code delegate} to handle its own exceptions inside `onResponse` and `onFailure`.

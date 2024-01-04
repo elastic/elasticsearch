@@ -28,7 +28,6 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -112,7 +111,6 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     @Override
     protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(
         NodesReloadSecureSettingsRequest.NodeRequest nodeReloadRequest,
-        TransportChannel unused,
         Task task
     ) {
         final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;

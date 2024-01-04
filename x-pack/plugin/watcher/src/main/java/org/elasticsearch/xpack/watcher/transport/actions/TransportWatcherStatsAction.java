@@ -15,7 +15,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
@@ -86,7 +85,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected WatcherStatsResponse.Node nodeOperation(WatcherStatsRequest.Node request, TransportChannel unused, Task task) {
+    protected WatcherStatsResponse.Node nodeOperation(WatcherStatsRequest.Node request, Task task) {
         WatcherStatsResponse.Node statsResponse = new WatcherStatsResponse.Node(clusterService.localNode());
         statsResponse.setWatcherState(lifeCycleService.getState().get());
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());

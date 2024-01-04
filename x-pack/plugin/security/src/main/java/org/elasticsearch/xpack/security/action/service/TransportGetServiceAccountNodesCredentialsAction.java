@@ -16,7 +16,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
@@ -81,7 +80,6 @@ public class TransportGetServiceAccountNodesCredentialsAction extends TransportN
     @Override
     protected GetServiceAccountCredentialsNodesResponse.Node nodeOperation(
         GetServiceAccountCredentialsNodesRequest.Node request,
-        TransportChannel unused,
         Task task
     ) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());

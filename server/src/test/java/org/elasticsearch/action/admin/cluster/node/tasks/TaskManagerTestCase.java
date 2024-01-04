@@ -164,7 +164,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected abstract NodeResponse nodeOperation(NodeRequest request, TransportChannel unused, Task task);
+        protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
     }
 
     public static class TestNode implements Releasable {

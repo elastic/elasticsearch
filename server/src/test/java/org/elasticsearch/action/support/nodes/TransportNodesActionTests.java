@@ -37,7 +37,6 @@ import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
@@ -370,7 +369,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeResponse nodeOperation(TestNodeRequest request, TransportChannel unused, Task task) {
+        protected TestNodeResponse nodeOperation(TestNodeRequest request, Task task) {
             return new TestNodeResponse();
         }
 

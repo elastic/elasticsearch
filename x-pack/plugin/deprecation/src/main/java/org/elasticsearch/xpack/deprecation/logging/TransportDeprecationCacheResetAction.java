@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -76,7 +75,6 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
     @Override
     protected DeprecationCacheResetAction.NodeResponse nodeOperation(
         DeprecationCacheResetAction.NodeRequest request,
-        TransportChannel unused,
         Task task
     ) {
         rateLimitingFilterForIndexing.reset();

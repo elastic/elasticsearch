@@ -156,7 +156,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeResponse nodeOperation(CancellableNodeRequest request, TransportChannel unused, Task task) {
+        protected NodeResponse nodeOperation(CancellableNodeRequest request, Task task) {
             assert task instanceof CancellableTask;
             debugDelay("op1");
             if (actionStartedLatch != null) {

@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
@@ -78,7 +77,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeUsage nodeOperation(NodeUsageRequest nodeUsageRequest, TransportChannel unused, Task task) {
+    protected NodeUsage nodeOperation(NodeUsageRequest nodeUsageRequest, Task task) {
         NodesUsageRequest request = nodeUsageRequest.request;
         Map<String, Long> restUsage = request.restActions() ? restUsageService.getRestUsageStats() : null;
         Map<String, Object> aggsUsage = request.aggregations() ? aggregationUsageService.getUsageStats() : null;

@@ -19,7 +19,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -75,7 +74,6 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
     @Override
     protected RepositoriesNodeMeteringResponse nodeOperation(
         ClearRepositoriesStatsArchiveNodeRequest request,
-        TransportChannel unused,
         Task task
     ) {
         List<RepositoryStatsSnapshot> clearedStats = repositoriesService.clearRepositoriesStatsArchive(request.maxVersionToClear);

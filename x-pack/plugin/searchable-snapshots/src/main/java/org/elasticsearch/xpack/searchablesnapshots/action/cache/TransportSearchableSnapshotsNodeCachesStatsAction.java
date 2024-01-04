@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -115,7 +114,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     @Override
-    protected NodeCachesStatsResponse nodeOperation(NodeRequest request, TransportChannel unused, Task task) {
+    protected NodeCachesStatsResponse nodeOperation(NodeRequest request, Task task) {
         SearchableSnapshots.ensureValidLicense(licenseState);
         final SharedBlobCacheService.Stats frozenCacheStats;
         if (frozenCacheService.get() != null) {

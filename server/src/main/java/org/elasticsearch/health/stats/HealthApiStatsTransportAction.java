@@ -16,7 +16,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -74,7 +73,6 @@ public class HealthApiStatsTransportAction extends TransportNodesAction<
     @Override
     protected HealthApiStatsAction.Response.Node nodeOperation(
         HealthApiStatsAction.Request.Node request,
-        TransportChannel unused,
         Task task
     ) {
         HealthApiStatsAction.Response.Node statsResponse = new HealthApiStatsAction.Response.Node(clusterService.localNode());

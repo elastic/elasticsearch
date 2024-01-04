@@ -1,0 +1,6 @@
+pr: 102916
+summary: Fix layout for MV_EXPAND
+area: ES|QL
+type: bug
+issues:
+ - 102912

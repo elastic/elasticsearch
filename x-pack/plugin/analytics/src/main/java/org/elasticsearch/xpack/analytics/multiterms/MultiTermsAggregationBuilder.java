@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -156,7 +157,16 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     @Override
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-        return false;
+        for (MultiValuesSourceFieldConfig sourceFieldConfig : terms) {
+            if (sourceFieldConfig.getScript() != null) {
+                return false;
+            }
+            long cardinality = fieldCardinalityResolver.applyAsLong(sourceFieldConfig.getFieldName());
+            if (TermsAggregationBuilder.supportsParallelCollection(cardinality, order, bucketCountThresholds) == false) {
+                return false;
+            }
+        }
+        return super.supportsParallelCollection(fieldCardinalityResolver);
     }
 
     /**

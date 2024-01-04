@@ -30,8 +30,27 @@ public enum ConnectorSyncStatus {
     PENDING,
     SUSPENDED;
 
+    public static ConnectorSyncStatus fromString(String syncStatusString) {
+        for (ConnectorSyncStatus syncStatus : ConnectorSyncStatus.values()) {
+            if (syncStatus.toString().equalsIgnoreCase(syncStatusString)) {
+                return syncStatus;
+            }
+        }
+
+        throw new IllegalArgumentException("Unknown sync status '" + syncStatusString + "'.");
+    }
+
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    public static ConnectorSyncStatus connectorSyncStatus(String status) {
+        for (ConnectorSyncStatus connectorSyncStatus : ConnectorSyncStatus.values()) {
+            if (connectorSyncStatus.name().equalsIgnoreCase(status)) {
+                return connectorSyncStatus;
+            }
+        }
+        throw new IllegalArgumentException("Unknown ConnectorSyncStatus: " + status);
     }
 }

@@ -14,9 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -61,7 +61,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
@@ -85,7 +85,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
@@ -107,7 +107,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
 
         try (
@@ -133,7 +133,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         Collections.shuffle(partials, random());
@@ -163,7 +163,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     public final void testManyInitialManyPartialFinalRunner() {
         BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, false /* no throwing ops */);
         var runner = new DriverRunner(threadPool.getThreadContext()) {

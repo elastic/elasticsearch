@@ -146,7 +146,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
 
             ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)).get()
+                prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))
             );
             assertEquals(
                 "[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",

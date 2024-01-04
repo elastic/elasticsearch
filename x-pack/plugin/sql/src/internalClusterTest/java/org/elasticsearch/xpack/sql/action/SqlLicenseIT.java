@@ -111,12 +111,12 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").get()
+            new SqlQueryRequestBuilder(client()).query("SELECT * FROM test")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();
 
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").get();
         assertThat(response.size(), Matchers.equalTo(2L));
     }
 
@@ -126,14 +126,12 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test").mode("jdbc").get()
+            new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").mode("jdbc")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [jdbc]"));
         enableJdbcLicensing();
 
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT * FROM test")
-            .mode("jdbc")
-            .get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").mode("jdbc").get();
         assertThat(response.size(), Matchers.equalTo(2L));
     }
 
@@ -143,13 +141,12 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE).query("SELECT * FROM test").get()
+            new SqlTranslateRequestBuilder(client()).query("SELECT * FROM test")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();
 
-        SqlTranslateResponse response = new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE).query("SELECT * FROM test")
-            .get();
+        SqlTranslateResponse response = new SqlTranslateRequestBuilder(client()).query("SELECT * FROM test").get();
         SearchSourceBuilder source = response.source();
         assertThat(source.docValueFields(), Matchers.contains(new FieldAndFormat("count", null)));
         FetchSourceContext fetchSource = source.fetchSource();

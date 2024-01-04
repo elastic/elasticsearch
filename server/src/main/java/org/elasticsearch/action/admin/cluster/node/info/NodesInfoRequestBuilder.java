@@ -8,15 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 // TODO: This class's interface should match that of NodesInfoRequest
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
-    public NodesInfoRequestBuilder(ElasticsearchClient client, ActionType<NodesInfoResponse> action) {
-        super(client, action, new NodesInfoRequest());
+    public NodesInfoRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportNodesInfoAction.TYPE, new NodesInfoRequest());
     }
 
     /**

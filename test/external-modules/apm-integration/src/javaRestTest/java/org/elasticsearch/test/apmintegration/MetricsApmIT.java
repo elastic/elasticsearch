@@ -60,8 +60,10 @@ public class MetricsApmIT extends ESRestTestCase {
     public void testApmIntegration() throws Exception {
         Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
             Map.ofEntries(
-                assertion("testDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion(TestMeterUsages.VERY_LONG_NAME, m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("testLongCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testAsyncDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testAsyncLongCounter", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion("testDoubleGauge", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("testLongGauge", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion(
@@ -105,8 +107,8 @@ public class MetricsApmIT extends ESRestTestCase {
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
-        finished.await(30, TimeUnit.SECONDS);
-        assertThat(sampleAssertions, Matchers.anEmptyMap());
+        assertTrue("Timeout when waiting for assertions to complete.", finished.await(30, TimeUnit.SECONDS));
+        assertThat(sampleAssertions, Matchers.equalTo(Collections.emptyMap()));
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(

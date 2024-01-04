@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
@@ -144,7 +145,17 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
         long nowInMillis,
         ActionListener<Response> listener
     ) {
-        store.getResponse(searchId, true, listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)));
+        store.getResponse(searchId, true, listener.delegateFailure((l, response) -> {
+            try {
+                sendFinalResponse(request, response, nowInMillis, l);
+            } finally {
+                if (response instanceof StoredAsyncResponse<?> storedAsyncResponse
+                    && storedAsyncResponse.getResponse() instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
+
+        }));
     }
 
     private void sendFinalResponse(GetAsyncResultRequest request, Response response, long nowInMillis, ActionListener<Response> listener) {

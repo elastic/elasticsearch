@@ -11,7 +11,9 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -24,7 +26,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
@@ -52,6 +54,8 @@ import static org.elasticsearch.xpack.ql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public final class CsvTestUtils {
     private static final int MAX_WIDTH = 20;
@@ -137,6 +141,7 @@ public final class CsvTestUtils {
 
         CsvColumn[] columns = null;
 
+        var blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(source)) {
             String line;
             int lineNumber = 1;
@@ -176,7 +181,7 @@ public final class CsvTestUtils {
                             columns[i] = new CsvColumn(
                                 name,
                                 type,
-                                BlockUtils.wrapperFor(BlockFactory.getNonBreakingInstance(), ElementType.fromJava(type.clazz()), 8)
+                                BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(type.clazz()), 8)
                             );
                         }
                     }
@@ -325,8 +330,7 @@ public final class CsvTestUtils {
                 for (int i = 0; i < row.size(); i++) {
                     String value = row.get(i);
                     if (value == null || value.trim().equalsIgnoreCase(NULL_VALUE)) {
-                        value = null;
-                        rowValues.add(columnTypes.get(i).convert(value));
+                        rowValues.add(null);
                         continue;
                     }
 
@@ -386,7 +390,9 @@ public final class CsvTestUtils {
             (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),
             Long.class
         ),
-        BOOLEAN(Booleans::parseBoolean, Boolean.class);
+        BOOLEAN(Booleans::parseBoolean, Boolean.class),
+        GEO_POINT(x -> x == null ? null : GEO.pointAsLong(GEO.stringAsPoint(x)), Long.class),
+        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(x)), Long.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -474,7 +480,7 @@ public final class CsvTestUtils {
         Map<String, List<String>> responseHeaders
     ) {
         Iterator<Iterator<Object>> values() {
-            return EsqlQueryResponse.pagesToValues(dataTypes(), pages);
+            return ResponseValueUtils.pagesToValues(dataTypes(), pages);
         }
     }
 

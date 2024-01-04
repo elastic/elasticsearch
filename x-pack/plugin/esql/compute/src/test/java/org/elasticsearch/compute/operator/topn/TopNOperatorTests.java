@@ -18,15 +18,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockBuilder;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -181,12 +178,12 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
+    protected ByteSizeValue memoryLimitForSimple() {
         /*
          * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker. So 775 is the max on this range.
+         * trip the breaker.
          */
-        return ByteSizeValue.ofBytes(between(1, 775));
+        return ByteSizeValue.ofBytes(775);
     }
 
     public void testRamBytesUsed() {
@@ -305,14 +302,14 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareInts() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
             new Page(
-                new Block[] {
-                    IntBlock.newBlockBuilder(2).appendInt(Integer.MIN_VALUE).appendInt(randomIntBetween(-1000, -1)).build(),
-                    IntBlock.newBlockBuilder(2).appendInt(randomIntBetween(-1000, -1)).appendInt(0).build(),
-                    IntBlock.newBlockBuilder(2).appendInt(0).appendInt(randomIntBetween(1, 1000)).build(),
-                    IntBlock.newBlockBuilder(2).appendInt(randomIntBetween(1, 1000)).appendInt(Integer.MAX_VALUE).build(),
-                    IntBlock.newBlockBuilder(2).appendInt(0).appendInt(Integer.MAX_VALUE).build() }
+                blockFactory.newIntBlockBuilder(2).appendInt(Integer.MIN_VALUE).appendInt(randomIntBetween(-1000, -1)).build(),
+                blockFactory.newIntBlockBuilder(2).appendInt(randomIntBetween(-1000, -1)).appendInt(0).build(),
+                blockFactory.newIntBlockBuilder(2).appendInt(0).appendInt(randomIntBetween(1, 1000)).build(),
+                blockFactory.newIntBlockBuilder(2).appendInt(randomIntBetween(1, 1000)).appendInt(Integer.MAX_VALUE).build(),
+                blockFactory.newIntBlockBuilder(2).appendInt(0).appendInt(Integer.MAX_VALUE).build()
             ),
             INT,
             DEFAULT_SORTABLE
@@ -320,14 +317,14 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareLongs() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
             new Page(
-                new Block[] {
-                    LongBlock.newBlockBuilder(2).appendLong(Long.MIN_VALUE).appendLong(randomLongBetween(-1000, -1)).build(),
-                    LongBlock.newBlockBuilder(2).appendLong(randomLongBetween(-1000, -1)).appendLong(0).build(),
-                    LongBlock.newBlockBuilder(2).appendLong(0).appendLong(randomLongBetween(1, 1000)).build(),
-                    LongBlock.newBlockBuilder(2).appendLong(randomLongBetween(1, 1000)).appendLong(Long.MAX_VALUE).build(),
-                    LongBlock.newBlockBuilder(2).appendLong(0).appendLong(Long.MAX_VALUE).build() }
+                blockFactory.newLongBlockBuilder(2).appendLong(Long.MIN_VALUE).appendLong(randomLongBetween(-1000, -1)).build(),
+                blockFactory.newLongBlockBuilder(2).appendLong(randomLongBetween(-1000, -1)).appendLong(0).build(),
+                blockFactory.newLongBlockBuilder(2).appendLong(0).appendLong(randomLongBetween(1, 1000)).build(),
+                blockFactory.newLongBlockBuilder(2).appendLong(randomLongBetween(1, 1000)).appendLong(Long.MAX_VALUE).build(),
+                blockFactory.newLongBlockBuilder(2).appendLong(0).appendLong(Long.MAX_VALUE).build()
             ),
             LONG,
             DEFAULT_SORTABLE
@@ -335,17 +332,17 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareDoubles() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
             new Page(
-                new Block[] {
-                    DoubleBlock.newBlockBuilder(2)
-                        .appendDouble(-Double.MAX_VALUE)
-                        .appendDouble(randomDoubleBetween(-1000, -1, true))
-                        .build(),
-                    DoubleBlock.newBlockBuilder(2).appendDouble(randomDoubleBetween(-1000, -1, true)).appendDouble(0.0).build(),
-                    DoubleBlock.newBlockBuilder(2).appendDouble(0).appendDouble(randomDoubleBetween(1, 1000, true)).build(),
-                    DoubleBlock.newBlockBuilder(2).appendDouble(randomLongBetween(1, 1000)).appendDouble(Double.MAX_VALUE).build(),
-                    DoubleBlock.newBlockBuilder(2).appendDouble(0.0).appendDouble(Double.MAX_VALUE).build() }
+                blockFactory.newDoubleBlockBuilder(2)
+                    .appendDouble(-Double.MAX_VALUE)
+                    .appendDouble(randomDoubleBetween(-1000, -1, true))
+                    .build(),
+                blockFactory.newDoubleBlockBuilder(2).appendDouble(randomDoubleBetween(-1000, -1, true)).appendDouble(0.0).build(),
+                blockFactory.newDoubleBlockBuilder(2).appendDouble(0).appendDouble(randomDoubleBetween(1, 1000, true)).build(),
+                blockFactory.newDoubleBlockBuilder(2).appendDouble(randomLongBetween(1, 1000)).appendDouble(Double.MAX_VALUE).build(),
+                blockFactory.newDoubleBlockBuilder(2).appendDouble(0.0).appendDouble(Double.MAX_VALUE).build()
             ),
             DOUBLE,
             DEFAULT_SORTABLE
@@ -353,10 +350,10 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareUtf8() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
             new Page(
-                new Block[] {
-                    BytesRefBlock.newBlockBuilder(2).appendBytesRef(new BytesRef("bye")).appendBytesRef(new BytesRef("hello")).build() }
+                blockFactory.newBytesRefBlockBuilder(2).appendBytesRef(new BytesRef("bye")).appendBytesRef(new BytesRef("hello")).build()
             ),
             BYTES_REF,
             UTF8
@@ -364,15 +361,16 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCompareBooleans() {
+        BlockFactory blockFactory = blockFactory();
         testCompare(
-            new Page(new Block[] { BooleanBlock.newBlockBuilder(2).appendBoolean(false).appendBoolean(true).build() }),
+            new Page(blockFactory.newBooleanBlockBuilder(2).appendBoolean(false).appendBoolean(true).build()),
             BOOLEAN,
             DEFAULT_SORTABLE
         );
     }
 
     private void testCompare(Page page, ElementType elementType, TopNEncoder encoder) {
-        Block nullBlock = Block.constantNullBlock(1);
+        Block nullBlock = TestBlockFactory.getNonBreakingInstance().newConstantNullBlock(1);
         Page nullPage = new Page(new Block[] { nullBlock, nullBlock, nullBlock, nullBlock, nullBlock });
 
         for (int b = 0; b < page.getBlockCount(); b++) {
@@ -423,6 +421,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 assertThat(TopNOperator.compareRows(r2, r1), greaterThan(0));
             }
         }
+        page.releaseBlocks();
     }
 
     private TopNOperator.Row row(
@@ -434,13 +433,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         Page page,
         int position
     ) {
+        final var sortOrders = List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst));
         TopNOperator.RowFiller rf = new TopNOperator.RowFiller(
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> elementType).toList(),
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> encoder).toList(),
-            List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst)),
+            sortOrders,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"));
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders);
         rf.row(position, row);
         return row;
     }
@@ -1385,7 +1385,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 randomPageSize()
             )
         ) {
-            op.addInput(new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()));
+            op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
         }
     }
 

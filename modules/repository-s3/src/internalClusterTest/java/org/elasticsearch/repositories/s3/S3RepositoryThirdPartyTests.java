@@ -17,7 +17,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,8 +30,8 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -46,6 +45,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -145,7 +145,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
-                MeterRegistry.NOOP
+                RepositoriesMetrics.NOOP
             )
         ) {
             repository.start();
@@ -161,7 +161,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 class TestHarness {
                     boolean tryCompareAndSet(BytesReference expected, BytesReference updated) {
                         return PlainActionFuture.<Boolean, RuntimeException>get(
-                            future -> blobContainer.compareAndSetRegister(OperationPurpose.SNAPSHOT, "key", expected, updated, future),
+                            future -> blobContainer.compareAndSetRegister(randomPurpose(), "key", expected, updated, future),
                             10,
                             TimeUnit.SECONDS
                         );
@@ -169,11 +169,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                     BytesReference readRegister() {
                         return PlainActionFuture.get(
-                            future -> blobContainer.getRegister(
-                                OperationPurpose.SNAPSHOT,
-                                "key",
-                                future.map(OptionalBytesReference::bytesReference)
-                            ),
+                            future -> blobContainer.getRegister(randomPurpose(), "key", future.map(OptionalBytesReference::bytesReference)),
                             10,
                             TimeUnit.SECONDS
                         );
@@ -220,7 +216,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertThat(testHarness.listMultipartUploads(), hasSize(0));
                 assertEquals(bytes2, testHarness.readRegister());
             } finally {
-                blobContainer.delete(OperationPurpose.SNAPSHOT);
+                blobContainer.delete(randomPurpose());
             }
         } finally {
             ThreadPool.terminate(threadpool, 10, TimeUnit.SECONDS);

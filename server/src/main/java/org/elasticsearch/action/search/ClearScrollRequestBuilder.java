@@ -9,15 +9,14 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 import java.util.List;
 
 public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse> {
 
-    public ClearScrollRequestBuilder(ElasticsearchClient client, ActionType<ClearScrollResponse> action) {
-        super(client, action, new ClearScrollRequest());
+    public ClearScrollRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportClearScrollAction.TYPE, new ClearScrollRequest());
     }
 
     public ClearScrollRequestBuilder setScrollIds(List<String> cursorIds) {

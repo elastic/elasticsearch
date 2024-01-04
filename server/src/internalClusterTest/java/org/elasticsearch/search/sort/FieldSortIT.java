@@ -150,7 +150,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
-    public void testIssue6614() throws ExecutionException, InterruptedException {
+    public void testIssue6614() throws InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();
         final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
@@ -1654,7 +1654,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 {
                     SearchPhaseExecutionException exc = expectThrows(
                         SearchPhaseExecutionException.class,
-                        () -> prepareSearch().setQuery(matchAllQuery())
+                        prepareSearch().setQuery(matchAllQuery())
                             .addSort(
                                 SortBuilders.fieldSort("nested.bar.foo")
                                     .setNestedSort(
@@ -1662,7 +1662,6 @@ public class FieldSortIT extends ESIntegTestCase {
                                     )
                                     .order(SortOrder.DESC)
                             )
-                            .get()
                     );
                     assertThat(exc.toString(), containsString("max_children is only supported on top level of nested sort"));
                 }
@@ -1684,7 +1683,7 @@ public class FieldSortIT extends ESIntegTestCase {
         // missing nested path
         SearchPhaseExecutionException exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("nested.foo")).get()
+            prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("nested.foo"))
         );
         assertThat(exc.toString(), containsString("it is mandatory to set the [nested] context"));
     }
@@ -2044,9 +2043,7 @@ public class FieldSortIT extends ESIntegTestCase {
             for (String numericType : new String[] { "long", "double", "date", "date_nanos" }) {
                 ElasticsearchException exc = expectThrows(
                     ElasticsearchException.class,
-                    () -> prepareSearch().setQuery(matchAllQuery())
-                        .addSort(SortBuilders.fieldSort(invalidField).setNumericType(numericType))
-                        .get()
+                    prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort(invalidField).setNumericType(numericType))
                 );
                 assertThat(exc.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(exc.getDetailedMessage(), containsString("[numeric_type] option cannot be set on a non-numeric field"));
@@ -2123,7 +2120,7 @@ public class FieldSortIT extends ESIntegTestCase {
         { // mixing long and double types is not allowed
             SearchPhaseExecutionException exc = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(10).get()
+                prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(10)
             );
             assertThat(exc.getCause().toString(), containsString(errMsg));
         }
@@ -2131,10 +2128,25 @@ public class FieldSortIT extends ESIntegTestCase {
         { // mixing long and keyword types is not allowed
             SearchPhaseExecutionException exc = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> prepareSearch("index_long", "index_keyword").addSort(new FieldSortBuilder("foo")).setSize(10).get()
+                prepareSearch("index_long", "index_keyword").addSort(new FieldSortBuilder("foo")).setSize(10)
             );
             assertThat(exc.getCause().toString(), containsString(errMsg));
         }
     }
 
+    public void testSortMixedFieldTypesWithNoDocsForOneType() {
+        assertAcked(prepareCreate("index_long").setMapping("foo", "type=long").get());
+        assertAcked(prepareCreate("index_other").setMapping("bar", "type=keyword").get());
+        assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
+
+        prepareIndex("index_long").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_long").setId("2").setSource("foo", "124").get();
+        prepareIndex("index_other").setId("1").setSource("bar", "124").get();
+        refresh();
+
+        assertNoFailures(
+            prepareSearch("index_long", "index_double", "index_other").addSort(new FieldSortBuilder("foo").unmappedType("boolean"))
+                .setSize(10)
+        );
+    }
 }

@@ -69,7 +69,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -77,6 +76,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -480,16 +480,23 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     private static SearchResponse emptySearchResponse() {
-        InternalSearchResponse response = new InternalSearchResponse(
+        return new SearchResponse(
             new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
             null,
-            null,
             false,
             null,
-            1
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            100,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null
         );
-        return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
     }
 
     public void testCCSRemoteReduceMergeFails() throws Exception {
@@ -542,7 +549,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
                 assertEquals("", tuple.v1().getLocalClusterAlias());
                 assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
-                tuple.v2().onResponse(emptySearchResponse());
+                resolveWithEmptySearchResponse(tuple);
             }
             awaitLatch(latch, 5, TimeUnit.SECONDS);
             assertNotNull(failure.get());
@@ -584,9 +591,12 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
-                AtomicReference<SearchResponse> response = new AtomicReference<>();
+                final SetOnce<SearchResponse> response = new SetOnce<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionTestUtils.assertNoFailureListener(response::set),
+                    ActionTestUtils.assertNoFailureListener(newValue -> {
+                        newValue.incRef();
+                        response.set(newValue);
+                    }),
                     latch
                 );
                 TransportSearchAction.ccsRemoteReduce(
@@ -608,18 +618,25 @@ public class TransportSearchActionTests extends ESTestCase {
                     Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
                     assertEquals("", tuple.v1().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
-                    tuple.v2().onResponse(emptySearchResponse());
+                    resolveWithEmptySearchResponse(tuple);
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
 
                 SearchResponse searchResponse = response.get();
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(totalClusters, searchResponse.getClusters().getTotal());
-                assertEquals(totalClusters, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
+                try {
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                    assertEquals(totalClusters, searchResponse.getClusters().getTotal());
+                    assertEquals(
+                        totalClusters,
+                        searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+                    );
+                    assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
+                } finally {
+                    searchResponse.decRef();
+                }
             }
             {
                 SearchRequest searchRequest = new SearchRequest();
@@ -650,7 +667,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
                     assertEquals("", tuple.v1().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
-                    tuple.v2().onResponse(emptySearchResponse());
+                    resolveWithEmptySearchResponse(tuple);
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(failure.get());
@@ -710,7 +727,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
                     assertEquals("", tuple.v1().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
-                    tuple.v2().onResponse(emptySearchResponse());
+                    resolveWithEmptySearchResponse(tuple);
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(failure.get());
@@ -728,9 +745,12 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
-                AtomicReference<SearchResponse> response = new AtomicReference<>();
+                SetOnce<SearchResponse> response = new SetOnce<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionTestUtils.assertNoFailureListener(response::set),
+                    ActionTestUtils.assertNoFailureListener(newValue -> {
+                        newValue.mustIncRef();
+                        response.set(newValue);
+                    }),
                     latch
                 );
                 Set<String> clusterAliases = new HashSet<>(remoteClusterService.getRegisteredRemoteClusterNames());
@@ -756,22 +776,26 @@ public class TransportSearchActionTests extends ESTestCase {
                     Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
                     assertEquals("", tuple.v1().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
-                    tuple.v2().onResponse(emptySearchResponse());
+                    resolveWithEmptySearchResponse(tuple);
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
 
                 SearchResponse searchResponse = response.get();
-                assertEquals(
-                    disconnectedNodesIndices.size(),
-                    searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED)
-                );
-                assertEquals(totalClusters, searchResponse.getClusters().getTotal());
-                int successful = totalClusters - disconnectedNodesIndices.size();
-                assertEquals(successful, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
+                try {
+                    assertEquals(
+                        disconnectedNodesIndices.size(),
+                        searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED)
+                    );
+                    assertEquals(totalClusters, searchResponse.getClusters().getTotal());
+                    int successful = totalClusters - disconnectedNodesIndices.size();
+                    assertEquals(successful, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                    assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
+                } finally {
+                    searchResponse.decRef();
+                }
             }
 
             // give transport service enough time to realize that the node is down, and to notify the connection listeners
@@ -794,7 +818,10 @@ public class TransportSearchActionTests extends ESTestCase {
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
-                    ActionTestUtils.assertNoFailureListener(response::set),
+                    ActionTestUtils.assertNoFailureListener(newValue -> {
+                        newValue.mustIncRef();
+                        response.set(newValue);
+                    }),
                     latch
                 );
                 Set<String> clusterAliases = new HashSet<>(remoteClusterService.getRegisteredRemoteClusterNames());
@@ -820,24 +847,40 @@ public class TransportSearchActionTests extends ESTestCase {
                     Tuple<SearchRequest, ActionListener<SearchResponse>> tuple = setOnce.get();
                     assertEquals("", tuple.v1().getLocalClusterAlias());
                     assertThat(tuple.v2(), instanceOf(TransportSearchAction.CCSActionListener.class));
-                    tuple.v2().onResponse(emptySearchResponse());
+                    resolveWithEmptySearchResponse(tuple);
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
 
                 SearchResponse searchResponse = response.get();
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-                assertEquals(totalClusters, searchResponse.getClusters().getTotal());
-                assertEquals(totalClusters, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
+                try {
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                    assertEquals(totalClusters, searchResponse.getClusters().getTotal());
+                    assertEquals(
+                        totalClusters,
+                        searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+                    );
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                    assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                    assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
+                } finally {
+                    searchResponse.decRef();
+                }
             });
             assertEquals(0, service.getConnectionManager().size());
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
                 mockTransportService.close();
             }
+        }
+    }
+
+    private static void resolveWithEmptySearchResponse(Tuple<SearchRequest, ActionListener<SearchResponse>> tuple) {
+        var resp = emptySearchResponse();
+        try {
+            tuple.v2().onResponse(resp);
+        } finally {
+            resp.decRef();
         }
     }
 
@@ -1058,23 +1101,33 @@ public class TransportSearchActionTests extends ESTestCase {
             assertEquals(-1, source.size());
             assertEquals(-1, source.from());
             assertNull(source.trackTotalHitsUpTo());
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
-                source,
-                timeProvider,
-                emptyReduceContextBuilder()
-            );
-            assertEquals(0, merger.from);
-            assertEquals(10, merger.size);
-            assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
-            assertEquals(0, source.from());
-            assertEquals(10, source.size());
-            assertNull(source.trackTotalHitsUpTo());
+            try (
+                SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                    source,
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                )
+            ) {
+                assertEquals(0, merger.from);
+                assertEquals(10, merger.size);
+                assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
+                assertEquals(0, source.from());
+                assertEquals(10, source.size());
+                assertNull(source.trackTotalHitsUpTo());
+            }
         }
         {
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(null, timeProvider, emptyReduceContextBuilder());
-            assertEquals(0, merger.from);
-            assertEquals(10, merger.size);
-            assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
+            try (
+                SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                    null,
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                )
+            ) {
+                assertEquals(0, merger.from);
+                assertEquals(10, merger.size);
+                assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
+            }
         }
         {
             SearchSourceBuilder source = new SearchSourceBuilder();
@@ -1084,17 +1137,20 @@ public class TransportSearchActionTests extends ESTestCase {
             source.size(originalSize);
             int trackTotalHitsUpTo = randomIntBetween(0, Integer.MAX_VALUE);
             source.trackTotalHitsUpTo(trackTotalHitsUpTo);
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
-                source,
-                timeProvider,
-                emptyReduceContextBuilder()
-            );
-            assertEquals(0, source.from());
-            assertEquals(originalFrom + originalSize, source.size());
-            assertEquals(trackTotalHitsUpTo, (int) source.trackTotalHitsUpTo());
-            assertEquals(originalFrom, merger.from);
-            assertEquals(originalSize, merger.size);
-            assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
+            try (
+                SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                    source,
+                    timeProvider,
+                    emptyReduceContextBuilder()
+                )
+            ) {
+                assertEquals(0, source.from());
+                assertEquals(originalFrom + originalSize, source.size());
+                assertEquals(trackTotalHitsUpTo, (int) source.trackTotalHitsUpTo());
+                assertEquals(originalFrom, merger.from);
+                assertEquals(originalSize, merger.size);
+                assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
+            }
         }
     }
 
@@ -1545,7 +1601,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 actionFilters,
                 null,
                 null,
-                null
+                null,
+                new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             );
 
             CountDownLatch latch = new CountDownLatch(1);

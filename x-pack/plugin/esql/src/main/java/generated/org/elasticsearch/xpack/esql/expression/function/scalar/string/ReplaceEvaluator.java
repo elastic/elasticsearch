@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.regex.PatternSyntaxException;
@@ -73,15 +74,36 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        if (strBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (regexBlock.isNull(p) || regexBlock.getValueCount(p) != 1) {
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
-        if (newStrBlock.isNull(p) || newStrBlock.getValueCount(p) != 1) {
+        if (regexBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (regexBlock.getValueCount(p) != 1) {
+          if (regexBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (newStrBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (newStrBlock.getValueCount(p) != 1) {
+          if (newStrBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

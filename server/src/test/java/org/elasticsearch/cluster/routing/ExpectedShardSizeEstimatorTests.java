@@ -158,7 +158,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 metadata(
-                    IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 2, 0)),
+                    IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 1, 0)),
                     IndexMetadata.builder("target")
                         .settings(
                             indexSettings(IndexVersion.current(), 1, 0) //

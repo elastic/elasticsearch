@@ -39,7 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 
-// TODO rewrite this comment
+// TODO I think this should be moved into the batching package
+// TODO rewrite this comment, this no longer has an http client so the timeout stuff doesn't really apply
 /**
  * An {@link java.util.concurrent.ExecutorService} for queuing and executing {@link RequestTask} containing
  * {@link org.apache.http.client.methods.HttpRequestBase}. This class is useful because the

@@ -57,7 +57,7 @@ public class InferenceRequestSenderFactory {
         this.retryingHttpSender = new RetryingHttpSender(
             this.httpClientManager.getHttpClient(),
             serviceComponents.throttlerManager(),
-            new RetrySettings(serviceComponents.settings()),
+            new RetrySettings(serviceComponents.settings(), clusterService),
             serviceComponents.threadPool()
         );
     }

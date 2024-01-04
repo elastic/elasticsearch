@@ -77,9 +77,9 @@ public class RetryingHttpSender implements RequestSender {
             super(
                 Objects.requireNonNull(logger),
                 threadPool,
-                retrySettings.getSettings().initialDelay(),
-                retrySettings.getSettings().maxDelayBound(),
-                retrySettings.getSettings().timeoutValue(),
+                retrySettings.getInitialDelay(),
+                retrySettings.getMaxDelayBound(),
+                retrySettings.getTimeout(),
                 listener,
                 executor
             );

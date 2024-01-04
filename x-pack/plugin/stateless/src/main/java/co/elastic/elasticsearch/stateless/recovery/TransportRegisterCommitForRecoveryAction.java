@@ -56,6 +56,7 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
     ) {
         super(
             NAME,
+            false,
             transportService,
             actionFilters,
             RegisterCommitRequest::new,

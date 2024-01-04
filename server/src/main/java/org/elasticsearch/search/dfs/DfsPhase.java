@@ -191,7 +191,13 @@ public class DfsPhase {
         for (int i = 0; i < knnSearch.size(); i++) {
             String knnField = knnVectorQueryBuilders.get(i).getFieldName();
             String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-            Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+            searchExecutionContext.nestedScope().nextLevelInnerHits(knnSearch.get(i).innerHit());
+            Query knnQuery = null;
+            try {
+                knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+            } finally {
+                searchExecutionContext.nestedScope().previousLevelInnerHits();
+            }
             knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
         }
         context.dfsResult().knnResults(knnResults);

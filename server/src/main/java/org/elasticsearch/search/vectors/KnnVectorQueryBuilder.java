@@ -260,6 +260,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
+
         if (parentPath != null) {
             NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
             if (originalObjectMapper != null) {
@@ -280,7 +281,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             if (filterQuery != null) {
                 filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
             }
-            return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, parentFilter);
+            return vectorFieldType.createKnnQuery(
+                queryVector,
+                numCands,
+                filterQuery,
+                vectorSimilarity,
+                new DenseVectorFieldMapper.NestedVectorSearchParams(context.nestedScope().getInnerHitsBuilder(), parentFilter)
+            );
         }
         return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, null);
     }

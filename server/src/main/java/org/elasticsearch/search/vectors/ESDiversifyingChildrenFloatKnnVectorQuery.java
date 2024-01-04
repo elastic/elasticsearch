@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.vectors;
 
-
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
@@ -19,37 +18,39 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.HitQueue;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
-import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.PriorityQueue;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * This is an extension of {@link DiversifyingChildrenFloatKnnVectorQuery} that gathers the top {@code numChildrenPerParent} children,
+ * not just the single nearest. This is useful for gathering inner hits
+ * It will return the top {@code numChildrenPerParent} children for each parent, this is done as a separate step after
+ * the initial query is executed.
+ */
 public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery {
 
     private final int numChildrenPerParent;
     private final BitSetProducer parentsFilter;
     private final float[] query;
+
     /**
-     * Create a ToParentBlockJoinByteVectorQuery.
-     *
      * @param field         the query field
      * @param query         the vector query
      * @param childFilter   the child filter
      * @param k             how many parent documents to return given the matching children
-     * @param parentsFilter Filter identifying the parent documents.
+     * @param parentsFilter identifying the parent documents.
+     * @param numChildrenPerParent how many nearest children to return for each parent
      */
     public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
@@ -68,6 +69,12 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         this.query = query;
     }
 
+    /**
+     * This will first execute as a normal {@link DiversifyingChildrenFloatKnnVectorQuery} and then gather the top
+     * {@code numChildrenPerParent} children for each parent given the results of the initial query.
+     * The returned query will be a {@link KnnScoreDocQuery} which will be used to score the top {@code numChildrenPerParent} children
+     * for each parent.
+     */
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         IndexReader reader = indexSearcher.getIndexReader();
@@ -81,10 +88,36 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         // returning the top numChildrenPerParent children for each parent
         // The matchingChildren used to iterate the current matching children to gather the appropriate parents & children
         Weight matchingChildren = rewritten.createWeight(indexSearcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        Weight childrenFilter = getFilter() == null ? null : indexSearcher.rewrite( new BooleanQuery.Builder()
-            .add(getFilter(), BooleanClause.Occur.FILTER)
-            .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
-            .build()).createWeight(indexSearcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        Weight childrenFilter = getFilter() == null
+            ? null
+            : indexSearcher.rewrite(
+                new BooleanQuery.Builder().add(getFilter(), BooleanClause.Occur.FILTER)
+                    .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
+                    .build()
+            ).createWeight(indexSearcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        ChildBlockJoinVectorScorerProvider childBlockJoinVectorScorerProvider = new ChildBlockJoinVectorScorerProvider(
+            childrenFilter,
+            matchingChildren,
+            context -> new ChildBlockJoinVectorScorerProvider.VectorScorer() {
+                private final FloatVectorValues values = context.reader().getFloatVectorValues(field);
+                private final VectorSimilarityFunction function = context.reader()
+                    .getFieldInfos()
+                    .fieldInfo(field)
+                    .getVectorSimilarityFunction();
+
+                @Override
+                public float score() throws IOException {
+                    return function.compare(query, values.vectorValue());
+                }
+
+                @Override
+                public DocIdSetIterator iterator() {
+                    return values;
+                }
+            },
+            parentsFilter,
+            numChildrenPerParent
+        );
 
         List<ScoreDoc> topChildren = new ArrayList<>();
         for (LeafReaderContext context : reader.leaves()) {
@@ -93,44 +126,16 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
                 // The field does not exist or does not index vectors
                 continue;
             }
-            if (fi.getVectorEncoding() != VectorEncoding.BYTE) {
-                return null;
-            }
-            final BitSet parentBitSet = parentsFilter.getBitSet(context);
-            if (parentBitSet == null) {
+            if (fi.getVectorEncoding() != VectorEncoding.FLOAT32) {
                 continue;
             }
-            Scorer originallyMatchedChildren = matchingChildren.scorer(context);
-            if (originallyMatchedChildren == null) {
+            ChildBlockJoinVectorScorerProvider.ChildBlockJoinVectorScorer scorer = childBlockJoinVectorScorerProvider.scorer(context);
+            if (scorer == null) {
                 continue;
             }
-            Scorer childFilterScorer = childrenFilter == null ? null : childrenFilter.scorer(context);
-            FloatVectorValues values = context.reader().getFloatVectorValues(field);
-            VectorSimilarityFunction function = fi.getVectorSimilarityFunction();
-            DocIdSetIterator childFilterIterator = childFilterScorer == null ?
-                DocIdSetIterator.all(context.reader().maxDoc()) :
-                childFilterScorer.iterator();
-            ParentBlockJoinByteVectorScorer scorer = new ParentBlockJoinByteVectorScorer(
-                originallyMatchedChildren.iterator(),
-                childFilterIterator,
-                parentBitSet,
-                new RandomVectorScorer() {
-                    @Override
-                    public float score(int node) throws IOException {
-                        values.advance(node);
-                        return function.compare(query, values.vectorValue());
-                    }
-
-                    @Override
-                    public int maxOrd() {
-                        return values.size();
-                    }
-                },
-                numChildrenPerParent
-            );
             while (scorer.nextParent() != DocIdSetIterator.NO_MORE_DOCS) {
                 PriorityQueue<ScoreDoc> childDoc = scorer.scoredChildren();
-                while(childDoc.size() > 0) {
+                while (childDoc.size() > 0) {
                     topChildren.add(childDoc.pop());
                 }
             }
@@ -149,61 +154,4 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         return new KnnScoreDocQuery(docs, scores, segmentStarts, reader.getContext().id());
     }
 
-    private static class ParentBlockJoinByteVectorScorer {
-        private final RandomVectorScorer vectorScorer;
-        private final DocIdSetIterator previouslyFoundChildren;
-        private final DocIdSetIterator childFilterIterator;
-        private final BitSet parentBitSet;
-        private int currentParent = -1;
-        private final HitQueue queue;
-
-        protected ParentBlockJoinByteVectorScorer(
-            DocIdSetIterator previouslyFoundChildren,
-            DocIdSetIterator childFilterIterator,
-            BitSet parentBitSet,
-            RandomVectorScorer vectorScorer,
-            int numChildrenPerParent) {
-            this.vectorScorer = vectorScorer;
-            this.childFilterIterator = childFilterIterator;
-            this.previouslyFoundChildren = previouslyFoundChildren;
-            this.parentBitSet = parentBitSet;
-            this.queue = new HitQueue(numChildrenPerParent, true);
-        }
-
-        public PriorityQueue<ScoreDoc> scoredChildren() {
-            while (queue.size() > 0 && queue.top().score < 0) {
-                queue.pop();
-            }
-            return queue;
-        }
-
-        public int nextParent() throws IOException {
-            queue.clear();
-            int nextChild = previouslyFoundChildren.docID();
-            if (nextChild == -1) {
-                nextChild = previouslyFoundChildren.nextDoc();
-            }
-            if (nextChild == DocIdSetIterator.NO_MORE_DOCS) {
-                currentParent = DocIdSetIterator.NO_MORE_DOCS;
-                return currentParent;
-            }
-            currentParent = parentBitSet.nextSetBit(nextChild);
-            // The first child of `currentParent`
-            nextChild = parentBitSet.prevSetBit(nextChild) + 1;
-            // Get to the first child of `currentParent` that matches `childFilterIterator`
-            nextChild = childFilterIterator.advance(nextChild);
-            ScoreDoc topDoc = queue.top();
-            // now iterate over all children of the current parent in childFilterIterator
-            do {
-                float score = vectorScorer.score(nextChild);
-                if (score > topDoc.score) {
-                    topDoc.score = score;
-                    topDoc.doc = nextChild;
-                    topDoc = queue.updateTop();
-                }
-            } while ((nextChild = childFilterIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS
-                && nextChild < currentParent);
-            return currentParent;
-        }
-    }
 }

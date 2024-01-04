@@ -37,6 +37,7 @@ import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -1067,7 +1069,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int numCands,
             Query filter,
             Float similarityThreshold,
-            BitSetProducer parentFilter
+            NestedVectorSearchParams nestedVectorSearchParams
         ) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
@@ -1102,12 +1104,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     for (int i = 0; i < queryVector.length; i++) {
                         bytes[i] = (byte) queryVector[i];
                     }
-                    yield parentFilter != null
-                        ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter, 1)
+                    yield nestedVectorSearchParams != null
+                        ? new ProfilingDiversifyingChildrenByteKnnVectorQuery(
+                            name(),
+                            bytes,
+                            filter,
+                            numCands,
+                            nestedVectorSearchParams.parentFilter,
+                            nestedVectorSearchParams.innerHitBuilder == null ? 1 : nestedVectorSearchParams.innerHitBuilder.getSize()
+                        )
                         : new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
-                case FLOAT -> parentFilter != null
-                    ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter, 1)
+                case FLOAT -> nestedVectorSearchParams != null
+                    ? new ProfilingDiversifyingChildrenFloatKnnVectorQuery(
+                        name(),
+                        queryVector,
+                        filter,
+                        numCands,
+                        nestedVectorSearchParams.parentFilter,
+                        nestedVectorSearchParams.innerHitBuilder == null ? 1 : nestedVectorSearchParams.innerHitBuilder.getSize()
+                    )
                     : new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
 
@@ -1449,4 +1465,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             b.endArray();
         }
     }
+
+    public record NestedVectorSearchParams(@Nullable InnerHitBuilder innerHitBuilder, BitSetProducer parentFilter) {}
 }

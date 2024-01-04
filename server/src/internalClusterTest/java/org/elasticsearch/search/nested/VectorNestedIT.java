@@ -117,13 +117,11 @@ public class VectorNestedIT extends ESIntegTestCase {
         refresh();
 
         assertResponse(
-            prepareSearch("test")
-                .setKnnSearch(
-                    List.of(
-                        new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null).innerHit(new InnerHitBuilder().setSize(2))
-                    )
+            prepareSearch("test").setKnnSearch(
+                List.of(
+                    new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null).innerHit(new InnerHitBuilder().setSize(2))
                 )
-                .setAllowPartialSearchResults(false),
+            ).setAllowPartialSearchResults(false),
             response -> assertThat(response.getHits().getHits().length, greaterThan(0))
         );
     }

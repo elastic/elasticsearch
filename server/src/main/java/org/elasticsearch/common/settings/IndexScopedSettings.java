@@ -192,6 +192,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         // TSDB index settings
         IndexSettings.MODE,
         IndexMetadata.INDEX_ROUTING_PATH,
+        IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES,
         IndexSettings.TIME_SERIES_START_TIME,
         IndexSettings.TIME_SERIES_END_TIME,
 

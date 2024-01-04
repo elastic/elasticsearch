@@ -468,6 +468,24 @@ public final class MappingLookup {
     }
 
     /**
+     * Returns the names of the fields that are not marked as metrics and contain doc values.
+     * Excludes fields starting with "_" or "@", these are presumably internal fields like `_id`  or `@timestamp`.
+     * @return a list containing the matching field names.
+     */
+    public List<String> getNonMetricFieldsWithDocValues() {
+        List<String> dimensions = new ArrayList<>();
+        for (Mapper mapper : fieldMappers()) {
+            char firstChar = mapper.name().charAt(0);
+            if (firstChar != '_' && firstChar != '@' && mapper instanceof FieldMapper fieldMapper) {
+                if (fieldMapper.fieldType().getMetricType() == null && fieldMapper.fieldType().hasDocValues()) {
+                    dimensions.add(fieldMapper.name());
+                }
+            }
+        }
+        return dimensions;
+    }
+
+    /**
      * Key for the lookup to be used in caches.
      */
     public CacheKey cacheKey() {

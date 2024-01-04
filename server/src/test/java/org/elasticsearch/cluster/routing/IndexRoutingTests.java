@@ -623,6 +623,70 @@ public class IndexRoutingTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("invalid id [] for index [test] in time series mode"));
     }
 
+    public void testDynamicDimensions() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(
+            buildMetadataNoPath(IndexVersion.current(), shards),
+            List.of("foo")
+        );
+        assertIndexShard(routing, Map.of("foo", "cat", "bar", "dog"), Math.floorMod(hash(List.of("foo", "cat")), shards));
+    }
+
+    public void testRoutingPathIgnoreDynamicDimensions() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(
+            buildMetadata(IndexVersion.current(), shards, "static,common"),
+            List.of("dynamic1", "dynamic2")
+        );
+        assertIndexShard(
+            routing,
+            Map.of("static", "dog", "dynamic", "kitty", "common", "cat"),
+            Math.floorMod(hash(List.of("common", "cat", "static", "dog")), shards)
+        );
+    }
+
+    public void testDynamicDimensionsThrowNonEmptyRoutingPath() throws IOException {
+        int shards = between(2, 1000);
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> IndexRouting.fromIndexMetadataAndDynamicDimensions(
+                IndexMetadata.builder("test")
+                    .settings(
+                        settings(IndexVersion.current()).put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true)
+                            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "static1,static2")
+                            .build()
+                    )
+                    .numberOfShards(shards)
+                    .numberOfReplicas(1)
+                    .build(),
+                List.of("dynamic1", "dynamic2")
+            )
+        );
+        assertThat(e.getMessage(), equalTo("[static1, static2]"));
+    }
+
+    public void testDynamicDimensionsEmpty() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicDimensions(
+            buildMetadata(IndexVersion.current(), shards, "static"),
+            List.of()
+        );
+        assertIndexShard(routing, Map.of("static", "dog", "foo", "bar"), Math.floorMod(hash(List.of("static", "dog")), shards));
+    }
+
+    public void testDynamicTemplates() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadataAndDynamicTemplates(
+            buildMetadataNoPath(IndexVersion.current(), shards),
+            Map.of("metric1", "dynamic1", "metric2", "dynamic2")
+        );
+        assertIndexShard(
+            routing,
+            Map.of("dimension1", "dog", "dimension2", "cat", "metric1", "kitten", "metric2", "puppy"),
+            Math.floorMod(hash(List.of("dimension1", "dog", "dimension2", "cat")), shards)
+        );
+    }
+
     /**
      * Extract a shardId from an {@link IndexRouting} that extracts routingusing a randomly
      * chosen method. All of the random methods <strong>should</strong> return the
@@ -637,13 +701,23 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     private IndexRouting indexRoutingForPath(IndexVersion createdVersion, int shards, String path) {
-        return IndexRouting.fromIndexMetadata(
-            IndexMetadata.builder("test")
-                .settings(settings(createdVersion).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), path))
-                .numberOfShards(shards)
-                .numberOfReplicas(1)
-                .build()
-        );
+        return IndexRouting.fromIndexMetadata(buildMetadata(createdVersion, shards, path));
+    }
+
+    private IndexMetadata buildMetadataNoPath(IndexVersion createdVersion, int shards) {
+        return IndexMetadata.builder("test")
+            .settings(settings(createdVersion).put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true))
+            .numberOfShards(shards)
+            .numberOfReplicas(1)
+            .build();
+    }
+
+    private IndexMetadata buildMetadata(IndexVersion createdVersion, int shards, String path) {
+        return IndexMetadata.builder("test")
+            .settings(settings(createdVersion).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), path))
+            .numberOfShards(shards)
+            .numberOfReplicas(1)
+            .build();
     }
 
     private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard) throws IOException {

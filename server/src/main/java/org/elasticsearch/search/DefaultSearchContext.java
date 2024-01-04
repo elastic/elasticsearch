@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -890,10 +891,20 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
-            return IdLoader.createTsIdLoader(indexRouting, indexService.getMetadata().getRoutingPaths());
-        } else {
-            return IdLoader.fromLeafStoredFieldLoader();
+            IndexRouting indexRouting = indexService.getIndexSettings().getIndexRouting();
+            List<String> routingPaths = indexService.getMetadata().getRoutingPaths();
+            if (indexService.getIndexSettings().getValue(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES)) {
+                // If a time-series index supports dynamic metrics and dimensions, its `routing_path` setting is empty.
+                // In this case, the routing path includes all non-metric fields, as retrieved from the index mapping.
+                assert routingPaths.isEmpty();
+                List<String> dynamicDimensions = indexService.mapperService().mappingLookup().getNonMetricFieldsWithDocValues();
+                if (dynamicDimensions.isEmpty() == false) {
+                    indexRouting = IndexRouting.fromIndexMetadataAndDynamicDimensions(indexService.getMetadata(), dynamicDimensions);
+                    routingPaths = dynamicDimensions;
+                }
+            }
+            return IdLoader.createTsIdLoader((IndexRouting.ExtractFromSource) indexRouting, routingPaths);
         }
+        return IdLoader.fromLeafStoredFieldLoader();
     }
 }

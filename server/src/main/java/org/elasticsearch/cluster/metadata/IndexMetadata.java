@@ -498,6 +498,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.ServerlessPublic
     );
 
+    public static final Setting<Boolean> TIME_SERIES_DYNAMIC_TEMPLATES = Setting.boolSetting(
+        "index.time_series_dynamic_templates",
+        false,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -599,6 +607,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isSystem;
     private final boolean isHidden;
 
+    private final boolean supportsTimesSeriesDynamicTemplates;
+
     private final IndexLongFieldRange timestampRange;
 
     private final int priority;
@@ -663,6 +673,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
         final boolean isHidden,
+        final boolean supportsTimesSeriesDynamicTemplates,
         final IndexLongFieldRange timestampRange,
         final int priority,
         final long creationDate,
@@ -715,6 +726,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSystem = isSystem;
         assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
         this.isHidden = isHidden;
+        this.supportsTimesSeriesDynamicTemplates = supportsTimesSeriesDynamicTemplates;
         this.timestampRange = timestampRange;
         this.priority = priority;
         this.creationDate = creationDate;
@@ -769,6 +781,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             this.timestampRange,
             this.priority,
             this.creationDate,
@@ -827,6 +840,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             this.timestampRange,
             this.priority,
             this.creationDate,
@@ -883,6 +897,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             this.timestampRange,
             this.priority,
             this.creationDate,
@@ -939,6 +954,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             timestampRange,
             this.priority,
             this.creationDate,
@@ -991,6 +1007,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
+            this.supportsTimesSeriesDynamicTemplates,
             this.timestampRange,
             this.priority,
             this.creationDate,
@@ -1093,6 +1110,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public List<String> getRoutingPaths() {
         return routingPaths;
+    }
+
+    public boolean supportsTimesSeriesDynamicTemplates() {
+        return supportsTimesSeriesDynamicTemplates;
     }
 
     public int getTotalNumberOfShards() {
@@ -2234,13 +2255,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 rolloverInfos.build(),
                 isSystem,
                 INDEX_HIDDEN_SETTING.get(settings),
+                TIME_SERIES_DYNAMIC_TEMPLATES.get(settings),
                 timestampRange,
-                IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
+                INDEX_PRIORITY_SETTING.get(settings),
                 settings.getAsLong(SETTING_CREATION_DATE, -1L),
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                 tierPreference,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
-                settings.get(IndexMetadata.LIFECYCLE_NAME), // n.b. lookup by name to get null-if-not-present semantics
+                settings.get(LIFECYCLE_NAME), // n.b. lookup by name to get null-if-not-present semantics
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,

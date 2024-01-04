@@ -34,6 +34,7 @@ import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
@@ -95,13 +96,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
-        Settings settings = builder().putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field2").build();
+        Settings settings = builder().putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field").build();
         String mapping = """
             {
                 "_doc": {
                     "properties": {
                         "field1": {
-                            "type": "keyword"
+                            "type": "keyword",
                             "time_series_dimension": true
                         },
                         "field2": {
@@ -125,9 +126,47 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings,
             List.of(new CompressedXContent(mapping))
         );
-        assertThat(result.size(), equalTo(2));
+        assertThat(result.size(), equalTo(3));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("field", "field1", "field2", "field3"));
+    }
+
+    public void testGetAdditionalIndexSettingsWithDynamicTemplatesThrowsWhenRoutingPathNotEmpty() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        Settings settings = builder().put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), true).build();
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        }
+                    }
+                }
+            }
+            """;
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> provider.getAdditionalIndexSettings(
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+                dataStreamName,
+                true,
+                metadata,
+                now,
+                settings,
+                List.of(new CompressedXContent(mapping))
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("[index.time_series_dynamic_templates] requires a empty [index.routing_path], got [field]")
+        );
     }
 
     public void testGetAdditionalIndexSettingsMappingsMerging() throws Exception {

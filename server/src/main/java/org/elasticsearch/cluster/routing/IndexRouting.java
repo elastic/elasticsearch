@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
@@ -45,16 +46,36 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public abstract class IndexRouting {
     /**
-     * Build the routing from {@link IndexMetadata}.
+     * Build the routing from {@link IndexMetadata} and the dynamic template fields.
+     * The latter are only used for time-series indexes with 'time_series_dynamic_templates' setting.
+     * In this case, the assumption is that the dynamic template spec includes all the metric fields, so the
+     * rest are considered dimension fields and are thus used for routing.
      */
-    public static IndexRouting fromIndexMetadata(IndexMetadata metadata) {
-        if (false == metadata.getRoutingPaths().isEmpty()) {
-            return new ExtractFromSource(metadata);
+    public static IndexRouting fromIndexMetadataAndDynamicTemplates(IndexMetadata metadata, Map<String, String> dynamicTemplates) {
+        if (false == metadata.getRoutingPaths().isEmpty()
+            || (metadata.supportsTimesSeriesDynamicTemplates() && dynamicTemplates.isEmpty() == false)) {
+            return new ExtractFromSource(metadata, dynamicTemplates.keySet(), List.of());
         }
         if (metadata.isRoutingPartitionedIndex()) {
             return new Partitioned(metadata);
         }
         return new Unpartitioned(metadata);
+    }
+
+    /**
+     * Build the routing from {@link IndexMetadata}.
+     */
+    public static IndexRouting fromIndexMetadata(IndexMetadata metadata) {
+        return fromIndexMetadataAndDynamicTemplates(metadata, Map.of());
+    }
+
+    /**
+     * Build the routing from {@link IndexMetadata} and provided dimension fields.
+     * The latter are populated and used only for time-series indexes with ''time_series_dynamic_templates' setting.
+     * In this case, it's expected that the 'routing_path' setting is empty.
+     */
+    public static IndexRouting fromIndexMetadataAndDynamicDimensions(IndexMetadata metadata, List<String> dynamicDimensions) {
+        return new ExtractFromSource(metadata, Set.of(), dynamicDimensions);
     }
 
     protected final String indexName;
@@ -235,16 +256,36 @@ public abstract class IndexRouting {
 
     public static class ExtractFromSource extends IndexRouting {
         private final Predicate<String> isRoutingPath;
+
         private final XContentParserConfiguration parserConfig;
 
-        ExtractFromSource(IndexMetadata metadata) {
+        private final Set<String> metricNames;
+
+        ExtractFromSource(IndexMetadata metadata, Set<String> metricNames, List<String> dimensionsFromMapping) {
             super(metadata);
+            this.metricNames = metricNames;
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
             List<String> routingPaths = metadata.getRoutingPaths();
-            isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
-            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
+            if (metadata.supportsTimesSeriesDynamicTemplates()) {
+                assert routingPaths.isEmpty() : Arrays.toString(routingPaths.toArray());
+                if (metricNames.isEmpty()) {
+                    if (dimensionsFromMapping.isEmpty()) {
+                        throw new IllegalArgumentException(
+                            "time_series_dynamic_templates requires a dynamic template with metric fields to index documents"
+                        );
+                    }
+                    routingPaths = dimensionsFromMapping;
+                }
+            }
+            if (routingPaths.isEmpty()) {
+                isRoutingPath = (name) -> this.metricNames.contains(name) == false;
+                parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, metricNames, true);
+            } else {
+                isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
+                this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
+            }
         }
 
         @Override
@@ -254,11 +295,11 @@ public abstract class IndexRouting {
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            return hashToShardId(hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty));
+            return hashToShardId(hashSource(sourceType, source).buildHash(ExtractFromSource::defaultOnEmpty));
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
-            return hashSource(sourceType, source).createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
+            return hashSource(sourceType, source).createId(suffix, ExtractFromSource::defaultOnEmpty);
         }
 
         public String createId(Map<String, Object> flat, byte[] suffix) {
@@ -268,7 +309,7 @@ public abstract class IndexRouting {
                     b.hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
                 }
             }
-            return b.createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
+            return b.createId(suffix, ExtractFromSource::defaultOnEmpty);
         }
 
         private static int defaultOnEmpty() {

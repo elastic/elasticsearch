@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -113,10 +114,21 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
 
-                    if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
-                        && combinedTemplateMappings.isEmpty() == false) {
+                    if (combinedTemplateMappings.isEmpty() == false) {
                         List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
+                        if (routingPaths.isEmpty() == false
+                            && allSettings.getAsBoolean(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), false)) {
+                            throw new IllegalArgumentException(
+                                "["
+                                    + IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey()
+                                    + "] requires a empty ["
+                                    + IndexMetadata.INDEX_ROUTING_PATH.getKey()
+                                    + "], got "
+                                    + Arrays.toString(routingPaths.toArray())
+                            );
+                        }
                         if (routingPaths.isEmpty() == false) {
+                            routingPaths.addAll(allSettings.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
                     }
@@ -152,8 +164,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            // Avoid failing because index.routing_path is missing
-            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.TIME_SERIES_DYNAMIC_TEMPLATES.getKey(), false)
+            // Avoid failing in case index.routing_path is empty.
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("path"))
             .build();
 
         tmpIndexMetadata.settings(finalResolvedSettings);

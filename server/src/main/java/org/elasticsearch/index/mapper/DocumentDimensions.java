@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.net.InetAddress;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -21,10 +22,10 @@ import java.util.Set;
 public interface DocumentDimensions {
 
     /**
-     * Build an index's DocumentDimensions using its settings
+     * Build an index's DocumentDimensions using its settings, the dynamic template spec (if any) and the index mapping.
      */
-    static DocumentDimensions fromIndexSettings(IndexSettings indexSettings) {
-        return indexSettings.getMode().buildDocumentDimensions(indexSettings);
+    static DocumentDimensions from(IndexSettings indexSettings, Map<String, String> dynamicTemplates, MappingLookup mappingLookup) {
+        return indexSettings.getMode().buildDocumentDimensions(indexSettings, dynamicTemplates, mappingLookup);
     }
 
     /**

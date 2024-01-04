@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 import org.apache.commons.math3.distribution.GammaDistribution;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.RandomGeneratorFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -38,8 +40,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.junit.Assert.assertThat;
 
 public class ChangePointAggregatorTests extends AggregatorTestCase {
+
+    private static final Logger logger = LogManager.getLogger(ChangePointAggregator.class);
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
@@ -55,8 +60,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         int fp = 0;
         for (int i = 0; i < 100; i++) {
             double[] bucketValues = DoubleStream.generate(() -> 10 + normal.sample()).limit(40).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 1e-3);
             fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(5));
@@ -65,8 +69,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         GammaDistribution gamma = new GammaDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 1, 2);
         for (int i = 0; i < 100; i++) {
             double[] bucketValues = DoubleStream.generate(() -> gamma.sample()).limit(40).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 1e-3);
             fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(5));
@@ -78,8 +81,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         int fp = 0;
         for (int i = 0; i < 100; i++) {
             double[] bucketValues = DoubleStream.generate(() -> 10 + normal.sample()).limit(5000).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 0.05);
             fp += test.type() == ChangePointAggregator.Type.STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(5));
@@ -91,8 +93,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < 100; i++) {
             AtomicInteger j = new AtomicInteger();
             double[] bucketValues = DoubleStream.generate(() -> j.incrementAndGet() + normal.sample()).limit(40).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 1e-3);
             fp += test.type() == ChangePointAggregator.Type.NON_STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(5));
@@ -102,8 +103,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < 100; i++) {
             AtomicInteger j = new AtomicInteger();
             double[] bucketValues = DoubleStream.generate(() -> j.incrementAndGet() + gamma.sample()).limit(40).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 1e-3);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 1e-3);
             fp += test.type() == ChangePointAggregator.Type.NON_STATIONARY ? 0 : 1;
         }
         assertThat(fp, lessThan(5));
@@ -118,8 +118,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> normal.sample()).limit(20),
                 DoubleStream.generate(() -> 10 + normal.sample()).limit(20)
             ).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 0.05);
             tp += test.type() == ChangePointAggregator.Type.STEP_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(90));
@@ -131,8 +130,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> gamma.sample()).limit(20),
                 DoubleStream.generate(() -> 10 + gamma.sample()).limit(20)
             ).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 0.05);
             tp += test.type() == ChangePointAggregator.Type.STEP_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(90));
@@ -147,8 +145,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> j.incrementAndGet() + normal.sample()).limit(20),
                 DoubleStream.generate(() -> 2.0 * j.incrementAndGet() + normal.sample()).limit(20)
             ).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 0.05);
             tp += test.type() == ChangePointAggregator.Type.TREND_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(90));
@@ -161,8 +158,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> j.incrementAndGet() + gamma.sample()).limit(20),
                 DoubleStream.generate(() -> 2.0 * j.incrementAndGet() + gamma.sample()).limit(20)
             ).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 0.05);
             tp += test.type() == ChangePointAggregator.Type.TREND_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(90));
@@ -177,8 +173,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 DoubleStream.generate(() -> 10 + normal1.sample()).limit(50),
                 DoubleStream.generate(() -> 10 + normal2.sample()).limit(50)
             ).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            ChangePointAggregator.TestStats test = ChangePointAggregator.testForChange(bucketValues, 0.05);
             tp += test.type() == ChangePointAggregator.Type.DISTRIBUTION_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(90));
@@ -197,8 +192,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                 ),
                 DoubleStream.generate(() -> normal3.sample()).limit(23)
             ).toArray();
-            int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-            ChangePointAggregator.TestStats result = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+            ChangePointAggregator.TestStats result = ChangePointAggregator.testForChange(bucketValues, 0.05);
             tp += result.type() == ChangePointAggregator.Type.TREND_CHANGE ? 1 : 0;
         }
         assertThat(tp, greaterThan(90));
@@ -247,8 +241,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             571.820809248555,
             541.2589928057550,
             520.4387755102040 };
-        int[] candidatePoints = ChangePointAggregator.candidateChangePoints(bucketValues);
-        ChangePointAggregator.TestStats result = ChangePointAggregator.testForChange(bucketValues, candidatePoints, 0.05);
+        ChangePointAggregator.TestStats result = ChangePointAggregator.testForChange(bucketValues, 0.05);
         assertThat(result.type(), equalTo(ChangePointAggregator.Type.DISTRIBUTION_CHANGE));
     }
 
@@ -570,7 +563,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             3302.0 };
         testChangeType(bucketValues, changeType -> {
             assertThat(changeType, instanceOf(ChangeType.Spike.class));
-            assertThat(Arrays.toString(bucketValues), changeType.changePoint(), equalTo(73));
+            assertThat(Arrays.toString(bucketValues), changeType.changePoint(), equalTo(72));
         });
     }
 

@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a BytesRefVector.
+ * Block view of a {@link BytesRefVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {

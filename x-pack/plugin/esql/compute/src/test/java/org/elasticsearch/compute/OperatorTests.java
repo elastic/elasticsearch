@@ -41,7 +41,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -171,35 +170,33 @@ public class OperatorTests extends MapperServiceTestCase {
                     }
                     DocVector docVector = (DocVector) page.getBlock(0).asVector();
                     int positionCount = docVector.getPositionCount();
-                    IntVector shards = docVector.shards();
-                    if (randomBoolean()) {
-                        try (IntVector.Builder builder = IntVector.newVectorBuilder(positionCount)) {
-                            for (int i = 0; i < positionCount; i++) {
-                                builder.appendInt(shards.getInt(i));
-                            }
-                            shards.close();
-                            shards = builder.build();
-                        }
-                    }
-                    IntVector segments = docVector.segments();
-                    if (randomBoolean()) {
-                        try (IntVector.Builder builder = IntVector.newVectorBuilder(positionCount)) {
-                            for (int i = 0; i < positionCount; i++) {
-                                builder.appendInt(segments.getInt(i));
-                            }
-                            segments.close();
-                            segments = builder.build();
-                        }
-                    }
-                    IntVector docs = docVector.docs();
-                    if (randomBoolean()) {
-                        List<Integer> ids = new ArrayList<>(positionCount);
+                    IntVector shards = null;
+                    IntVector segments = null;
+                    IntVector docs = null;
+                    try (
+                        IntVector.Builder shardsBuilder = blockFactory.newIntVectorBuilder(positionCount);
+                        IntVector.Builder segmentsBuilder = blockFactory.newIntVectorBuilder(positionCount);
+                        IntVector.Builder docsBuilder = blockFactory.newIntVectorBuilder(positionCount);
+                    ) {
+                        List<Integer> docIds = new ArrayList<>(positionCount);
                         for (int i = 0; i < positionCount; i++) {
-                            ids.add(docs.getInt(i));
+                            shardsBuilder.appendInt(docVector.shards().getInt(i));
+                            segmentsBuilder.appendInt(docVector.segments().getInt(i));
+                            docIds.add(docVector.docs().getInt(i));
                         }
-                        Collections.shuffle(ids, random());
-                        docs.close();
-                        docs = blockFactory.newIntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
+                        shards = shardsBuilder.build();
+                        segments = segmentsBuilder.build();
+                        Collections.shuffle(docIds, random());
+                        for (Integer d : docIds) {
+                            docsBuilder.appendInt(d);
+                        }
+                        docs = docsBuilder.build();
+                    } finally {
+                        if (docs == null) {
+                            Releasables.closeExpectNoException(docVector, shards, segments);
+                        } else {
+                            Releasables.closeExpectNoException(docVector);
+                        }
                     }
                     Block[] blocks = new Block[page.getBlockCount()];
                     blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
@@ -222,7 +219,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     List.of(shuffleDocsOperator, new AbstractPageMappingOperator() {
                         @Override
                         protected Page process(Page page) {
-                            return page.appendBlock(IntBlock.newConstantBlockWith(1, page.getPositionCount()));
+                            return page.appendBlock(driverContext.blockFactory().newConstantIntBlockWith(1, page.getPositionCount()));
                         }
 
                         @Override
@@ -231,7 +228,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     },
                         new OrdinalsGroupingOperator(
-                            List.of(new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null)),
+                            shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
                             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                             ElementType.BYTES_REF,
                             0,
@@ -350,7 +347,7 @@ public class OperatorTests extends MapperServiceTestCase {
     }
 
     static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit) {
-        final SearchContext searchContext = mockSearchContext(reader);
+        final SearchContext searchContext = mockSearchContext(reader, 0);
         return new LuceneSourceOperator.Factory(
             List.of(searchContext),
             ctx -> query,

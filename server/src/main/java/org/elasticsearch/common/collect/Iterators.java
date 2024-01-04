@@ -10,11 +10,13 @@ package org.elasticsearch.common.collect;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
@@ -90,33 +92,17 @@ public class Iterators {
             }
             return value;
         }
+
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            while (index < iterators.length) {
+                iterators[index++].forEachRemaining(action);
+            }
+        }
     }
 
     public static <T> Iterator<T> forArray(T[] array) {
-        return new ArrayIterator<>(array);
-    }
-
-    private static final class ArrayIterator<T> implements Iterator<T> {
-
-        private final T[] array;
-        private int index;
-
-        private ArrayIterator(T[] array) {
-            this.array = Objects.requireNonNull(array, "Unable to iterate over a null array");
-        }
-
-        @Override
-        public boolean hasNext() {
-            return index < array.length;
-        }
-
-        @Override
-        public T next() {
-            if (index >= array.length) {
-                throw new NoSuchElementException();
-            }
-            return array[index++];
-        }
+        return Arrays.asList(array).iterator();
     }
 
     public static <T> Iterator<T> forRange(int lowerBoundInclusive, int upperBoundExclusive, IntFunction<? extends T> fn) {
@@ -182,6 +168,11 @@ public class Iterators {
         @Override
         public U next() {
             return fn.apply(input.next());
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super U> action) {
+            input.forEachRemaining(t -> action.accept(fn.apply(t)));
         }
     }
 

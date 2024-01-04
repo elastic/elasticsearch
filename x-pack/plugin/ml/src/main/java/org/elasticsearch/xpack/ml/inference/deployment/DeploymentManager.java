@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
@@ -200,9 +201,18 @@ public class DeploymentManager {
                         // here, we are being called back on the searching thread, which MAY be a network thread
                         // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                         // executor.
-                        executorServiceForDeployment.execute(
-                            () -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener)
-                        );
+                        executorServiceForDeployment.execute(new AbstractRunnable() {
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                failedDeploymentListener.onFailure(e);
+                            }
+
+                            @Override
+                            protected void doRun() {
+                                processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener);
+                            }
+                        });
                     }, failedDeploymentListener::onFailure)
                 );
             } else {
@@ -496,7 +506,14 @@ public class DeploymentManager {
             }
 
             logger.debug("[{}] start and load", task.getDeploymentId());
-            process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, this::onProcessCrash));
+            process.set(
+                pyTorchProcessFactory.createProcess(
+                    task,
+                    executorServiceForProcess,
+                    () -> resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES),
+                    this::onProcessCrash
+                )
+            );
             startTime = Instant.now();
             logger.debug("[{}] process started", task.getDeploymentId());
             try {

@@ -46,7 +46,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -2102,7 +2101,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    IndicesShardStoresAction.INSTANCE,
+                    TransportIndicesShardStoresAction.TYPE,
                     new TransportIndicesShardStoresAction(
                         transportService,
                         clusterService,

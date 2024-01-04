@@ -107,7 +107,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
         // The following line is correct because positions with multi-values are never null.
         int expandedPositionCount = vector.getPositionCount();
-        long bitSetRamUsedEstimate = BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount);
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
         blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
 
         IntArrayBlock expanded = new IntArrayBlock(

@@ -21,13 +21,10 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public final class MvSumIntEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
   private final Warnings warnings;
 
-  private final DriverContext driverContext;
-
   public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       DriverContext driverContext) {
-    super(field);
+    super(driverContext, field);
     this.warnings = new Warnings(source);
-    this.driverContext = driverContext;
   }
 
   @Override

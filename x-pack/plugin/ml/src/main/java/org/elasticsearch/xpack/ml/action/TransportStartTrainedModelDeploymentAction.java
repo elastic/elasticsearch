@@ -224,6 +224,8 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             );
         }, listener::onFailure);
 
+        GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
+
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             if (getModelResponse.getResources().results().size() > 1) {
                 listener.onFailure(
@@ -256,38 +258,29 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return;
             }
 
-            // If the model id isn't the same id as the deployment id
-            // check there isn't another model with deployment id
-            if (request.getModelId().equals(request.getDeploymentId()) == false) {
-                GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
-                client.execute(
-                    GetTrainedModelsAction.INSTANCE,
-                    getModelWithDeploymentId,
-                    ActionListener.wrap(
-                        response -> listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "Deployment id [{}] is the same as an another model which is not the model being deployed. "
-                                    + "Deployment id can be the same as the model being deployed but cannot match a different model",
-                                request.getDeploymentId(),
-                                request.getModelId()
-                            )
-                        ),
-                        error -> {
-                            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
-                                // no name clash, continue with the deployment
-                                checkFullModelDefinitionIsPresent(
-                                    client,
-                                    trainedModelConfig,
-                                    true,
-                                    request.getTimeout(),
-                                    modelSizeListener
-                                );
-                            } else {
-                                listener.onFailure(error);
-                            }
-                        }
+            ActionListener<GetTrainedModelsAction.Response> checkDeploymentIdDoesntAlreadyExist = ActionListener.wrap(
+                response -> listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Deployment id [{}] is the same as an another model which is not the model being deployed. "
+                            + "Deployment id can be the same as the model being deployed but cannot match a different model",
+                        request.getDeploymentId(),
+                        request.getModelId()
                     )
-                );
+                ),
+                error -> {
+                    if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                        // no name clash, continue with the deployment
+                        checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, request.getTimeout(), modelSizeListener);
+                    } else {
+                        listener.onFailure(error);
+                    }
+                }
+            );
+
+            // If the model id isn't the same id as the deployment id
+            // check there isn't another model with that deployment id
+            if (request.getModelId().equals(request.getDeploymentId()) == false) {
+                client.execute(GetTrainedModelsAction.INSTANCE, getModelWithDeploymentId, checkDeploymentIdDoesntAlreadyExist);
             } else {
                 checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, request.getTimeout(), modelSizeListener);
             }
@@ -299,15 +292,28 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
                 );
-                return;
             } else {
-                GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
-                client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
+                getTrainedModelRequestExecution(request, getModelListener);
             }
-        }, listener::onFailure);
+        }, error -> {
+            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                // no name clash, continue with the deployment
+                getTrainedModelRequestExecution(request, getModelListener);
+            } else {
+                listener.onFailure(error);
+            }
+        });
 
         GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(request.getModelId(), TaskType.ANY);
         client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, getInferenceModelListener);
+    }
+
+    private void getTrainedModelRequestExecution(
+        StartTrainedModelDeploymentAction.Request request,
+        ActionListener<GetTrainedModelsAction.Response> getModelListener
+    ) {
+        GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
+        client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
 
     private void waitForDeploymentState(

@@ -379,6 +379,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                 .setTimeout(timeout);
             expectThrows(Exception.class, updateRequestBuilder);
+            updateRequestBuilder.request().decRef();
         }
 
         expectThrows(Exception.class, () -> {

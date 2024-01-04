@@ -90,16 +90,19 @@ public class IndexAliasesIT extends ESIntegTestCase {
         {
             logger.info("--> indexing against [alias1], should fail now");
             IndexRequest indexRequest = new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON);
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest));
-            assertThat(
-                exception.getMessage(),
-                equalTo(
-                    "no write index is defined for alias [alias1]."
-                        + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
-                        + " indices without one being designated as a write index"
-                )
-            );
-            indexRequest.decRef();
+            try {
+                IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, client().index(indexRequest));
+                assertThat(
+                    exception.getMessage(),
+                    equalTo(
+                        "no write index is defined for alias [alias1]."
+                            + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                            + " indices without one being designated as a write index"
+                    )
+                );
+            } finally {
+                indexRequest.decRef();
+            }
         }
 
         assertAliasesVersionIncreases("test", () -> {
@@ -125,21 +128,24 @@ public class IndexAliasesIT extends ESIntegTestCase {
         {
             logger.info("--> indexing against [alias1], should fail now");
             IndexRequest indexRequest = new IndexRequest("alias1").id("1").source(source("2", "test"), XContentType.JSON);
-            Exception exception = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest));
-            assertThat(
-                exception.getMessage(),
-                equalTo(
-                    "no write index is defined for alias [alias1]."
-                        + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
-                        + " indices without one being designated as a write index"
-                )
-            );
-            indexRequest.decRef();
+            try {
+                Exception exception = expectThrows(IllegalArgumentException.class, client().index(indexRequest));
+                assertThat(
+                    exception.getMessage(),
+                    equalTo(
+                        "no write index is defined for alias [alias1]."
+                            + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                            + " indices without one being designated as a write index"
+                    )
+                );
+            } finally {
+                indexRequest.decRef();
+            }
         }
 
         {
             logger.info("--> deleting against [alias1], should fail now");
-            Exception exception = expectThrows(IllegalArgumentException.class, () -> client().delete(new DeleteRequest("alias1").id("1")));
+            Exception exception = expectThrows(IllegalArgumentException.class, client().delete(new DeleteRequest("alias1").id("1")));
             assertThat(
                 exception.getMessage(),
                 equalTo(

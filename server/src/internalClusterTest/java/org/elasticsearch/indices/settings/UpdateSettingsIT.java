@@ -383,7 +383,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         indexRequestBuilder.request().decRef();
         client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
         // delete is still in cache this should fail
-        indexRequestBuilder = prepareIndex("test");
+        indexRequestBuilder = prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1);
+        ;
         expectThrows(VersionConflictEngineException.class, indexRequestBuilder);
         indexRequestBuilder.request().decRef();
 

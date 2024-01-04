@@ -189,13 +189,14 @@ public class DynamicMappingIT extends ESIntegTestCase {
             });
 
         masterBlockedLatch.await();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("2");
         try {
             assertThat(
-                expectThrows(IllegalArgumentException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
-                    .getMessage(),
+                expectThrows(IllegalArgumentException.class, indexRequestBuilder.setSource("nested3", Map.of("foo", "bar"))).getMessage(),
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
         } finally {
+            indexRequestBuilder.request().decRef();
             indexingCompletedLatch.countDown();
         }
     }
@@ -225,13 +226,18 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         masterBlockedLatch.await();
         try {
-            Exception e = expectThrows(DocumentParsingException.class, prepareIndex("index").setId("2").setSource("field2", "value2"));
-            assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(
-                e.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]")
-            );
+            IndexRequestBuilder indexRequestBuilder = prepareIndex("index").setId("2");
+            try {
+                Exception e = expectThrows(DocumentParsingException.class, indexRequestBuilder.setSource("field2", "value2"));
+                assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
+                assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+                assertThat(
+                    e.getCause().getMessage(),
+                    Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]")
+                );
+            } finally {
+                indexRequestBuilder.request().decRef();
+            }
         } finally {
             indexingCompletedLatch.countDown();
         }

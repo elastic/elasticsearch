@@ -180,7 +180,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public int mapperSize() {
-            return 1 // this
+            return super.mapperSize() // this + multi fields
                 + 1  // queryTermsField,
                 + 1  // extractionResultField,
                 + 1  // queryBuilderField,

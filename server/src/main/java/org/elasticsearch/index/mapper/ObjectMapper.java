@@ -549,7 +549,6 @@ public class ObjectMapper extends Mapper {
             MergeReason reason,
             MapperMergeContext objectMergeContext
         ) {
-            // need to preserve order to make it deterministic which fields are ignored
             Map<String, Mapper> mergedMappers = new HashMap<>(existing.mappers);
             for (Mapper mergeWithMapper : mergeWith) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());

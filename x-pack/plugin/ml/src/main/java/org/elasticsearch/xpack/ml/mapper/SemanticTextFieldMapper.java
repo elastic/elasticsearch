@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ml.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -35,8 +33,6 @@ import java.util.Map;
  * be indexed using a different field mapper.
  */
 public class SemanticTextFieldMapper extends FieldMapper {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SemanticTextFieldMapper.class);
 
     public static final String CONTENT_TYPE = "semantic_text";
 
@@ -93,15 +89,12 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
-            if (multiFieldsBuilder.hasMultiFields()) {
-                DEPRECATION_LOGGER.warn(
-                    DeprecationCategory.MAPPINGS,
-                    "semantic_text_multifields",
-                    "Adding multifields to [semantic_text] mappers has no effect and will be forbidden in future"
-                );
-                multiFieldsBuilder.clear();
-            }
             return new SemanticTextFieldMapper(name(), new SemanticTextFieldType(name(), modelId.getValue(), meta.getValue()), copyTo);
+        }
+
+        @Override
+        public int mapperSize() {
+            return 1;
         }
     }
 

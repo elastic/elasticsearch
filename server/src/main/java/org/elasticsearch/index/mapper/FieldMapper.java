@@ -523,10 +523,6 @@ public abstract class FieldMapper extends Mapper {
                 }
                 return size;
             }
-
-            public void clear() {
-                mapperBuilders.clear();
-            }
         }
 
         private final FieldMapper[] mappers;

@@ -53,7 +53,8 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
     ) {
         super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.vector = vector;
-        assert firstValueIndexes == null ? true : firstValueIndexes[getPositionCount()] <= vector.getPositionCount();
+        assert firstValueIndexes == null ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override

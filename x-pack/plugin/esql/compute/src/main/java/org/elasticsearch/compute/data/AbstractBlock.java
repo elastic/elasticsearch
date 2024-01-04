@@ -54,6 +54,9 @@ abstract class AbstractBlock extends AbstractNonThreadSafeRefCounted implements 
                 assert (firstValueIndexes[i + 1] - firstValueIndexes[i]) >= 0;
             }
         }
+        if (nullsMask != null) {
+            assert nullsMask.nextSetBit(getPositionCount() + 1) == -1;
+        }
         if (firstValueIndexes != null && nullsMask != null) {
             for (int i = 0; i < getPositionCount(); i++) {
                 // Either we have multi-values or a null but never both.

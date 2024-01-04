@@ -2376,11 +2376,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static XContentType randomSupportedContentType() {
-        return clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_BINARY_YAML_RESPONSES)
-            ? clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES)
-                ? randomFrom(XContentType.values())
-                : randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE)
-            : randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.SMILE);
+        if (clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_TRUE_BINARY_RESPONSES) == false) {
+            // Very old versions encode binary stored fields using base64 in all formats, not just JSON, but we expect to see raw binary
+            // fields in non-JSON formats, so we stick to JSON in these cases.
+            return XContentType.JSON;
+        }
+
+        if (clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES) == false) {
+            // The VND_* formats were introduced part-way through the 7.x series for compatibility with 8.x, but are not supported by older
+            // 7.x versions.
+            return randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE);
+        }
+
+        return randomFrom(XContentType.values());
     }
 
     public static void addXContentBody(Request request, ToXContent body) throws IOException {

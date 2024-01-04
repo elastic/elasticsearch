@@ -16,7 +16,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import java.util.Map;
 
 public class RestFeatures implements FeatureSpecification {
-
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(RestClusterGetSettingsAction.SUPPORTS_GET_SETTINGS_ACTION, Version.V_8_3_0);

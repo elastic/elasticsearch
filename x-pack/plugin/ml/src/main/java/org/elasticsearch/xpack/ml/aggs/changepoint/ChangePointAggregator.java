@@ -116,24 +116,32 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 )
             );
         }
+
+        // Test for change step, trend and distribution changes.
         int[] candidatePoints = candidateChangePoints(bucketValues.getValues());
-        ChangeType changeType = testForChange(bucketValues, candidatePoints, P_VALUE_THRESHOLD);
-        if (changeType.pValue() > P_VALUE_THRESHOLD) {
-            try {
-                SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
-                changeType = detect.at(P_VALUE_THRESHOLD);
-            } catch (NotStrictlyPositiveException nspe) {
-                logger.debug("failure calculating spikes", nspe);
+        ChangeType result = testForChange(bucketValues, candidatePoints, P_VALUE_THRESHOLD);
+        logger.trace("change p-value: [{}]", result.pValue());
+
+        // Test for spikes and dips.
+        try {
+            SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
+            ChangeType spikeOrDip = detect.at(P_VALUE_THRESHOLD);
+            logger.trace("spike or dip p-value: [{}]", spikeOrDip.pValue());
+            if (spikeOrDip.pValue() < 0.1 * result.pValue()) {
+                result = spikeOrDip;
             }
+        } catch (NotStrictlyPositiveException nspe) {
+            logger.debug("failure calculating spikes", nspe);
         }
+
         ChangePointBucket changePointBucket = null;
-        if (changeType.changePoint() >= 0) {
-            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, changeType.changePoint()).map(
+        if (result.changePoint() >= 0) {
+            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, result.changePoint()).map(
                 b -> new ChangePointBucket(b.getKey(), b.getDocCount(), (InternalAggregations) b.getAggregations())
             ).orElse(null);
         }
 
-        return new InternalChangePointAggregation(name(), metadata(), changePointBucket, changeType);
+        return new InternalChangePointAggregation(name(), metadata(), changePointBucket, result);
     }
 
     static ChangeType testForChange(MlAggsHelper.DoubleBucketValues bucketValues, int[] candidateChangePoints, double pValueThreshold) {
@@ -143,9 +151,8 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
     static TestStats testForChange(double[] timeWindow, int[] candidateChangePoints, double pValueThreshold) {
 
-        logger.trace("timeWindow: [{}]", Arrays.toString(timeWindow));
-
         double[] timeWindowWeights = outlierWeights(timeWindow);
+        logger.trace("timeWindow: [{}]", Arrays.toString(timeWindow));
         logger.trace("timeWindowWeights: [{}]", Arrays.toString(timeWindowWeights));
         RunningStats dataRunningStats = RunningStats.from(timeWindow, i -> timeWindowWeights[i]);
         DataStats dataStats = new DataStats(

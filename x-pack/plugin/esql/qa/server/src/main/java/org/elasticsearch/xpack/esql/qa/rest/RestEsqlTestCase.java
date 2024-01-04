@@ -610,7 +610,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     static void addAsyncParameters(RequestObjectBuilder requestObject) throws IOException {
         // deliberately short in order to frequently trigger return without results
         requestObject.waitForCompletion(TimeValue.timeValueNanos(randomIntBetween(1, 100)));
-        requestObject.keepOnCompletion(true); // TODO: randomBoolean());
+        requestObject.keepOnCompletion(randomBoolean());
         requestObject.keepAlive(TimeValue.timeValueDays(randomIntBetween(1, 10)));
     }
 

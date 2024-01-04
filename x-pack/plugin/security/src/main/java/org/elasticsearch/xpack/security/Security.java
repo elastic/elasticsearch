@@ -170,6 +170,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.action.user.QueryUserAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
@@ -260,6 +261,7 @@ import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAc
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
+import org.elasticsearch.xpack.security.action.user.TransportQueryUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -365,6 +367,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
@@ -1315,6 +1318,7 @@ public class Security extends Plugin
             new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
             new ActionHandler<>(ClearSecurityCacheAction.INSTANCE, TransportClearSecurityCacheAction.class),
             new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
+            new ActionHandler<>(QueryUserAction.INSTANCE, TransportQueryUserAction.class),
             new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
             new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
@@ -1406,6 +1410,7 @@ public class Security extends Plugin
             new RestClearApiKeyCacheAction(settings, getLicenseState()),
             new RestClearServiceAccountTokenStoreCacheAction(settings, getLicenseState()),
             new RestGetUsersAction(settings, getLicenseState()),
+            new RestQueryUserAction(settings, getLicenseState()),
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),

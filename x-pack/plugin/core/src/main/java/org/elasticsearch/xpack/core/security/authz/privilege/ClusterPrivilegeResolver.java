@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.QueryUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
@@ -236,7 +237,8 @@ public class ClusterPrivilegeResolver {
             GetUsersAction.NAME,
             GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
             HasPrivilegesAction.NAME,
-            GetSecuritySettingsAction.NAME
+            GetSecuritySettingsAction.NAME,
+            QueryUserAction.NAME
         )
     );
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);

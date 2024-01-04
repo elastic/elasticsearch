@@ -1,0 +1,376 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.security;
+
+import org.apache.http.HttpHeaders;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.user.User;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.core.IsEqual.equalTo;
+import static org.hamcrest.core.IsNot.not;
+
+public class QueryUserIT extends SecurityInBasicRestTestCase {
+
+    private static final String READ_USERS_USER_AUTH_HEADER = "Basic cmVhZF91c2Vyc191c2VyOnJlYWQtdXNlcnMtcGFzc3dvcmQ=";
+    private static final String TEST_USER_NO_READ_USERS_AUTH_HEADER = "Basic c2VjdXJpdHlfdGVzdF91c2VyOnNlY3VyaXR5LXRlc3QtcGFzc3dvcmQ=";
+
+    private Request queryUserRequestWithAuth() {
+        final Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/user");
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, READ_USERS_USER_AUTH_HEADER));
+        return request;
+    }
+
+    public void testQuery() throws IOException {
+        int randomUserCount = randomIntBetween(5, 10);
+        for (int i = 0; i < randomUserCount; i++) {
+            createRandomUser();
+        }
+
+        // An empty request body means search for all users
+        assertQuery(randomBoolean() ? "" : """
+            {"query":{"match_all":{}}}""", users -> assertThat(users.size(), equalTo(randomUserCount)));
+
+        // Exists query
+        String field = randomFrom("username", "full_name", "roles", "enabled");
+        assertQuery(String.format("""
+            {"query": {"exists": {"field": "%s" }}}""", field), users -> assertEquals(users.size(), randomUserCount));
+
+        // Prefix search
+        User prefixUser1 = createUser(
+            "mr-prefix1",
+            new String[] { "master-of-the-universe", "some-other-role" },
+            "Prefix1",
+            "email@something.com",
+            Map.of(),
+            true
+        );
+        User prefixUser2 = createUser(
+            "mr-prefix2",
+            new String[] { "master-of-the-world", "some-other-role" },
+            "Prefix2",
+            "email@something.com",
+            Map.of(),
+            true
+        );
+        assertQuery("""
+            {"query":{"bool":{"must":[{"prefix":{"roles":"master-of-the"}}]}}}""", returnedUsers -> {
+            assertThat(returnedUsers, hasSize(2));
+            assertUser(prefixUser1, returnedUsers.get(0));
+            assertUser(prefixUser2, returnedUsers.get(1));
+        });
+
+        // Wildcard search
+        assertQuery("""
+            { "query": { "wildcard": {"username": "mr-prefix*"} } }""", users -> {
+            assertThat(users.size(), equalTo(2));
+            assertUser(prefixUser1, users.get(0));
+            assertUser(prefixUser2, users.get(1));
+            users.forEach(k -> assertThat(k, not(hasKey("_sort"))));
+        });
+
+        // Terms query
+        assertQuery("""
+            {"query":{"terms":{"roles":["some-other-role"]}}}""", users -> {
+            assertThat(users.size(), equalTo(2));
+            assertUser(prefixUser1, users.get(0));
+            assertUser(prefixUser2, users.get(1));
+        });
+
+        // Search for fields outside the allowlist fails
+        assertQueryError(400, """
+            { "query": { "prefix": {"not_allowed": "ABC"} } }""");
+
+        // Search for fields that are not allowed in Query DSL but used internally by the service itself
+        final String fieldName = randomFrom("type", "password");
+        assertQueryError(400, Strings.format("""
+            { "query": { "term": {"%s": "%s"} } }""", fieldName, randomAlphaOfLengthBetween(3, 8)));
+
+        // User without read_security gets 403 trying to search Users
+        assertQueryError(TEST_USER_NO_READ_USERS_AUTH_HEADER, 403, """
+            { "query": { "wildcard": {"name": "*prefix*"} } }""");
+
+        // Range query not supported
+        assertQueryError(400, """
+            {"query":{"range":{"username":{"lt":"now"}}}}""");
+
+        // IDs query not supported
+        assertQueryError(400, """
+            { "query": { "ids": { "values": "abc" } } }""");
+    }
+
+    public void testPagination() throws IOException {
+        int randomUserCount = randomIntBetween(8, 15);
+        final List<User> users = new ArrayList<>(randomUserCount);
+        for (int i = 0; i < randomUserCount; i++) {
+            users.add(createRandomUser());
+        }
+
+        final int from = randomIntBetween(0, 3);
+        final int size = randomIntBetween(2, 5);
+        final int remaining = randomUserCount - from;
+
+        // Using string only sorting to simplify test
+        final String sortField = "username";
+        final List<Map<String, Object>> allUserInfos = new ArrayList<>(remaining);
+        {
+            Request request = queryUserRequestWithAuth();
+            request.setJsonEntity("{\"from\":" + from + ",\"size\":" + size + ",\"sort\":[\"" + sortField + "\"]}");
+            allUserInfos.addAll(collectUsers(request, randomUserCount));
+        }
+        // first batch should be a full page
+        assertThat(allUserInfos.size(), equalTo(size));
+
+        while (allUserInfos.size() < remaining) {
+            final Request request = queryUserRequestWithAuth();
+            final List<Object> sortValues = extractSortValues(allUserInfos.get(allUserInfos.size() - 1));
+
+            request.setJsonEntity(Strings.format("""
+                {"size":%s,"sort":["%s"],"search_after":["%s"]}
+                """, size, sortField, sortValues.get(0)));
+            final List<Map<String, Object>> userInfoPage = collectUsers(request, randomUserCount);
+
+            if (userInfoPage.isEmpty() && allUserInfos.size() < remaining) {
+                fail("fail to retrieve all Users, expect [" + remaining + "] keys, got [" + allUserInfos + "]");
+            }
+            allUserInfos.addAll(userInfoPage);
+
+            // Before all keys are retrieved, each page should be a full page
+            if (allUserInfos.size() < remaining) {
+                assertThat(userInfoPage.size(), equalTo(size));
+            }
+        }
+
+        // Assert sort values match the field of User information
+        assertThat(
+            allUserInfos.stream().map(m -> m.get(sortField)).toList(),
+            equalTo(allUserInfos.stream().map(m -> extractSortValues(m).get(0)).toList())
+        );
+
+        // Assert that all users match the created users and that they're sorted correctly
+        assertUsers(users, allUserInfos, sortField, from);
+
+        // size can be zero, but total should still reflect the number of keys matched
+        final Request request = queryUserRequestWithAuth();
+        request.setJsonEntity("{\"size\":0}");
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+        assertThat(responseMap.get("total"), equalTo(randomUserCount));
+        assertThat(responseMap.get("count"), equalTo(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSort() throws IOException {
+        final List<User> testUsers = List.of(
+            createUser("a", new String[] { "4", "5", "6" }),
+            createUser("b", new String[] { "5", "6" }),
+            createUser("c", new String[] { "7", "8" })
+        );
+        assertQuery("""
+            {"sort":[{"username":{"order":"desc"}}]}""", users -> {
+            assertThat(users.size(), equalTo(3));
+            for (int i = 2, j = 0; i >= 0; i--, j++) {
+                assertUser(testUsers.get(j), users.get(i));
+                assertThat(users.get(i).get("username"), equalTo(((List<String>) users.get(i).get("_sort")).get(0)));
+            }
+        });
+
+        assertQuery("""
+            {"sort":[{"username":{"order":"asc"}}]}""", users -> {
+            assertThat(users.size(), equalTo(3));
+            for (int i = 0; i <= 2; i++) {
+                assertUser(testUsers.get(i), users.get(i));
+                assertThat(users.get(i).get("username"), equalTo(((List<String>) users.get(i).get("_sort")).get(0)));
+            }
+        });
+
+        assertQuery("""
+            {"sort":[{"roles":{"order":"asc"}}]}""", users -> {
+            assertThat(users.size(), equalTo(3));
+            for (int i = 0; i <= 2; i++) {
+                assertUser(testUsers.get(i), users.get(i));
+                // Only first element of array is used for sorting
+                assertThat(((List<String>) users.get(i).get("roles")).get(0), equalTo(((List<String>) users.get(i).get("_sort")).get(0)));
+            }
+        });
+
+        final String invalidFieldName = randomFrom("doc_type", "invalid", "password");
+        assertQueryError(400, "{\"sort\":[\"" + invalidFieldName + "\"]}");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Object> extractSortValues(Map<String, Object> userInfo) {
+        return (List<Object>) userInfo.get("_sort");
+    }
+
+    private List<Map<String, Object>> collectUsers(Request request, int total) throws IOException {
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> userInfos = (List<Map<String, Object>>) responseMap.get("users");
+        assertThat(responseMap.get("total"), equalTo(total));
+        assertThat(responseMap.get("count"), equalTo(userInfos.size()));
+        return userInfos;
+    }
+
+    private void assertQueryError(int statusCode, String body) {
+        assertQueryError(READ_USERS_USER_AUTH_HEADER, statusCode, body);
+    }
+
+    private void assertQueryError(String authHeader, int statusCode, String body) {
+        final Request request = new Request(randomFrom("GET", "POST"), "/_security/_query/user");
+        request.setJsonEntity(body);
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
+        final ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+    }
+
+    private void assertQuery(String body, Consumer<List<Map<String, Object>>> userVerifier) throws IOException {
+        final Request request = queryUserRequestWithAuth();
+        request.setJsonEntity(body);
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> users = (List<Map<String, Object>>) responseMap.get("users");
+        userVerifier.accept(users);
+    }
+
+    private void assertUser(User expectedUser, Map<String, Object> actualUser) {
+        assertUser(userToMap(expectedUser), actualUser);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertUser(Map<String, Object> expectedUser, Map<String, Object> actualUser) {
+        assertEquals(expectedUser.get(User.Fields.USERNAME.getPreferredName()), actualUser.get(User.Fields.USERNAME.getPreferredName()));
+        assertArrayEquals(
+            ((List<String>) expectedUser.get(User.Fields.ROLES.getPreferredName())).toArray(),
+            ((List<String>) actualUser.get(User.Fields.ROLES.getPreferredName())).toArray()
+        );
+        assertEquals(expectedUser.get(User.Fields.FULL_NAME.getPreferredName()), actualUser.get(User.Fields.FULL_NAME.getPreferredName()));
+        assertEquals(expectedUser.get(User.Fields.EMAIL.getPreferredName()), actualUser.get(User.Fields.EMAIL.getPreferredName()));
+        assertEquals(expectedUser.get(User.Fields.METADATA.getPreferredName()), actualUser.get(User.Fields.METADATA.getPreferredName()));
+        assertEquals(expectedUser.get(User.Fields.ENABLED.getPreferredName()), actualUser.get(User.Fields.ENABLED.getPreferredName()));
+    }
+
+    private Map<String, Object> userToMap(User user) {
+        return Map.of(
+            User.Fields.USERNAME.getPreferredName(),
+            user.principal(),
+            User.Fields.ROLES.getPreferredName(),
+            Arrays.stream(user.roles()).toList(),
+            User.Fields.FULL_NAME.getPreferredName(),
+            user.fullName(),
+            User.Fields.EMAIL.getPreferredName(),
+            user.email(),
+            User.Fields.METADATA.getPreferredName(),
+            user.metadata(),
+            User.Fields.ENABLED.getPreferredName(),
+            user.enabled()
+        );
+    }
+
+    private void assertUsers(List<User> expectedUsers, List<Map<String, Object>> actualUsers, String sortField, int from) {
+        assertEquals(expectedUsers.size() - from, actualUsers.size());
+
+        List<Map<String, Object>> sortedExpectedUsers = expectedUsers.stream()
+            .map(this::userToMap)
+            .sorted(Comparator.comparing(user -> user.get(sortField).toString()))
+            .toList();
+
+        for (int i = from; i < sortedExpectedUsers.size(); i++) {
+            assertUser(sortedExpectedUsers.get(i), actualUsers.get(i - from));
+        }
+    }
+
+    public static Map<String, Object> randomUserMetadata() {
+        return ESTestCase.randomFrom(
+            Map.of(
+                "employee_id",
+                ESTestCase.randomAlphaOfLength(5),
+                "number",
+                1,
+                "numbers",
+                List.of(1, 3, 5),
+                "extra",
+                Map.of("favorite pizza", "margherita", "age", 42)
+            ),
+            Map.of(ESTestCase.randomAlphaOfLengthBetween(3, 8), ESTestCase.randomAlphaOfLengthBetween(3, 8)),
+            Map.of(),
+            null
+        );
+    }
+
+    private User createRandomUser() throws IOException {
+        return createUser(
+            randomAlphaOfLengthBetween(3, 8),
+            randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            randomUserMetadata(),
+            randomBoolean()
+        );
+    }
+
+    private User createUser(String userName, String[] roles) throws IOException {
+        return createUser(
+            userName,
+            roles,
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            randomUserMetadata(),
+            randomBoolean()
+        );
+    }
+
+    private User createUser(String userName, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled)
+        throws IOException {
+
+        final Request request = new Request("POST", "/_security/user/" + userName);
+        BytesReference source = BytesReference.bytes(
+            jsonBuilder().map(
+                Map.of(
+                    User.Fields.USERNAME.getPreferredName(),
+                    userName,
+                    User.Fields.ROLES.getPreferredName(),
+                    roles,
+                    User.Fields.FULL_NAME.getPreferredName(),
+                    fullName,
+                    User.Fields.EMAIL.getPreferredName(),
+                    email,
+                    User.Fields.METADATA.getPreferredName(),
+                    metadata == null ? Map.of() : metadata,
+                    User.Fields.PASSWORD.getPreferredName(),
+                    "100%-security-guaranteed",
+                    User.Fields.ENABLED.getPreferredName(),
+                    enabled
+                )
+            )
+        );
+        request.setJsonEntity(source.utf8ToString());
+        assertOK(adminClient().performRequest(request));
+        return new User(userName, roles, fullName, email, metadata, enabled);
+    }
+}

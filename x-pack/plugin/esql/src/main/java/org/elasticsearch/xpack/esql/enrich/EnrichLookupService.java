@@ -42,6 +42,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -273,12 +274,23 @@ public class EnrichLookupService {
                 NamedExpression extractField = extractFields.get(i);
                 final ElementType elementType = PlannerUtils.toElementType(extractField.dataType());
                 mergingTypes[i] = elementType;
-                var loaders = BlockReaderFactories.loaders(
-                    List.of(searchContext),
+                BlockLoader loader = BlockReaderFactories.loader(
+                    searchContext.getSearchExecutionContext(),
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
                     EsqlDataTypes.isUnsupported(extractField.dataType())
                 );
-                fields.add(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders));
+                fields.add(
+                    new ValuesSourceReaderOperator.FieldInfo(
+                        extractField.name(),
+                        PlannerUtils.toElementType(extractField.dataType()),
+                        shardIdx -> {
+                            if (shardIdx != 0) {
+                                throw new IllegalStateException("only one shard");
+                            }
+                            return loader;
+                        }
+                    )
+                );
             }
             intermediateOperators.add(
                 new ValuesSourceReaderOperator(

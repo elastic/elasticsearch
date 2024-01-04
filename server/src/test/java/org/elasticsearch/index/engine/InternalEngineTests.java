@@ -91,7 +91,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -691,8 +690,8 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             @Override
-            public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-                super.flush(force, waitIfOngoing, listener);
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+                super.flushHoldingLock(force, waitIfOngoing, listener);
                 postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
                 assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));
             }
@@ -1347,7 +1346,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     void syncFlush(IndexWriter writer, InternalEngine engine, String syncId) throws IOException {
-        try (ReleasableLock ignored = engine.readLock.acquire()) {
+        try (var ignored = engine.acquireEnsureOpenRef()) {
             Map<String, String> userData = new HashMap<>();
             writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
             userData.put(Engine.SYNC_COMMIT_ID, syncId);
@@ -3676,6 +3675,7 @@ public class InternalEngineTests extends EngineTestCase {
     /**
      * Tests that when the close method returns the engine is actually guaranteed to have cleaned up and that resources are closed
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103861")
     public void testConcurrentEngineClosed() throws BrokenBarrierException, InterruptedException {
         Thread[] closingThreads = new Thread[3];
         CyclicBarrier barrier = new CyclicBarrier(1 + closingThreads.length + 1);

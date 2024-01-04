@@ -13,15 +13,12 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for IntBlocks.
  * This class is generated. Do not edit it.
  */
-final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
+final class FilterIntBlock extends AbstractFilterBlock<IntBlock> implements IntBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterIntBlock.class);
 
-    private final IntBlock block;
-
     FilterIntBlock(IntBlock block, int... positions) {
         super(block, positions);
-        this.block = block;
     }
 
     @Override
@@ -130,10 +127,5 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
             }
             sb.append(']');
         }
-    }
-
-    @Override
-    protected void closeInternal() {
-        block.close();
     }
 }

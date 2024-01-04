@@ -7,18 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
-
 import java.util.Arrays;
 
-abstract class AbstractFilterBlock extends AbstractBlock implements Block {
+abstract class AbstractFilterBlock<B extends Block> extends AbstractBlock implements Block {
 
-    // TODO: positions need to be tracked
+    // TODO: positions need to be tracked and released from the breaker on closeInternal
     protected final int[] positions;
+    protected final B block;
 
-    // TODO: needs to be incRef'd/decRef'd correctly
-    private final Block block;
-
-    AbstractFilterBlock(Block block, int[] positions) {
+    AbstractFilterBlock(B block, int[] positions) {
         // TODO: assert positions here, also check that we map to valid positions
         super(positions.length, block.blockFactory());
         this.positions = positions;
@@ -74,6 +71,7 @@ abstract class AbstractFilterBlock extends AbstractBlock implements Block {
     @Override
     public final int getTotalValueCount() {
         if (positions.length == block.getPositionCount()) {
+            // TODO: incorrect in case of multi-values and positions occurring twice.
             // All the positions are still in the block, just jumbled.
             return block.getTotalValueCount();
         }
@@ -124,5 +122,10 @@ abstract class AbstractFilterBlock extends AbstractBlock implements Block {
         assert (position >= 0 || position < getPositionCount())
             : "illegal position, " + position + ", position count:" + getPositionCount();
         return true;
+    }
+
+    @Override
+    protected void closeInternal() {
+        block.close();
     }
 }

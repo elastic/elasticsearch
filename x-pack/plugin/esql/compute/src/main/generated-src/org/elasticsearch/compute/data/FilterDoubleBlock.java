@@ -13,15 +13,12 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for DoubleBlocks.
  * This class is generated. Do not edit it.
  */
-final class FilterDoubleBlock extends AbstractFilterBlock implements DoubleBlock {
+final class FilterDoubleBlock extends AbstractFilterBlock<DoubleBlock> implements DoubleBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterDoubleBlock.class);
 
-    private final DoubleBlock block;
-
     FilterDoubleBlock(DoubleBlock block, int... positions) {
         super(block, positions);
-        this.block = block;
     }
 
     @Override
@@ -130,10 +127,5 @@ final class FilterDoubleBlock extends AbstractFilterBlock implements DoubleBlock
             }
             sb.append(']');
         }
-    }
-
-    @Override
-    protected void closeInternal() {
-        block.close();
     }
 }

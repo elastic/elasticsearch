@@ -14,15 +14,12 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for BytesRefBlocks.
  * This class is generated. Do not edit it.
  */
-final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefBlock {
+final class FilterBytesRefBlock extends AbstractFilterBlock<BytesRefBlock> implements BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterBytesRefBlock.class);
 
-    private final BytesRefBlock block;
-
     FilterBytesRefBlock(BytesRefBlock block, int... positions) {
         super(block, positions);
-        this.block = block;
     }
 
     @Override
@@ -133,10 +130,5 @@ final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefB
             }
             sb.append(']');
         }
-    }
-
-    @Override
-    protected void closeInternal() {
-        block.close();
     }
 }

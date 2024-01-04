@@ -22,7 +22,12 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
+$if(int)$
 public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock$if(BytesRef)$$else$, $Type$BigArrayBlock$endif$, Filter$Type$Block {
+$else$
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock$if(BytesRef)$$else$, $Type$BigArrayBlock$endif$,
+    Filter$Type$Block {
+$endif$
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();

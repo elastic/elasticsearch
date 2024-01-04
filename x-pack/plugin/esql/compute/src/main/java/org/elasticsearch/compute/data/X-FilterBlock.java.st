@@ -16,15 +16,12 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for $Type$Blocks.
  * This class is generated. Do not edit it.
  */
-final class Filter$Type$Block extends AbstractFilterBlock implements $Type$Block {
+final class Filter$Type$Block extends AbstractFilterBlock<$Type$Block> implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Filter$Type$Block.class);
 
-    private final $Type$Block block;
-
     Filter$Type$Block($Type$Block block, int... positions) {
         super(block, positions);
-        this.block = block;
     }
 
     @Override
@@ -154,10 +151,5 @@ $endif$
             }
             sb.append(']');
         }
-    }
-
-    @Override
-    protected void closeInternal() {
-        block.close();
     }
 }

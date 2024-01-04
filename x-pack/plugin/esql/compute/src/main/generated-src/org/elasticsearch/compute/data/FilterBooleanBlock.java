@@ -13,15 +13,12 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for BooleanBlocks.
  * This class is generated. Do not edit it.
  */
-final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlock {
+final class FilterBooleanBlock extends AbstractFilterBlock<BooleanBlock> implements BooleanBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterBooleanBlock.class);
 
-    private final BooleanBlock block;
-
     FilterBooleanBlock(BooleanBlock block, int... positions) {
         super(block, positions);
-        this.block = block;
     }
 
     @Override
@@ -130,10 +127,5 @@ final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlo
             }
             sb.append(']');
         }
-    }
-
-    @Override
-    protected void closeInternal() {
-        block.close();
     }
 }

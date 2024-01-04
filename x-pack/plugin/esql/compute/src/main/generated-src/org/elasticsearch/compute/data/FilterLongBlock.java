@@ -13,15 +13,12 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Filter block for LongBlocks.
  * This class is generated. Do not edit it.
  */
-final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
+final class FilterLongBlock extends AbstractFilterBlock<LongBlock> implements LongBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterLongBlock.class);
 
-    private final LongBlock block;
-
     FilterLongBlock(LongBlock block, int... positions) {
         super(block, positions);
-        this.block = block;
     }
 
     @Override
@@ -130,10 +127,5 @@ final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
             }
             sb.append(']');
         }
-    }
-
-    @Override
-    protected void closeInternal() {
-        block.close();
     }
 }

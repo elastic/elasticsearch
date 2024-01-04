@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
@@ -146,8 +148,10 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
             return newQuery.boost(query.boost());
         } else if (qb instanceof QueryStringQueryBuilder query) {
+            translateFieldPatterns(query.fields());
             return query;
         } else if (qb instanceof SimpleQueryStringBuilder query) {
+            translateFieldPatterns(query.fields());
             return query;
         } else {
             throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
@@ -156,6 +160,37 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        return super.doToQuery(wrapSearchExecutionContext(context));
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryRewriteContext instanceof SearchExecutionContext) {
+            return super.doRewrite(wrapSearchExecutionContext((SearchExecutionContext) queryRewriteContext));
+        } else {
+            return super.doRewrite(queryRewriteContext);
+        }
+    }
+
+    static boolean isIndexFieldNameAllowed(String fieldName) {
+        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName) || fieldName.startsWith("metadata_flattened.");
+    }
+
+    static void translateFieldPatterns(Map<String, Float> fields) {
+        Map<String, Float> originalFields = new HashMap<>(fields);
+        fields.clear();
+        for (Map.Entry<String, Float> originalField : originalFields.entrySet()) {
+            for (String translatedFieldName : ApiKeyFieldNameTranslators.translatePattern(originalField.getKey())) {
+                if (fields.containsKey(translatedFieldName)) {
+                    fields.put(translatedFieldName, fields.get(translatedFieldName) * originalField.getValue());
+                } else {
+                    fields.put(translatedFieldName, originalField.getValue());
+                }
+            }
+        }
+    }
+
+    static SearchExecutionContext wrapSearchExecutionContext(SearchExecutionContext context) {
         SearchExecutionContext translatingSearchExecutionContext = new FilteredSearchExecutionContext(context) {
             @Override
             public Set<String> getMatchingFieldNames(String pattern) {
@@ -163,18 +198,6 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             }
         };
         translatingSearchExecutionContext.setAllowedFields(ApiKeyBoolQueryBuilder::isIndexFieldNameAllowed);
-        return super.doToQuery(translatingSearchExecutionContext);
-    }
-
-    @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (queryRewriteContext instanceof SearchExecutionContext) {
-            ((SearchExecutionContext) queryRewriteContext).setAllowedFields(ApiKeyBoolQueryBuilder::isIndexFieldNameAllowed);
-        }
-        return super.doRewrite(queryRewriteContext);
-    }
-
-    static boolean isIndexFieldNameAllowed(String fieldName) {
-        return ALLOWED_EXACT_INDEX_FIELD_NAMES.contains(fieldName) || fieldName.startsWith("metadata_flattened.");
+        return translatingSearchExecutionContext;
     }
 }

@@ -65,12 +65,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                 .build()
         );
-        indexRandom(
-            true,
-            IntStream.range(1, 100)
-                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
-                .toArray(IndexRequestBuilder[]::new)
-        );
+        IndexRequestBuilder[] builders = IntStream.range(1, 100)
+            .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+            .toArray(IndexRequestBuilder[]::new);
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         forceMerge();
         refresh();
 
@@ -264,12 +265,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                 .build()
         );
-        indexRandom(
-            true,
-            IntStream.range(1, 100)
-                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
-                .toArray(IndexRequestBuilder[]::new)
-        );
+        IndexRequestBuilder[] builders = IntStream.range(1, 100)
+            .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+            .toArray(IndexRequestBuilder[]::new);
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         forceMerge();
         refresh();
 
@@ -417,12 +419,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                 .build()
         );
-        indexRandom(
-            true,
-            IntStream.range(1, 100)
-                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
-                .toArray(IndexRequestBuilder[]::new)
-        );
+        IndexRequestBuilder[] builders = IntStream.range(1, 100)
+            .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+            .toArray(IndexRequestBuilder[]::new);
+        indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         forceMerge();
         refresh();
 

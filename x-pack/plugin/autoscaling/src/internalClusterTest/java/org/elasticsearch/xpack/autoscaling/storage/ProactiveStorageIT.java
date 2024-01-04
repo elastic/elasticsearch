@@ -48,16 +48,16 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         createDataStreamAndTemplate(dsName);
         final int rolloverCount = between(1, 5);
         for (int i = 0; i < rolloverCount; ++i) {
-            indexRandom(
-                true,
-                false,
-                IntStream.range(1, 100)
-                    .mapToObj(
-                        unused -> prepareIndex(dsName).setCreate(true)
-                            .setSource("@timestamp", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()))
-                    )
-                    .toArray(IndexRequestBuilder[]::new)
-            );
+            IndexRequestBuilder[] builders = IntStream.range(1, 100)
+                .mapToObj(
+                    unused -> prepareIndex(dsName).setCreate(true)
+                        .setSource("@timestamp", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()))
+                )
+                .toArray(IndexRequestBuilder[]::new);
+            indexRandom(true, false, builders);
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
             assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dsName, null)).actionGet());
         }
         forceMerge();

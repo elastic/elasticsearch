@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -85,10 +86,13 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
 
     protected void createAndMountIndex() throws InterruptedException, java.util.concurrent.ExecutionException {
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
-        indexRandom(
-            randomBoolean(),
-            IntStream.range(0, 10).mapToObj(i -> prepareIndex(indexName).setSource()).collect(Collectors.toList())
-        );
+        List<IndexRequestBuilder> builders = IntStream.range(0, 10)
+            .mapToObj(i -> prepareIndex(indexName).setSource())
+            .collect(Collectors.toList());
+        indexRandom(randomBoolean(), builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
 

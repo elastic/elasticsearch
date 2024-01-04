@@ -246,6 +246,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
                 indexRequest.setPipeline(pipeline);
                 indexRequest.source(Map.of(MATCH_FIELD, randomFrom(keys.get(pipeline))));
                 bulkRequest.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
             assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
@@ -306,6 +307,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
                 )
             );
             client().index(indexRequest).actionGet();
+            indexRequest.decRef();
         }
         indicesAdmin().refresh(new RefreshRequest(indexName)).actionGet();
         return List.copyOf(keys);

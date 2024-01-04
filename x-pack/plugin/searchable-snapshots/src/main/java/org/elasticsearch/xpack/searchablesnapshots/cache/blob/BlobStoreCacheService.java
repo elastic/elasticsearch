@@ -250,10 +250,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 bytes,
                 range.start()
             );
-            final IndexRequest request = new IndexRequest(index).id(id);
-            try (XContentBuilder builder = jsonBuilder()) {
-                request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
-            }
 
             final RunOnce release = new RunOnce(() -> {
                 final int availablePermits = inFlightCacheFills.availablePermits();
@@ -263,8 +259,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
             boolean submitted = false;
             inFlightCacheFills.acquire();
+            final IndexRequest request = new IndexRequest(index).id(id);
             try {
-                final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
+                try (XContentBuilder builder = jsonBuilder()) {
+                    request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                }
+                final ActionListener<Void> wrappedListener = ActionListener.runAfter(
+                    ActionListener.runAfter(listener, release),
+                    request::decRef
+                );
                 innerPut(request, new ActionListener<>() {
                     @Override
                     public void onResponse(DocWriteResponse indexResponse) {

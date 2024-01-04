@@ -100,8 +100,12 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         }
         // Reload the keystore to load the new settings
         NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest();
-        reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
-        client().execute(TransportNodesReloadSecureSettingsAction.TYPE, reloadReq).get();
+        try {
+            reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
+            client().execute(TransportNodesReloadSecureSettingsAction.TYPE, reloadReq).get();
+        } finally {
+            reloadReq.decRef();
+        }
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())

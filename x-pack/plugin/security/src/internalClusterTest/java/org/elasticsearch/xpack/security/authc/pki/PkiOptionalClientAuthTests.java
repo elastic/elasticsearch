@@ -41,7 +41,7 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
 
     @BeforeClass
     public static void initPort() {
-        randomClientPort = randomIntBetween(49000, 65535 - NUMBER_OF_CLIENT_PORTS);
+        randomClientPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS);
     }
 
     @Override

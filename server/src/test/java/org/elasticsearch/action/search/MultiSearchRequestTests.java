@@ -571,8 +571,8 @@ public class MultiSearchRequestTests extends ESTestCase {
         } catch (XContentParseException e) {
             assertEquals(
                 "[1:31] Unexpected close marker '}': expected ']' (for root starting at "
-                    + "[Source: (org.elasticsearch.common.io.stream.ByteBufferStreamInput); line: 1, column: 0])\n"
-                    + " at [Source: (org.elasticsearch.common.io.stream.ByteBufferStreamInput); line: 1, column: 31]",
+                    + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 0])\n "
+                    + "at [Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 31]",
                 e.getMessage()
             );
         }

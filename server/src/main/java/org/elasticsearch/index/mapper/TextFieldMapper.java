@@ -980,21 +980,21 @@ public final class TextFieldMapper extends FieldMapper {
                 return null;
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup());
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
         /**
          * Build an iterator of documents that have the field. This mirrors parseCreateField,
          * using whatever
          */
-        private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup() {
+        private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
             if (getTextSearchInfo().hasNorms()) {
                 return BlockSourceReader.lookupFromNorms(name());
             }
             if (isIndexed() == false && isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();
             }
-            return BlockSourceReader.lookupFromFieldNames(name());
+            return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
         }
 
         @Override

@@ -240,7 +240,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             }
             ValueFetcher valueFetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT);
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
-                ? BlockSourceReader.lookupFromFieldNames(name())
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             // TODO: Currently we use longs in the compute engine and render to WKT in ESQL
             return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);

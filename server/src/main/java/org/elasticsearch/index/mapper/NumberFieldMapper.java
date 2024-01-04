@@ -1662,7 +1662,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return type.blockLoaderFromDocValues(name());
             }
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
-                ? BlockSourceReader.lookupFromFieldNames(name())
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }

@@ -370,7 +370,10 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
      * Build a {@link LeafIteratorLookup} which checks for the field in the
      * {@link FieldNamesFieldMapper field names field}.
      */
-    public static LeafIteratorLookup lookupFromFieldNames(String fieldName) {
+    public static LeafIteratorLookup lookupFromFieldNames(FieldNamesFieldMapper.FieldNamesFieldType fieldNames, String fieldName) {
+        if (false == fieldNames.isEnabled()) {
+            return lookupMatchingAll();
+        }
         return new LeafIteratorLookup() {
             private final BytesRef name = new BytesRef(fieldName);
 

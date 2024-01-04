@@ -72,7 +72,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final List<String> NO_WARNINGS = List.of();
 
     public static boolean shouldLog() {
-        return true; // TODO: change to false
+        return false;
     }
 
     public enum Mode {
@@ -603,7 +603,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(expectedContentType, xContentType);
             var map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
             if (shouldLog()) {
-                LOGGER.info("RESPONSE entity={}", map);
+                LOGGER.info("entity={}", map);
             }
             return map;
         }
@@ -686,10 +686,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static HttpEntity assertWarnings(Response response, List<String> allowedWarnings) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
-        LOGGER.info("RESPONSE (1))=" + response);
-        LOGGER.info("RESPONSE warnings=" + warnings);
         warnings.removeAll(mutedWarnings());
-        LOGGER.info("RESPONSE warnings (after muted)=" + warnings);
+        LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         assertMap(warnings, matchesList(allowedWarnings));
         return response.getEntity();
     }

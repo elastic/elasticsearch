@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -24,13 +25,16 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryConflictException;
@@ -2127,7 +2131,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
 
         // set up to delete the index at a very specific moment during finalization
-        final var masterIndicesClient = internalCluster().masterClient().admin().indices();
+        final var masterDeleteIndexService = internalCluster().getCurrentMasterNodeInstance(MetadataDeleteIndexService.class);
         final var indexRecreatedListener = ClusterServiceUtils
             // wait until the snapshot has entered finalization
             .addTemporaryStateListener(
@@ -2138,10 +2142,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     .anyMatch(e -> e.snapshot().getSnapshotId().getName().equals("snapshot-with-index-1") && e.state().completed())
             )
             // execute the index deletion _directly on the master_ so it happens before the snapshot finalization executes
-            .andThen((l, ignored) -> masterIndicesClient.prepareDelete(indexToDelete).execute(l.map(r -> {
+            .andThen((l, ignored) -> masterDeleteIndexService.deleteIndices(new DeleteIndexClusterStateUpdateRequest(l.map(r -> {
                 assertTrue(r.isAcknowledged());
                 return null;
-            })))
+            })).indices(new Index[] { internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex() })
+                .ackTimeout(TimeValue.timeValueSeconds(10))
+                .masterNodeTimeout(TimeValue.timeValueSeconds(10))))
             .andThen((l, ignored) -> prepareCreate(indexToDelete, indexSettingsNoReplicas(1)).execute(l.map(r -> {
                 assertTrue(r.isAcknowledged());
                 return null;

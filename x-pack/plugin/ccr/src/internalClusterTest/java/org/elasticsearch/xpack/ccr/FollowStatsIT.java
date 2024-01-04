@@ -217,9 +217,11 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
 
         FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
         FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+
+        // check that every shard responded with stats info
         assertThat(response.getStatsResponses().size(), equalTo(primaryShardsNumber));
 
-        // ensure that follower vs leader counters are zeros
+        // ensure that follower vs leader counters are zeros before indexing started
         final long followerDocsCountBefore = response.getStatsResponses()
             .stream()
             .map(s -> s.status().followerDocsCount())

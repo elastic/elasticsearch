@@ -25,6 +25,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -286,8 +287,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
     public static void adaptBulkShardOperationsResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
 
         final Engine engine = indexShard.getEngineOrNull();
-        if (engine != null && engine.refreshNeeded()) {
-            indexShard.refresh("ccr_follow_stats");
+        if (indexShard.state() == IndexShardState.STARTED && engine != null && engine.refreshNeeded()) {
+            indexShard.refresh("doc_stats");
         }
         final DocsStats docsStats = indexShard.docStats();
         response.setDocCount(docsStats.getCount());

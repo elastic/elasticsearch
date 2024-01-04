@@ -396,8 +396,8 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
             final Engine engine = indexShard.getEngineOrNull();
-            if (engine != null && engine.refreshNeeded()) {
-                indexShard.refresh("ccr_follow_stats");
+            if (indexShard.state() == IndexShardState.STARTED && engine != null && engine.refreshNeeded()) {
+                indexShard.refresh("doc_stats");
             }
             final DocsStats docsStats = indexShard.docStats();
 

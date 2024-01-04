@@ -95,7 +95,12 @@ class MutableSearchResponse {
 
     /**
      * Updates the response with the result of a partial reduction.
+     *
+     * @param successfulShards
+     * @param totalHits
      * @param reducedAggs is a strategy for producing the reduced aggs
+     * @param reducePhase
+     * @param finalReduce indicates whether this is the final "partial reduction" set of TotalHits and reducedAggs data
      */
     @SuppressWarnings("HiddenField")
     synchronized void updatePartialResponse(
@@ -103,7 +108,7 @@ class MutableSearchResponse {
         TotalHits totalHits,
         Supplier<InternalAggregations> reducedAggs,
         int reducePhase,
-        boolean finalReduce /// MP TODO: document me
+        boolean finalReduce
     ) {
         failIfFrozen();
         if (reducePhase < this.reducePhase) {
@@ -227,8 +232,6 @@ class MutableSearchResponse {
                  */
                 InternalAggregations reducedAggs = reducedAggsSource.get();
                 reducedAggsSource = () -> reducedAggs;
-                // TODO: check that this just returns the partial aggs response passed in if SearchResponseMerger
-                // has no other full SearchResponses
                 searchResponse = searchResponseMerger.getMergedResponse(clusters, buildResponse(task.getStartTimeNanos(), reducedAggs));
             } else {
                 /*

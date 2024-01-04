@@ -91,6 +91,11 @@ public class SemanticTextFieldMapper extends FieldMapper {
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
             return new SemanticTextFieldMapper(name(), new SemanticTextFieldType(name(), modelId.getValue(), meta.getValue()), copyTo);
         }
+
+        @Override
+        public int mapperSize() {
+            return 1;
+        }
     }
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {

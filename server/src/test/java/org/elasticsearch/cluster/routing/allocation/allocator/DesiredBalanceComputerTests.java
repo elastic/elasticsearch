@@ -861,6 +861,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         assertThat(resultDiskUsage, allOf(aMapWithSize(2), hasEntry("node-0", 950L), hasEntry("node-1", 850L)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103907")
     public void testAccountForSizeOfMisplacedShardsDuringNewComputation() {
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot", randomUUID()));

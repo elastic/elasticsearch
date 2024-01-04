@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -97,7 +96,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             // make sure that background merges won't happen; otherwise, IndexWriter#hasUncommittedChanges can become true again
             forceMerge(false, 1, false, UUIDs.randomBase64UUID());
             assertNotNull(indexWriter);
-            try (ReleasableLock ignored = readLock.acquire()) {
+            try (var ignored = acquireEnsureOpenRef()) {
                 assertThat(getTranslogStats().getUncommittedOperations(), equalTo(0));
                 Map<String, String> userData = new HashMap<>(getLastCommittedSegmentInfos().userData);
                 SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());

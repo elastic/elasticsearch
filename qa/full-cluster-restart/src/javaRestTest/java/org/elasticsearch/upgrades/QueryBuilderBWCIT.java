@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,6 +77,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
         .version(getOldClusterTestVersion())
         .nodes(2)
         .setting("xpack.security.enabled", "false")
+        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .apply(() -> clusterConfig)
         .build();
 

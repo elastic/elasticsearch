@@ -18,6 +18,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AnyOperatorTestCase;
@@ -96,7 +97,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = mockSearchContext(reader);
+        SearchContext ctx = mockSearchContext(reader, 0);
         when(ctx.getSearchExecutionContext().getFieldType(anyString())).thenAnswer(inv -> {
             String name = inv.getArgument(0);
             return switch (name) {
@@ -176,7 +177,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
 
     private void testSimple(DriverContext ctx, int size, int limit) {
         LuceneSourceOperator.Factory factory = simple(ctx.bigArrays(), DataPartitioning.SHARD, size, limit);
-        Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD);
+        Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();
 
@@ -204,7 +205,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
      * Creates a mock search context with the given index reader.
      * The returned mock search context can be used to test with {@link LuceneOperator}.
      */
-    public static SearchContext mockSearchContext(IndexReader reader) {
+    public static SearchContext mockSearchContext(IndexReader reader, int shardId) {
         try {
             ContextIndexSearcher searcher = new ContextIndexSearcher(
                 reader,
@@ -218,7 +219,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
             when(searchContext.getSearchExecutionContext()).thenReturn(searchExecutionContext);
             when(searchExecutionContext.getFullyQualifiedIndex()).thenReturn(new Index("test", "uid"));
-            when(searchExecutionContext.getShardId()).thenReturn(0);
+            when(searchExecutionContext.getShardId()).thenReturn(shardId);
             return searchContext;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -586,16 +586,16 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         );
     }
 
-    private static XContentParser createParser(BytesReference source) throws IOException {
-        return XContentHelper.createParserNotCompressed(XContentHelper.LOG_DEPRECATIONS_CONFIGURATION, source, XContentType.JSON);
+    private XContentParser createParser(BytesReference source) throws IOException {
+        return XContentHelper.createParserNotCompressed(
+            XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(xContentRegistry),
+            source,
+            XContentType.JSON
+        );
     }
 
     private XContentParser createParser(SearchHit hit) throws IOException {
-        return XContentHelper.createParserNotCompressed(
-            XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(xContentRegistry),
-            hit.getSourceRef(),
-            XContentType.JSON
-        );
+        return createParser(hit.getSourceRef());
     }
 
     @Override
@@ -826,7 +826,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     // skip old versions
                     if (hit.getId().equals(previousId) == false) {
                         previousId = hit.getId();
-                        try (XContentParser parser = createParser(hit.getSourceRef())) {
+                        try (XContentParser parser = createParser(hit)) {
                             stats.add(TransformStoredDoc.fromXContent(parser));
                         } catch (IOException e) {
                             listener.onFailure(new ElasticsearchParseException("failed to parse transform stats from search hit", e));

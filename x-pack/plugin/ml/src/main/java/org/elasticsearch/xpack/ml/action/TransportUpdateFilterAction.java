@@ -163,7 +163,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             try {
                 if (getDocResponse.isExists()) {
                     try (
-                        XContentParser parser = XContentHelper.createParser(
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
                             XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
                             getDocResponse.getSourceAsBytesRef(),
                             XContentType.JSON

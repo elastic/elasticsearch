@@ -2376,9 +2376,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static XContentType randomSupportedContentType() {
-        return clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES)
-            ? randomFrom(XContentType.values())
-            : randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE);
+        return clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_BINARY_YAML_RESPONSES)
+            ? clusterHasFeature(RestTestLegacyFeatures.SUPPORTS_VENDOR_XCONTENT_TYPES)
+                ? randomFrom(XContentType.values())
+                : randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.YAML, XContentType.SMILE)
+            : randomFrom(XContentType.JSON, XContentType.CBOR, XContentType.SMILE);
     }
 
     public static void addXContentBody(Request request, ToXContent body) throws IOException {

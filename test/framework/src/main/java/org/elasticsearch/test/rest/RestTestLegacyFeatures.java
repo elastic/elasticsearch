@@ -41,6 +41,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature ML_NEW_MEMORY_FORMAT = new NodeFeature("ml.new_memory_format");
     @UpdateForV9
     public static final NodeFeature SUPPORTS_VENDOR_XCONTENT_TYPES = new NodeFeature("rest.supports_vendor_xcontent_types");
+    @UpdateForV9
+    public static final NodeFeature SUPPORTS_BINARY_YAML_RESPONSES = new NodeFeature("rest.supports_binary_yaml_responses");
 
     /** These are "pure test" features: normally we would not need them, and test for TransportVersion/fallback to Version (see for example
      * {@code ESRestTestCase#minimumTransportVersion()}. However, some tests explicitly check and validate the content of a response, so
@@ -90,7 +92,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
             entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),
             entry(ML_NEW_MEMORY_FORMAT, Version.V_8_11_0),
-            entry(SUPPORTS_VENDOR_XCONTENT_TYPES, Version.V_7_10_0), // support was added in #63071
+            entry(SUPPORTS_VENDOR_XCONTENT_TYPES, Version.V_7_11_0),
+            entry(SUPPORTS_BINARY_YAML_RESPONSES, Version.V_7_7_0),
             entry(TRANSPORT_VERSION_SUPPORTED, VERSION_INTRODUCING_TRANSPORT_VERSIONS),
             entry(STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION, Version.V_8_11_0),
             entry(ML_MEMORY_OVERHEAD_FIXED, Version.V_8_2_1),

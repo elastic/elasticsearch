@@ -83,7 +83,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader);
+        SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader, 0);
         when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
         final Query query;
         if (enableShortcut && randomBoolean()) {

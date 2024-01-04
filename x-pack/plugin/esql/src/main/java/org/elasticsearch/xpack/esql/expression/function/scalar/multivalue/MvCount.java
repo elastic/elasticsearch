@@ -92,11 +92,8 @@ public class MvCount extends AbstractMultivalueFunction {
     }
 
     private static class Evaluator extends AbstractEvaluator {
-        private final DriverContext driverContext;
-
         protected Evaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
-            super(field);
-            this.driverContext = driverContext;
+            super(driverContext, field);
         }
 
         @Override

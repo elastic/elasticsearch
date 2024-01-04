@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -107,11 +106,10 @@ public abstract class AbstractTransportGetResourcesAction<
                 Set<String> foundResourceIds = new HashSet<>();
                 long totalHitCount = response.getHits().getTotalHits().value;
                 for (SearchHit hit : response.getHits().getHits()) {
-                    BytesReference docSource = hit.getSourceRef();
                     try (
                         XContentParser parser = XContentHelper.createParserNotCompressed(
                             XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(xContentRegistry),
-                            docSource,
+                            hit.getSourceRef(),
                             XContentType.JSON
                         )
                     ) {

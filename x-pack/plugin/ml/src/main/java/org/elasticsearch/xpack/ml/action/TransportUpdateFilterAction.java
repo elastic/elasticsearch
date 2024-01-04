@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -163,11 +162,10 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, listener.delegateFailure((l, getDocResponse) -> {
             try {
                 if (getDocResponse.isExists()) {
-                    BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                     try (
                         XContentParser parser = XContentHelper.createParser(
                             XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
-                            docSource,
+                            getDocResponse.getSourceAsBytesRef(),
                             XContentType.JSON
                         )
                     ) {

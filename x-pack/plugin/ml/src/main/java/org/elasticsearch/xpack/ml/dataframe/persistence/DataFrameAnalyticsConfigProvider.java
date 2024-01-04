@@ -325,8 +325,7 @@ public class DataFrameAnalyticsConfigProvider {
                     SearchHit[] hits = searchResponse.getHits().getHits();
                     List<DataFrameAnalyticsConfig> configs = new ArrayList<>(hits.length);
                     for (SearchHit hit : hits) {
-                        BytesReference sourceBytes = hit.getSourceRef();
-                        try (XContentParser parser = createParser(sourceBytes)) {
+                        try (XContentParser parser = createParser(hit.getSourceRef())) {
                             configs.add(DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build());
                         } catch (IOException e) {
                             delegate.onFailure(e);

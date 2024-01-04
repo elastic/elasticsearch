@@ -291,7 +291,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             // Fails if allow partial search result is not allowed
             expectThrows(
                 ElasticsearchException.class,
-                prepareSearch().setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pitId))::get
+                prepareSearch().setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pitId))
             );
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();

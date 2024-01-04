@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -66,7 +65,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
 
     private final ThreadPool threadPool;
     private final Client client;
-    private final ClusterService clusterService;
     private final JobManager jobManager;
 
     @Inject
@@ -74,7 +72,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
-        ClusterService clusterService,
         JobManager jobManager,
         Client client
     ) {
@@ -86,7 +83,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
-        this.clusterService = clusterService;
         this.client = client;
         this.jobManager = jobManager;
     }

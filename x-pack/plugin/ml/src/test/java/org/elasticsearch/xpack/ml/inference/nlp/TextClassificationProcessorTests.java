@@ -35,7 +35,14 @@ public class TextClassificationProcessorTests extends ESTestCase {
             PyTorchInferenceResult torchResult = new PyTorchInferenceResult(new double[][][] {});
             var e = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> TextClassificationProcessor.processResult(null, torchResult, randomInt(), List.of("a", "b"), randomAlphaOfLength(10))
+                () -> TextClassificationProcessor.processResult(
+                    null,
+                    torchResult,
+                    randomInt(),
+                    List.of("a", "b"),
+                    randomAlphaOfLength(10),
+                    false
+                )
             );
             assertThat(e, instanceOf(ElasticsearchStatusException.class));
             assertThat(e.getMessage(), containsString("Text classification result has no data"));
@@ -44,7 +51,14 @@ public class TextClassificationProcessorTests extends ESTestCase {
             PyTorchInferenceResult torchResult = new PyTorchInferenceResult(new double[][][] { { { 1.0 } } });
             var e = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> TextClassificationProcessor.processResult(null, torchResult, randomInt(), List.of("a", "b"), randomAlphaOfLength(10))
+                () -> TextClassificationProcessor.processResult(
+                    null,
+                    torchResult,
+                    randomInt(),
+                    List.of("a", "b"),
+                    randomAlphaOfLength(10),
+                    false
+                )
             );
             assertThat(e, instanceOf(ElasticsearchStatusException.class));
             assertThat(e.getMessage(), containsString("Expected exactly [2] values in text classification result; got [1]"));

@@ -83,7 +83,14 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             NlpTask.ResultProcessor {
 
         @Override
-        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
+            if (chunkResult) {
+                throw new ElasticsearchStatusException(
+                    "Document chunking is not supported by the [" + TaskType.NER + "] task",
+                    RestStatus.BAD_REQUEST
+                );
+            }
+
             if (pyTorchResult.getInferenceResult().length < 1) {
                 throw new ElasticsearchStatusException("question answering result has no data", RestStatus.INTERNAL_SERVER_ERROR);
             }

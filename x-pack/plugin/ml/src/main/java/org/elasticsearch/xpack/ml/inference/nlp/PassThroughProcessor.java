@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -44,15 +46,27 @@ public class PassThroughProcessor extends NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        return (tokenization, pyTorchResult) -> processResult(tokenization, pyTorchResult, config.getResultsField());
+        return (tokenization, pyTorchResult, chunkResult) -> processResult(
+            tokenization,
+            pyTorchResult,
+            config.getResultsField(),
+            chunkResult
+        );
     }
 
     private static InferenceResults processResult(
         TokenizationResult tokenization,
         PyTorchInferenceResult pyTorchResult,
-        String resultsField
+        String resultsField,
+        boolean chunkResult
     ) {
-        // TODO - process all results in the batch
+        if (chunkResult) {
+            throw new ElasticsearchStatusException(
+                "Document chunking is not supported by the [" + TaskType.NER + "] task",
+                RestStatus.BAD_REQUEST
+            );
+        }
+
         return new PyTorchPassThroughResults(
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
             pyTorchResult.getInferenceResult()[0],

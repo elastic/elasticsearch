@@ -337,6 +337,7 @@ public class DeploymentManager {
         TimeValue timeout,
         TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
+        boolean chunkResponse,
         ActionListener<InferenceResults> listener
     ) {
         var processContext = getProcessContext(task, listener::onFailure);
@@ -356,6 +357,7 @@ public class DeploymentManager {
             prefixType,
             threadPool,
             parentActionTask,
+            chunkResponse,
             listener
         );
 

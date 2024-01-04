@@ -91,7 +91,8 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(scores);
         QuestionAnsweringInferenceResults result = (QuestionAnsweringInferenceResults) resultProcessor.processResult(
             tokenizationResult,
-            pyTorchResult
+            pyTorchResult,
+            false
         );
 
         // Note this is a different answer to testTopScores because of the question length
@@ -223,7 +224,8 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(modelTensorOutput);
         QuestionAnsweringInferenceResults result = (QuestionAnsweringInferenceResults) resultProcessor.processResult(
             tokenizationResult,
-            pyTorchResult
+            pyTorchResult,
+            false
         );
 
         // The expected answer is the full text of the span containing the answer

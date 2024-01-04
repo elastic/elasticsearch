@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
@@ -41,6 +42,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
     @Nullable
     private final CancellableTask parentActionTask;
     private final TrainedModelPrefixStrings.PrefixType prefixType;
+    private final boolean chunkResponse;
 
     InferencePyTorchAction(
         String deploymentId,
@@ -52,6 +54,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         TrainedModelPrefixStrings.PrefixType prefixType,
         ThreadPool threadPool,
         @Nullable CancellableTask parentActionTask,
+        boolean chunkResponse,
         ActionListener<InferenceResults> listener
     ) {
         super(deploymentId, requestId, timeout, processContext, threadPool, listener);
@@ -59,6 +62,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         this.input = input;
         this.prefixType = prefixType;
         this.parentActionTask = parentActionTask;
+        this.chunkResponse = chunkResponse;
     }
 
     private boolean isCancelled() {
@@ -119,7 +123,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             assert config instanceof NlpConfig;
             NlpConfig nlpConfig = (NlpConfig) config;
             NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
-                .buildRequest(inputs, requestIdStr, nlpConfig.getTokenization().getTruncate(), nlpConfig.getTokenization().getSpan());
+                .buildRequest(inputs, requestIdStr, Tokenization.Truncate.NONE, 32);
             logger.debug(() -> format("handling request [%s]", requestIdStr));
 
             // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process
@@ -182,7 +186,11 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             onFailure("inference task cancelled");
             return;
         }
-        InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult.inferenceResult());
+        InferenceResults results = inferenceResultsProcessor.processResult(
+            tokenization,
+            pyTorchResult.inferenceResult(),
+            this.chunkResponse
+        );
         logger.debug(() -> format("[%s] processed result for request [%s]", getDeploymentId(), getRequestId()));
         onSuccess(results);
     }

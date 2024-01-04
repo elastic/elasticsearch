@@ -58,22 +58,24 @@ public class TextClassificationProcessor extends NlpTask.Processor {
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
         if (config instanceof TextClassificationConfig textClassificationConfig) {
-            return (tokenization, pytorchResult) -> processResult(
+            return (tokenization, pytorchResult, chunkResult) -> processResult(
                 tokenization,
                 pytorchResult,
                 textClassificationConfig.getNumTopClasses() < 0
                     ? textClassificationConfig.getClassificationLabels().size()
                     : textClassificationConfig.getNumTopClasses(),
                 textClassificationConfig.getClassificationLabels(),
-                textClassificationConfig.getResultsField()
+                textClassificationConfig.getResultsField(),
+                chunkResult
             );
         }
-        return (tokenization, pytorchResult) -> processResult(
+        return (tokenization, pytorchResult, chunkResult) -> processResult(
             tokenization,
             pytorchResult,
             numTopClasses,
             Arrays.asList(classLabels),
-            DEFAULT_RESULTS_FIELD
+            DEFAULT_RESULTS_FIELD,
+            chunkResult
         );
     }
 
@@ -82,8 +84,16 @@ public class TextClassificationProcessor extends NlpTask.Processor {
         PyTorchInferenceResult pyTorchResult,
         int numTopClasses,
         List<String> labels,
-        String resultsField
+        String resultsField,
+        boolean chunkResult
     ) {
+        if (chunkResult) {
+            throw new ElasticsearchStatusException(
+                "Document chunking is not supported by the [" + TaskType.NER + "] task",
+                RestStatus.BAD_REQUEST
+            );
+        }
+
         if (pyTorchResult.getInferenceResult().length < 1) {
             throw new ElasticsearchStatusException("Text classification result has no data", RestStatus.INTERNAL_SERVER_ERROR);
         }

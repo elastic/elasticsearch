@@ -45,7 +45,7 @@ public class NlpTask {
     }
 
     public interface ResultProcessor {
-        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult);
+        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult);
     }
 
     public abstract static class Processor implements Releasable {

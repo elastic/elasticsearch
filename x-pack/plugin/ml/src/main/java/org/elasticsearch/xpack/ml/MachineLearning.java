@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
+import org.elasticsearch.xpack.core.ml.action.ChunkedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.ClearDeploymentCacheAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
@@ -201,6 +202,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportAuditMlNotificationAction;
 import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
+import org.elasticsearch.xpack.ml.action.TransportChunkedInferenceAction;
 import org.elasticsearch.xpack.ml.action.TransportClearDeploymentCacheAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
@@ -412,6 +414,7 @@ import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestChunkedInferenceAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestClearDeploymentCacheAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
@@ -1444,6 +1447,7 @@ public class MachineLearning extends Plugin
                 restHandlers.add(new RestUpdateTrainedModelDeploymentAction());
                 restHandlers.add(new RestPutTrainedModelVocabularyAction());
                 restHandlers.add(new RestClearDeploymentCacheAction());
+                restHandlers.add(new RestChunkedInferenceAction());
             }
         }
         return restHandlers;
@@ -1591,6 +1595,7 @@ public class MachineLearning extends Plugin
                     )
                 );
                 actionHandlers.add(new ActionHandler<>(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
+                actionHandlers.add(new ActionHandler<>(ChunkedInferenceAction.INSTANCE, TransportChunkedInferenceAction.class));
             }
         }
         return actionHandlers;

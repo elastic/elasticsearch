@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent.provider.smile;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
@@ -45,7 +46,9 @@ public final class SmileXContentImpl implements XContent {
     }
 
     static {
-        smileFactory = new SmileFactory();
+        var builder = SmileFactory.builder();
+        builder.streamReadConstraints(StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build());
+        smileFactory = builder.build();
         // for now, this is an overhead, might make sense for web sockets
         smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
         smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...

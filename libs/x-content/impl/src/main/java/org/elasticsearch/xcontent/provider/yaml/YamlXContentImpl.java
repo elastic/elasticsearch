@@ -10,6 +10,7 @@ package org.elasticsearch.xcontent.provider.yaml;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import org.elasticsearch.xcontent.XContent;
@@ -42,7 +43,9 @@ public final class YamlXContentImpl implements XContent {
     }
 
     static {
-        yamlFactory = new YAMLFactory();
+        var builder = YAMLFactory.builder();
+        builder.streamReadConstraints(StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build());
+        yamlFactory = builder.build();
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         yamlFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         yamlXContent = new YamlXContentImpl();

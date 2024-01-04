@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -44,6 +43,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
 import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -558,10 +559,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<SpatialPoint, Object> expectedValue,
+        Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, geoPointCases(), expectedType, n -> expectedValue.apply((SpatialPoint) n), warnings);
+        unary(suppliers, expectedEvaluatorToString, geoPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -571,17 +572,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<SpatialPoint, Object> expectedValue,
+        Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(
-            suppliers,
-            expectedEvaluatorToString,
-            cartesianPointCases(),
-            expectedType,
-            n -> expectedValue.apply((SpatialPoint) n),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, cartesianPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -927,11 +921,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     private static List<TypedDataSupplier> geoPointCases() {
-        return List.of(new TypedDataSupplier("<geo_point>", () -> randomGeoPoint(), EsqlDataTypes.GEO_POINT));
+        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsWKB(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
     }
 
     private static List<TypedDataSupplier> cartesianPointCases() {
-        return List.of(new TypedDataSupplier("<cartesian_point>", () -> randomCartesianPoint(), EsqlDataTypes.CARTESIAN_POINT));
+        return List.of(
+            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsWKB(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
+        );
     }
 
     public static List<TypedDataSupplier> ipCases() {

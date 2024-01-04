@@ -44,12 +44,12 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataTypes.LONG, b -> b ? 1L : 0L, List.of());
 
         // geo types
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, evaluatorName.apply("GeoPoint"), DataTypes.LONG, GEO::pointAsLong, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, evaluatorName.apply("GeoPoint"), DataTypes.LONG, GEO::wkbAsLong, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(
             suppliers,
             evaluatorName.apply("CartesianPoint"),
             DataTypes.LONG,
-            CARTESIAN::pointAsLong,
+            CARTESIAN::wkbAsLong,
             List.of()
         );
         // datetimes

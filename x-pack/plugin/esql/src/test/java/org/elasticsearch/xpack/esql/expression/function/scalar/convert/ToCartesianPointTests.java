@@ -37,7 +37,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToCartesianPoint" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_POINT, CARTESIAN::pointAsWKB, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_POINT, v -> v, List.of());
         TestCaseSupplier.forUnaryLong(suppliers, evaluatorName.apply("FromLong"), EsqlDataTypes.CARTESIAN_POINT, l -> {
             try {
                 return CARTESIAN.longAsWKB(l);

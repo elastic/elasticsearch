@@ -48,7 +48,7 @@ public enum SpatialCoordinateTypes {
             try {
                 final double x = XYEncodingUtils.decode((int) (encoded >>> 32));
                 final double y = XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF));
-                return new SpatialPoint(x, y);
+                return makePoint(x, y);
             } catch (Error e) {
                 throw new IllegalArgumentException("Failed to convert invalid encoded value to cartesian point");
             }
@@ -61,7 +61,42 @@ public enum SpatialCoordinateTypes {
         }
 
         public SpatialPoint pointAsPoint(Point point) {
-            return new SpatialPoint(point.getX(), point.getY());
+            return makePoint(point.getX(), point.getY());
+        }
+
+        private SpatialPoint makePoint(double x, double y) {
+            return new SpatialPoint() {
+                @Override
+                public double getX() {
+                    return x;
+                }
+
+                @Override
+                public double getY() {
+                    return y;
+                }
+
+                @Override
+                public int hashCode() {
+                    return 31 * Double.hashCode(x) + Double.hashCode(y);
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    if (obj == null) {
+                        return false;
+                    }
+                    if (obj instanceof SpatialPoint other) {
+                        return x == other.getX() && y == other.getY();
+                    }
+                    return false;
+                }
+
+                @Override
+                public String toString() {
+                    return toWKT();
+                }
+            };
         }
     };
 

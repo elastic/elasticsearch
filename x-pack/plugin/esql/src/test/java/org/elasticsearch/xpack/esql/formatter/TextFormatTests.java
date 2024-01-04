@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -267,8 +267,8 @@ public class TextFormatTests extends ESTestCase {
                 blockFactory.newIntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
                 blockFactory.newLongArrayVector(new long[] { GEO.pointAsLong(12, 56), GEO.pointAsLong(-97, 26) }, 2).asBlock(),
                 blockFactory.newBytesRefBlockBuilder(2)
-                    .appendBytesRef(CARTESIAN.pointAsWKB(new SpatialPoint(1234, 5678)))
-                    .appendBytesRef(CARTESIAN.pointAsWKB(new SpatialPoint(-9753, 2611)))
+                    .appendBytesRef(CARTESIAN.pointAsWKB(CARTESIAN.pointAsPoint(new Point(1234, 5678))))
+                    .appendBytesRef(CARTESIAN.pointAsWKB(CARTESIAN.pointAsPoint(new Point(-9753, 2611))))
                     .build()
             )
         );

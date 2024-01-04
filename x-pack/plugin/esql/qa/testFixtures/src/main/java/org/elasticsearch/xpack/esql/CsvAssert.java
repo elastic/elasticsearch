@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
@@ -162,8 +161,8 @@ public final class CsvAssert {
 
     private static Object pointNormalizer(Object obj) {
         if (obj instanceof GeoPoint geoPoint) {
-            // The block type for all points is SpatialPoint and knowledge of the CRS is lost
-            return new SpatialPoint(geoPoint);
+            // In tests the block type for all points is SpatialPoint and knowledge of the CRS is lost
+            return CARTESIAN.pointAsPoint(geoPoint);
         }
         return obj;
     }

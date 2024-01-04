@@ -1206,7 +1206,17 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static SpatialPoint randomCartesianPoint() {
         double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
         double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        return new SpatialPoint(x, y);
+        return new SpatialPoint() {
+            @Override
+            public double getX() {
+                return x;
+            }
+
+            @Override
+            public double getY() {
+                return y;
+            }
+        };
     }
 
     /**

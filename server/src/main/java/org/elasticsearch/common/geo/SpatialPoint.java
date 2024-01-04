@@ -12,53 +12,18 @@ package org.elasticsearch.common.geo;
  * To facilitate maximizing the use of common code between GeoPoint and projected CRS
  * we introduced this ElasticPoint as an interface of commonality.
  */
-public class SpatialPoint implements Comparable<SpatialPoint> {
+public interface SpatialPoint extends Comparable<SpatialPoint> {
+    double getX();
 
-    protected double x;
-    protected double y;
+    double getY();
 
-    public SpatialPoint(double x, double y) {
-        this.x = x;
-        this.y = y;
-    }
-
-    public SpatialPoint(SpatialPoint template) {
-        this(template.getX(), template.getY());
-    }
-
-    public final double getX() {
-        return x;
-    }
-
-    public final double getY() {
-        return y;
-    }
-
-    @Override
-    public int hashCode() {
-        return 31 * 31 * getClass().getSimpleName().hashCode() + 31 * Double.hashCode(x) + Double.hashCode(y);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        SpatialPoint point = (SpatialPoint) obj;
-        return (Double.compare(point.x, x) == 0) && Double.compare(point.y, y) == 0;
-    }
-
-    @Override
-    public String toString() {
-        return toWKT();
-    }
-
-    public String toWKT() {
+    default String toWKT() {
         // Code designed to mimic WellKnownText.toWKT, with much less stack depth and object creation
-        return "POINT (" + x + " " + y + ")";
+        return "POINT (" + getX() + " " + getY() + ")";
     }
 
     @Override
-    public int compareTo(SpatialPoint other) {
+    default int compareTo(SpatialPoint other) {
         if (this.getClass().equals(other.getClass())) {
             double xd = this.getX() - other.getX();
             double yd = this.getY() - other.getY();

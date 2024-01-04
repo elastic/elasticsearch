@@ -190,6 +190,7 @@ public class DataStreamLifecycleDriver {
                 XContentBuilder source = docSourceSupplier.get();
                 indexRequest.source(source);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             bulkResponse = bulkRequestBuilder.get();
         }

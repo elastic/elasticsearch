@@ -258,6 +258,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
                 XContentBuilder source = sourceSupplier.get();
                 indexRequest.source(source);
                 bulkRequestBuilder.add(indexRequest);
+                indexRequest.decRef();
             }
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             int duplicates = 0;

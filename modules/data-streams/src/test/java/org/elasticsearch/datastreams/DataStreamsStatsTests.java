@@ -246,16 +246,16 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         // Get some randomized but reasonable timestamps on the data since not all of it is guaranteed to arrive in order.
         long timeSeed = System.currentTimeMillis();
         long timestamp = randomLongBetween(timeSeed - TimeUnit.HOURS.toMillis(5), timeSeed);
-        client().index(
-            new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
-                .source(
-                    JsonXContent.contentBuilder()
-                        .startObject()
-                        .field("@timestamp", timestamp)
-                        .field("data", randomAlphaOfLength(25))
-                        .endObject()
-                )
-        ).get();
+        IndexRequest indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+            .source(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("@timestamp", timestamp)
+                    .field("data", randomAlphaOfLength(25))
+                    .endObject()
+            );
+        client().index(indexRequest).get();
+        indexRequest.decRef();
         indicesAdmin().refresh(new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
             .get();
         return timestamp;

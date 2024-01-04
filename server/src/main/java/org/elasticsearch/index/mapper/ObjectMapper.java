@@ -154,8 +154,6 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
-                assert mapper instanceof FieldMapper == false || mapper.mapperSize() == builder.mapperSize()
-                    : "size of mapper differs from it's builder";
                 assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {

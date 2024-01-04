@@ -231,7 +231,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                         id
                     )
                 );
-                return;
             }
         } else {
             deleteAliasesAndModel(request, modelAliases, listener);

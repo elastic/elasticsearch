@@ -29,10 +29,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
@@ -98,35 +95,33 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
         }
     }
 
-    private void registerCommit(ClusterState state, RegisterCommitRequest request, ActionListener<RegisterCommitResponse> listener) {
-        var shardId = request.getShardId();
-        if (isSearchShardInRoutingTable(state, shardId, request.getNodeId()) == false) {
-            listener.onFailure(new ShardNotFoundException(shardId, "search shard not found in the routing table"));
-            return;
-        }
-        var commit = request.getCommit();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        if (indexShard == null) {
-            throw new ShardNotFoundException(shardId);
-        }
-        assert indexShard.routingEntry().isPromotableToPrimary()
-            : "TransportRegisterCommitForRecoveryAction can only be executed on an indexing shard";
-        Engine engine = indexShard.getEngineOrNull();
-        if (engine == null || engine instanceof NoOpEngine) {
-            // engine is closed, but search shard should be able to continue recovery
-            listener.onResponse(new RegisterCommitResponse(request.getCommit()));
-            return;
-        }
-        assert engine instanceof IndexEngine;
-        var statelessCommitService = ((IndexEngine) engine).getStatelessCommitService();
-        statelessCommitService.registerCommitForUnpromotableRecovery(
-            commit,
-            shardId,
-            request.getNodeId(),
-            state,
-            listener.map(RegisterCommitResponse::new)
-        );
+    private void registerCommit(ClusterState state, RegisterCommitRequest request, ActionListener<RegisterCommitResponse> outerListener) {
+        ActionListener.run(ActionListener.assertOnce(outerListener), listener -> {
+            final var shardId = request.getShardId();
+            if (isSearchShardInRoutingTable(state, shardId, request.getNodeId()) == false) {
+                throw new ShardNotFoundException(shardId, "search shard not found in the routing table");
+            }
+            final var commit = request.getCommit();
+            final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            final var indexShard = indexService.getShard(shardId.id());
+            assert indexShard.routingEntry().isPromotableToPrimary()
+                : "TransportRegisterCommitForRecoveryAction can only be executed on an indexing shard";
+            final var engine = indexShard.getEngineOrNull();
+            if (engine == null || engine instanceof NoOpEngine) {
+                // engine is closed, but search shard should be able to continue recovery
+                listener.onResponse(new RegisterCommitResponse(request.getCommit()));
+                return;
+            }
+            assert engine instanceof IndexEngine;
+            var statelessCommitService = ((IndexEngine) engine).getStatelessCommitService();
+            statelessCommitService.registerCommitForUnpromotableRecovery(
+                commit,
+                shardId,
+                request.getNodeId(),
+                state,
+                listener.map(RegisterCommitResponse::new)
+            );
+        });
     }
 
     private boolean isSearchShardInRoutingTable(ClusterState state, ShardId shardId, String nodeId) {

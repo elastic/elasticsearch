@@ -302,7 +302,6 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1301")
     public void testWillEvictCacheOnCorruptionError() throws Exception {
         final String indexNodeName = startMasterAndIndexNode();
         final String searchNodeName = startSearchNode();

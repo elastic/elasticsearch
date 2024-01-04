@@ -54,7 +54,7 @@ public class HuggingFaceInferenceRequestCreator implements RequestCreator<Huggin
         var truncatedInput = truncate(input, tokenLimit);
         var request = new HuggingFaceInferenceRequest(truncator, account, truncatedInput);
 
-        return () -> components.requestSender().send(logger, request, context, responseHandler, listener);
+        return new RunnableRequest(components, logger, request, context, responseHandler, listener);
     }
 
     @Override

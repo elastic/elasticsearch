@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 
+// TODO rewrite this comment
 /**
  * An {@link java.util.concurrent.ExecutorService} for queuing and executing {@link RequestTask} containing
  * {@link org.apache.http.client.methods.HttpRequestBase}. This class is useful because the
@@ -51,6 +52,7 @@ import static org.elasticsearch.core.Strings.format;
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
+// TODO rename
 class HttpRequestExecutorService<K> implements ExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
@@ -175,7 +177,7 @@ class HttpRequestExecutorService<K> implements ExecutorService {
 
             runBatch(batcher);
         } catch (Exception e) {
-            logger.warn(format("Http executor service [%s] failed to execute request [%s]", serviceName, initialTask), e);
+            logger.warn(format("Http executor service [%s] failed to execute batch request", serviceName), e);
         }
     }
 

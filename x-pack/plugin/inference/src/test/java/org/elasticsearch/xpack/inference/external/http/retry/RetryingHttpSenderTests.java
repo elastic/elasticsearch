@@ -58,7 +58,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
         var httpResponse = mockHttpResponse();
 
         doAnswer(invocation -> {
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[0]));
 
             return Void.TYPE;
@@ -100,7 +100,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[] { 'a' }));
 
             return Void.TYPE;
@@ -132,7 +132,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[] { 'a' }));
 
             return Void.TYPE;
@@ -166,7 +166,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[] { 'a' }));
 
             return Void.TYPE;
@@ -201,13 +201,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new RetryException(true, "failed"));
 
             return Void.TYPE;
         }).doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(mock(HttpResponse.class), new byte[] { 'a' }));
 
             return Void.TYPE;
@@ -240,13 +240,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new ContentTooLargeException(new IllegalStateException("failed")));
 
             return Void.TYPE;
         }).doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(mock(HttpResponse.class), new byte[] { 'a' }));
 
             return Void.TYPE;
@@ -279,13 +279,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new ConnectionClosedException("failed"));
 
             return Void.TYPE;
         }).doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(mock(HttpResponse.class), new byte[] { 'a' }));
 
             return Void.TYPE;
@@ -318,7 +318,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new UnknownHostException("failed"));
 
             return Void.TYPE;
@@ -355,7 +355,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[0]));
 
             return Void.TYPE;
@@ -398,7 +398,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onResponse(new HttpResult(httpResponse, new byte[0]));
 
             return Void.TYPE;
@@ -440,13 +440,13 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new RetryException(true, "failed"));
 
             return Void.TYPE;
         }).doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new RetryException(false, "failed again"));
 
             return Void.TYPE;
@@ -481,7 +481,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;

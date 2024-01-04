@@ -56,7 +56,7 @@ public class OpenAiEmbeddingsRequestCreator implements RequestCreator<OpenAiAcco
 
         var request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model.getTaskSettings());
 
-        return () -> components.requestSender().send(logger, request, context, responseHandler, listener);
+        return new RunnableRequest(components, logger, request, context, responseHandler, listener);
     }
 
     @Override

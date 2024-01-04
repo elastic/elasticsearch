@@ -145,16 +145,6 @@ public class InferenceRequestSenderFactory {
             service.shutdown();
         }
 
-        private void waitForStartToComplete() {
-            try {
-                if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
-                    throw new IllegalStateException("Http sender startup did not complete in time");
-                }
-            } catch (InterruptedException e) {
-                throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
-            }
-        }
-
         /**
          * Send a request at some point in the future. The timeout used is retrieved from the settings.
          * @param input the list of string input to send in the request
@@ -169,6 +159,16 @@ public class InferenceRequestSenderFactory {
             assert started.get() : "call start() before sending a request";
             waitForStartToComplete();
             service.send(requestCreator, input, timeout, listener);
+        }
+
+        private void waitForStartToComplete() {
+            try {
+                if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
+                    throw new IllegalStateException("Http sender startup did not complete in time");
+                }
+            } catch (InterruptedException e) {
+                throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
+            }
         }
 
         /**

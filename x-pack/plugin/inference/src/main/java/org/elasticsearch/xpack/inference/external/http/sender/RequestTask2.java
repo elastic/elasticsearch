@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -63,15 +64,12 @@ class RequestTask2<K> implements Task<K> {
             timeout,
             threadPool.executor(UTILITY_THREAD_POOL_NAME),
             notificationListener,
-            this::onTimeout
+            // TODO if this times out technically the retrying sender could still be retrying. We should devise a way
+            // to cancel the retryer task
+            (ignored) -> notificationListener.onFailure(
+                new ElasticsearchTimeoutException(Strings.format("Request timed out waiting to be sent after [%s]", timeout))
+            )
         );
-    }
-
-    // TODO if this times out technically the retrying sender could still be retrying. We should devise a way
-    // to cancel the retryer task
-    private void onTimeout(ActionListener<InferenceServiceResults> listener) {
-        finished.set(true);
-        listener.onFailure(new ElasticsearchTimeoutException("Request timed out waiting to be sent"));
     }
 
     @Override

@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactoryTests.createFactoryWithEmptySettings;
+import static org.elasticsearch.xpack.inference.external.http.sender.InferenceRequestSenderFactoryTests.createFactoryWithSettings;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.contains;
@@ -122,7 +123,13 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSend_FailsFromInvalidResponseFormat_ForElserAction() throws IOException {
-        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = createFactoryWithSettings(threadPool, clientManager, settings);
 
         try (var sender = senderFactory.createSender("test_service", HuggingFaceRequestBatcherFactory::new)) {
             sender.start();
@@ -147,17 +154,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(
-                    threadPool,
-                    mockThrottlerManager(),
-                    // timeout as zero for no retries
-                    buildSettingsWithRetryFields(
-                        TimeValue.timeValueMillis(1),
-                        TimeValue.timeValueMinutes(1),
-                        TimeValue.timeValueSeconds(0)
-                    ),
-                    TruncatorTests.createTruncator()
-                )
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
             );
             var action = actionCreator.create(model);
 
@@ -234,7 +231,14 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSend_FailsFromInvalidResponseFormat_ForEmbeddingsAction() throws IOException {
-        var senderFactory = createFactoryWithEmptySettings(threadPool, clientManager);
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+
+        var senderFactory = createFactoryWithSettings(threadPool, clientManager, settings);
 
         try (var sender = senderFactory.createSender("test_service", HuggingFaceRequestBatcherFactory::new)) {
             sender.start();
@@ -257,17 +261,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(
-                    threadPool,
-                    mockThrottlerManager(),
-                    // timeout as zero for no retries
-                    buildSettingsWithRetryFields(
-                        TimeValue.timeValueMillis(1),
-                        TimeValue.timeValueMinutes(1),
-                        TimeValue.timeValueSeconds(0)
-                    ),
-                    TruncatorTests.createTruncator()
-                )
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
             );
             var action = actionCreator.create(model);
 
@@ -403,7 +397,6 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
             var initialInputs = initialRequestAsMap.get("inputs");
             assertThat(initialInputs, is(List.of("123")));
-
         }
     }
 }

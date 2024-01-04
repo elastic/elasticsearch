@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -259,8 +260,12 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(List.of("abc"), listener);
 
-            var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(thrownException.getMessage(), is(format("Failed to find required field [data] in OpenAI embeddings response")));
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI embeddings request to [%s]", getUrl(webServer))));
+            assertThat(
+                thrownException.getCause().getMessage(),
+                is(format("Failed to find required field [data] in OpenAI embeddings response"))
+            );
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());

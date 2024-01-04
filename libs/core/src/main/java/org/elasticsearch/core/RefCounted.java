@@ -80,9 +80,7 @@ public interface RefCounted {
      */
     RefCounted ALWAYS_REFERENCED = new RefCounted() {
         @Override
-        public void incRef() {
-
-        }
+        public void incRef() {}
 
         @Override
         public boolean tryIncRef() {

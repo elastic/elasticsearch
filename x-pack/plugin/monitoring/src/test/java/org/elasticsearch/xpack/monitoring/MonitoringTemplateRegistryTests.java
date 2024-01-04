@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -45,7 +45,8 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -159,11 +160,10 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutLifecycleAction) {
+            if (action == ILMActions.PUT) {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(request, instanceOf(PutLifecycleRequest.class));
+                final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo(MonitoringTemplateRegistry.MONITORING_POLICY_NAME));
                 if (putRequest.getPolicy().getName().equals(MonitoringTemplateRegistry.MONITORING_POLICY_NAME)) {
                     Phase delete = putRequest.getPolicy().getPhases().get("delete");
@@ -177,7 +177,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -223,10 +223,10 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -255,10 +255,10 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -350,7 +350,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         if (action instanceof PutComponentTemplateAction) {
             // Ignore this, it's verified in another test
             return new TestPutIndexTemplateResponse(true);
-        } else if (action instanceof PutLifecycleAction) {
+        } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutComposableIndexTemplateAction) {
@@ -362,7 +362,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             assertThat(putRequest.indexTemplate().version(), equalTo((long) MonitoringTemplateRegistry.STACK_MONITORING_REGISTRY_VERSION));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutIndexTemplateAction) {
+        } else if (action == TransportPutIndexTemplateAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {

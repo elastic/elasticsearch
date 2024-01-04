@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -629,7 +630,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final var updateApiKeyRequest = new UpdateApiKeyRequest(
             keyId,
             randomBoolean() ? null : keyRoleDescriptors,
-            metadataWithSerialization.metadata()
+            metadataWithSerialization.metadata(),
+            ApiKeyTests.randomFutureExpirationTime()
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
         final var expectedUpdateKeyAuditEventString = String.format(
@@ -661,7 +663,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final var bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(
             keyIds,
             randomBoolean() ? null : keyRoleDescriptors,
-            metadataWithSerialization.metadata()
+            metadataWithSerialization.metadata(),
+            ApiKeyTests.randomFutureExpirationTime()
         );
         auditTrail.accessGranted(requestId, authentication, BulkUpdateApiKeyAction.NAME, bulkUpdateApiKeyRequest, authorizationInfo);
         final var expectedBulkUpdateKeyAuditEventString = String.format(
@@ -875,7 +878,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final var updateRequest = new UpdateCrossClusterApiKeyRequest(
             createRequest.getId(),
             updateAccess,
-            updateMetadataWithSerialization.metadata()
+            updateMetadataWithSerialization.metadata(),
+            ApiKeyTests.randomFutureExpirationTime()
         );
         auditTrail.accessGranted(requestId, authentication, UpdateCrossClusterApiKeyAction.NAME, updateRequest, authorizationInfo);
 

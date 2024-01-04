@@ -259,25 +259,36 @@ public class ModelRegistry {
     public void storeModel(Model model, ActionListener<Boolean> listener) {
         ActionListener<BulkResponse> bulkResponseActionListener = getStoreModelListener(model, listener);
 
-        IndexRequest configRequest = createIndexRequest(
-            Model.documentId(model.getConfigurations().getModelId()),
-            InferenceIndex.INDEX_NAME,
-            model.getConfigurations(),
-            false
-        );
-
-        IndexRequest secretsRequest = createIndexRequest(
-            Model.documentId(model.getConfigurations().getModelId()),
-            InferenceSecretsIndex.INDEX_NAME,
-            model.getSecrets(),
-            false
-        );
-
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        bulkRequestBuilder.add(configRequest)
-            .add(secretsRequest)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute(ActionListener.releaseAfter(bulkResponseActionListener, bulkRequestBuilder));
+        try {
+            IndexRequest configRequest = createIndexRequest(
+                Model.documentId(model.getConfigurations().getModelId()),
+                InferenceIndex.INDEX_NAME,
+                model.getConfigurations(),
+                false
+            );
+            try {
+                bulkRequestBuilder.add(configRequest);
+            } finally {
+                configRequest.decRef();
+            }
+            IndexRequest secretsRequest = createIndexRequest(
+                Model.documentId(model.getConfigurations().getModelId()),
+                InferenceSecretsIndex.INDEX_NAME,
+                model.getSecrets(),
+                false
+            );
+            try {
+                bulkRequestBuilder.add(secretsRequest);
+            } finally {
+                secretsRequest.decRef();
+            }
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .execute(ActionListener.releaseAfter(bulkResponseActionListener, bulkRequestBuilder));
+        } catch (Exception e) {
+            bulkRequestBuilder.request().decRef();
+            throw e;
+        }
     }
 
     private static ActionListener<BulkResponse> getStoreModelListener(Model model, ActionListener<Boolean> listener) {
@@ -364,10 +375,15 @@ public class ModelRegistry {
     private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             var request = new IndexRequest(indexName);
-            XContentBuilder source = body.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
+            try {
+                XContentBuilder source = body.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                var operation = allowOverwriting ? DocWriteRequest.OpType.INDEX : DocWriteRequest.OpType.CREATE;
 
-            return request.opType(operation).id(docId).source(source);
+                return request.opType(operation).id(docId).source(source);
+            } catch (Exception e) {
+                request.decRef();
+                throw e;
+            }
         } catch (IOException ex) {
             throw new ElasticsearchException(format("Unexpected serialization exception for index [%s] doc [%s]", indexName, docId), ex);
         }

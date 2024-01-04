@@ -203,6 +203,7 @@ class BulkPrimaryExecutionContext {
     public void resetForNoopMappingUpdateRetry(long mappingVersion) {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         if (noopMappingUpdateRetryForMappingVersion == mappingVersion) {
+            // this should never happen, if we end up here, there's probably a bug
             // seems like we're in a live lock/infinite loop here
             // we've already re-tried and are about to retry again
             // as no state has changed in the meantime (the mapping version is still the same),
@@ -210,10 +211,10 @@ class BulkPrimaryExecutionContext {
             // a possible cause:
             // maybe we added more dynamic mappers in DocumentParserContext.addDynamicMapper than possible according to the field limit
             // the additional fields are then ignored by the mapping merge and the process repeats
-            throw new IllegalStateException(
-                "On retry, this indexing request resulted in another noop mapping update. "
-                    + "Failing the indexing operation to prevent an infinite retry loop."
-            );
+            String message = "On retry, this indexing request resulted in another noop mapping update. "
+                + "Failing the indexing operation to prevent an infinite retry loop.";
+            assert false : message;
+            throw new IllegalStateException(message);
         }
         resetForExecutionRetry();
         noopMappingUpdateRetryForMappingVersion = mappingVersion;

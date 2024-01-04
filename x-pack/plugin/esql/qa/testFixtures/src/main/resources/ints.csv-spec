@@ -410,6 +410,30 @@ hire_date:date           | salary:integer | bs:double
 // end::auto_bucket-result[]
 ;
 
+docsAutoBucketNumeric
+//tag::docsAutoBucketNumeric[]
+FROM employees
+| EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
+| STATS COUNT(*) by bs
+| SORT bs
+//end::docsAutoBucketNumeric[]
+;
+
+//tag::docsAutoBucketNumeric-result[]
+   COUNT(*):long    |    bs:double
+9              |25000.0        
+9              |30000.0        
+18             |35000.0        
+11             |40000.0        
+11             |45000.0        
+10             |50000.0        
+7              |55000.0        
+9              |60000.0        
+8              |65000.0        
+8              |70000.0        
+//end::docsAutoBucketNumeric-result[]
+;
+
 cos
 ROW a=2 | EVAL cos=COS(a);
 

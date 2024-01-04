@@ -108,12 +108,14 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 
         BytesReference serializedJob = XContentHelper.toXContent(config, XContentType.JSON, params, false);
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), serializedJob.streamInput());
-
-        Job parsedConfig = Job.LENIENT_PARSER.apply(parser, null).build();
-        // When we are writing for internal storage, we do not include the datafeed config
-        assertThat(parsedConfig.getDatafeedConfig().isPresent(), is(false));
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), serializedJob.streamInput())
+        ) {
+            Job parsedConfig = Job.LENIENT_PARSER.apply(parser, null).build();
+            // When we are writing for internal storage, we do not include the datafeed config
+            assertThat(parsedConfig.getDatafeedConfig().isPresent(), is(false));
+        }
     }
 
     public void testFutureConfigParse() throws IOException {

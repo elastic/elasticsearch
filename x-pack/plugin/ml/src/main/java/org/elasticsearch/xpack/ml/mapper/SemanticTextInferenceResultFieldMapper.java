@@ -143,15 +143,16 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         }
     }
 
-    private static void parseFieldInferenceResults(
-        DocumentParserContext context,
-        MapperBuilderContext mapperBuilderContext) throws IOException {
+    private static void parseFieldInferenceResults(DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
+        throws IOException {
 
         String fieldName = context.parser().currentName();
         Mapper mapper = context.getMapper(fieldName);
         if (mapper == null || SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false) {
-            throw new DocumentParsingException(context.parser().getTokenLocation(),
-                "Field [%s] is not registered as a %s field type".formatted(fieldName, SemanticTextFieldMapper.CONTENT_TYPE));
+            throw new DocumentParsingException(
+                context.parser().getTokenLocation(),
+                "Field [%s] is not registered as a %s field type".formatted(fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
+            );
         }
 
         parseFieldInferenceResultsArray(context, mapperBuilderContext, fieldName);
@@ -160,7 +161,8 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
     private static void parseFieldInferenceResultsArray(
         DocumentParserContext context,
         MapperBuilderContext mapperBuilderContext,
-        String fieldName) throws IOException {
+        String fieldName
+    ) throws IOException {
 
         XContentParser parser = context.parser();
         NestedObjectMapper nestedObjectMapper = createNestedObjectMapper(context, mapperBuilderContext, fieldName);
@@ -172,8 +174,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             }
 
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
-                DocumentParserContext nestedContext = context
-                    .createChildContext(nestedObjectMapper)
+                DocumentParserContext nestedContext = context.createChildContext(nestedObjectMapper)
                     .createNestedContext(nestedObjectMapper);
 
                 if (token != XContentParser.Token.START_OBJECT) {
@@ -182,8 +183,10 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
 
                 for (token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                     if (token != XContentParser.Token.FIELD_NAME) {
-                        throw new DocumentParsingException(parser.getTokenLocation(),
-                            "Expected a FIELD_NAME, got " + parser.currentToken());
+                        throw new DocumentParsingException(
+                            parser.getTokenLocation(),
+                            "Expected a FIELD_NAME, got " + parser.currentToken()
+                        );
                     }
 
                     String currentName = parser.currentName();
@@ -209,7 +212,8 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
     private static NestedObjectMapper createNestedObjectMapper(
         DocumentParserContext context,
         MapperBuilderContext mapperBuilderContext,
-        String fieldName) {
+        String fieldName
+    ) {
 
         // TODO: Use keyword field type for text?
         // TODO: Why add text field to mapper if it's not indexed or stored?

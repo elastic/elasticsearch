@@ -79,15 +79,17 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             addSemanticTextMapping(b, fieldName1, randomAlphaOfLength(8));
             addSemanticTextMapping(b, fieldName2, randomAlphaOfLength(8));
         }));
-        ParsedDocument doc = documentMapper.parse(source(b -> addSemanticTextInferenceResults(b, List.of(
-            generateSemanticTextinferenceResults(fieldName1, List.of(
-                "a b",
-                "c"
-            )),
-            generateSemanticTextinferenceResults(fieldName2, List.of(
-                "d e f"
-            ))
-        ))));
+        ParsedDocument doc = documentMapper.parse(
+            source(
+                b -> addSemanticTextInferenceResults(
+                    b,
+                    List.of(
+                        generateSemanticTextinferenceResults(fieldName1, List.of("a b", "c")),
+                        generateSemanticTextinferenceResults(fieldName2, List.of("d e f"))
+                    )
+                )
+            )
+        );
 
         Set<VisitedChildDocInfo> visitedChildDocs = new HashSet<>();
         Set<VisitedChildDocInfo> expectedVisitedChildDocs = Set.of(
@@ -113,7 +115,8 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             NestedDocuments nested = new NestedDocuments(
                 nestedMapperService.mappingLookup(),
                 QueryBitSetProducer::new,
-                IndexVersion.current());
+                IndexVersion.current()
+            );
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             Set<SearchHit.NestedIdentity> visitedNestedIdentities = new HashSet<>();
@@ -146,8 +149,9 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         List<SparseEmbeddingResults.Embedding> embeddings = new ArrayList<>(chunks.size());
         for (String chunk : chunks) {
             String[] tokens = chunk.split("\\s+");
-            List<SparseEmbeddingResults.WeightedToken> weightedTokens = Arrays.stream(tokens).map(
-                t -> new SparseEmbeddingResults.WeightedToken(t, randomFloat())).toList();
+            List<SparseEmbeddingResults.WeightedToken> weightedTokens = Arrays.stream(tokens)
+                .map(t -> new SparseEmbeddingResults.WeightedToken(t, randomFloat()))
+                .toList();
 
             embeddings.add(new SparseEmbeddingResults.Embedding(weightedTokens, false));
         }
@@ -157,25 +161,30 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
 
     private static void addSemanticTextInferenceResults(
         XContentBuilder sourceBuilder,
-        List<SemanticTextInferenceResults> semanticTextInferenceResults) throws IOException {
+        List<SemanticTextInferenceResults> semanticTextInferenceResults
+    ) throws IOException {
 
         Map<String, List<Map<String, Object>>> inferenceResultsMap = new HashMap<>();
         for (SemanticTextInferenceResults semanticTextInferenceResult : semanticTextInferenceResults) {
             List<Map<String, Object>> parsedInferenceResults = new ArrayList<>(semanticTextInferenceResult.text().size());
 
             Iterator<SparseEmbeddingResults.Embedding> embeddingsIterator = semanticTextInferenceResult.sparseEmbeddingResults()
-                .embeddings().iterator();
+                .embeddings()
+                .iterator();
             Iterator<String> textIterator = semanticTextInferenceResult.text().iterator();
             while (embeddingsIterator.hasNext() && textIterator.hasNext()) {
                 SparseEmbeddingResults.Embedding embedding = embeddingsIterator.next();
                 String text = textIterator.next();
 
-                parsedInferenceResults.add(Map.of(
-                    // TODO: OK to omit is_truncated?
-                    SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME, embedding.asMap().get(
-                        SparseEmbeddingResults.Embedding.EMBEDDING),
-                    SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME, text
-                ));
+                parsedInferenceResults.add(
+                    Map.of(
+                        // TODO: OK to omit is_truncated?
+                        SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME,
+                        embedding.asMap().get(SparseEmbeddingResults.Embedding.EMBEDDING),
+                        SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME,
+                        text
+                    )
+                );
             }
 
             inferenceResultsMap.put(semanticTextInferenceResult.fieldName(), parsedInferenceResults);
@@ -202,18 +211,24 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     private static void assertValidChildDoc(
         LuceneDocument childDoc,
         LuceneDocument expectedParent,
-        Set<VisitedChildDocInfo> visitedChildDocs) {
+        Set<VisitedChildDocInfo> visitedChildDocs
+    ) {
 
         assertEquals(expectedParent, childDoc.getParent());
-        visitedChildDocs.add(new VisitedChildDocInfo(childDoc.getPath(), childDoc.getFields(
-            childDoc.getPath() + "." + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME).size()));
+        visitedChildDocs.add(
+            new VisitedChildDocInfo(
+                childDoc.getPath(),
+                childDoc.getFields(childDoc.getPath() + "." + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME).size()
+            )
+        );
     }
 
     private static void assertChildLeafNestedDocument(
         LeafNestedDocuments leaf,
         int advanceToDoc,
         int expectedRootDoc,
-        Set<SearchHit.NestedIdentity> visitedNestedIdentities) throws IOException {
+        Set<SearchHit.NestedIdentity> visitedNestedIdentities
+    ) throws IOException {
 
         assertNotNull(leaf.advance(advanceToDoc));
         assertEquals(advanceToDoc, leaf.doc());

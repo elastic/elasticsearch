@@ -2310,9 +2310,6 @@ public class MachineLearning extends Plugin
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Map.of(
-            SemanticTextInferenceResultFieldMapper.NAME,
-            SemanticTextInferenceResultFieldMapper.PARSER
-        );
+        return Map.of(SemanticTextInferenceResultFieldMapper.NAME, SemanticTextInferenceResultFieldMapper.PARSER);
     }
 }

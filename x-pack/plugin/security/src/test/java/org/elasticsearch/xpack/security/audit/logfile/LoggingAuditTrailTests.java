@@ -627,21 +627,23 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         final String keyId = randomAlphaOfLength(10);
+        final TimeValue newExpiration = ApiKeyTests.randomFutureExpirationTime();
         final var updateApiKeyRequest = new UpdateApiKeyRequest(
             keyId,
             randomBoolean() ? null : keyRoleDescriptors,
             metadataWithSerialization.metadata(),
-            ApiKeyTests.randomFutureExpirationTime()
+            newExpiration
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
         final var expectedUpdateKeyAuditEventString = String.format(
             Locale.ROOT,
             """
-                "change":{"apikey":{"id":"%s","type":"rest"%s%s}}\
+                "change":{"apikey":{"id":"%s","type":"rest"%s%s,"expiration":"%s"}}\
                 """,
             keyId,
             updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
-            updateApiKeyRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+            updateApiKeyRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization()),
+            updateApiKeyRequest.getExpiration()
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
@@ -664,7 +666,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             keyIds,
             randomBoolean() ? null : keyRoleDescriptors,
             metadataWithSerialization.metadata(),
-            ApiKeyTests.randomFutureExpirationTime()
+            null
         );
         auditTrail.accessGranted(requestId, authentication, BulkUpdateApiKeyAction.NAME, bulkUpdateApiKeyRequest, authorizationInfo);
         final var expectedBulkUpdateKeyAuditEventString = String.format(

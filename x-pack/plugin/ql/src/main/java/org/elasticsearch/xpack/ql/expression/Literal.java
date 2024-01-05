@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Objects;
-import java.util.function.BiFunction;
 
 /**
  * SQL Literal or constant.
@@ -31,10 +30,6 @@ public class Literal extends LeafExpression {
         super(source);
         this.dataType = dataType;
         this.value = value;
-    }
-
-    public Literal(Source source, Object value, DataType dataType, BiFunction<DataType, Object, Object> valueMapper) {
-        this(source, valueMapper.apply(dataType, value), dataType);
     }
 
     @Override

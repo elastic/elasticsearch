@@ -1579,12 +1579,10 @@ public final class PlanNamedTypes {
     // -- Expressions (other)
 
     static Literal readLiteral(PlanStreamInput in) throws IOException {
-        return new Literal(
-            in.readSource(),
-            in.readGenericValue(),
-            in.dataTypeFromTypeName(in.readString()),
-            PlanNamedTypes::mapToLiteralValue
-        );
+        Source source = in.readSource();
+        Object value = in.readGenericValue();
+        DataType dataType = in.dataTypeFromTypeName(in.readString());
+        return new Literal(source, mapToLiteralValue(in, dataType, value), dataType);
     }
 
     static void writeLiteral(PlanStreamOutput out, Literal literal) throws IOException {
@@ -1622,19 +1620,15 @@ public final class PlanNamedTypes {
      * This only makes sense during the pre-GA version of ESQL. When we get near GA we want TransportVersion support.
      * TODO: Implement TransportVersion checks before GA (eg. by adding to StreamInput/StreamOutput directly)
      */
-    private static Object mapToLiteralValue(DataType dataType, Object value) {
+    private static Object mapToLiteralValue(PlanStreamInput in, DataType dataType, Object value) {
         if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
-            if (value instanceof List<?> list) {
-                return list.stream().map(v -> mapToLiteralValue(dataType, v)).toList();
-            }
-            if (value instanceof BytesRef wkb) {
-                return wkb;
-            }
-            if (value instanceof byte[] wkb) {
-                return new BytesRef(wkb);
-            }
-            if (value instanceof Long encoded) {
-                return longAsWKB(dataType, encoded);
+            // Picked an existing transport version that is clearly in between the doc-values and WKB versions of the point literals
+            // This simplification works since ESQL is not supported in serverless, so we're only differentiating between 8.12 and 8.13
+            if (in.getTransportVersion().before(TransportVersions.ESQL_PROFILE)) {
+                if (value instanceof List<?> list) {
+                    return list.stream().map(v -> mapToLiteralValue(in, dataType, v)).toList();
+                }
+                return longAsWKB(dataType, (Long) value);
             }
         }
         return value;

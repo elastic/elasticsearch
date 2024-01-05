@@ -52,7 +52,11 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     private static final Index INDEX = new Index("test-index-001", "e0adaff5-8ac4-4bb8-a8d1-adfde1a064cc");
     private static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(
         Settings.EMPTY,
-        Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING)
+        Sets.addToCopy(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+            MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
+            MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING
+        )
     );
 
     private static ExecutorService executorService;
@@ -173,6 +177,13 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             );
         }
         try {
+            customService.getTotalIndicesMappingSize();
+            mockLogAppender.assertAllExpectationsMatched();
+
+            // Second call doesn't result in duplicate logs
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
+            );
             customService.getTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
         } finally {

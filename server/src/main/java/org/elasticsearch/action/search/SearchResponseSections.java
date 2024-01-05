@@ -26,6 +26,24 @@ import java.util.Map;
  */
 public class SearchResponseSections implements RefCounted {
 
+    public static final SearchResponseSections EMPTY_WITH_TOTAL_HITS = new SearchResponseSections(
+        SearchHits.EMPTY_WITH_TOTAL_HITS,
+        null,
+        null,
+        false,
+        null,
+        null,
+        1
+    );
+    public static final SearchResponseSections EMPTY_WITHOUT_TOTAL_HITS = new SearchResponseSections(
+        SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+        null,
+        null,
+        false,
+        null,
+        null,
+        1
+    );
     protected final SearchHits hits;
     protected final Aggregations aggregations;
     protected final Suggest suggest;
@@ -34,12 +52,7 @@ public class SearchResponseSections implements RefCounted {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
 
-    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
-        @Override
-        protected void closeInternal() {
-            hits.decRef();
-        }
-    });
+    private final RefCounted refCounted;
 
     public SearchResponseSections(
         SearchHits hits,
@@ -58,6 +71,12 @@ public class SearchResponseSections implements RefCounted {
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
+        refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new AbstractRefCounted() {
+            @Override
+            protected void closeInternal() {
+                hits.decRef();
+            }
+        }) : ALWAYS_REFERENCED;
     }
 
     public final boolean timedOut() {

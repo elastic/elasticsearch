@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -252,12 +251,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
                                 @Override
                                 protected void doRun() {
-                                    var r = new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1);
-                                    try {
-                                        sendSearchResponse(r, results.getAtomicArray());
-                                    } finally {
-                                        r.decRef();
-                                    }
+                                    sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
                                 }
 
                                 @Override

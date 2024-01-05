@@ -152,12 +152,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertTrue(searchPhaseDidRun.get());
         assertEquals(shardsIter.size() - numSkipped, numRequests.get());
 
-        var sections = new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1);
-        try {
-            asyncAction.sendSearchResponse(sections, null);
-        } finally {
-            sections.decRef();
-        }
+        asyncAction.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, null);
         assertNotNull(searchResponse.get());
         assertEquals(0, searchResponse.get().getFailedShards());
         assertEquals(numSkipped, searchResponse.get().getSkippedShards());
@@ -700,12 +695,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertThat(latch.await(4, TimeUnit.SECONDS), equalTo(true));
         assertThat(searchPhaseDidRun.get(), equalTo(true));
 
-        var sections = new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1);
-        try {
-            asyncAction.sendSearchResponse(sections, null);
-        } finally {
-            sections.decRef();
-        }
+        asyncAction.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, null);
         assertNotNull(searchResponse.get());
         assertThat(searchResponse.get().getSkippedShards(), equalTo(numUnavailableSkippedShards));
         assertThat(searchResponse.get().getFailedShards(), equalTo(0));

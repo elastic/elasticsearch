@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
@@ -169,7 +169,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
         verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
         captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() {
@@ -178,7 +178,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        verify(client, times(1)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testPolicyAlreadyExists() {
@@ -192,7 +192,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         policyMap.put(policy.getName(), policy);
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
         registry.clusterChanged(event);
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testNoPolicyButILMDisabled() {
@@ -208,7 +208,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
@@ -228,7 +228,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             policyMap.put(policy.getName(), different);
             ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
             registry.clusterChanged(event);
-            verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+            verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
         }
     }
 

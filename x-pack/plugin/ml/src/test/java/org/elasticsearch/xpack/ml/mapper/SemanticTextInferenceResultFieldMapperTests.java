@@ -11,6 +11,7 @@ import org.apache.commons.math3.util.Pair;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -54,6 +55,11 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     @Override
     protected boolean isConfigurable() {
         return false;
+    }
+
+    @Override
+    protected boolean isSupportedOn(IndexVersion version) {
+        return version.onOrAfter(IndexVersions.SEMANTIC_TEXT_FIELD_ADDED);
     }
 
     @Override

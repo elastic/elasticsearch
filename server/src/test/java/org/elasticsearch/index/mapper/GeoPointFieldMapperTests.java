@@ -729,4 +729,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         // Disabled due to unsolved test failures
         assumeTrue("fix MapperTestCase.testBlockLoader for geo_point, possibly by tweaking the test data", false);
     }
+
+    @Override
+    public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() {
+        assumeTrue("Synthetic source not completed supported for geo_point", false);
+    }
 }

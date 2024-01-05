@@ -1290,6 +1290,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             public String parentField(String field) {
                 return mapper.mappingLookup().parentField(field);
             }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return (FieldNamesFieldMapper.FieldNamesFieldType) mapper.fieldType(FieldNamesFieldMapper.NAME);
+            }
         });
         Function<Object, Object> valuesConvert = loadBlockExpected();
         if (valuesConvert == null) {

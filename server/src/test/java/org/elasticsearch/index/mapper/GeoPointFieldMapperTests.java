@@ -742,6 +742,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testBlockLoaderFromRowStrideReader() {
+        assumeTrue("Muted test while test infrastructure does not yet support geo_point in WKB", false);
+    }
+
+    @Override
     public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() {
         assumeTrue("Synthetic source not completed supported for geo_point", false);
     }

@@ -536,7 +536,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 ).addMultiField(new KeywordFieldMapper.Builder("multi_field_size_5", IndexVersion.current()))
             )
         );
-        assertThat(mapperBuilder.mapperSize(), equalTo(5));
         assertThat(mapperBuilder.build(MapperBuilderContext.root(false, false)).mapperSize(), equalTo(5));
     }
 }

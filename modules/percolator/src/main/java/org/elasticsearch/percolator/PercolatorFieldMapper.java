@@ -178,16 +178,6 @@ public class PercolatorFieldMapper extends FieldMapper {
             );
         }
 
-        @Override
-        public int mapperSize() {
-            return super.mapperSize() // this + multi fields
-                + 1  // queryTermsField,
-                + 1  // extractionResultField,
-                + 1  // queryBuilderField,
-                + 1  // minimumShouldMatchFieldMapper,
-                + 1; // rangeFieldMapper
-        }
-
         static KeywordFieldMapper createExtractQueryFieldBuilder(
             String name,
             MapperBuilderContext context,

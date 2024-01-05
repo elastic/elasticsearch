@@ -1411,11 +1411,6 @@ public abstract class FieldMapper extends Mapper {
             }
             return DEPRECATED_PARAMS.contains(propName);
         }
-
-        @Override
-        public int mapperSize() {
-            return 1 + multiFieldsBuilder.mapperSize();
-        }
     }
 
     public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {

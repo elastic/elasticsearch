@@ -17,25 +17,25 @@ import java.io.IOException;
 public class FieldAliasMapperTests extends MapperServiceTestCase {
 
     public void testParsing() throws IOException {
-        XContentBuilder mappingXContent = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("alias-field")
-            .field("type", "alias")
-            .field("path", "concrete-field")
-            .endObject()
-            .startObject("concrete-field")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        String mapping = Strings.toString(mappingXContent);
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("alias-field")
+                .field("type", "alias")
+                .field("path", "concrete-field")
+                .endObject()
+                .startObject("concrete-field")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(mapping, mapper.mappingSource().toString());
-        RootObjectMapper.Builder builder = getRootObjectMapperBuilder(mappingXContent);
-        assertEquals(2, builder.mapperSize());
+        assertEquals(2, mapper.mapping().getRoot().mapperSize());
     }
 
     public void testParsingWithMissingPath() {

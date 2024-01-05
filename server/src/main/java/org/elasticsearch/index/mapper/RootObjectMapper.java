@@ -119,11 +119,6 @@ public class RootObjectMapper extends ObjectMapper {
                 numericDetection
             );
         }
-
-        @Override
-        public int mapperSize() {
-            return mappersBuilders.stream().mapToInt(Mapper.Builder::mapperSize).sum() + runtimeFields.size();
-        }
     }
 
     private final Explicit<DateFormatter[]> dynamicDateTimeFormatters;

@@ -295,6 +295,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
             );
         }
         currentRelativeTimeInNanos.addAndGet(SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
+        currentRelativeTimeInNanos.addAndGet(SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).nanos() + 1);
 
         var memoryMetricsServiceLogger = LogManager.getLogger(SearchMetricsService.class);
         var mockLogAppender = new MockLogAppender();
@@ -316,6 +317,13 @@ public class SearchMetricsServiceTests extends ESTestCase {
                     )
                 );
             }
+            service.getSearchTierMetrics();
+            mockLogAppender.assertAllExpectationsMatched();
+
+            // Duplicate call doesn't cause new log warnings
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", SearchMetricsService.class.getName(), Level.WARN, "*")
+            );
             service.getSearchTierMetrics();
             mockLogAppender.assertAllExpectationsMatched();
 
@@ -725,7 +733,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
     private static ClusterSettings createClusterSettings() {
         return new ClusterSettings(
             Settings.EMPTY,
-            Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING)
+            Sets.addToCopy(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
+                SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING
+            )
         );
     }
 }

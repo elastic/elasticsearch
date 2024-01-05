@@ -58,7 +58,11 @@ public class IngestMetricsServiceTests extends ESTestCase {
             System::nanoTime,
             new ClusterSettings(
                 Settings.EMPTY,
-                Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING)
+                Sets.addToCopy(
+                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                    MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
+                    MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING
+                )
             )
         );
     }

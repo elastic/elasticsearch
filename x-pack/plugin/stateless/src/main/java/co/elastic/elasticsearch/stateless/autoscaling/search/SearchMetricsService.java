@@ -61,6 +61,12 @@ public class SearchMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final Setting<TimeValue> STALE_METRICS_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "serverless.autoscaling.search_metrics.stale_check_interval",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private static final ShardSize ZERO_SHARD_SIZE = new ShardSize(0, 0, PrimaryTermAndGeneration.ZERO);
 
     private final LongSupplier relativeTimeInNanosSupplier;
@@ -72,6 +78,9 @@ public class SearchMetricsService implements ClusterStateListener {
     private final ConcurrentMap<ShardId, ShardMetrics> shardMetrics = new ConcurrentHashMap<>();
 
     private volatile long metricTimeoutNanos;
+
+    private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
+    private volatile TimeValue staleMetricsCheckInterval;
 
     public static SearchMetricsService create(
         ClusterSettings clusterSettings,
@@ -96,6 +105,7 @@ public class SearchMetricsService implements ClusterStateListener {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.memoryMetricsService = memoryMetricsService;
         clusterSettings.initializeAndWatch(ACCURATE_METRICS_WINDOW_SETTING, value -> this.metricTimeoutNanos = value.nanos());
+        clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> this.staleMetricsCheckInterval = value);
     }
 
     public void processShardSizesRequest(PublishShardSizesRequest request) {
@@ -179,6 +189,10 @@ public class SearchMetricsService implements ClusterStateListener {
         long maxInteractiveDataSizeInBytes = 0;
         long totalInteractiveDataSizeInBytes = 0;
         long totalDataSizeInBytes = 0;
+        boolean checkStaleMetrics = currentTimestampNanos - staleMetricsCheckInterval.nanos() > lastStaleMetricsCheckTimeNs;
+        if (checkStaleMetrics) {
+            lastStaleMetricsCheckTimeNs = relativeTimeInNanos();
+        }
 
         for (var entry : indices.entrySet()) {
             var index = entry.getKey();
@@ -190,7 +204,7 @@ public class SearchMetricsService implements ClusterStateListener {
                 assert metrics != null : "Metric should be initialized by this point";
                 synchronized (metrics) {
                     boolean isOutdated = metrics.sourceNode != null && metrics.sourceNode.isOutdated(currentTimestampNanos);
-                    if (isOutdated) {
+                    if (checkStaleMetrics && isOutdated) {
                         logger.warn("Storage metrics are stale for shard: {}, {}", shardId, metrics);
                     }
                     dataSizeExact &= metrics.sourceNode != null && isOutdated == false;

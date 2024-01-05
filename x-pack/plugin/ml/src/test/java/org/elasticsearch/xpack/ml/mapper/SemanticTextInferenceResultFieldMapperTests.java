@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.mapper;
 
-import org.apache.commons.math3.util.Pair;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -106,33 +105,34 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         assertNull(luceneDocs.get(3).getParent());
         assertEquals(expectedVisitedChildDocs, visitedChildDocs);
 
-        // TODO: Need to test how the docs are indexed?
-//        MapperService nestedMapperService = createMapperService(mapping(b -> {
-//            addInferenceResultsNestedMapping(b, fieldName1);
-//            addInferenceResultsNestedMapping(b, fieldName2);
-//        }));
-//        withLuceneIndex(nestedMapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-//            NestedDocuments nested = new NestedDocuments(
-//                nestedMapperService.mappingLookup(),
-//                QueryBitSetProducer::new,
-//                IndexVersion.current());
-//            LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
-//
-//            assertNotNull(leaf.advance(0));
-//            assertEquals(0, leaf.doc());
-//            assertEquals(2, leaf.rootDoc());
-//            assertEquals(new SearchHit.NestedIdentity(fieldName1, 0, null), leaf.nestedIdentity());
-//
-//            assertNotNull(leaf.advance(1));
-//            assertEquals(1, leaf.doc());
-//            assertEquals(2, leaf.rootDoc());
-//            assertEquals(new SearchHit.NestedIdentity(fieldName2, 1, null), leaf.nestedIdentity());
-//
-//            assertNull(leaf.advance(2));
-//            assertEquals(2, leaf.doc());
-//            assertEquals(2, leaf.rootDoc());
-//            assertNull(leaf.nestedIdentity());
-//        });
+        MapperService nestedMapperService = createMapperService(mapping(b -> {
+            addInferenceResultsNestedMapping(b, fieldName1);
+            addInferenceResultsNestedMapping(b, fieldName2);
+        }));
+        withLuceneIndex(nestedMapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            NestedDocuments nested = new NestedDocuments(
+                nestedMapperService.mappingLookup(),
+                QueryBitSetProducer::new,
+                IndexVersion.current());
+            LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
+
+            Set<SearchHit.NestedIdentity> visitedNestedIdentities = new HashSet<>();
+            Set<SearchHit.NestedIdentity> expectedVisitedNestedIdentities = Set.of(
+                new SearchHit.NestedIdentity(fieldName1, 0, null),
+                new SearchHit.NestedIdentity(fieldName1, 1, null),
+                new SearchHit.NestedIdentity(fieldName2, 0, null)
+            );
+
+            assertChildLeafNestedDocument(leaf, 0, 3, visitedNestedIdentities);
+            assertChildLeafNestedDocument(leaf, 1, 3, visitedNestedIdentities);
+            assertChildLeafNestedDocument(leaf, 2, 3, visitedNestedIdentities);
+            assertEquals(expectedVisitedNestedIdentities, visitedNestedIdentities);
+
+            assertNull(leaf.advance(3));
+            assertEquals(3, leaf.doc());
+            assertEquals(3, leaf.rootDoc());
+            assertNull(leaf.nestedIdentity());
+        });
     }
 
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {
@@ -207,5 +207,18 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         assertEquals(expectedParent, childDoc.getParent());
         visitedChildDocs.add(new VisitedChildDocInfo(childDoc.getPath(), childDoc.getFields(
             childDoc.getPath() + "." + SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME).size()));
+    }
+
+    private static void assertChildLeafNestedDocument(
+        LeafNestedDocuments leaf,
+        int advanceToDoc,
+        int expectedRootDoc,
+        Set<SearchHit.NestedIdentity> visitedNestedIdentities) throws IOException {
+
+        assertNotNull(leaf.advance(advanceToDoc));
+        assertEquals(advanceToDoc, leaf.doc());
+        assertEquals(expectedRootDoc, leaf.rootDoc());
+        assertNotNull(leaf.nestedIdentity());
+        visitedNestedIdentities.add(leaf.nestedIdentity());
     }
 }

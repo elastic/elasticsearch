@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 
@@ -69,5 +70,18 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
     public Object symbol() {
         return "=~";
+    }
+
+    @Override
+    public Boolean fold() {
+        if (left().dataType() == DataTypes.TEXT || left().dataType() == DataTypes.KEYWORD) {
+            BytesRef leftVal = (BytesRef) left().fold();
+            BytesRef rightVal = (BytesRef) right().fold();
+            if (leftVal == null || rightVal == null) {
+                return null;
+            }
+            return processKeywords(leftVal, rightVal);
+        }
+        return new Equals(source(), left(), right()).fold();
     }
 }

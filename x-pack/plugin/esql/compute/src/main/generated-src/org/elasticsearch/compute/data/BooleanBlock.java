@@ -19,7 +19,7 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock,
-    FilterBooleanBlock {
+    FilterBooleanBlock, FilterBooleanVectorBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.

@@ -676,10 +676,14 @@ public class DoSection implements ExecutableSection {
         if (parser.text().equals("current")) {
             nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
             versionSelectorString = "version is " + Build.current().version() + " (current)";
+        } else if (parser.text().equals("non_current")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion) == false;
+            versionSelectorString = "version is not current";
         } else {
-            var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
-            nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
-            versionSelectorString = "version ranges " + acceptedVersionRange;
+            throw new XContentParseException(
+                parser.getTokenLocation(),
+                "unknown version selector [" + parser.text() + "]. Only [current] and [non_current] are allowed."
+            );
         }
 
         return new NodeSelector() {

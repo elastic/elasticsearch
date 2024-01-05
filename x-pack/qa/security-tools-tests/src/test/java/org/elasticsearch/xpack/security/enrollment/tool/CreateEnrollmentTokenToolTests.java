@@ -128,13 +128,11 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         EnrollmentToken kibanaToken = new EnrollmentToken(
             "DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d",
-            "8.0.0",
             Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202")
         );
         EnrollmentToken nodeToken = new EnrollmentToken(
             "DR6CzXkBDf8amV_48yYX:4BhUk-mkFm-AwvRFg90KJ",
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d",
-            "8.0.0",
             Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202")
         );
         when(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class), any(URL.class))).thenReturn(
@@ -189,7 +187,6 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
         EnrollmentToken kibanaToken = new EnrollmentToken(
             "DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
             "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d",
-            "8.0.0",
             Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202")
         );
         when(

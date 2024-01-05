@@ -11,7 +11,6 @@ package org.elasticsearch.search.fetch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -68,17 +67,7 @@ public final class FetchPhase {
         if (docIdsToLoad == null || docIdsToLoad.length == 0) {
             // no individual hits to process, so we shortcut
             context.fetchResult()
-                .shardResult(
-                    SearchHits.unpooled(
-                        SearchHits.EMPTY,
-                        context.queryResult().getTotalHits(),
-                        context.queryResult().getMaxScore(),
-                        null,
-                        null,
-                        null
-                    ),
-                    null
-                );
+                .shardResult(SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()), null);
             return;
         }
 
@@ -183,8 +172,7 @@ public final class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        TotalHits totalHits = context.getTotalHits();
-        return SearchHits.unpooled(hits, totalHits, context.getMaxScore(), null, null, null);
+        return SearchHits.unpooled(hits, context.getTotalHits(), context.getMaxScore());
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {

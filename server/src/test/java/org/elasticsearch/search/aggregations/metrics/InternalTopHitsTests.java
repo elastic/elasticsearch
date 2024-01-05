@@ -167,14 +167,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         }
         int totalHits = between(actualSize, 500000);
         sort(hits, scoreDocs, comparator);
-        SearchHits searchHits = SearchHits.unpooled(
-            hits,
-            new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO),
-            maxScore,
-            null,
-            null,
-            null
-        );
+        SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
 
         TopDocs topDocs = topDocsBuilder.apply(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
@@ -300,7 +293,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         hit = hit.sourceRef(Source.fromMap(Map.of("foo", 1000.0), XContentType.YAML).internalSourceRef());
         hit.sortValues(new Object[] { 10.0 }, new DocValueFormat[] { DocValueFormat.RAW });
         hit.score(1.0f);
-        SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 0, null, null, null);
+        SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 0);
         InternalTopHits internalTopHits = new InternalTopHits("test", 0, 0, null, hits, null);
 
         assertEquals(internalTopHits, internalTopHits.getProperty(Collections.emptyList()));
@@ -434,14 +427,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
                     searchHits.getTotalHits().value + between(1, 100),
                     randomFrom(TotalHits.Relation.values())
                 );
-                searchHits = SearchHits.unpooled(
-                    searchHits.asUnpooled().getHits(),
-                    totalHits,
-                    searchHits.getMaxScore() + randomFloat(),
-                    null,
-                    null,
-                    null
-                );
+                searchHits = SearchHits.unpooled(searchHits.asUnpooled().getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
             }
             case 5 -> {
                 if (metadata == null) {

@@ -372,7 +372,7 @@ public class CoordinatorTests extends ESTestCase {
 
     private static SearchResponse emptySearchResponse() {
         return new SearchResponse(
-            SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN, null, null, null),
+            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
             null,
             false,

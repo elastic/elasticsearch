@@ -156,7 +156,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             hits[i] = ((InternalTopHits) aggregations.get(shardIndex)).searchHits.getAt(position);
             assert hits[i].isPooled() == false;
         }
-        return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore, null, null, null);
+        return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);
     }
 
     private static float reduceAndFindMaxScore(List<InternalAggregation> aggregations, TopDocs[] shardDocs) {

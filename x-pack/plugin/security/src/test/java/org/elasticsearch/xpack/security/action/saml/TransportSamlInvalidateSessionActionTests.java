@@ -129,7 +129,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private List<SearchRequest> searchRequests;
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
-    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> new SearchHit[0];
+    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> SearchHits.EMPTY;
 
     @Before
     public void setup() throws Exception {
@@ -367,7 +367,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .filter(r -> r.id().startsWith("token"))
             .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
             .collect(Collectors.toList())
-            .toArray(new SearchHit[0]);
+            .toArray(SearchHits.EMPTY);
         assertThat(searchHits.length, equalTo(4));
         searchFunction = req1 -> {
             searchFunction = findTokenByRefreshToken(searchHits);
@@ -468,7 +468,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     return new SearchHit[] { hit };
                 }
             }
-            return new SearchHit[0];
+            return SearchHits.EMPTY;
         };
     }
 

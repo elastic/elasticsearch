@@ -245,7 +245,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                     capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(
                         new SearchResponse(
-                            SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                             InternalAggregations.EMPTY,
                             null,
                             false,

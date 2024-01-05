@@ -272,7 +272,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    var h = new SearchHit(in);
+                    var h = SearchHit.readFrom(in);
                     try {
                         this.hit = h.asUnpooled();
                     } finally {

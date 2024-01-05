@@ -63,7 +63,7 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testGetUnparsedModelMap_ThrowsResourceNotFound_WhenNoHitsReturned() {
         var client = mockClient();
-        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[0]));
+        mockClientExecuteSearch(client, mockSearchResponse(SearchHits.EMPTY));
 
         var registry = new ModelRegistry(client);
 

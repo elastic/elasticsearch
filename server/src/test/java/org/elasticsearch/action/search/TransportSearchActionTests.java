@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -857,7 +858,7 @@ public class TransportSearchActionTests extends ESTestCase {
         ActionListener.respondAndRelease(
             tuple.v2(),
             new SearchResponse(
-                SearchHits.EMPTY_WITH_TOTAL_HITS,
+                SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                 InternalAggregations.EMPTY,
                 null,
                 false,

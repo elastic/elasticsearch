@@ -579,7 +579,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private SearchResponse createNullSearchResponse() {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        SearchHits searchHits = SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
+        SearchHits searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
         List<Aggregation> aggs = new ArrayList<>();

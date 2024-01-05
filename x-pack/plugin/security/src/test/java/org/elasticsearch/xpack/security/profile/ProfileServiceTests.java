@@ -1030,7 +1030,7 @@ public class ProfileServiceTests extends ESTestCase {
             } else {
                 final var searchResponse = mock(SearchResponse.class);
                 when(searchResponse.getHits()).thenReturn(
-                    SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(metrics.get(name), TotalHits.Relation.EQUAL_TO), 1)
+                    SearchHits.empty(new TotalHits(metrics.get(name), TotalHits.Relation.EQUAL_TO), 1)
                 );
                 return new MultiSearchResponse.Item(searchResponse, null);
             }

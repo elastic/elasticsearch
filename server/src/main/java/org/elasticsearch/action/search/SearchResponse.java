@@ -1406,7 +1406,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         return new SearchResponse(
-            SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN, null, null, null),
+            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
             null,
             false,

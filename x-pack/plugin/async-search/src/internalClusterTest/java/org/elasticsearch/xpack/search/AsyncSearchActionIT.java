@@ -379,6 +379,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
                 assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
                 assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+
                 AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
                 assertTrue(statusResponse.isRunning());
                 assertEquals(numShards, statusResponse.getTotalShards());
@@ -478,6 +479,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
             assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
             assertThat(response.getExpirationTime(), greaterThan(now));
+
         } finally {
             response.decRef();
         }

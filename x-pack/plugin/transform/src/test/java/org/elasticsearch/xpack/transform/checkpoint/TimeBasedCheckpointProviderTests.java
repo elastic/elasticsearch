@@ -178,7 +178,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         TimeValue delay,
         Tuple<Long, Long> expectedRangeQueryBounds
     ) throws InterruptedException {
-        var searchResponse = newSearchResponse(totalHits);
+        final SearchResponse searchResponse = newSearchResponse(totalHits);
         try {
             doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
             String transformId = getTestName();

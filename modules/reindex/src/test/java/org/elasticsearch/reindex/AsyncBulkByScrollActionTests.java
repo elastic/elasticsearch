@@ -590,7 +590,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         );
         try {
-
             client.lastSearch.get().listener.onResponse(searchResponse);
 
             assertEquals(0, capturedDelay.get().seconds());
@@ -610,13 +609,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 // The delay uses the new throttle
                 assertEquals(9, capturedDelay.get().seconds());
             }
+            // Running the command ought to increment the delay counter on the task.
+            capturedCommand.get().run();
+            assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
         } finally {
             searchResponse.decRef();
         }
-
-        // Running the command ought to increment the delay counter on the task.
-        capturedCommand.get().run();
-        assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
     }
 
     /**

@@ -530,7 +530,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         );
         try {
-
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
 
@@ -624,7 +623,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         );
         try {
-
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
 
@@ -721,7 +719,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         );
         try {
-
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = new Function<>() {
                 final AtomicInteger calls = new AtomicInteger(0);

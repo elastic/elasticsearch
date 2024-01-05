@@ -607,12 +607,16 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), asWKT(v.v2()), this::mapping);
+                    return new SyntheticSourceExample(v.v1(), v.v2(), asWKT(v.v2()), this::mapping);
                 }
                 List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                // The results are currently sorted in order of encoded values, so we need to sort the expected values too
-                List<GeoPoint> outList = values.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
+                // For the synthetic source tests, the results are sorted in order of encoded values, but for row-stride reader
+                // they are sorted in order of input, so we sort both input and expected here to support both types of tests
+                List<Tuple<Object, GeoPoint>> sorted = values.stream()
+                    .sorted((a, b) -> Long.compare(encode(a.v2()), encode(b.v2())))
+                    .toList();
+                List<Object> in = sorted.stream().map(Tuple::v1).toList();
+                List<GeoPoint> outList = sorted.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
                 List<String> outBlockList = outList.stream().map(this::asWKT).toList();
@@ -630,7 +634,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
             private GeoPoint randomGeoPoint() {
                 Point point = GeometryTestUtils.randomPoint(false);
-                return new GeoPoint(point.getLat(), point.getLon());
+                return decode(encode(new GeoPoint(point.getLat(), point.getLon())));
             }
 
             private Object randomGeoPointInput(GeoPoint point) {

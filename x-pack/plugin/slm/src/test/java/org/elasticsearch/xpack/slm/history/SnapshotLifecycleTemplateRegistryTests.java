@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -45,7 +46,9 @@ import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleFeatures;
 import org.junit.After;
 import org.junit.Before;
 
@@ -98,7 +101,14 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             )
         );
         xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new SnapshotLifecycleTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        registry = new SnapshotLifecycleTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            new FeatureService(List.of(new SnapshotLifecycleFeatures())),
+            threadPool,
+            client,
+            xContentRegistry
+        );
     }
 
     @After
@@ -113,6 +123,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         SnapshotLifecycleTemplateRegistry disabledRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
+            new FeatureService(List.of(new SnapshotLifecycleFeatures())),
             threadPool,
             client,
             xContentRegistry
@@ -152,11 +163,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutLifecycleAction) {
+            if (action == ILMActions.PUT) {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(request, instanceOf(PutLifecycleRequest.class));
+                final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo(SLM_POLICY_NAME));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
@@ -188,7 +198,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return new TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should be re-put");
             } else {
                 fail("client called with unexpected request:" + request.toString());
@@ -214,7 +224,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return new TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should be re-put");
             } else {
                 fail("client called with unexpected request:" + request.toString());
@@ -271,7 +281,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 fail("template should not have been re-installed");
                 return null;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -373,7 +383,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             assertThat(putRequest.indexTemplate().version(), equalTo((long) INDEX_TEMPLATE_VERSION));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
-        } else if (action instanceof PutLifecycleAction) {
+        } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {

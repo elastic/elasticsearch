@@ -677,13 +677,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     if (newSignature) {
                         suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
                             TestCaseSupplier.TestCase oc = original.get();
-                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
-                                TestCaseSupplier.TypedData od = oc.getData().get(i);
-                                if (i == finalNullPosition) {
-                                    return new TestCaseSupplier.TypedData(null, DataTypes.NULL, od.name());
-                                }
-                                return od;
-                            }).toList();
+                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size())
+                                .mapToObj(i -> i == finalNullPosition ? TestCaseSupplier.TypedData.NULL : oc.getData().get(i))
+                                .toList();
                             return new TestCaseSupplier.TestCase(
                                 data,
                                 "LiteralsEvaluator[lit=null]",

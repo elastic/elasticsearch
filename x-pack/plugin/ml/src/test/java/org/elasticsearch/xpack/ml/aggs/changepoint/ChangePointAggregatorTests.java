@@ -72,6 +72,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         assertThat(fp, lessThan(5));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103848")
     public void testSampledDistributionTestFalsePositiveRate() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0.0, 1.0);
         int fp = 0;
@@ -108,6 +109,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         assertThat(fp, lessThan(5));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103847")
     public void testStepChangePower() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
         int tp = 0;
@@ -258,6 +260,7 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103926")
     public void testSlopeUp() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 2);
         AtomicInteger i = new AtomicInteger();
@@ -333,7 +336,6 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103790")
     public void testStepChange() throws IOException {
         NormalDistribution normal = new NormalDistribution(RandomGeneratorFactory.createRandomGenerator(Randomness.get()), 0, 1);
         double[] bucketValues = DoubleStream.concat(
@@ -341,7 +343,15 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             DoubleStream.generate(() -> 30 + normal.sample()).limit(20)
         ).toArray();
         testChangeType(bucketValues, changeType -> {
-            assertThat(Arrays.toString(bucketValues), changeType, instanceOf(ChangeType.StepChange.class));
+            assertThat(
+                Arrays.toString(bucketValues),
+                changeType,
+                anyOf(
+                    // Due to the random nature of the values generated, either of these could be detected
+                    instanceOf(ChangeType.StepChange.class),
+                    instanceOf(ChangeType.TrendChange.class)
+                )
+            );
             assertThat(changeType.changePoint(), equalTo(20));
         });
     }

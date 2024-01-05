@@ -188,7 +188,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 + "]",
             warnings,
             suppliers,
-            DataTypes.DOUBLE
+            DataTypes.DOUBLE,
+            false
         );
         return suppliers;
     }
@@ -200,38 +201,53 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<DataType, DataType, String> evaluatorToString,
         List<String> warnings,
         List<TestCaseSupplier> suppliers,
-        DataType expectedType
+        DataType expectedType,
+        boolean symmetric
     ) {
         for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
             for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
-                String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
-                suppliers.add(new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
-                    Object lhs = lhsSupplier.supplier().get();
-                    Object rhs = rhsSupplier.supplier().get();
-                    TypedData lhsTyped = new TypedData(
-                        // TODO there has to be a better way to handle unsigned long
-                        lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
-                        lhsSupplier.type(),
-                        "lhs"
-                    );
-                    TypedData rhsTyped = new TypedData(
-                        rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
-                        rhsSupplier.type(),
-                        "rhs"
-                    );
-                    TestCase testCase = new TestCase(
-                        List.of(lhsTyped, rhsTyped),
-                        evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type()),
-                        expectedType,
-                        equalTo(expected.apply(lhs, rhs))
-                    );
-                    for (String warning : warnings) {
-                        testCase = testCase.withWarning(warning);
-                    }
-                    return testCase;
-                }));
+                suppliers.add(testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expected, warnings));
+                if (symmetric) {
+                    suppliers.add(testCaseSupplier(rhsSupplier, lhsSupplier, evaluatorToString, expectedType, expected, warnings));
+                }
             }
         }
+    }
+
+    private static TestCaseSupplier testCaseSupplier(
+        TypedDataSupplier lhsSupplier,
+        TypedDataSupplier rhsSupplier,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        DataType expectedType,
+        BinaryOperator<Object> expectedValue,
+        List<String> warnings
+    ) {
+        String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
+        return new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
+            Object lhs = lhsSupplier.supplier().get();
+            Object rhs = rhsSupplier.supplier().get();
+            TypedData lhsTyped = new TypedData(
+                // TODO there has to be a better way to handle unsigned long
+                lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
+                lhsSupplier.type(),
+                "lhs"
+            );
+            TypedData rhsTyped = new TypedData(
+                rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
+                rhsSupplier.type(),
+                "rhs"
+            );
+            TestCase testCase = new TestCase(
+                List.of(lhsTyped, rhsTyped),
+                evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type()),
+                expectedType,
+                equalTo(expectedValue.apply(lhs, rhs))
+            );
+            for (String warning : warnings) {
+                testCase = testCase.withWarning(warning);
+            }
+            return testCase;
+        });
     }
 
     public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
@@ -241,30 +257,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max))));
         suppliers.addAll(doubleCases(Min, Max));
         return suppliers;
-    }
-
-    public static List<TestCaseSupplier> forBinaryNumericNotCasting(
-        String name,
-        String lhsName,
-        String rhsName,
-        BinaryOperator<Number> expected,
-        DataType expectedType,
-        List<TypedDataSupplier> lhsSuppliers,
-        List<TypedDataSupplier> rhsSuppliers,
-        List<String> warnings,
-        boolean symetric
-    ) {
-        return forBinaryNotCasting(
-            name,
-            lhsName,
-            rhsName,
-            (lhs, rhs) -> expected.apply((Number) lhs, (Number) rhs),
-            expectedType,
-            lhsSuppliers,
-            rhsSuppliers,
-            warnings,
-            symetric
-        );
     }
 
     public record NumericTypeTestConfig(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
@@ -333,25 +325,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (DataType rhsType : numericTypes) {
                 DataType expected = widen(lhsType, rhsType);
                 NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
-                String evaluator = expectedTypeStuff.evaluatorName()
+                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
                     + "["
                     + lhsName
                     + "="
-                    + getCastEvaluator("Attribute[channel=0]", lhsType, expected)
+                    + getCastEvaluator("Attribute[channel=0]", lhs, expected)
                     + ", "
                     + rhsName
                     + "="
-                    + getCastEvaluator("Attribute[channel=1]", rhsType, expected)
+                    + getCastEvaluator("Attribute[channel=1]", rhs, expected)
                     + "]";
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
                     getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                    // TODO: This doesn't really need to be a function
-                    (lt, rt) -> evaluator,
+                    evaluatorToString,
                     warnings,
                     suppliers,
-                    expected
+                    expected,
+                    true
                 );
             }
         }
@@ -367,8 +359,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
-        List<String> warnings,
-        boolean symetric
+        List<String> warnings
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         casesCrossProduct(
@@ -378,7 +369,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
             warnings,
             suppliers,
-            expectedType
+            expectedType,
+            true
         );
         return suppliers;
     }
@@ -1170,14 +1162,22 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {}
+    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
+        public TypedData get() {
+            return new TypedData(supplier.get(), type, name);
+        }
+    }
 
     /**
      * Holds a data value and the intended parse type of that value
      * @param data - value to test against
      * @param type - type of the value, for building expressions
+     * @param name - a name for the value, used for generating test case names
      */
     public record TypedData(Object data, DataType type, String name) {
+
+        public static final TypedData NULL = new TypedData(null, DataTypes.NULL, "<null>");
+
         public TypedData(Object data, String name) {
             this(data, EsqlDataTypes.fromJava(data), name);
         }

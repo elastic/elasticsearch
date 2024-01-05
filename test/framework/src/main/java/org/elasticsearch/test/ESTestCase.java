@@ -39,6 +39,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -79,6 +81,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -2151,5 +2154,21 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static <T> T asInstanceOf(Class<T> clazz, Object o) {
         assertThat(o, Matchers.instanceOf(clazz));
         return (T) o;
+    }
+
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionFuture<? extends RefCounted> future) {
+        return expectThrows(
+            expectedType,
+            "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
+            () -> future.actionGet().decRef()  // dec ref if we unexpectedly fail to not leak transport response
+        );
+    }
+
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionRequestBuilder<?, ?> builder) {
+        return expectThrows(
+            expectedType,
+            "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
+            () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
+        );
     }
 }

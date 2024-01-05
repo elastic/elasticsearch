@@ -86,12 +86,6 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), result);
     }
 
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        // This is a super conservative limit that should cause all aggs to break
-        return ByteSizeValue.ofBytes(20);
-    }
-
     public final void testIgnoresNulls() {
         int end = between(1_000, 100_000);
         List<Page> results = new ArrayList<>();

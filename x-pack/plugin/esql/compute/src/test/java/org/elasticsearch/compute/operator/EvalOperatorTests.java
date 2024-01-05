@@ -115,9 +115,4 @@ public class EvalOperatorTests extends OperatorTestCase {
         results.forEach(Page::releaseBlocks);
         assertThat(context.breaker().getUsed(), equalTo(0L));
     }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(4);
-    }
 }

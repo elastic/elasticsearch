@@ -47,7 +47,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         return new MvExpandOperator.Factory(0, randomIntBetween(1, 1000));
     }
 
@@ -201,7 +201,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue memoryLimitForSimple() {
+    protected ByteSizeValue enoughMemoryForSimple() {
         assumeFalse("doesn't throw in tests but probably should", true);
         return ByteSizeValue.ofBytes(1);
     }

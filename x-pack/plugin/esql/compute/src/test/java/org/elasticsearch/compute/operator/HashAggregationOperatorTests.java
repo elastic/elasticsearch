@@ -41,7 +41,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
         List<Integer> sumChannels, maxChannels;
         if (mode.isInputPartial()) {
             int sumChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
@@ -55,11 +55,11 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(
-                new SumLongAggregatorFunctionSupplier(bigArrays, sumChannels).groupingAggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannels).groupingAggregatorFactory(mode)
+                // TODO remove the null BigArrays we pass - it's part of the context
+                new SumLongAggregatorFunctionSupplier(null, sumChannels).groupingAggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(null, maxChannels).groupingAggregatorFactory(mode)
             ),
-            randomPageSize(),
-            bigArrays
+            randomPageSize()
         );
     }
 
@@ -92,10 +92,5 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             sum.assertSimpleGroup(input, sums, i, group);
             max.assertSimpleGroup(input, maxs, i, group);
         }
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(1);
     }
 }

@@ -81,9 +81,4 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         sum.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), sums);
         max.assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), maxs);
     }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofBytes(50);
-    }
 }

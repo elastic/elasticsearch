@@ -96,11 +96,6 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
         }
     }
 
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(15);
-    }
-
     public void testAllNullValues() {
         DriverContext driverContext = driverContext();
         BytesRef scratch = new BytesRef();

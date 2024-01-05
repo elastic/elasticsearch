@@ -19,6 +19,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -194,7 +195,7 @@ public class DfsPhase {
             searchExecutionContext.nestedScope().nextLevelInnerHits(knnSearch.get(i).innerHit());
             Query knnQuery = null;
             try {
-                knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+                knnQuery = Rewriteable.rewrite(knnVectorQueryBuilders.get(i), searchExecutionContext, true).toQuery(searchExecutionContext);
             } finally {
                 searchExecutionContext.nestedScope().previousLevelInnerHits();
             }

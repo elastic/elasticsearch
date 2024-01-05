@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -31,11 +30,9 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
-import org.elasticsearch.compute.operator.exchange.ExchangeResponse;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
-import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -184,11 +181,9 @@ public class ComputeService {
             transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
         );
         try (
-            Releasable ignored = exchangeSource::decRef;
+            Releasable ignored = exchangeSource.addEmptySink();
             RefCountingListener refs = new RefCountingListener(listener.map(unused -> new Result(collectedPages, collectedProfiles)))
         ) {
-            // wait until the source handler is completed
-            exchangeSource.addCompletionListener(refs.acquire());
             // run compute on the coordinator
             runCompute(
                 rootTask,
@@ -263,19 +258,6 @@ public class ComputeService {
         return remoteClusters;
     }
 
-    static final class EmptyRemoteSink implements RemoteSink {
-        final SubscribableListener<Void> future = new SubscribableListener<>();
-
-        @Override
-        public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
-            future.addListener(listener.map(ignored -> new ExchangeResponse(null, true)));
-        }
-
-        void finish() {
-            future.onResponse(null);
-        }
-    }
-
     private void startComputeOnDataNodes(
         String sessionId,
         String clusterAlias,
@@ -285,18 +267,17 @@ public class ComputeService {
         Set<String> concreteIndices,
         String[] originalIndices,
         ExchangeSourceHandler exchangeSource,
-        Supplier<ActionListener<ComputeResponse>> listener
+        Supplier<ActionListener<ComputeResponse>> listenerSupplier
     ) {
-        // Do not complete the exchange sources until we have linked all remote sinks
-        final EmptyRemoteSink emptyRemoteSink = new EmptyRemoteSink();
-        exchangeSource.addRemoteSink(emptyRemoteSink, 1);
+        // prevent the exchange source from completing until we have linked all remote sinks.
+        final Releasable emptySink = exchangeSource.addEmptySink();
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
-            try (RefCountingRunnable refs = new RefCountingRunnable(emptyRemoteSink::finish)) {
+            try (RefCountingRunnable refs = new RefCountingRunnable(emptySink::close)) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
                 for (DataNode node : dataNodes) {
-                    var dataNodeListener = ActionListener.releaseAfter(listener.get(), refs.acquire());
+                    var dataNodeListener = ActionListener.releaseAfter(listenerSupplier.get(), refs.acquire());
                     var queryPragmas = configuration.pragmas();
                     ExchangeService.openExchange(
                         transportService,
@@ -319,10 +300,7 @@ public class ComputeService {
                     );
                 }
             }
-        }, e -> {
-            emptyRemoteSink.finish();
-            listener.get().onFailure(e);
-        }));
+        }, e -> ActionListener.runAfter(listenerSupplier.get(), emptySink::close).onFailure(e)));
     }
 
     private void startComputeOnRemoteClusters(
@@ -334,10 +312,7 @@ public class ComputeService {
         List<RemoteCluster> clusters,
         Supplier<ActionListener<ComputeResponse>> listener
     ) {
-        // Do not complete the exchange sources until we have linked all remote sinks
-        final EmptyRemoteSink emptyRemoteSink = new EmptyRemoteSink();
-        exchangeSource.addRemoteSink(emptyRemoteSink, 1);
-        try (RefCountingRunnable refs = new RefCountingRunnable(emptyRemoteSink::finish)) {
+        try (RefCountingRunnable refs = new RefCountingRunnable(exchangeSource.addEmptySink()::close)) {
             for (RemoteCluster cluster : clusters) {
                 var targetNodeListener = ActionListener.releaseAfter(listener.get(), refs.acquire());
                 var queryPragmas = configuration.pragmas();
@@ -666,11 +641,7 @@ public class ComputeService {
             configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
         );
-        try (
-            Releasable ignored = exchangeSource::decRef;
-            RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))
-        ) {
-            exchangeSource.addCompletionListener(refs.acquire());
+        try (RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))) {
             exchangeSink.addCompletionListener(refs.acquire());
             PhysicalPlan coordinatorPlan = new ExchangeSinkExec(
                 plan.source(),

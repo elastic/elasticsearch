@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.FeatureFlag;
  */
 public class SecretsFeature {
 
-    private static final FeatureFlag SECRETS_FEATURE_FLAG = new FeatureFlag("search_secrets");
+    private static final FeatureFlag SECRETS_FEATURE_FLAG = new FeatureFlag("connector_secrets");
 
     /**
      * Enables the Connectors Secrets feature by default for the tech preview phase.

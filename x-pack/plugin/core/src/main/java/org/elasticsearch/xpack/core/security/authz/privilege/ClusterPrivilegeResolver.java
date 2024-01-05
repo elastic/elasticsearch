@@ -333,7 +333,7 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege WRITE_CONNECTOR_SECRETS = new ActionClusterPrivilege(
         "write_connector_secrets",
-        Set.of("cluster:admin/xpack/connector/secrets/post")
+        Set.of("cluster:admin/xpack/connector/secret/post")
     );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(

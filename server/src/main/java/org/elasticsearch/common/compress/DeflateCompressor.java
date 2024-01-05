@@ -161,7 +161,7 @@ public class DeflateCompressor implements Compressor {
                 try {
                     super.close();
                 } finally {
-                    // We need to ensured to only call this once
+                    // We need to ensure that we only call this once
                     release.close();
                     release = null;
                 }

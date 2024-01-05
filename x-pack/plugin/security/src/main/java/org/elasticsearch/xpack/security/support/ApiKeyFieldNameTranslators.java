@@ -53,14 +53,14 @@ public class ApiKeyFieldNameTranslators {
     /**
      * Translates the query level field name pattern to index level field names that match the pattern.
      */
-    public static Set<String> translatePattern(String pattern) {
-        Set<String> translatedPatternMatches = new HashSet<>();
+    public static Set<String> matchPattern(String pattern) {
+        Set<String> patternMatches = new HashSet<>();
         for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
             if (translator.supports(pattern)) {
-                translatedPatternMatches.add(translator.translate(pattern));
+                patternMatches.add(((ExactFieldNameTranslator) translator).name);
             }
         }
-        return translatedPatternMatches;
+        return patternMatches;
     }
 
     abstract static class FieldNameTranslator {
@@ -79,7 +79,7 @@ public class ApiKeyFieldNameTranslators {
     }
 
     static class ExactFieldNameTranslator extends FieldNameTranslator {
-        private final String name;
+        public final String name;
 
         ExactFieldNameTranslator(Function<String, String> translationFunc, String name) {
             super(translationFunc);

@@ -223,7 +223,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
             matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
         } else {
             int size = in.readVInt();
-            matchedQueries = new LinkedHashMap<>(size);
+            matchedQueries = Maps.newLinkedHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 matchedQueries.put(in.readString(), Float.NaN);
             }

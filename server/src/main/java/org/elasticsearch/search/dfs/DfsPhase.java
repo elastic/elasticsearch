@@ -18,8 +18,10 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -199,6 +201,10 @@ public class DfsPhase {
             Query knnQuery = null;
             try {
                 knnQuery = Rewriteable.rewrite(knnVectorQueryBuilders.get(i), searchExecutionContext, true).toQuery(searchExecutionContext);
+            } catch (QueryShardException | ParsingException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new QueryShardException(searchExecutionContext, "failed to create query: {}", e, e.getMessage());
             } finally {
                 searchExecutionContext.nestedScope().previousLevelInnerHits();
             }

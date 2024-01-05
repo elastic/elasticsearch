@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
+
+    private static final Logger logger = LogManager.getLogger(OpenAiResponseHandler.class);
     /**
      * Rate limit headers taken from https://platform.openai.com/docs/guides/rate-limits/rate-limits-in-headers
      */
@@ -63,8 +66,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
         // handle error codes
         if (statusCode >= 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, request, result));
+            logger.warn(Strings.format("OpenAI retrying because of code [%s]", statusCode));
+            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
+            logger.warn("OpenAI retrying because of 429");
             throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
         } else if (isContentTooLarge(result)) {
             throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));

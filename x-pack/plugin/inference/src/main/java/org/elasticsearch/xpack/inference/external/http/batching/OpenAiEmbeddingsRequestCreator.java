@@ -11,7 +11,6 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -51,7 +50,7 @@ public class OpenAiEmbeddingsRequestCreator implements RequestCreator<OpenAiAcco
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        logger.warn(Strings.format("OpenAI request input array size: %s", input.size()));
+        // logger.warn(Strings.format("OpenAI request input array size: %s", input.size()));
         var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
 
         var request = new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model.getTaskSettings());

@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -65,6 +67,12 @@ class HttpRequestExecutorService<K> implements ExecutorService {
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final RequestBatcherFactory<K> batcherFactory;
+    private Instant lastDebugPrint;
+    private static final Duration debugWaitTime = Duration.ofSeconds(2);
+    private Instant initialBatchInstant;
+    private final List<Task<K>> taskBuffer;
+    private static final Duration TASK_BUFFER_WAIT_DURATION = Duration.ofMillis(100);
+    private static final int IDEAL_BUFFER_SIZE = 1000;
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(
@@ -98,12 +106,15 @@ class HttpRequestExecutorService<K> implements ExecutorService {
         @Nullable CountDownLatch startupLatch,
         RequestBatcherFactory<K> batcherFactory
     ) {
+        lastDebugPrint = Instant.now();
         this.serviceName = Objects.requireNonNull(serviceName);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.batcherFactory = Objects.requireNonNull(batcherFactory);
         this.httpContext = HttpClientContext.create();
         this.queue = queue;
         this.startupLatch = startupLatch;
+        // TODO initialize this with the default batch size
+        taskBuffer = new ArrayList<>(IDEAL_BUFFER_SIZE);
     }
 
     /**
@@ -139,8 +150,13 @@ class HttpRequestExecutorService<K> implements ExecutorService {
      */
     private void handleTasks() throws InterruptedException {
         try {
-            var task = queue.take();
-            if (task.shouldShutdown() || running.get() == false) {
+            var task = queue.poll(TASK_BUFFER_WAIT_DURATION.toMillis(), TimeUnit.MILLISECONDS);
+            // Thread.sleep(5000);
+            // var task = queue.poll(5, TimeUnit.SECONDS);
+
+            if (task == null) {
+                batchBufferedRequests();
+            } else if (task.shouldShutdown() || running.get() == false) {
                 running.set(false);
                 logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
             } else {
@@ -153,30 +169,54 @@ class HttpRequestExecutorService<K> implements ExecutorService {
         }
     }
 
-    private void batchRequests(Task<K> initialTask) {
+    private void batchBufferedRequests() {
         try {
-            var batcher = batcherFactory.create(httpContext);
-
-            // TODO make this a setting
-            // or make this auto adjustable some how
-            int batchSize = 5;
-            List<Task<K>> requests = new ArrayList<>(batchSize);
-            requests.add(initialTask);
-            queue.drainTo(requests, batchSize);
-
-            logger.warn(() -> format("Dequeued requests size: %s", requests.size()));
-
-            if (hasAShutdownTask(requests)) {
-                running.set(false);
-                logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
-
-                rejectTasks(requests);
+            if (taskBuffer.isEmpty()) {
                 return;
             }
 
-            batcher.add(requests);
+            Instant now = Instant.now();
+
+            if (taskBuffer.size() < IDEAL_BUFFER_SIZE && now.isBefore(initialBatchInstant.plus(TASK_BUFFER_WAIT_DURATION))) {
+                return;
+            }
+
+            initialBatchInstant = null;
+            queue.drainTo(taskBuffer, IDEAL_BUFFER_SIZE - taskBuffer.size());
+
+            var batcher = batcherFactory.create(httpContext);
+
+            if (now.isAfter(lastDebugPrint.plus(debugWaitTime))) {
+                logger.warn(() -> format("Dequeued requests size: %s", taskBuffer.size()));
+                lastDebugPrint = now;
+            }
+
+            if (hasAShutdownTask(taskBuffer)) {
+                running.set(false);
+                logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
+
+                rejectTasks(taskBuffer);
+                return;
+            }
+
+            batcher.add(taskBuffer);
+            taskBuffer.clear();
 
             runBatch(batcher);
+        } catch (Exception e) {
+            logger.warn(format("Http executor service [%s] failed to execute batch request", serviceName), e);
+        }
+    }
+
+    private void batchRequests(Task<K> initialTask) {
+        try {
+            taskBuffer.add(initialTask);
+
+            if (initialBatchInstant == null) {
+                initialBatchInstant = Instant.now();
+            }
+
+            batchBufferedRequests();
         } catch (Exception e) {
             logger.warn(format("Http executor service [%s] failed to execute batch request", serviceName), e);
         }
@@ -196,8 +236,10 @@ class HttpRequestExecutorService<K> implements ExecutorService {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
         try {
-            List<Task<K>> notExecuted = new ArrayList<>();
+            List<Task<K>> notExecuted = new ArrayList<>(taskBuffer.size() + queue.size());
+            notExecuted.addAll(taskBuffer);
             queue.drainTo(notExecuted);
+            taskBuffer.clear();
 
             for (Task<K> task : notExecuted) {
                 rejectTask(task);

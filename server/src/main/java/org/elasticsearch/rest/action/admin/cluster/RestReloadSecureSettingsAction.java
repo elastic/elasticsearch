@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
@@ -74,10 +75,11 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
         return new RestChannelConsumer() {
             @Override
             public void accept(RestChannel channel) {
+                reloadSecureSettingsRequest.mustIncRef(); // workaround for https://github.com/elastic/elasticsearch/issues/103952
                 client.execute(
                     TransportNodesReloadSecureSettingsAction.TYPE,
                     reloadSecureSettingsRequest,
-                    new RestBuilderListener<>(channel) {
+                    ActionListener.runBefore(new RestBuilderListener<>(channel) {
                         @Override
                         public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
                             throws Exception {
@@ -88,7 +90,9 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
                             builder.endObject();
                             return new RestResponse(RestStatus.OK, builder);
                         }
-                    }
+                    },
+                        reloadSecureSettingsRequest::decRef // workaround for https://github.com/elastic/elasticsearch/issues/103952
+                    )
                 );
             }
 

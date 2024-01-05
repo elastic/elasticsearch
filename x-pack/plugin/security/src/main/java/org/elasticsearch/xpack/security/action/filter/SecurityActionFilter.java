@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 public class SecurityActionFilter implements ActionFilter {
@@ -94,6 +95,33 @@ public class SecurityActionFilter implements ActionFilter {
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
+        final var applyComplete = new AtomicBoolean();
+        try {
+            innerApply(
+                task,
+                action,
+                request,
+                ActionListener.runAfter(listener, () -> applyComplete.set(true)),
+                (task1, action1, request1, listener1) -> {
+                    try {
+                        chain.proceed(task1, action1, request1, listener1);
+                    } finally {
+                        applyComplete.set(true);
+                    }
+                }
+            );
+        } finally {
+            assert applyComplete.get();
+        }
+    }
+
+    private <Request extends ActionRequest, Response extends ActionResponse> void innerApply(
+        Task task,
+        String action,
+        Request request,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> chain
+    ) {
         final ActionListener<Response> contextPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
             listener,
             threadContext

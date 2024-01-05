@@ -91,8 +91,11 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServi
 import org.elasticsearch.xpack.application.connector.secrets.SecretsFeature;
 import org.elasticsearch.xpack.application.connector.secrets.SecretsIndexService;
 import org.elasticsearch.xpack.application.connector.secrets.action.GetSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.PostSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.RestGetSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.RestPostSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.TransportPostSecretAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
@@ -266,7 +269,12 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         }
 
         if (SecretsFeature.isEnabled()) {
-            actionHandlers.addAll(List.of(new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class)));
+            actionHandlers.addAll(
+                List.of(
+                    new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class),
+                    new ActionHandler<>(PostSecretAction.INSTANCE, TransportPostSecretAction.class)
+                )
+            );
         }
 
         return Collections.unmodifiableList(actionHandlers);
@@ -347,7 +355,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         }
 
         if (SecretsFeature.isEnabled()) {
-            restHandlers.addAll(List.of(new RestGetSecretAction()));
+            restHandlers.addAll(List.of(new RestGetSecretAction(), new RestPostSecretAction()));
         }
 
         return Collections.unmodifiableList(restHandlers);

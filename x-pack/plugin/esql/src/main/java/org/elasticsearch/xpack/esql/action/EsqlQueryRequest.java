@@ -127,6 +127,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     }
 
     public void async(boolean async) {
+        assert false : "Unexpected async property set. Should only be set through the constructor";
         this.async = async;
     }
 

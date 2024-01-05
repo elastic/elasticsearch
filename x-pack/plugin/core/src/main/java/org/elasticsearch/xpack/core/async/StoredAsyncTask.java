@@ -24,6 +24,8 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     private final Map<String, String> originHeaders;
     private volatile long expirationTimeMillis;
     protected final List<ActionListener<Response>> completionListeners;
+    // only accessed while holding this object's monitor
+    private boolean completeListenersRun = false;
 
     @SuppressWarnings("this-escape")
     public StoredAsyncTask(
@@ -67,10 +69,12 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     }
 
     public synchronized void addCompletionListener(ActionListener<Response> listener) {
+        assert completeListenersRun == false;
         completionListeners.add(listener);
     }
 
     public synchronized void removeCompletionListener(ActionListener<Response> listener) {
+        assert completeListenersRun == false;
         completionListeners.remove(listener);
     }
 
@@ -78,6 +82,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
      * This method is called when the task is finished successfully before unregistering the task and storing the results
      */
     public synchronized void onResponse(Response response) {
+        completeListenersRun = true;
         for (ActionListener<Response> listener : completionListeners) {
             response.incRef();
             ActionListener.respondAndRelease(listener, response);

@@ -113,7 +113,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
          */
         DriverContext inputFactoryContext = driverContext();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
-        Operator.OperatorFactory simple = simple(bigArrays);
+        Operator.OperatorFactory simple = simple();
         logger.info("running {} with {}", simple, bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -151,7 +151,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
         boolean driverStarted = false;
         try {
-            Operator operator = simple(driverContext.bigArrays()).get(driverContext);
+            Operator operator = simple().get(driverContext);
             driverStarted = true;
             drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
@@ -211,7 +211,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
 
-        List<Page> results = drive(simple(bigArrays).get(context), input.iterator(), context);
+        List<Page> results = drive(simple().get(context), input.iterator(), context);
         assertSimpleOutput(origInput, results);
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
 
@@ -247,7 +247,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
         Page page = input.get(0);
-        try (var operator = simple(driverContext.bigArrays()).get(driverContext)) {
+        try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
             operator.addInput(page);
             operator.finish();

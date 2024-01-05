@@ -88,11 +88,11 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
 
-    private static EsqlQueryRequest syncEsqlQueryRequest() {
+    static EsqlQueryRequest syncEsqlQueryRequest() {
         return new EsqlQueryRequest(false);
     }
 
-    private static EsqlQueryRequest asyncEsqlQueryRequest() {
+    static EsqlQueryRequest asyncEsqlQueryRequest() {
         return new EsqlQueryRequest(true);
     }
 
@@ -124,11 +124,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     public String query() {
         return query;
-    }
-
-    public void async(boolean async) {
-        assert false : "Unexpected async property set. Should only be set through the constructor";
-        this.async = async;
     }
 
     public boolean async() {

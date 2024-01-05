@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -151,7 +152,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         if (mapper == null || SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false) {
             throw new DocumentParsingException(
                 context.parser().getTokenLocation(),
-                "Field [%s] is not registered as a %s field type".formatted(fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
+                Strings.format("Field [%s] is not registered as a %s field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
             );
         }
 

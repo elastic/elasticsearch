@@ -11,6 +11,7 @@ package org.elasticsearch.core;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Utility methods to work with {@link Releasable}s. */
@@ -101,6 +102,24 @@ public enum Releasables {
                 return "wrapped[" + releasables + "]";
             }
         };
+    }
+
+    /**
+     * Similar to {@link #wrap(Iterable)} except that it accepts an {@link Iterator} of releasables. The resulting resource must therefore
+     * only be released once.
+     */
+    public static Releasable wrap(final Iterator<Releasable> releasables) {
+        return assertOnce(wrap(new Iterable<>() {
+            @Override
+            public Iterator<Releasable> iterator() {
+                return releasables;
+            }
+
+            @Override
+            public String toString() {
+                return releasables.toString();
+            }
+        }));
     }
 
     /** @see #wrap(Iterable) */

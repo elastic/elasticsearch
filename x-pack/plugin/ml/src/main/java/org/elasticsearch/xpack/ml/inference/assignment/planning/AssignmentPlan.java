@@ -437,10 +437,6 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return this;
         }
 
-        private boolean isAlreadyAssigned(Deployment deployment, Node node) {
-            return deployment.currentAllocationsByNodeId().containsKey(node.id()) || assignments.get(deployment).get(node) > 0;
-        }
-
         private int getAssignedAllocations(Deployment deployment, Node node) {
             int currentAllocations = getCurrentAllocations(deployment, node);
             int assignmentAllocations = assignments.get(deployment).get(node);

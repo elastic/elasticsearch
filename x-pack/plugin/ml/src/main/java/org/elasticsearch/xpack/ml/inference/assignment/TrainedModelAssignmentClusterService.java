@@ -78,8 +78,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private static final TransportVersion RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
     public static final TransportVersion DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION = TransportVersions.V_8_4_0;
 
-    private static final TransportVersion NEW_ALLOCATION_MEMORY_VERSION = TransportVersions.V_8_500_064;
-
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeLoadDetector nodeLoadDetector;

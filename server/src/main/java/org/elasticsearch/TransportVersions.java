@@ -177,7 +177,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_CLUSTER_ALIAS = def(8_565_00_0);
     public static final TransportVersion SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED = def(8_566_00_0);
     public static final TransportVersion SMALLER_RELOAD_SECURE_SETTINGS_REQUEST = def(8_567_00_0);
-    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_568_00_0);
+    public static final TransportVersion UPDATE_API_KEY_EXPIRATION_TIME_ADDED = def(8_568_00_0);
+    public static final TransportVersion REQUIRE_DATA_STREAM_ADDED = def(8_569_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

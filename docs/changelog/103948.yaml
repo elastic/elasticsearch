@@ -1,0 +1,5 @@
+pr: 103948
+summary: "[Certutil] Verify certificates after generation"
+area: TLS
+type: enhancement
+issues: []

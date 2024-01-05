@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
@@ -1176,9 +1177,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = fieldType().elementType.parseDimensionCount(context);
-            DenseVectorFieldMapper.Builder update = (DenseVectorFieldMapper.Builder) getMergeBuilder();
-            update.dims.setValue(dims);
-            context.addDynamicMapper(name(), update);
+            DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
+                fieldType().name(),
+                indexCreatedVersion,
+                fieldType().elementType,
+                dims,
+                fieldType().indexed,
+                fieldType().similarity,
+                fieldType().meta()
+            );
+            Mapper update = new DenseVectorFieldMapper(
+                simpleName(),
+                updatedDenseVectorFieldType,
+                indexOptions,
+                indexCreatedVersion,
+                multiFields(),
+                copyTo
+            );
+            context.addDynamicMapper(update);
             return;
         }
         if (fieldType().indexed) {

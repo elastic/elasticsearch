@@ -15,9 +15,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.core.IsEqual;
 
@@ -119,7 +119,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             String id = initialResponse.asyncExecutionId().get();
 
             DeleteAsyncResultRequest request = new DeleteAsyncResultRequest(id);
-            var future = client().execute(DeleteAsyncResultAction.INSTANCE, request);
+            var future = client().execute(TransportDeleteAsyncResultAction.TYPE, request);
 
             // there should be just one task
             List<TaskInfo> tasks = getEsqlQueryTasks();
@@ -242,7 +242,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     private AcknowledgedResponse deleteAsyncId(String id) {
         DeleteAsyncResultRequest request = new DeleteAsyncResultRequest(id);
-        return client().execute(DeleteAsyncResultAction.INSTANCE, request).actionGet(timeValueSeconds(60));
+        return client().execute(TransportDeleteAsyncResultAction.TYPE, request).actionGet(timeValueSeconds(60));
     }
 
     TimeValue randomKeepAlive() {

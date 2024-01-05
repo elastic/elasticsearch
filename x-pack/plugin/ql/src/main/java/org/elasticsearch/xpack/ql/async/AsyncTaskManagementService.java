@@ -317,9 +317,10 @@ public class AsyncTaskManagementService<
 
     /**
      * Adds a self-unregistering listener to a task. It works as a normal listener except it retrieves a partial response and unregister
-     * itself from the task if timeout occurs.
+     * itself from the task if timeout occurs. Returns false if the listener could not be added, if say for example the task completed.
+     * Otherwise, returns true.
      */
-    public static <Response extends ActionResponse, Task extends StoredAsyncTask<Response>> void addCompletionListener(
+    public static <Response extends ActionResponse, Task extends StoredAsyncTask<Response>> boolean addCompletionListener(
         ThreadPool threadPool,
         Task task,
         ActionListener<StoredAsyncResponse<Response>> listener,
@@ -327,8 +328,9 @@ public class AsyncTaskManagementService<
     ) {
         if (timeout.getMillis() <= 0) {
             getCurrentResult(task, listener);
+            return true;
         } else {
-            task.addCompletionListener(
+            return task.addCompletionListener(
                 ListenerTimeouts.wrapWithTimeout(
                     threadPool,
                     timeout,

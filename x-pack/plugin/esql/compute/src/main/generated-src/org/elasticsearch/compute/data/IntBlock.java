@@ -19,7 +19,7 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock,
-    FilterIntBlock, FilterIntVectorBlock {
+    FilterIntBlock, FilterIntVectorBlock, FilterIntBigArrayBlock {
 
     /**
      * Retrieves the int value stored at the given value index.

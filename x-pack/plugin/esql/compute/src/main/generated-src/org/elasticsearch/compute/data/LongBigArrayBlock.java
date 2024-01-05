@@ -68,27 +68,9 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
 
     @Override
     public LongBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
-        try (var builder = blockFactory().newLongBlockBuilder(positions.length)) {
-            for (int pos : positions) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int valueCount = getValueCount(pos);
-                int first = getFirstValueIndex(pos);
-                if (valueCount == 1) {
-                    builder.appendLong(getLong(getFirstValueIndex(pos)));
-                } else {
-                    builder.beginPositionEntry();
-                    for (int c = 0; c < valueCount; c++) {
-                        builder.appendLong(getLong(first + c));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.mvOrdering(mvOrdering()).build();
-        }
+        LongBlock filtered = new FilterLongBigArrayBlock(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override

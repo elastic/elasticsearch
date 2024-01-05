@@ -68,27 +68,9 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
 
     @Override
     public BooleanBlock filter(int... positions) {
-        // TODO use reference counting to share the vector
-        try (var builder = blockFactory().newBooleanBlockBuilder(positions.length)) {
-            for (int pos : positions) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int valueCount = getValueCount(pos);
-                int first = getFirstValueIndex(pos);
-                if (valueCount == 1) {
-                    builder.appendBoolean(getBoolean(getFirstValueIndex(pos)));
-                } else {
-                    builder.beginPositionEntry();
-                    for (int c = 0; c < valueCount; c++) {
-                        builder.appendBoolean(getBoolean(first + c));
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            return builder.mvOrdering(mvOrdering()).build();
-        }
+        BooleanBlock filtered = new FilterBooleanBigArrayBlock(this, positions);
+        this.incRef();
+        return filtered;
     }
 
     @Override

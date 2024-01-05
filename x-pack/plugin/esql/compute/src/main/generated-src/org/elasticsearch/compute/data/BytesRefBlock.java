@@ -21,7 +21,6 @@ import java.io.IOException;
  */
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
     FilterBytesRefBlock, FilterBytesRefVectorBlock {
-
     BytesRef NULL_VALUE = new BytesRef();
 
     /**

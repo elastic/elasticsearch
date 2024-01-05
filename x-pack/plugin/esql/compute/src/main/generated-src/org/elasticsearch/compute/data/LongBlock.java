@@ -19,7 +19,7 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock,
-    FilterLongBlock, FilterLongVectorBlock {
+    FilterLongBlock, FilterLongVectorBlock, FilterLongBigArrayBlock {
 
     /**
      * Retrieves the long value stored at the given value index.

@@ -19,7 +19,7 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock,
-    FilterDoubleBlock, FilterDoubleVectorBlock {
+    FilterDoubleBlock, FilterDoubleVectorBlock, FilterDoubleBigArrayBlock {
 
     /**
      * Retrieves the double value stored at the given value index.

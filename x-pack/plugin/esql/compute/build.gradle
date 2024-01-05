@@ -283,6 +283,27 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  filterVectorBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/FilterBooleanVectorBlock.java"
   }
+  File filterBigArrayBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-FilterBigArrayBlock.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  filterBigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterIntBigArrayBlock.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  filterBigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterLongBigArrayBlock.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  filterBigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterDoubleBigArrayBlock.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  filterBigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/FilterBooleanBigArrayBlock.java"
+  }
   // vector blocks
   File vectorBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorBlock.java.st")
   template {

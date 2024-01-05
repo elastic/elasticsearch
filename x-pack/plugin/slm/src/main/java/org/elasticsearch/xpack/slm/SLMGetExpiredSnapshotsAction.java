@@ -134,13 +134,13 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
                                 )
 
                                 // Compute snapshots to delete for each (relevant) policy
-                                .<Void>andThen((l, snapshotDetailsByPolicy) -> ActionListener.completeWith(l, () -> {
+                                .<Void>andThenCompleteWith(snapshotDetailsByPolicy -> {
                                     resultsBuilder.addResult(
                                         repositoryName,
                                         getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)
                                     );
                                     return null;
-                                }))
+                                })
 
                                 // And notify this repository's listener on completion
                                 .addListener(perRepositoryListener.delegateResponse((l, e) -> {

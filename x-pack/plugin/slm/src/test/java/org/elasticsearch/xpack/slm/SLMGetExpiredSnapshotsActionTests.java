@@ -175,7 +175,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
             .map(si -> new SeenSnapshotInfo(si.snapshotId(), RepositoryData.SnapshotDetails.fromSnapshotInfo(si).getSlmPolicy()))
             .collect(Collectors.toSet());
 
-        SubscribableListener
+        final var testListener = SubscribableListener
 
             .<RepositoryData>newForked(l -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l))
 
@@ -183,15 +183,17 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 (l, rd) -> SLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(EsExecutors.DIRECT_EXECUTOR_SERVICE, repository, rd, l)
             )
 
-            .andThen((l, snapshotDetailsByPolicy) -> {
+            .andThenCompleteWith(snapshotDetailsByPolicy -> {
                 snapshotDetailsByPolicy.flatMap((policyId, snapshotsMap) -> snapshotsMap.entrySet().stream().map(entry -> {
                     assertThat(policyId, oneOf(policyNames));
                     assertEquals(policyId, entry.getValue().getSlmPolicy());
                     return new SeenSnapshotInfo(entry.getKey(), policyId);
                 })).forEach(seenSnapshotInfo -> assertTrue(seenSnapshotInfos.remove(seenSnapshotInfo)));
+                return null;
             });
 
         deterministicTaskQueue.runAllTasks();
+        assertTrue(testListener.isDone());
         assertThat(seenSnapshotInfos, empty());
     }
 

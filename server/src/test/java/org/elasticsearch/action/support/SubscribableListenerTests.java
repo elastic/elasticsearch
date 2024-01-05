@@ -409,6 +409,26 @@ public class SubscribableListenerTests extends ESTestCase {
         assertFalse(chainedListener.isDone());
     }
 
+    public void testAndThenThrowException() {
+        final var initialListener = new SubscribableListener<>();
+        final var forked = new AtomicReference<ActionListener<Object>>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThen((l, o) -> {
+            forked.set(l);
+            result.set(o);
+            throw new ElasticsearchException("simulated");
+        });
+        assertNull(forked.get());
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertSame(chainedListener, forked.get());
+        assertComplete(chainedListener, "simulated");
+    }
+
     public void testAndThenFailure() {
         final var initialListener = new SubscribableListener<>();
 
@@ -499,5 +519,49 @@ public class SubscribableListenerTests extends ESTestCase {
         } else {
             assertEquals(expectedFailureMessage, expectThrows(ElasticsearchException.class, listener::rawResult).getMessage());
         }
+    }
+
+    public void testAndThenCompleteWithSuccess() throws Exception {
+        final var initialListener = new SubscribableListener<>();
+        final var result = new AtomicReference<>();
+
+        final var oResult = new Object();
+        final var chainedListener = initialListener.andThenCompleteWith(o -> {
+            result.set(o);
+            return oResult;
+        });
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertTrue(chainedListener.isDone());
+        assertSame(oResult, chainedListener.rawResult());
+    }
+
+    public void testAndThenCompleteWithThrowException() {
+        final var initialListener = new SubscribableListener<>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThenCompleteWith(o -> {
+            result.set(o);
+            throw new ElasticsearchException("simulated exception in fn");
+        });
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertComplete(chainedListener, "simulated exception in fn");
+    }
+
+    public void testAndThenCompleteWithFailure() {
+        final var initialListener = new SubscribableListener<>();
+
+        final var chainedListener = initialListener.andThenCompleteWith(o -> fail(null, "should not be called"));
+        assertFalse(chainedListener.isDone());
+
+        initialListener.onFailure(new ElasticsearchException("simulated"));
+        assertComplete(chainedListener, "simulated");
     }
 }

@@ -316,7 +316,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 double scalingFactorInverse = 1d / scalingFactor;
                 return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l * scalingFactorInverse);
             }
-            return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
+            ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup);
         }
 
         @Override

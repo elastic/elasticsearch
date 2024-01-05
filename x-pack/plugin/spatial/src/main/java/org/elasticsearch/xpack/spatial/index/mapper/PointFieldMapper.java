@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -237,10 +238,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             if (hasDocValues()) {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
+            ValueFetcher valueFetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT);
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
             // TODO: Currently we use longs in the compute engine and render to WKT in ESQL
-            return new BlockSourceReader.LongsBlockLoader(
-                valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
-            );
+            return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
         }
     }
 

@@ -12,8 +12,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -122,7 +123,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         pipe1.endObject();
 
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(enrichPipelineName, BytesReference.bytes(pipe1), XContentType.JSON)
         ).actionGet();
 
@@ -153,7 +154,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
         client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+        assertHitCount(client().search(new SearchRequest(enrichedIndexName)), successfulItems);
     }
 
     public void testWriteThreadLivenessWithPipeline() throws Exception {
@@ -240,12 +241,12 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         pipe2.endObject();
 
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(enrichPipelineName1, BytesReference.bytes(pipe1), XContentType.JSON)
         ).actionGet();
 
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(enrichPipelineName2, BytesReference.bytes(pipe2), XContentType.JSON)
         ).actionGet();
 
@@ -276,6 +277,6 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
         assertThat(firstFailure.getMessage(), containsString("Could not perform enrichment, enrich coordination queue at capacity"));
 
         client().admin().indices().refresh(new RefreshRequest(enrichedIndexName)).actionGet();
-        assertEquals(successfulItems, client().search(new SearchRequest(enrichedIndexName)).actionGet().getHits().getTotalHits().value);
+        assertHitCount(client().search(new SearchRequest(enrichedIndexName)), successfulItems);
     }
 }

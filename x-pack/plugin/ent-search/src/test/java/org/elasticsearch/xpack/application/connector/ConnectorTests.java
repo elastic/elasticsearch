@@ -98,6 +98,31 @@ public class ConnectorTests extends ESTestCase {
                         }
                      ],
                      "value":""
+                  },
+                   "field_with_null_tooltip":{
+                     "default_value":null,
+                     "depends_on":[
+                        {
+                           "field":"some_field",
+                           "value":true
+                        }
+                     ],
+                     "display":"textbox",
+                     "label":"Very important field",
+                     "options":[],
+                     "order":4,
+                     "required":true,
+                     "sensitive":false,
+                     "tooltip":null,
+                     "type":"str",
+                     "ui_restrictions":[],
+                     "validations":[
+                        {
+                           "constraint":0,
+                           "type":"greater_than"
+                        }
+                     ],
+                     "value":""
                   }
                },
                "description":"test-connector",

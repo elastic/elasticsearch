@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -181,7 +180,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
         ElasticsearchStatusException exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
+            client().execute(GetGlobalCheckpointsAction.INSTANCE, request)
         );
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
@@ -205,7 +204,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
         ElasticsearchStatusException exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
+            client().execute(GetGlobalCheckpointsAction.INSTANCE, request)
         );
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo("wait_for_advance only supports indices with one shard. [shard count: 3]"));
@@ -221,10 +220,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
 
         long start = System.nanoTime();
-        ElasticsearchException exception = expectThrows(
-            IndexNotFoundException.class,
-            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
-        );
+        expectThrows(IndexNotFoundException.class, client().execute(GetGlobalCheckpointsAction.INSTANCE, request));
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
         assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
     }
@@ -237,10 +233,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             EMPTY_ARRAY,
             TimeValue.timeValueMillis(between(1, 100))
         );
-        ElasticsearchException exception = expectThrows(
-            IndexNotFoundException.class,
-            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
-        );
+        expectThrows(IndexNotFoundException.class, client().execute(GetGlobalCheckpointsAction.INSTANCE, request));
     }
 
     public void testWaitOnIndexCreated() throws Exception {
@@ -285,7 +278,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         UnavailableShardsException exception = expectThrows(
             UnavailableShardsException.class,
-            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
+            client().execute(GetGlobalCheckpointsAction.INSTANCE, request)
         );
         assertEquals("Primary shards were not active [shards=1, active=0]", exception.getMessage());
     }
@@ -309,7 +302,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         UnavailableShardsException exception = expectThrows(
             UnavailableShardsException.class,
-            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
+            client().execute(GetGlobalCheckpointsAction.INSTANCE, request)
         );
         assertEquals("Primary shards were not active within timeout [timeout=" + timeout + ", shards=1, active=0]", exception.getMessage());
     }

@@ -1,0 +1,5 @@
+pr: 103633
+summary: Update s3 latency metric to use micros
+area: Search
+type: enhancement
+issues: []

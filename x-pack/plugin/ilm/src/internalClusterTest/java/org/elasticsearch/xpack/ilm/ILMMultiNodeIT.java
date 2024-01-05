@@ -30,7 +30,8 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,7 +76,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         phases.put(hotPhase.getName(), hotPhase);
         phases.put(warmPhase.getName(), warmPhase);
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", phases);
-        client().execute(PutLifecycleAction.INSTANCE, new PutLifecycleAction.Request(lifecyclePolicy)).get();
+        client().execute(ILMActions.PUT, new PutLifecycleRequest(lifecyclePolicy)).get();
 
         Template t = new Template(
             Settings.builder()

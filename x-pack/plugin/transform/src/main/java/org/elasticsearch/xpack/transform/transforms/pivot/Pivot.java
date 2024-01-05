@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -211,7 +210,7 @@ public class Pivot extends AbstractCompositeAggFunction {
             builder.endObject(); // sources
             try (
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentParserConfiguration.EMPTY,
+                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
                     BytesReference.bytes(builder),
                     builder.generator().contentType()
                 )

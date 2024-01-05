@@ -432,7 +432,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         boolean allowRestriction
     ) throws IOException {
         assert name != null;
-        // EMPTY is safe here because we never use namedObject
         try (XContentParser parser = createParser(source, xContentType)) {
             return parse(name, parser, allow2xFormat, allowRestriction);
         }

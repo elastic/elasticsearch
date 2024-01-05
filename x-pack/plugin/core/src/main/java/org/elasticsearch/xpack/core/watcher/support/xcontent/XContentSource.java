@@ -116,8 +116,8 @@ public class XContentSource implements ToXContent {
         }
     }
 
-    public XContentParser parser(BytesReference stream) throws IOException {
-        return XContentHelper.createParserNotCompressed(XContentHelper.LOG_DEPRECATIONS_CONFIGURATION, stream, contentType);
+    public XContentParser parser(BytesReference bytes) throws IOException {
+        return XContentHelper.createParserNotCompressed(XContentHelper.LOG_DEPRECATIONS_CONFIGURATION, bytes, contentType);
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {
@@ -131,7 +131,6 @@ public class XContentSource implements ToXContent {
 
     private Object data() {
         if (data == null) {
-            // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = parser(bytes)) {
                 data = XContentUtils.readValue(parser, parser.nextToken());
             } catch (IOException ex) {

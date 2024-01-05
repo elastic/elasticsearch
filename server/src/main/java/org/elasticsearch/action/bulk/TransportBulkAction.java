@@ -795,8 +795,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         private boolean addFailureIfRequiresDataStreamAndNoParentDataStream(DocWriteRequest<?> request, int idx, final Metadata metadata) {
-            if (request.isRequireDataStream() && (metadata.hasParentDataStream(request.index()) == false)) {
-                Exception exception = new IndexNotFoundException(
+            if (request.isRequireDataStream() && (metadata.indexIsADataStream(request.index()) == false)) {
+                Exception exception = new ResourceNotFoundException(
                     "["
                         + DocWriteRequest.REQUIRE_DATA_STREAM
                         + "] request flag is [true] and ["

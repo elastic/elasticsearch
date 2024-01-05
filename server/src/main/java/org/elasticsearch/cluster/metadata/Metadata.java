@@ -898,12 +898,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     /**
-     * Checks whether the provided index has a parent data streams.
+     * Checks whether the provided index is a data stream.
      */
-    public boolean hasParentDataStream(String indexName) {
+    public boolean indexIsADataStream(String indexName) {
         final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
-        IndexAbstraction index = lookup.get(indexName);
-        return index != null && index.getParentDataStream() != null;
+        IndexAbstraction abstraction = lookup.get(indexName);
+        return abstraction != null && abstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
     }
 
     @SuppressWarnings("unchecked")

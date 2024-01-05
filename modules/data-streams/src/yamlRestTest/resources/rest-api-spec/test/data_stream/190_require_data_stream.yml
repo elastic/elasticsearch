@@ -3,8 +3,11 @@
   - skip:
       version: " - 8.12.99"
       reason: "require_data_stream was introduced in 8.13.0"
+      features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [ds-template] has index patterns [ds-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [ds-template] will take precedence during new index creation"
       indices.put_index_template:
         name: ds-template
         body:
@@ -20,18 +23,36 @@
           data_stream: {}
           allow_auto_create: true
 
-#  - do:
-#      index:
-#        index:  ds-test
-#        require_data_stream: true
-#        body:
-#          '@timestamp': '2022-12-12'
-#          foo: bar
-#
-#  - do:
-#      index:
-#        index:  index-test
-#        require_data_stream: true
-#        body:
-#          '@timestamp': '2022-12-12'
-#          foo: bar
+  - do:
+      index:
+        index:  ds-test
+        require_data_stream: true
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar
+
+  - do:
+      catch: /no matching index template with data stream template was found for it/
+      index:
+        index:  index-test
+        require_data_stream: true
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar
+
+  - do:
+      index:
+        index:  other-index
+        require_data_stream: false
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar
+
+  - do:
+      catch: /is not a data stream/
+      index:
+        index:  other-index
+        require_data_stream: true
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar

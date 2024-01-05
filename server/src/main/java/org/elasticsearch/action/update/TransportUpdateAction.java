@@ -9,6 +9,7 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
@@ -116,8 +117,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 request.index()
             );
         }
-        if (request.isRequireDataStream() && (clusterService.state().getMetadata().hasParentDataStream(request.index()) == false)) {
-            throw new IndexNotFoundException(
+        if (request.isRequireDataStream() && (clusterService.state().getMetadata().indexIsADataStream(request.index()) == false)) {
+            throw new ResourceNotFoundException(
                 "["
                     + DocWriteRequest.REQUIRE_DATA_STREAM
                     + "] request flag is [true] and ["

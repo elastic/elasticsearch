@@ -82,7 +82,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = new SearchHit(in);
+                hits[i] = SearchHit.readFrom(in);
             }
         }
         sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);

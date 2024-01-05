@@ -135,7 +135,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                 request.getWaitForCompletionTimeout()
             );
             if (added == false) {
-                // the task must have been cancelled or completed, since we cannot add a completion listener
+                // the task must have completed, since we cannot add a completion listener
                 assert store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass) == null;
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
             }

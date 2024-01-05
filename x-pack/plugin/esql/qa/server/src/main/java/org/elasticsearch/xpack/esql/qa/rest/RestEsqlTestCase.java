@@ -585,15 +585,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         assertWarnings(response, expectedWarnings);
+        assertDeletable(id);
         return removeAsyncProperties(result);
     }
 
     // Removes async properties, otherwise consuming assertions would need to handle sync and async differences
     static Map<String, Object> removeAsyncProperties(Map<String, Object> map) {
         Map<String, Object> copy = new HashMap<>(map);
-        assertThat(copy.remove("is_running"), equalTo(false));
-        // assertThat((String) copy.remove("id"), is(not(emptyOrNullString()))); TODO: tighten up when id is returned
-        copy.remove("id");
+        assertFalse((boolean) copy.remove("is_running"));
+        copy.remove("id"); // id is optional, do not assert its removal
         return Collections.unmodifiableMap(copy);
     }
 
@@ -621,6 +621,20 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (requestObject.keepOnCompletion()) {
             assertThat((String) json.get("id"), not(emptyOrNullString()));
         }
+    }
+
+    static void assertDeletable(String id) throws IOException {
+        var request = prepareAsyncDeleteRequest(id);
+        performRequest(request);
+
+        // the stored response should no longer be retrievable
+        ResponseException re = expectThrows(ResponseException.class, () -> deleteNonExistent(request));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString(id));
+    }
+
+    static void deleteNonExistent(Request request) throws IOException {
+        Response response = client().performRequest(request);
+        assertEquals(404, response.getStatusLine().getStatusCode());
     }
 
     static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter) throws IOException {
@@ -657,6 +671,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static Request prepareAsyncGetRequest(String id) {
         Request request = new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s");
+        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
+        request.addParameter("pretty", "true");        // Improves error reporting readability
+        return request;
+    }
+
+    private static Request prepareAsyncDeleteRequest(String id) {
+        Request request = new Request("DELETE", "/_query/async/" + id);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         return request;

@@ -56,7 +56,7 @@ setup:
 
   - skip:
       features: ["warnings"]
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "local parameter for get field mapping API was allowed before v8"
 
   - do:

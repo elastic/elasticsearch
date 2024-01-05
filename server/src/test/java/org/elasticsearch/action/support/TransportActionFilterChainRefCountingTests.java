@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
-public class ActionFilterChainRefCountingTests extends ESSingleNodeTestCase {
+public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -150,21 +150,17 @@ public class ActionFilterChainRefCountingTests extends ESSingleNodeTestCase {
 
         @Inject
         public TestAction(TransportService transportService, ActionFilters actionFilters) {
-            super(ActionFilterChainRefCountingTests.TYPE.name(), actionFilters, transportService.getTaskManager());
+            super(TYPE.name(), actionFilters, transportService.getTaskManager());
             threadPool = transportService.getThreadPool();
         }
 
         @Override
-        protected void doExecute(
-            Task task,
-            ActionFilterChainRefCountingTests.Request request,
-            ActionListener<ActionFilterChainRefCountingTests.Response> listener
-        ) {
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             request.mustIncRef();
             threadPool.generic().execute(ActionRunnable.supply(ActionListener.runBefore(listener, request::decRef), () -> {
                 Thread.yield();
                 assert request.hasReferences();
-                return new ActionFilterChainRefCountingTests.Response();
+                return new Response();
             }));
         }
     }

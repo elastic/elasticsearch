@@ -676,20 +676,30 @@ public class StatementParserTests extends ESTestCase {
 
     public void testEnrich() {
         assertEquals(
-            new Enrich(EMPTY, PROCESSING_CMD_INPUT, new Literal(EMPTY, "countries", KEYWORD), new EmptyAttribute(EMPTY), null, List.of()),
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                null,
+                new Literal(EMPTY, "countries", KEYWORD),
+                new EmptyAttribute(EMPTY),
+                null,
+                List.of()
+            ),
             processingCommand("enrich countries")
         );
 
+        Enrich.Mode mode = randomFrom(Enrich.Mode.values());
         assertEquals(
             new Enrich(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
+                mode,
                 new Literal(EMPTY, "countries", KEYWORD),
                 new UnresolvedAttribute(EMPTY, "country_code"),
                 null,
                 List.of()
             ),
-            processingCommand("enrich countries ON country_code")
+            processingCommand("enrich [mode=" + mode.name() + "] countries ON country_code")
         );
 
         expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
@@ -701,6 +711,10 @@ public class StatementParserTests extends ESTestCase {
         expectError(
             "from a | enrich countries on foo with x* = bar ",
             "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
+        );
+        expectError(
+            "from a | enrich [mode=typo] countries on foo",
+            "line 1:24: Unrecognized value [typo], enrich mode needs to be one of [ANY, RELATIVE, ORIGINATOR]"
         );
     }
 

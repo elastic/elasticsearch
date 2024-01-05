@@ -246,9 +246,13 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=fromIdentifier (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH (enrichMode=enrichPolicyMode)? policyName=fromIdentifier (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
+    ;
+
+enrichPolicyMode
+    : OPENING_BRACKET MODE ASSIGN FROM_UNQUOTED_IDENTIFIER CLOSING_BRACKET
     ;

@@ -243,7 +243,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     policy
                 );
 
-            return new Enrich(plan.source(), plan.child(), policyNameExp, matchField, policyRes, enrichFields);
+            return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, matchField, policyRes, enrichFields);
         }
 
         private String unresolvedPolicyError(String policyName, EnrichResolution enrichResolution) {
@@ -584,7 +584,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
                     );
                 }
-                return new Enrich(enrich.source(), enrich.child(), enrich.policyName(), resolved, enrich.policy(), enrich.enrichFields());
+                return new Enrich(
+                    enrich.source(),
+                    enrich.child(),
+                    enrich.mode(),
+                    enrich.policyName(),
+                    resolved,
+                    enrich.policy(),
+                    enrich.enrichFields()
+                );
             }
             return enrich;
         }

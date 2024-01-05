@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -395,6 +396,24 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         NamedExpression enrichField = enrichFieldName(ctx.enrichField);
         NamedExpression newName = enrichFieldName(ctx.newName);
         return newName == null ? enrichField : new Alias(src, newName.name(), enrichField);
+    }
+
+    @Override
+    public Enrich.Mode visitEnrichPolicyMode(EsqlBaseParser.EnrichPolicyModeContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+        String value = unquoteIdentifier(null, ctx.FROM_UNQUOTED_IDENTIFIER());
+        Enrich.Mode m = Enrich.Mode.from(value);
+        if (m == null) {
+            throw new ParsingException(
+                source(ctx.FROM_UNQUOTED_IDENTIFIER()),
+                "Unrecognized value [{}], enrich mode needs to be one of {}",
+                value,
+                Enrich.Mode.values()
+            );
+        }
+        return m;
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {

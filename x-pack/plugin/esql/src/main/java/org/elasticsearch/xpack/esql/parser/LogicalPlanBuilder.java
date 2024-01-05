@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
@@ -313,10 +314,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> {
             String policyName = visitFromIdentifier(ctx.policyName);
             var source = source(ctx);
+            Mode mode = visitEnrichPolicyMode(ctx.enrichPolicyMode());
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField.name().contains("*")) {
                 throw new ParsingException(
-                    source(ctx),
+                    source,
                     "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]",
                     matchField.name()
                 );
@@ -326,6 +328,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             return new Enrich(
                 source,
                 p,
+                mode,
                 new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD),
                 matchField,
                 null,

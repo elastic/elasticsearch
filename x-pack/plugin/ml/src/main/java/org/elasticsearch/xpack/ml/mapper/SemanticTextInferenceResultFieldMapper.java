@@ -43,21 +43,19 @@ import java.util.Collections;
  *     "_source": {
  *         "my_semantic_text_field": "these are not the droids you're looking for",
  *         "_semantic_text_inference": {
- *             "my_semantic_text_field": {
- *                 [
- *                     {
- *                         "sparse_embedding": {
- *                             "lucas": 0.05212344,
- *                             "ty": 0.041213956,
- *                             "dragon": 0.50991,
- *                             "type": 0.23241979,
- *                             "dr": 1.9312073,
- *                             "##o": 0.2797593
- *                         },
- *                         "text": "these are not the droids you're looking for"
- *                     }
- *                 ]
- *             }
+ *             "my_semantic_text_field": [
+ *                 {
+ *                     "sparse_embedding": {
+ *                         "lucas": 0.05212344,
+ *                         "ty": 0.041213956,
+ *                         "dragon": 0.50991,
+ *                         "type": 0.23241979,
+ *                         "dr": 1.9312073,
+ *                         "##o": 0.2797593
+ *                     },
+ *                     "text": "these are not the droids you're looking for"
+ *                 }
+ *             ]
  *         }
  *     }
  * }

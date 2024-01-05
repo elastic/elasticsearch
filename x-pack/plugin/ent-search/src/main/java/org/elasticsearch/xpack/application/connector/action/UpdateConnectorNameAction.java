@@ -122,9 +122,7 @@ public class UpdateConnectorNameAction extends ActionType<ConnectorUpdateActionR
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                if (name != null) {
-                    builder.field(Connector.NAME_FIELD.getPreferredName(), name);
-                }
+                builder.field(Connector.NAME_FIELD.getPreferredName(), name);
                 if (description != null) {
                     builder.field(Connector.DESCRIPTION_FIELD.getPreferredName(), description);
                 }

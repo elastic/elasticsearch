@@ -84,6 +84,9 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipel
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.secrets.SecretsFeature;
 import org.elasticsearch.xpack.application.connector.secrets.SecretsIndexService;
+import org.elasticsearch.xpack.application.connector.secrets.action.GetSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.RestGetSecretAction;
+import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetSecretAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
@@ -142,9 +145,6 @@ import org.elasticsearch.xpack.application.search.action.TransportListSearchAppl
 import org.elasticsearch.xpack.application.search.action.TransportPutSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportQuerySearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportRenderSearchApplicationQueryAction;
-import org.elasticsearch.xpack.application.connector.secrets.action.GetSecretAction;
-import org.elasticsearch.xpack.application.connector.secrets.action.RestGetSecretAction;
-import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetSecretAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -258,11 +258,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         }
 
         if (SecretsFeature.isEnabled()) {
-            actionHandlers.addAll(
-                List.of(
-                    new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class)
-                )
-            );
+            actionHandlers.addAll(List.of(new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class)));
         }
 
         return Collections.unmodifiableList(actionHandlers);
@@ -341,11 +337,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         }
 
         if (SecretsFeature.isEnabled()) {
-            restHandlers.addAll(
-                List.of(
-                    new RestGetSecretAction()
-                )
-            );
+            restHandlers.addAll(List.of(new RestGetSecretAction()));
         }
 
         return Collections.unmodifiableList(restHandlers);
@@ -382,7 +374,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Arrays.asList(SearchApplicationIndexService.getSystemIndexDescriptor(), QueryRulesIndexService.getSystemIndexDescriptor(), SecretsIndexService.getSystemIndexDescriptor());
+        return Arrays.asList(
+            SearchApplicationIndexService.getSystemIndexDescriptor(),
+            QueryRulesIndexService.getSystemIndexDescriptor(),
+            SecretsIndexService.getSystemIndexDescriptor()
+        );
     }
 
     @Override

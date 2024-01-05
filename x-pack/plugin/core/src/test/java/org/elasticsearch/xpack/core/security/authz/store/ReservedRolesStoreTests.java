@@ -890,6 +890,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(true));
         assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(true));
 
+        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/connector/secret/get", request, authentication), is(false));
+
         // read-only indices for Fleet telemetry
         Arrays.asList("logs-elastic_agent-default", "logs-elastic_agent.fleet_server-default").forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));

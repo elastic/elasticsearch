@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -768,7 +769,7 @@ public class JobConfigProvider {
     private static Job.Builder parseJobLenientlyFromSource(BytesReference source) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 source,
                 XContentType.JSON
             )

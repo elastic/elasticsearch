@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -366,7 +367,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 bytesReference,
                 XContentType.JSON
             )

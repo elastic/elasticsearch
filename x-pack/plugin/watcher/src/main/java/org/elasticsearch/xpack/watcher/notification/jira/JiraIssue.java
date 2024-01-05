@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
@@ -145,7 +146,7 @@ public class JiraIssue implements ToXContentObject {
             // EMPTY is safe here because we never call namedObject
             try (
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                     response.body(),
                     XContentType.JSON
                 )

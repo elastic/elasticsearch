@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -357,7 +358,7 @@ public final class ReportingAttachmentParser implements EmailAttachmentParser<Re
         // EMPTY is safe here becaus we never call namedObject
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 body,
                 XContentType.JSON
             )

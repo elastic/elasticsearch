@@ -36,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -588,7 +589,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     private XContentParser createParser(BytesReference source) throws IOException {
         return XContentHelper.createParserNotCompressed(
-            XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(xContentRegistry),
+            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
             source,
             XContentType.JSON
         );

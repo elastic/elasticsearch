@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
@@ -297,7 +298,7 @@ public class ChunkedTrainedModelRestorer {
 
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(xContentRegistry),
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
                 source,
                 XContentType.JSON
             )

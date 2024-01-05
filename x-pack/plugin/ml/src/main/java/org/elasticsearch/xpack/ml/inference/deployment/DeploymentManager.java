@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -292,7 +293,7 @@ public class DeploymentManager {
     Vocabulary parseVocabularyDocLeniently(SearchHit hit) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(xContentRegistry),
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
                 hit.getSourceRef(),
                 XContentType.JSON
             )

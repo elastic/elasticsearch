@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -210,7 +211,7 @@ public class Pivot extends AbstractCompositeAggFunction {
             builder.endObject(); // sources
             try (
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                     BytesReference.bytes(builder),
                     builder.generator().contentType()
                 )

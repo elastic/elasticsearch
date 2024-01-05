@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -617,7 +618,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     private static XContentParser createParser(BytesReference source, XContentType xContentType) throws IOException {
-        return XContentHelper.createParserNotCompressed(XContentHelper.LOG_DEPRECATIONS_CONFIGURATION, source, xContentType);
+        return XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, source, xContentType);
     }
 
     private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)

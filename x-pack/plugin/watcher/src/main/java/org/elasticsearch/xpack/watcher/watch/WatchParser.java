@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -155,7 +156,7 @@ public class WatchParser {
         // EMPTY is safe here because we never use namedObject
         try (
             WatcherXContentParser parser = new WatcherXContentParser(
-                XContentHelper.createParserNotCompressed(XContentHelper.LOG_DEPRECATIONS_CONFIGURATION, source, xContentType),
+                XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, source, xContentType),
                 now,
                 withSecrets ? cryptoService : null,
                 allowRedactedPasswords

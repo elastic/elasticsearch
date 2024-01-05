@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -659,7 +660,7 @@ public class License implements ToXContentObject {
         // EMPTY is safe here because we don't call namedObject
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 bytes,
                 xContentType
             )

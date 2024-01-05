@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xcontent.ToXContent;
@@ -82,7 +83,7 @@ public class JiraAccount {
             builder.endObject();
             try (
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                     BytesReference.bytes(builder),
                     XContentType.JSON
                 )

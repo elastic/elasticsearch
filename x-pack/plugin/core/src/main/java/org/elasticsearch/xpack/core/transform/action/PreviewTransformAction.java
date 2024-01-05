@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -85,7 +86,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             try (
                 XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
                 XContentParser newParser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(parser.getXContentRegistry()),
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(parser.getXContentRegistry()),
                     BytesReference.bytes(xContentBuilder),
                     XContentType.JSON
                 )

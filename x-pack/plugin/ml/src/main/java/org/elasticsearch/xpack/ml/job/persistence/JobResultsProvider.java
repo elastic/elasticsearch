@@ -52,6 +52,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1981,7 +1982,7 @@ public class JobResultsProvider {
     }
 
     private static XContentParser createParser(BytesReference docSource) throws IOException {
-        return XContentHelper.createParserNotCompressed(XContentHelper.LOG_DEPRECATIONS_CONFIGURATION, docSource, XContentType.JSON);
+        return XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, docSource, XContentType.JSON);
     }
 
     /**

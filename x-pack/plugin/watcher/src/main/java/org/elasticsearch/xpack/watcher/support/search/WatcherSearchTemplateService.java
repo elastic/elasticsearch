@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.support.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -67,7 +68,7 @@ public class WatcherSearchTemplateService {
         if (source != null && source.length() > 0) {
             try (
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(xContentRegistry),
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
                     source,
                     XContentHelper.xContentType(source)
                 )

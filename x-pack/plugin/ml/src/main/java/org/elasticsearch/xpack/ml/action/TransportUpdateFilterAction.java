@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.tasks.Task;
@@ -164,7 +165,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
                 if (getDocResponse.isExists()) {
                     try (
                         XContentParser parser = XContentHelper.createParserNotCompressed(
-                            XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                             getDocResponse.getSourceAsBytesRef(),
                             XContentType.JSON
                         )

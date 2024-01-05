@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -540,7 +541,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         try (
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
             XContentParser sourceParser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(namedXContentRegistry),
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(namedXContentRegistry),
                 BytesReference.bytes(xContentBuilder),
                 XContentType.JSON
             )

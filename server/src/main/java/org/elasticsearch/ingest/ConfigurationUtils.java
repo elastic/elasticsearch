@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
@@ -639,7 +640,7 @@ public final class ConfigurationUtils {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(normalizeScript(scriptSource));
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                     BytesReference.bytes(builder),
                     XContentType.JSON
                 )

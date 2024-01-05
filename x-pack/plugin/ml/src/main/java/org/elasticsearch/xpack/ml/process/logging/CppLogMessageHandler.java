@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -264,7 +265,7 @@ public class CppLogMessageHandler implements Closeable {
     private void parseMessage(XContent xContent, BytesReference bytesRef) {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 bytesRef,
                 xContent.type()
             )

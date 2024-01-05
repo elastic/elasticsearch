@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,7 +28,7 @@ class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
     protected Result<AnomalyRecord> map(SearchHit hit) {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 hit.getSourceRef(),
                 XContentType.JSON
             )

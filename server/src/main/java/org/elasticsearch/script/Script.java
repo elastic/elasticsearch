@@ -302,7 +302,7 @@ public final class Script implements ToXContentObject, Writeable {
             builder.endObject();
             try (
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                     BytesReference.bytes(builder),
                     XContentType.JSON
                 )

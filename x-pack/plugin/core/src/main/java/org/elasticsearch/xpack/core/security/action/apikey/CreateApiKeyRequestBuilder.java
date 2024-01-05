@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -86,7 +87,7 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
     public CreateApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 source,
                 xContentType
             )

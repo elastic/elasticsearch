@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher.input.http;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -88,7 +89,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             // EMPTY is safe here because we never use namedObject
             try (
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                     response.body(),
                     contentType
                 )

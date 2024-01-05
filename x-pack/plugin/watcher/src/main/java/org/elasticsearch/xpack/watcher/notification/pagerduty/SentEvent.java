@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
@@ -120,7 +121,7 @@ public class SentEvent implements ToXContentObject {
         try (
             XContentParser parser = XContentHelper
                 // EMPTY is safe here because we never call namedObject
-                .createParserNotCompressed(XContentHelper.LOG_DEPRECATIONS_CONFIGURATION, response.body(), XContentType.JSON)
+                .createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, response.body(), XContentType.JSON)
         ) {
             parser.nextToken();
 

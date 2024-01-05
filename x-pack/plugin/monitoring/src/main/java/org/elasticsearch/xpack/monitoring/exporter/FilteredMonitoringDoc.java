@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -61,7 +62,7 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
             }
             try (
                 XContentParser parser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                     out.bytes(),
                     builder.contentType()
                 )

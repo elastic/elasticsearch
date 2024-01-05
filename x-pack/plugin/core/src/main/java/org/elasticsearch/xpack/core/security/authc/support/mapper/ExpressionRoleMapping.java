@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -200,7 +201,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public static ExpressionRoleMapping parse(String name, BytesReference source, XContentType xContentType) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 source,
                 xContentType
             )

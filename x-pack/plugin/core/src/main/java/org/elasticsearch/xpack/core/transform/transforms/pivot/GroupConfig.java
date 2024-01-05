@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -139,7 +140,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
             try (
                 XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
                 XContentParser sourceParser = XContentHelper.createParserNotCompressed(
-                    XContentHelper.LOG_DEPRECATIONS_CONFIGURATION.withRegistry(registry),
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(registry),
                     BytesReference.bytes(xContentBuilder),
                     XContentType.JSON
                 )

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
@@ -117,7 +118,7 @@ public class XContentSource implements ToXContent {
     }
 
     public XContentParser parser(BytesReference bytes) throws IOException {
-        return XContentHelper.createParserNotCompressed(XContentHelper.LOG_DEPRECATIONS_CONFIGURATION, bytes, contentType);
+        return XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, bytes, contentType);
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {

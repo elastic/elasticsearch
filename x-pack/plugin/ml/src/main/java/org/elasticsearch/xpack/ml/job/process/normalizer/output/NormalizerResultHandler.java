@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.job.process.normalizer.output;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -79,7 +80,7 @@ public class NormalizerResultHandler {
     private void parseResult(XContent xContent, BytesReference bytesRef) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
-                XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                 bytesRef,
                 xContent.type()
             )

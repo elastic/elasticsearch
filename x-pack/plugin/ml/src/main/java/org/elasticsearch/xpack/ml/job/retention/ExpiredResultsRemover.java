@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -203,7 +204,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
                 try (
                     XContentParser parser = XContentHelper.createParserNotCompressed(
-                        XContentHelper.LOG_DEPRECATIONS_CONFIGURATION,
+                        LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
                         hits[0].getSourceRef(),
                         XContentType.JSON
                     )

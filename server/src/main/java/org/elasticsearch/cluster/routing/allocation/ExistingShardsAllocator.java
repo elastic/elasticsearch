@@ -44,6 +44,7 @@ public interface ExistingShardsAllocator {
      * Called during a round of allocation after attempting to allocate all the primaries but before any replicas, allowing the allocator
      * to prepare for replica allocation.
      */
+    @Deprecated(forRemoval = true)
     default void afterPrimariesBeforeReplicas(@SuppressWarnings("unused") RoutingAllocation allocation) {
         assert false : "must be overridden";
         throw new UnsupportedOperationException();

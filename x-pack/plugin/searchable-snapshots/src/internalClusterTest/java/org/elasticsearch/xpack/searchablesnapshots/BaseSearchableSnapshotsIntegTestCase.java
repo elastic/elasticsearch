@@ -378,7 +378,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
                     if (action.equals(TransportNodesListShardStoreMetadata.ACTION_NAME)) {
                         final var shardId = asInstanceOf(TransportNodesListShardStoreMetadata.Request.class, request).shardId();
-                        assertFalse(shardId.toString(), clusterService.state().metadata().index(shardId.getIndex()).isSearchableSnapshot());
+                        final var indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                        if (indexMetadata != null) {
+                            assertFalse(shardId.toString(), indexMetadata.isSearchableSnapshot());
+                        }
                     }
                     return true;
                 }

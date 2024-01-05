@@ -345,6 +345,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), containsString("api key name is required"));
     }
 
+    public void testCreateApiKeyWithNegativeExpirationWillFail() {
+        Client client = authorizedClient();
+        String keyName = randomAlphaOfLength(5);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CreateApiKeyRequestBuilder(client).setName(keyName)
+                .setExpiration(new TimeValue(randomFrom(0, -1)))
+                .setRefreshPolicy(randomFrom(NONE, WAIT_UNTIL, IMMEDIATE))
+                .get()
+        );
+        assertThat(e.getMessage(), containsString("expiration must be in the future"));
+    }
+
     public void testInvalidateApiKeysForRealm() throws InterruptedException, ExecutionException {
         int noOfApiKeys = randomIntBetween(3, 5);
         List<CreateApiKeyResponse> responses = createApiKeys(noOfApiKeys, null).v1();
@@ -2672,6 +2685,29 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 currentSuperuserRoleDescriptors
             )
         );
+    }
+
+    public void testUpdateApiKeysBadExpirationTime() {
+        final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
+        final var apiKeyId = createdApiKey.v1().getId();
+        final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(TEST_USER_NAME, TEST_ROLE),
+            new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
+        );
+        final Set<RoleDescriptor> legacySuperuserRoleDescriptor = Set.of(ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR);
+        final BulkUpdateApiKeyRequest bulkRequest = new BulkUpdateApiKeyRequest(
+            List.of(apiKeyId),
+            null,
+            null,
+            new TimeValue(randomFrom(0, -1))
+        );
+
+        final ExecutionException e = expectThrows(
+            ExecutionException.class,
+            () -> updateApiKeys(serviceWithNodeName.service(), authentication, bulkRequest, legacySuperuserRoleDescriptor)
+        );
+        assertThat(e.getCause().getMessage(), containsString("expiration must be in the future"));
     }
 
     public void testUpdateApiKeysClearsApiKeyDocCache() throws Exception {

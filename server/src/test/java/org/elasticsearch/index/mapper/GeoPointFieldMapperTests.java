@@ -19,7 +19,9 @@ import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
@@ -32,7 +34,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -606,7 +607,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), asWKB(v.v2()), this::mapping);
+                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), asWKT(v.v2()), this::mapping);
                 }
                 List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
                 List<Object> in = values.stream().map(Tuple::v1).toList();
@@ -614,7 +615,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 List<GeoPoint> outList = values.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<BytesRef> outBlockList = outList.stream().map(this::asWKB).toList();
+                List<String> outBlockList = outList.stream().map(this::asWKT).toList();
                 Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
                 return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
@@ -649,8 +650,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 };
             }
 
-            private BytesRef asWKB(GeoPoint point) {
-                return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
+            private String asWKT(GeoPoint point) {
+                return WellKnownText.toWKT(new Point(point.getX(), point.getY()));
             }
 
             private long encode(GeoPoint point) {
@@ -704,9 +705,15 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
+    private boolean useDocValues = false;
+
     @Override
     protected Function<Object, Object> loadBlockExpected() {
-        return v -> asJacksonNumberOutput(((Number) v).longValue());
+        if (useDocValues) {
+            return v -> asJacksonNumberOutput(((Number) v).longValue());
+        } else {
+            return v -> asWKT((BytesRef) v);
+        }
     }
 
     protected static Object asJacksonNumberOutput(long l) {
@@ -718,16 +725,16 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         }
     }
 
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
     @Override
     protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
         // Currently ESQL support for geo_point is limited to source values
         return false;
-    }
-
-    @Override
-    public void testBlockLoaderFromRowStrideReader() {
-        // Disabled due to unsolved test failures
-        assumeTrue("fix MapperTestCase.testBlockLoader for geo_point, possibly by tweaking the test data", false);
     }
 
     @Override

@@ -13,12 +13,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -155,6 +157,14 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
 
             if (Strings.isNullOrEmpty(getConnectorId())) {
                 validationException = addValidationError("connector_id cannot be null or empty", validationException);
+            }
+            if (Strings.isNullOrEmpty(getIndexName())) {
+                validationException = addValidationError("index_name cannot be null or empty", validationException);
+            }
+            try {
+                MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);
+            } catch (InvalidIndexNameException e) {
+                validationException = addValidationError(e.toString(), validationException);
             }
 
             return validationException;

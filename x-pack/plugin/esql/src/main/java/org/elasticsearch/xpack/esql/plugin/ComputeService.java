@@ -641,7 +641,10 @@ public class ComputeService {
             configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ESQL_THREAD_POOL_NAME)
         );
-        try (RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))) {
+        try (
+            Releasable ignored = exchangeSource.addEmptySink();
+            RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))
+        ) {
             exchangeSink.addCompletionListener(refs.acquire());
             PhysicalPlan coordinatorPlan = new ExchangeSinkExec(
                 plan.source(),

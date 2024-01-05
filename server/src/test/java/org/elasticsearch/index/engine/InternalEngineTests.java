@@ -3675,7 +3675,6 @@ public class InternalEngineTests extends EngineTestCase {
     /**
      * Tests that when the close method returns the engine is actually guaranteed to have cleaned up and that resources are closed
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103861")
     public void testConcurrentEngineClosed() throws BrokenBarrierException, InterruptedException {
         Thread[] closingThreads = new Thread[3];
         CyclicBarrier barrier = new CyclicBarrier(1 + closingThreads.length + 1);

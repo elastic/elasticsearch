@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -18,6 +19,7 @@ import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103774")
 public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTestCase<LuceneSourceOperator.Status> {
     public static LuceneSourceOperator.Status simple() {
         return new LuceneSourceOperator.Status(2, Set.of("*:*"), new TreeSet<>(List.of("a:0", "a:1")), 0, 1, 5, 123, 99990, 8000);

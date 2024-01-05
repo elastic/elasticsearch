@@ -11,6 +11,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -132,6 +133,17 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         PreviewDatafeedAction.Request request,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
+        // The datafeed preview runs in its own context with the provided
+        // headers for auth. When security is not enabled the context
+        // preserving listener is required to restore the request/response
+        // headers. If security is enabled the context wrapping done in
+        // SecondaryAuthorizationUtils::useSecondaryAuthIfAvailable is
+        // sufficient to preserve the context.
+        var responseHeaderPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+            listener,
+            threadPool.getThreadContext()
+        );
+
         final QueryBuilder extraFilters = request.getStartTime().isPresent() || request.getEndTime().isPresent()
             ? null
             : QueryBuilders.boolQuery().mustNot(QueryBuilders.termsQuery(DataTierFieldMapper.NAME, "data_frozen", "data_cold"));
@@ -153,18 +165,16 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
-                listener.delegateFailure(
+                responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
                         previewDatafeedConfig,
                         job.getDataDescription().getTimeField(),
-                        listener.delegateFailure((l2, isDateNanos) -> {
-                            final QueryBuilder hotOnly = QueryBuilders.boolQuery()
-                                .mustNot(QueryBuilders.termsQuery(DataTierFieldMapper.NAME, "data_frozen", "data_cold"));
+                        l.delegateFailure((l2, isDateNanos) -> {
                             final long start = request.getStartTime().orElse(0);
                             final long end = request.getEndTime()
                                 .orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
                             DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
-                            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, l));
+                            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, l2));
                         })
                     )
                 )

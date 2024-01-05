@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -306,7 +306,7 @@ public class PrivilegeTests extends ESTestCase {
             ClusterStatsAction.NAME,
             NodeEnrollmentAction.NAME,
             KibanaEnrollmentAction.NAME,
-            PutIndexTemplateAction.NAME,
+            TransportPutIndexTemplateAction.TYPE.name(),
             GetIndexTemplatesAction.NAME,
             ClusterRerouteAction.NAME,
             ClusterUpdateSettingsAction.NAME,
@@ -356,7 +356,7 @@ public class PrivilegeTests extends ESTestCase {
             TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
             ClusterStatsAction.NAME,
-            PutIndexTemplateAction.NAME,
+            TransportPutIndexTemplateAction.TYPE.name(),
             GetIndexTemplatesAction.NAME,
             ClusterRerouteAction.NAME,
             ClusterUpdateSettingsAction.NAME

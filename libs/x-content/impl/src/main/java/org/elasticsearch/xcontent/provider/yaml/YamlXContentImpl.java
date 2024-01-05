@@ -45,9 +45,10 @@ public final class YamlXContentImpl implements XContent {
     }
 
     static {
-        yamlFactory = new YAMLFactory();
-        // yamlFactory = XContentImplUtils.configure(YAMLFactory.builder());
-        // yamlFactory.configure(YAMLParser.Feature.EMPTY_STRING_AS_NULL, true);
+        yamlFactory = XContentImplUtils.configure(YAMLFactory.builder());
+        // YAMLFactory.builder() differs from new YAMLFactory() in that builder() does not set the default yaml parser feature flags.
+        // So set the only default feature flag, EMPTY_STRING_AS_NULL, here.
+        yamlFactory.configure(YAMLParser.Feature.EMPTY_STRING_AS_NULL, true);
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         yamlFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
         yamlXContent = new YamlXContentImpl();

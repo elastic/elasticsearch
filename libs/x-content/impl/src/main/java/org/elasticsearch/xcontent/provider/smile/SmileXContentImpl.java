@@ -46,8 +46,7 @@ public final class SmileXContentImpl implements XContent {
     }
 
     static {
-        // smileFactory = XContentImplUtils.configure(SmileFactory.builder());
-        smileFactory = new SmileFactory();
+        smileFactory = XContentImplUtils.configure(SmileFactory.builder());
         // for now, this is an overhead, might make sense for web sockets
         smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
         smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...

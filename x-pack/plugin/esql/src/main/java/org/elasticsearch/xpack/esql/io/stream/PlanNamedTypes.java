@@ -1604,29 +1604,16 @@ public final class PlanNamedTypes {
      */
     private static Object mapFromLiteralValue(PlanStreamOutput out, DataType dataType, Object value) {
         if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
-            if (value instanceof List<?> list) {
-                return list.stream().map(v -> mapFromLiteralValue(out, dataType, v)).toList();
-            }
             // Picked an existing transport version that is clearly in between the doc-values and WKB versions of the point literals
             // This simplification works since ESQL is not supported in serverless, so we're only differentiating between 8.12 and 8.13
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
-                // 8.13.0 uses WKB for serializing point literals
-                if (value instanceof BytesRef wkb) {
-                    return wkb;
+            if (out.getTransportVersion().before(TransportVersions.ESQL_PROFILE)) {
+                if (value instanceof List<?> list) {
+                    return list.stream().map(v -> mapFromLiteralValue(out, dataType, v)).toList();
                 }
-                if (value instanceof Long encoded) {
-                    return longAsWKB(dataType, encoded);
-                }
-            } else {
-                // 8.12.0 uses encoded longs for serializing point literals
                 if (value instanceof BytesRef wkb) {
                     return wkbAsLong(dataType, wkb);
                 }
-                if (value instanceof Long encoded) {
-                    return encoded;
-                }
             }
-            throw new IllegalArgumentException("Unsupported point literal value: " + value);
         }
         return value;
     }

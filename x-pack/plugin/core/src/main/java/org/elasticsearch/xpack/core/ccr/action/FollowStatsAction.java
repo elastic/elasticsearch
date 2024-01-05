@@ -106,11 +106,11 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
             );
         }
 
-        private static final ToLongFunction<StatsResponse> leaderToFollowerGCPDiff = sr -> sr.status.leaderGlobalCheckpoint() - sr.status
+        private static final ToLongFunction<ShardFollowNodeTaskStatus> leaderToFollowerGCPDiff = s -> s.leaderGlobalCheckpoint() - s
             .followerGlobalCheckpoint();
 
         private static long calcFollowerToLeaderLaggingOps(Map<Integer, StatsResponse> followShardTaskStats) {
-            return followShardTaskStats.values().stream().mapToLong(leaderToFollowerGCPDiff).sum();
+            return followShardTaskStats.values().stream().map(StatsResponse::status).mapToLong(leaderToFollowerGCPDiff).sum();
         }
 
         @Override

@@ -37,7 +37,7 @@ realms you specify are used for authentication. If you also want to use the
 
 --
 
-. Optional: The username (as defined by the username_pattern) is used for auditing and logging.
+. Optional: The username is defined by the <<ref-pki-settings, username_pattern>>.
 If you want to use something other than the CN of the Subject DN as
 the username, you can specify a regex to extract the desired username. The regex
 is applied on the Subject DN.

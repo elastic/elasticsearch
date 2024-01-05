@@ -214,10 +214,10 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
 
-        final TransportRequest request = mock(TransportRequest.class);
-        assertThat(role.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(true));
-        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(false));
-        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(false));
+        final TransportRequest fleetRequest = mock(TransportRequest.class);
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/get", fleetRequest, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", fleetRequest, authentication), is(false));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", fleetRequest, authentication), is(false));
 
         final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(apmSampledTracesIndex), is(true));
@@ -231,6 +231,24 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(apmSampledTracesIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(apmSampledTracesIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(apmSampledTracesIndex), is(false));
+
+        final IndexAbstraction dotConnectorSecretsIndex = mockIndexAbstraction(".connector-secrets" + randomAlphaOfLengthBetween(1, 20));
+        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(dotConnectorSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotConnectorSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(dotConnectorSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotConnectorSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(dotConnectorSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(dotConnectorSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(dotConnectorSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(dotConnectorSecretsIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotConnectorSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(dotConnectorSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotConnectorSecretsIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotConnectorSecretsIndex), is(false));
+
+        final TransportRequest connectorRequest = mock(TransportRequest.class);
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secrets/get", connectorRequest, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/xpack/connector/secrets/post", connectorRequest, authentication), is(false));
 
         final String privilegeName = randomAlphaOfLengthBetween(3, 16);
         assertThat(

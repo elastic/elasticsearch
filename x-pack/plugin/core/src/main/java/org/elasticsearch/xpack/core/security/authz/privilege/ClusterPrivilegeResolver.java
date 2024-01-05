@@ -331,6 +331,11 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/xpack/connector/secret/get")
     );
 
+    public static final NamedClusterPrivilege WRITE_SEARCH_SECRETS = new ActionClusterPrivilege(
+        "write_search_secrets",
+        Set.of("cluster:admin/xpack/connector/secrets/post")
+    );
+
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
         Stream.of(
             NONE,
@@ -386,7 +391,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_SEARCH_QUERY_RULES,
             CROSS_CLUSTER_SEARCH,
             CROSS_CLUSTER_REPLICATION,
-            READ_SEARCH_SECRETS
+            READ_SEARCH_SECRETS,
+            WRITE_SEARCH_SECRETS
         ).filter(Objects::nonNull).toList()
     );
 

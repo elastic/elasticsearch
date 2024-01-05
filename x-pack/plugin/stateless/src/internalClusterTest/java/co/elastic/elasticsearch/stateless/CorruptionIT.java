@@ -320,11 +320,15 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             (TestSharedBlobCacheService) internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, searchNodeName).get()
         );
 
+        ensureGreen(indexName);
+
         // index node
         assertCacheEvictedOnCorruption(
             findIndexShard(indexName),
             (TestSharedBlobCacheService) internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNodeName).get()
         );
+
+        ensureGreen(indexName);
     }
 
     private void assertCacheEvictedOnCorruption(IndexShard shard, TestSharedBlobCacheService sharedBlobCacheService) throws Exception {

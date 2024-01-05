@@ -317,11 +317,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Mode mode = visitEnrichPolicyMode(ctx.enrichPolicyMode());
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField.name().contains("*")) {
-                throw new ParsingException(
-                    source,
-                    "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]",
-                    matchField.name()
-                );
+                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", matchField.name());
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);

@@ -109,7 +109,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
         // <3> Create the transform
         ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-            unusedValidationResponse -> putTransform(request, listener),
+            validationResponse -> putTransform(request, listener),
             listener::onFailure
         );
 

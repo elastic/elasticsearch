@@ -24,7 +24,7 @@ class ResultBuilderForInt implements ResultBuilder {
     ResultBuilderForInt(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = IntBlock.newBlockBuilder(initialSize, blockFactory);
+        this.builder = blockFactory.newIntBlockBuilder(initialSize);
     }
 
     @Override

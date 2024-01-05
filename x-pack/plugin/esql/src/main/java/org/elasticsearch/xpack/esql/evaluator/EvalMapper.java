@@ -107,7 +107,7 @@ public final class EvalMapper {
                  */
                 private Block eval(Block lhs, Block rhs) {
                     int positionCount = lhs.getPositionCount();
-                    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, lhs.blockFactory())) {
+                    try (BooleanBlock.Builder result = lhs.blockFactory().newBooleanBlockBuilder(positionCount)) {
                         for (int p = 0; p < positionCount; p++) {
                             if (lhs.getValueCount(p) > 1) {
                                 result.appendNull();
@@ -134,7 +134,7 @@ public final class EvalMapper {
 
                 private Block eval(BooleanVector lhs, BooleanVector rhs) {
                     int positionCount = lhs.getPositionCount();
-                    try (var result = BooleanVector.newVectorFixedBuilder(positionCount, lhs.blockFactory())) {
+                    try (var result = lhs.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
                         for (int p = 0; p < positionCount; p++) {
                             result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
                         }
@@ -227,12 +227,12 @@ public final class EvalMapper {
         private static Block block(Literal lit, BlockFactory blockFactory, int positions) {
             var value = lit.value();
             if (value == null) {
-                return Block.constantNullBlock(positions, blockFactory);
+                return blockFactory.newConstantNullBlock(positions);
             }
 
             if (value instanceof List<?> multiValue) {
                 if (multiValue.isEmpty()) {
-                    return Block.constantNullBlock(positions, blockFactory);
+                    return blockFactory.newConstantNullBlock(positions);
                 }
                 var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
                 for (int i = 0; i < positions; i++) {
@@ -269,14 +269,9 @@ public final class EvalMapper {
             public Block eval(Page page) {
                 try (Block fieldBlock = field.eval(page)) {
                     if (fieldBlock.asVector() != null) {
-                        return BooleanBlock.newConstantBlockWith(false, page.getPositionCount(), driverContext.blockFactory());
+                        return driverContext.blockFactory().newConstantBooleanBlockWith(false, page.getPositionCount());
                     }
-                    try (
-                        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(
-                            page.getPositionCount(),
-                            driverContext.blockFactory()
-                        )
-                    ) {
+                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
                             builder.appendBoolean(fieldBlock.isNull(p));
                         }
@@ -323,14 +318,9 @@ public final class EvalMapper {
             public Block eval(Page page) {
                 try (Block fieldBlock = field.eval(page)) {
                     if (fieldBlock.asVector() != null) {
-                        return BooleanBlock.newConstantBlockWith(true, page.getPositionCount(), driverContext.blockFactory());
+                        return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
                     }
-                    try (
-                        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(
-                            page.getPositionCount(),
-                            driverContext.blockFactory()
-                        )
-                    ) {
+                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
                             builder.appendBoolean(fieldBlock.isNull(p) == false);
                         }

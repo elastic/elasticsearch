@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.function.Supplier;
 
@@ -38,6 +39,9 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
 
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
+    public static final XContentParserConfiguration XCONTENT_PARSER_CONFIG = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+        INSTANCE
+    );
 
     private TriConsumer<String, Object[], String> deprecationLoggerFunction = (message, params, field_name) -> deprecationLogger.warn(
         DeprecationCategory.API,

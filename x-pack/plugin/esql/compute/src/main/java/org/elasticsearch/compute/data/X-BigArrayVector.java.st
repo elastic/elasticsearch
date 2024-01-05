@@ -12,7 +12,8 @@ import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed $Type$Array.
+ * Vector implementation that defers to an enclosed {@link $if(boolean)$Bit$else$$Type$$endif$Array}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class $Type$BigArrayVector extends AbstractVector implements $Type$Vector, Releasable {
@@ -71,11 +72,9 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link $if(boolean)$Bit$else$$Type$$endif$Array} is adjusted outside
+        // of this class.
         values.close();
     }
 

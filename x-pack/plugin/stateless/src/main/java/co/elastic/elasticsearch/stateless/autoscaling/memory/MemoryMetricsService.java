@@ -48,6 +48,12 @@ public class MemoryMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final Setting<TimeValue> STALE_METRICS_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "serverless.autoscaling.memory_metrics.indices_mapping_size.stale_metrics_check.interval",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private static final Logger logger = LogManager.getLogger(MemoryMetricsService.class);
     private static final int SENDING_PRIMARY_SHARD_ID = 0;
     private static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
@@ -58,9 +64,13 @@ public class MemoryMetricsService implements ClusterStateListener {
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile TimeValue staleMetricsCheckDuration;
 
+    private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
+    private volatile TimeValue staleMetricsCheckInterval;
+
     public MemoryMetricsService(LongSupplier relativeTimeInNanosSupplier, ClusterSettings clusterSettings) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_DURATION_SETTING, value -> staleMetricsCheckDuration = value);
+        clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> staleMetricsCheckInterval = value);
     }
 
     public MemoryMetrics getMemoryMetrics() {
@@ -80,11 +90,18 @@ public class MemoryMetricsService implements ClusterStateListener {
         // rolling sum & metric quality, if any of qualities is not `EXACT` report the whole batch as such
         long sizeInBytes = 0;
         MetricQuality metricQuality = MetricQuality.EXACT;
+        // Can't control the frequency in which getTotalIndicesMappingSize is called, so we need to make sure we run the stale check
+        // at a regular interval to avoid flooding logs with stale index warnings
+        boolean checkStaleMetrics = relativeTimeInNanos() - staleMetricsCheckInterval.nanos() > lastStaleMetricsCheckTimeNs;
+        if (checkStaleMetrics) {
+            lastStaleMetricsCheckTimeNs = relativeTimeInNanos();
+        }
         for (var indexMemoryMetrics : indicesMemoryMetrics.entrySet()) {
             var memoryMetrics = indexMemoryMetrics.getValue();
             sizeInBytes += memoryMetrics.sizeInBytes;
             metricQuality = memoryMetrics.getMetricQuality() == MetricQuality.EXACT ? metricQuality : memoryMetrics.getMetricQuality();
-            if (memoryMetrics.getMetricQuality() != MetricQuality.EXACT
+            if (checkStaleMetrics
+                && memoryMetrics.getMetricQuality() != MetricQuality.EXACT
                 && relativeTimeInNanos() - staleMetricsCheckDuration.nanos() > memoryMetrics.getUpdateTimestampNanos()) {
                 logger.warn("Memory metrics are stale for index {}", indexMemoryMetrics);
             }

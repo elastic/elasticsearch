@@ -127,11 +127,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 relations.get()
             );
         }
-
-        @Override
-        public int mapperSize() {
-            return 1 + relations.get().size();
-        }
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {

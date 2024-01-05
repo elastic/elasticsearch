@@ -270,12 +270,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 this
             );
         }
-
-        @Override
-        public int mapperSize() {
-            return super.mapperSize() + 1 // prefixField
-                + maxShingleSize.getValue() - 1;
-        }
     }
 
     private static int countPosition(TokenStream stream) throws IOException {

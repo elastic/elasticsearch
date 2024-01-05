@@ -37,13 +37,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
-
-        /**
-         * Returns the size this mapper counts against the {@linkplain MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING field limit}.
-         * <p>
-         * Needs to be in sync with {@link Mapper#mapperSize()} which is based on {@link Mapper#iterator()}
-         */
-        public abstract int mapperSize();
     }
 
     public interface TypeParser {
@@ -146,7 +139,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     /**
      * Returns the size this mapper counts against the {@linkplain MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING field limit}.
      * <p>
-     * Needs to be in sync with {@link Mapper.Builder#mapperSize()} and {@link MappingLookup#getTotalFieldsCount()}.
+     * Needs to be in sync with {@link MappingLookup#getTotalFieldsCount()}.
      */
     public int mapperSize() {
         int size = 1;

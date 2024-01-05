@@ -180,11 +180,6 @@ public class ObjectMapper extends Mapper {
                 buildMappers(context.createChildContext(name))
             );
         }
-
-        @Override
-        public int mapperSize() {
-            return 1 + mappersBuilders.stream().mapToInt(Mapper.Builder::mapperSize).sum();
-        }
     }
 
     public static class TypeParser implements Mapper.TypeParser {

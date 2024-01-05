@@ -326,13 +326,13 @@ public class ClusterPrivilegeResolver {
         CROSS_CLUSTER_REPLICATION_PATTERN
     );
 
-    public static final NamedClusterPrivilege READ_SEARCH_SECRETS = new ActionClusterPrivilege(
+    public static final NamedClusterPrivilege READ_CONNECTOR_SECRETS = new ActionClusterPrivilege(
         "read_connector_secrets",
         Set.of("cluster:admin/xpack/connector/secret/get")
     );
 
-    public static final NamedClusterPrivilege WRITE_SEARCH_SECRETS = new ActionClusterPrivilege(
-        "write_search_secrets",
+    public static final NamedClusterPrivilege WRITE_CONNECTOR_SECRETS = new ActionClusterPrivilege(
+        "write_connector_secrets",
         Set.of("cluster:admin/xpack/connector/secrets/post")
     );
 
@@ -391,8 +391,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_SEARCH_QUERY_RULES,
             CROSS_CLUSTER_SEARCH,
             CROSS_CLUSTER_REPLICATION,
-            READ_SEARCH_SECRETS,
-            WRITE_SEARCH_SECRETS
+            READ_CONNECTOR_SECRETS,
+            WRITE_CONNECTOR_SECRETS
         ).filter(Objects::nonNull).toList()
     );
 

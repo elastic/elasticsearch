@@ -397,15 +397,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
         AtomicReference<Collection<RolloverResponse>> rolloverResponsesRef = registry.getRolloverResponses();
         assertBusy(() -> assertNotNull(rolloverResponsesRef.get()));
-        Collection<RolloverResponse> rolloverResponses = rolloverResponsesRef.get();
-        assertThat(rolloverResponses, hasSize(2));
+        assertThat(rolloverResponsesRef.get(), hasSize(2));
 
         // test again, to verify that the per-index-template creation lock gets released for reuse
         putIndexTemplateCounter.set(0);
         rolloverCounter.set(0);
         registry.clusterChanged(event);
+        rolloverResponsesRef.set(Collections.emptySet());
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
+        assertBusy(() -> assertThat(rolloverResponsesRef.get(), hasSize(2)));
 
         // test rollover failures
         putIndexTemplateCounter.set(0);

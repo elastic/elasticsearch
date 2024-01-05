@@ -13,7 +13,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
-import java.util.*;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 

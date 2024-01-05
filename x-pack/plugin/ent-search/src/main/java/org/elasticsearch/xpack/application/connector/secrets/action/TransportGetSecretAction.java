@@ -24,7 +24,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 public class TransportGetSecretAction extends HandledTransportAction<GetSecretRequest, GetSecretResponse> {
     private final Client client;
 
-
     @Inject
     public TransportGetSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(GetSecretAction.NAME, transportService, actionFilters, GetSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);

@@ -18,7 +18,6 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .nodes(2)
-        .jvmArg("-ea")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .build();

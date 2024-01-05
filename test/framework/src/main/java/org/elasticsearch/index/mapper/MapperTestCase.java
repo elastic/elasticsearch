@@ -1240,24 +1240,30 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testBlockLoaderFromColumnReader() throws IOException {
-        testBlockLoader(true);
+        testBlockLoader(false, true);
     }
 
     public final void testBlockLoaderFromRowStrideReader() throws IOException {
-        testBlockLoader(false);
+        testBlockLoader(false, false);
+    }
+
+    public final void testBlockLoaderFromColumnReaderWithSyntheticSource() throws IOException {
+        testBlockLoader(true, true);
+    }
+
+    public final void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
+        testBlockLoader(true, false);
     }
 
     protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
         return ft.hasDocValues();
     }
 
-    private void testBlockLoader(boolean columnReader) throws IOException {
+    private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
+        // TODO if we're not using synthetic source use a different sort of example. Or something.
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> { // TODO randomly use syntheticSourceMapping or normal
-            b.startObject("field");
-            example.mapping().accept(b);
-            b.endObject();
-        }));
+        XContentBuilder mapping = syntheticSource ? syntheticSourceFieldMapping(example.mapping) : fieldMapping(example.mapping);
+        MapperService mapper = createMapperService(mapping);
         testBlockLoader(columnReader, example, mapper, "field");
     }
 

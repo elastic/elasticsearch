@@ -75,11 +75,12 @@ public interface RefCounted {
         incRef(); // throws an ISE
     }
 
+    /**
+     * A noop implementation that always behaves as if it is referenced and cannot be released.
+     */
     RefCounted ALWAYS_REFERENCED = new RefCounted() {
         @Override
-        public void incRef() {
-
-        }
+        public void incRef() {}
 
         @Override
         public boolean tryIncRef() {

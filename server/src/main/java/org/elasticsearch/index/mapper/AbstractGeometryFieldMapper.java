@@ -144,10 +144,8 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             // Currently we can only load from source in ESQL
             ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
-            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
-                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
-                : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.GeometriesBlockLoader(fetcher, lookup);
+            // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
     }
 

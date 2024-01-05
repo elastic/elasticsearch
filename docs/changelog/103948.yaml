@@ -1,5 +1,6 @@
 pr: 103948
-summary: "[Certutil] Verify certificates after generation"
+summary: "'elasticsearch-certutil cert' now verifies the issuing chain of the generated certificate"
 area: TLS
 type: enhancement
-issues: []
+issues:
+  - 98207

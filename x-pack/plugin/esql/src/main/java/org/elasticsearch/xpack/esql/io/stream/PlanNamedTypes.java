@@ -1610,9 +1610,7 @@ public final class PlanNamedTypes {
                 if (value instanceof List<?> list) {
                     return list.stream().map(v -> mapFromLiteralValue(out, dataType, v)).toList();
                 }
-                if (value instanceof BytesRef wkb) {
-                    return wkbAsLong(dataType, wkb);
-                }
+                return wkbAsLong(dataType, (BytesRef) value);
             }
         }
         return value;

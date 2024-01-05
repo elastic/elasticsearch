@@ -215,7 +215,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
         }
         final Map<String, DocumentField> documentFields = in.readMap(DocumentField::new);
         final Map<String, DocumentField> metaFields = in.readMap(DocumentField::new);
-        final Map<String, HighlightField> highlightFields = in.readImmutableMap(HighlightField::new);
+        final Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
         final SearchSortValues sortValues = new SearchSortValues(in);
 
         final Map<String, Float> matchedQueries;
@@ -973,7 +973,7 @@ public final class SearchHit implements Writeable, ToXContentObject {
             index,
             clusterAlias,
             get(Fields.INNER_HITS, values, null),
-            get(METADATA_FIELDS, values, Collections.emptyMap()),
+            get(DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(METADATA_FIELDS, values, Collections.emptyMap())
         );
     }

@@ -101,6 +101,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      *     limit will use the actual maximum very rarely.
      * </p>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103789")
     public final void testSimpleCircuitBreakingAtLimit() {
         testSimpleCircuitBreaking(memoryLimitForSimple());
     }

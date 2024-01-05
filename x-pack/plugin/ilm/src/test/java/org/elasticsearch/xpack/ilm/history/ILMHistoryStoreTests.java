@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -39,6 +40,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.ilm.IndexLifecycleFeatures;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -78,6 +80,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
         ILMHistoryTemplateRegistry registry = new ILMHistoryTemplateRegistry(
             clusterService.getSettings(),
             clusterService,
+            new FeatureService(List.of(new IndexLifecycleFeatures())),
             threadPool,
             client,
             NamedXContentRegistry.EMPTY

@@ -15,7 +15,6 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -26,7 +25,6 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
@@ -447,49 +445,35 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             );
         }
 
-        // Try to extract the minimum node version. Assume CURRENT if nodes have non-semantic versions
-        // TODO: after https://github.com/elastic/elasticsearch/pull/103404 is merged, we can push this logic into SkipVersionContext.
-        // This way will have version parsing only when we actually have to skip on a version, we can remove the default and throw an
-        // IllegalArgumentException instead (attempting to skip on version where version is not semantic)
-        var oldestNodeVersion = restTestExecutionContext.nodesVersions()
-            .stream()
-            .map(ESRestTestCase::parseLegacyVersion)
-            .flatMap(Optional::stream)
-            .min(VersionId::compareTo)
-            .orElse(Version.CURRENT);
-
         // skip test if the whole suite (yaml file) is disabled
         assumeFalse(
             testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(oldestNodeVersion)
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext)
         );
         // skip test if the whole suite (yaml file) is disabled
         assumeFalse(
             testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(oldestNodeVersion)
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext)
         );
         // skip test if test section is disabled
         assumeFalse(
             testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(oldestNodeVersion)
-        );
-        // skip test if os is excluded
-        assumeFalse(
-            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os())
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext)
         );
 
         // let's check that there is something to run, otherwise there might be a problem with the test section
-        if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
+        if (testCandidate.getTestSection().getExecutableSections().isEmpty()) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
         assumeFalse(
             "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
-            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().yamlRunnerHasFeature("fips_140")
         );
 
-        final Settings globalTemplateSettings = getGlobalTemplateSettings(testCandidate.getTestSection().getSkipSection().getFeatures());
+        final Settings globalTemplateSettings = getGlobalTemplateSettings(
+            testCandidate.getTestSection().getSkipSection().yamlRunnerHasFeature("default_shards")
+        );
         if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
 
             final XContentBuilder template = jsonBuilder();
@@ -538,8 +522,17 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
+    @Deprecated
     protected Settings getGlobalTemplateSettings(List<String> features) {
         if (features.contains("default_shards")) {
+            return Settings.EMPTY;
+        } else {
+            return globalTemplateIndexSettings;
+        }
+    }
+
+    protected Settings getGlobalTemplateSettings(boolean defaultShardsFeature) {
+        if (defaultShardsFeature) {
             return Settings.EMPTY;
         } else {
             return globalTemplateIndexSettings;

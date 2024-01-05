@@ -27,7 +27,6 @@ import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -500,8 +499,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        XContent xContent = xContentType.get().xContent();
-        return xContent.createParser(parserConfig, content.streamInput());
+        return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
 
     }
 
@@ -531,7 +529,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        return tuple.v1().xContent().createParser(parserConfig, tuple.v2().streamInput());
+        return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
     }
 
     /**

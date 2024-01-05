@@ -44,7 +44,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -110,7 +109,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelAssignmentService trainedModelAssignmentService,
-        NamedXContentRegistry xContentRegistry,
         MlMemoryTracker memoryTracker,
         InferenceAuditor auditor
     ) {

@@ -105,23 +105,25 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponse response = new SearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                0,
-                new ShardSearchFailure[0],
-                null
+            ActionListener.respondAndRelease(
+                nextPhase,
+                new SearchResponse(
+                    new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                    aggs,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    new ShardSearchFailure[0],
+                    null
+                )
             );
-            nextPhase.onResponse(response);
         }
 
         @Override

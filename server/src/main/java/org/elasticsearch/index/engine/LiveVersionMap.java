@@ -476,11 +476,19 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     /**
-     * Returns how much RAM would be freed up by refreshing. This is the RAM usage of the current version map. It doesn't include tombstones
+     * Returns how much RAM could be reclaimed from the version map.
+     * <p>
+     * In stateful, this is the RAM usage of the current version map, and could be reclaimed by refreshing. It doesn't include tombstones
      * since they don't get cleared on refresh, nor the old version map that is being reclaimed.
+     * <p>
+     * In stateless, this is the RAM usage of current and old version map plus the RAM usage fo the archive, and to reclaim all three
+     * components we need to refresh AND flush since when using an archive, a refresh just moves the entries from the current to old
+     * and from old to archive, so effectively refresh doesn't free up any memory.
      */
-    long ramBytesUsedForRefresh() {
-        return maps.current.ramBytesUsed.get();
+    long reclaimableRamBytes() {
+        return archive == LiveVersionMapArchive.NOOP_ARCHIVE
+            ? maps.current.ramBytesUsed.get()
+            : maps.ramBytesUsed() + archive.getMemoryBytesUsed() + ramBytesUsedTombstones.get();
     }
 
     /**
@@ -492,10 +500,11 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     /**
      * Returns how much RAM is current being freed up by refreshing. This is the RAM usage of the previous version map that needs to stay
-     * around until operations are safely recorded in the Lucene index.
+     * around until operations are safely recorded in the Lucene index. Note that when using an archive, a refresh just moves the
+     * entries from the current to old and from old to archive, so effectively refresh doesn't free up any memory.
      */
     long getRefreshingBytes() {
-        return maps.old.ramBytesUsed.get();
+        return archive == LiveVersionMapArchive.NOOP_ARCHIVE ? maps.old.ramBytesUsed.get() : 0;
     }
 
     /**

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -714,10 +715,14 @@ public final class PlanNamedTypes {
     }
 
     static Enrich readEnrich(PlanStreamInput in) throws IOException {
+        Enrich.Mode m = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQL_MODE)) {
+            m = in.readEnum(Enrich.Mode.class);
+        }
         return new Enrich(
             in.readSource(),
             in.readLogicalPlanNode(),
-            in.readEnum(Enrich.Mode.class),
+            m,
             in.readExpression(),
             in.readNamedExpression(),
             new EnrichPolicyResolution(in.readString(), new EnrichPolicy(in), IndexResolution.valid(readEsIndex(in))),
@@ -726,9 +731,12 @@ public final class PlanNamedTypes {
     }
 
     static void writeEnrich(PlanStreamOutput out, Enrich enrich) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQL_MODE)) {
+            out.writeEnum(enrich.mode());
+        }
+
         out.writeNoSource();
         out.writeLogicalPlanNode(enrich.child());
-        out.writeEnum(enrich.mode());
         out.writeExpression(enrich.policyName());
         out.writeNamedExpression(enrich.matchField());
         out.writeString(enrich.policy().policyName());

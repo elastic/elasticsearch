@@ -82,6 +82,7 @@ class ChildBlockJoinVectorScorerProvider {
         );
 
         return new ChildBlockJoinVectorScorer(
+            context.docBase,
             originallyMatchedChildren.iterator(),
             childVectorIterator,
             parentBitSet,
@@ -97,14 +98,17 @@ class ChildBlockJoinVectorScorerProvider {
         private final BitSet parentBitSet;
         private int currentParent = -1;
         private final HitQueue queue;
+        private final int docBase;
 
         protected ChildBlockJoinVectorScorer(
+            int docBase,
             DocIdSetIterator previouslyFoundChildren,
             DocIdSetIterator childFilterIterator,
             BitSet parentBitSet,
             VectorScorer vectorScorer,
             int numChildrenPerParent
         ) {
+            this.docBase = docBase;
             this.vectorScorer = vectorScorer;
             this.childFilterIterator = childFilterIterator;
             this.previouslyFoundChildren = previouslyFoundChildren;
@@ -136,7 +140,7 @@ class ChildBlockJoinVectorScorerProvider {
             // now iterate over all children of the current parent in childFilterIterator
             do {
                 float score = vectorScorer.score();
-                queue.insertWithOverflow(new ScoreDoc(nextChild, score));
+                queue.insertWithOverflow(new ScoreDoc(nextChild + docBase, score));
             } while ((nextChild = childFilterIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS && nextChild < currentParent);
             return currentParent;
         }

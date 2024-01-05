@@ -48,6 +48,9 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
         final var request = new Request();
         try {
             client().execute(TYPE, request, ActionListener.<Response>running(countDownLatch::countDown).delegateResponse((delegate, e) -> {
+                // _If_ we got an exception then it must be an ElasticsearchException with message "short-circuit failure", i.e. we're
+                // checking that nothing else can go wrong here. But it's also ok for everything to succeed too, in which case we countDown
+                // the latch without running this block.
                 assertEquals("short-circuit failure", asInstanceOf(ElasticsearchException.class, e).getMessage());
                 delegate.onResponse(null);
             }));

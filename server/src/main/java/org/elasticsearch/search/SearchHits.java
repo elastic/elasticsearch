@@ -90,7 +90,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         );
     }
 
-    public SearchHits(
+    private SearchHits(
         SearchHit[] hits,
         @Nullable TotalHits totalHits,
         float maxScore,

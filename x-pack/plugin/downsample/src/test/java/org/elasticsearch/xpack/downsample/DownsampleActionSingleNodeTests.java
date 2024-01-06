@@ -1062,7 +1062,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private Aggregations aggregate(final String index, AggregationBuilder aggregationBuilder) {
-        return client().prepareSearch(index).addAggregation(aggregationBuilder).get().getAggregations();
+        var resp = client().prepareSearch(index).addAggregation(aggregationBuilder).get();
+        try {
+            return resp.getAggregations();
+        } finally {
+            resp.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")

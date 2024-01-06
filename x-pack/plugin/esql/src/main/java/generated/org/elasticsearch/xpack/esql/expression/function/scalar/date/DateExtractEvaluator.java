@@ -15,7 +15,9 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -32,76 +34,122 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
 
   private final ZoneId zone;
 
+  private final DriverContext driverContext;
+
   public DateExtractEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      EvalOperator.ExpressionEvaluator chronoField, ZoneId zone) {
+      EvalOperator.ExpressionEvaluator chronoField, ZoneId zone, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
+    this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    Block valueUncastBlock = value.eval(page);
-    if (valueUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (LongBlock valueBlock = (LongBlock) value.eval(page)) {
+      try (BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoField.eval(page)) {
+        LongVector valueVector = valueBlock.asVector();
+        if (valueVector == null) {
+          return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
+        }
+        BytesRefVector chronoFieldVector = chronoFieldBlock.asVector();
+        if (chronoFieldVector == null) {
+          return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
+        }
+        return eval(page.getPositionCount(), valueVector, chronoFieldVector);
+      }
     }
-    LongBlock valueBlock = (LongBlock) valueUncastBlock;
-    Block chronoFieldUncastBlock = chronoField.eval(page);
-    if (chronoFieldUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoFieldUncastBlock;
-    LongVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
-    }
-    BytesRefVector chronoFieldVector = chronoFieldBlock.asVector();
-    if (chronoFieldVector == null) {
-      return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
-    }
-    return eval(page.getPositionCount(), valueVector, chronoFieldVector);
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock, BytesRefBlock chronoFieldBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef chronoFieldScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      BytesRef chronoFieldScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valueBlock.getValueCount(p) != 1) {
+          if (valueBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (chronoFieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (chronoFieldBlock.getValueCount(p) != 1) {
+          if (chronoFieldBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoFieldBlock.getBytesRef(chronoFieldBlock.getFirstValueIndex(p), chronoFieldScratch), zone));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (chronoFieldBlock.isNull(p) || chronoFieldBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoFieldBlock.getBytesRef(chronoFieldBlock.getFirstValueIndex(p), chronoFieldScratch), zone));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, LongVector valueVector,
       BytesRefVector chronoFieldVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef chronoFieldScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(DateExtract.process(valueVector.getLong(p), chronoFieldVector.getBytesRef(p, chronoFieldScratch), zone));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      BytesRef chronoFieldScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(DateExtract.process(valueVector.getLong(p), chronoFieldVector.getBytesRef(p, chronoFieldScratch), zone));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
   public String toString() {
     return "DateExtractEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(value, chronoField);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory value;
+
+    private final EvalOperator.ExpressionEvaluator.Factory chronoField;
+
+    private final ZoneId zone;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
+        EvalOperator.ExpressionEvaluator.Factory chronoField, ZoneId zone) {
+      this.source = source;
+      this.value = value;
+      this.chronoField = chronoField;
+      this.zone = zone;
+    }
+
+    @Override
+    public DateExtractEvaluator get(DriverContext context) {
+      return new DateExtractEvaluator(source, value.get(context), chronoField.get(context), zone, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateExtractEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+    }
   }
 }

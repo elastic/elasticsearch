@@ -35,8 +35,8 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
      * @param executor The executor to use to deserialize the response and notify the listener. You must only use
      *                 {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} (or equivalently {@link TransportResponseHandler#TRANSPORT_WORKER})
      *                 for very performance-critical actions, and even then only if the deserialization and handling work is very cheap,
-     *                 because this executor will perform because this executor will perform all the work for responses from remote nodes on
-     *                 the receiving transport worker itself.
+     *                 because this executor will perform all the work for responses from remote nodes on the receiving transport worker
+     *                 itself.
      */
     public ActionListenerResponseHandler(ActionListener<? super Response> listener, Writeable.Reader<Response> reader, Executor executor) {
         this.listener = Objects.requireNonNull(listener);

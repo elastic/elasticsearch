@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 final class StackFrame implements ToXContentObject {
     List<String> fileName;
@@ -27,6 +28,33 @@ final class StackFrame implements ToXContentObject {
         this.functionName = listOf(functionName);
         this.functionOffset = listOf(functionOffset);
         this.lineNumber = listOf(lineNumber);
+    }
+
+    public int size() {
+        return this.functionName.size(); // functionName is the only array that is always set
+    }
+
+    /**
+     * Returns the number of inlined frames in this stack frame.
+     * @return the number of inlined frames in this stack frame.
+     */
+    public int inlineFrameCount() {
+        return size() > 0 ? size() - 1 : 0;
+    }
+
+    public void forEach(Consumer<Frame> action) {
+        for (int i = 0; i < size(); i++) {
+            action.accept(
+                new Frame(
+                    fileName.size() > i ? fileName.get(i) : "",
+                    functionName.get(i),
+                    functionOffset.size() > i ? functionOffset.get(i) : 0,
+                    lineNumber.size() > i ? lineNumber.get(i) : 0,
+                    i > 0,
+                    i == size() - 1
+                )
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -47,6 +75,10 @@ final class StackFrame implements ToXContentObject {
             source.get("Stackframe.function.offset"),
             source.get("Stackframe.line.number")
         );
+    }
+
+    public boolean isEmpty() {
+        return size() == 0;
     }
 
     @Override

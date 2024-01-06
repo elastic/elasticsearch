@@ -259,6 +259,51 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertEquals("Point", points.get(1).get("type"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGeometryFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
+            "index",
+            new BytesArray("{\"test_point\":\"30.0,40.0\"}"),
+            new MatchAllQueryBuilder()
+        );
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(
+            new Script(
+                ScriptType.INLINE,
+                "painless",
+                "emit(\"Point(\" + doc['test_point'].value.lon + \" \" + doc['test_point'].value.lat + \")\")",
+                emptyMap()
+            ),
+            "geometry_field",
+            contextSetup
+        );
+        Response response = innerShardOperation(request, scriptService, indexService);
+        List<Map<String, Object>> geometry = (List<Map<String, Object>>) response.getResult();
+        assertEquals(40.0, (double) ((List<Object>) geometry.get(0).get("coordinates")).get(0), 0.00001);
+        assertEquals(30.0, (double) ((List<Object>) geometry.get(0).get("coordinates")).get(1), 0.00001);
+        assertEquals("Point", geometry.get(0).get("type"));
+
+        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        request = new Request(
+            new Script(
+                ScriptType.INLINE,
+                "painless",
+                "emit(\"LINESTRING(78.96 12.12, 12.12 78.96)\"); emit(\"POINT(13.45 56.78)\");",
+                emptyMap()
+            ),
+            "geometry_field",
+            contextSetup
+        );
+        response = innerShardOperation(request, scriptService, indexService);
+        geometry = (List<Map<String, Object>>) response.getResult();
+        assertEquals("GeometryCollection", geometry.get(0).get("type"));
+        assertEquals(2, ((List<?>) geometry.get(0).get("geometries")).size());
+    }
+
     public void testIpFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_ip", "type=ip");

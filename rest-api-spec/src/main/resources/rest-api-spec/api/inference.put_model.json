@@ -1,0 +1,37 @@
+{
+  "inference.put_model":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/put-inference-api.html",
+      "description":"Configure a model for use in the Inference API"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_inference/{task_type}/{model_id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "task_type":{
+              "type":"string",
+              "description":"The model task type"
+            },
+            "model_id":{
+              "type":"string",
+              "description":"The model Id"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The model's task and service settings"
+    }
+  }
+}

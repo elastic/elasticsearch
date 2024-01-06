@@ -258,6 +258,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
             Orientation.RIGHT,
             null,
             null,
+            null,
             Collections.emptyMap()
         );
         testCase(

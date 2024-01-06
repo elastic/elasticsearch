@@ -143,12 +143,12 @@ public class Bucket implements ToXContentObject, Writeable {
         anomalyScore = in.readDouble();
         bucketSpan = in.readLong();
         initialAnomalyScore = in.readDouble();
-        records = in.readList(AnomalyRecord::new);
+        records = in.readCollectionAsList(AnomalyRecord::new);
         eventCount = in.readLong();
         isInterim = in.readBoolean();
-        bucketInfluencers = in.readList(BucketInfluencer::new);
+        bucketInfluencers = in.readCollectionAsList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        scheduledEvents = in.readStringList();
+        scheduledEvents = in.readStringCollectionAsList();
         if (scheduledEvents.isEmpty()) {
             scheduledEvents = Collections.emptyList();
         }

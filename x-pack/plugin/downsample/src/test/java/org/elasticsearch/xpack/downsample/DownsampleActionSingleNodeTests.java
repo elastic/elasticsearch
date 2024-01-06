@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -339,7 +340,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         String downsampleIndex2 = downsampleIndex + "-2";
         DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
         downsample(downsampleIndex, downsampleIndex2, config2);
-        assertDownsampleIndex(sourceIndex, downsampleIndex2, config2);
+        assertDownsampleIndex(downsampleIndex, downsampleIndex2, config2);
     }
 
     private Date randomDate() {
@@ -557,7 +558,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         final Instant now = Instant.now();
         SourceSupplier sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli());
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)
@@ -682,7 +683,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indicesAdmin().preparePutTemplate(downsampleIndex)
                 .setPatterns(List.of(downsampleIndex))
                 .setSettings(Settings.builder().put("index.blocks.write", "true").build())
-                .get()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, indexer::execute);
@@ -1038,7 +1038,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }
         int docsIndexed = docCount - duplicates;
         logger.info("Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docsIndexed);
+        assertHitCount(client().prepareSearch(indexName).setSize(0), docsIndexed);
     }
 
     private void prepareSourceIndex(final String sourceIndex, boolean blockWrite) {
@@ -1046,14 +1046,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings(sourceIndex)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), blockWrite).build())
-                .get()
         );
     }
 
     private void downsample(String sourceIndex, String downsampleIndex, DownsampleConfig config) {
         assertAcked(
             client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
-                .actionGet()
         );
     }
 
@@ -1278,6 +1276,18 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(sourceIndex, downsampleSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY));
         assertEquals(sourceSettings.get(IndexSettings.MODE.getKey()), downsampleSettings.get(IndexSettings.MODE.getKey()));
 
+        if (Strings.hasText(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(sourceSettings))) {
+            // if the source is a downsample index itself, we're in the "downsample of downsample" test case and both indices should have
+            // the same ORIGIN configured
+            assertEquals(
+                IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.get(sourceSettings),
+                IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.get(downsampleSettings)
+            );
+            assertEquals(
+                IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.get(sourceSettings),
+                IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.get(downsampleSettings)
+            );
+        }
         assertNotNull(sourceSettings.get(IndexSettings.TIME_SERIES_START_TIME.getKey()));
         assertNotNull(downsampleSettings.get(IndexSettings.TIME_SERIES_START_TIME.getKey()));
         assertEquals(
@@ -1424,16 +1434,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            indexTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false),
-            null
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(indexTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+            .build();
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
             .indexTemplate(template);
         assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet());

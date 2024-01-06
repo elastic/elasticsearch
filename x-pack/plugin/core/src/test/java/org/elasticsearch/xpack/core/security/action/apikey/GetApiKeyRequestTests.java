@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -134,11 +135,13 @@ public class GetApiKeyRequestTests extends ESTestCase {
             final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().ownedByAuthenticatedUser(true).apiKeyId(apiKeyId).build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_3_0));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_3_0));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_3_0));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_3_0)
+            );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
@@ -154,11 +157,13 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_4_0, TransportVersion.V_8_4_0));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_4_0, TransportVersions.V_8_4_0));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_4_0, TransportVersion.V_8_4_0));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_4_0, TransportVersions.V_8_4_0)
+            );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
@@ -178,11 +183,11 @@ public class GetApiKeyRequestTests extends ESTestCase {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
             TransportVersion beforeActiveOnly = TransportVersionUtils.getPreviousVersion(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, beforeActiveOnly));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_8_5_0, beforeActiveOnly));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, beforeActiveOnly));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_8_5_0, beforeActiveOnly));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));

@@ -11,8 +11,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.BitSet;
 
-abstract class AbstractBlock implements Block {
-
+abstract class AbstractBlock extends AbstractNonThreadSafeRefCounted implements Block {
     private final int positionCount;
 
     @Nullable
@@ -21,25 +20,50 @@ abstract class AbstractBlock implements Block {
     @Nullable
     protected final BitSet nullsMask;
 
+    private BlockFactory blockFactory;
+
     /**
      * @param positionCount the number of values in this block
      */
-    protected AbstractBlock(int positionCount) {
+    protected AbstractBlock(int positionCount, BlockFactory blockFactory) {
         assert positionCount >= 0;
         this.positionCount = positionCount;
+        this.blockFactory = blockFactory;
         this.firstValueIndexes = null;
         this.nullsMask = null;
+        assert assertInvariants();
     }
 
     /**
      * @param positionCount the number of values in this block
      */
-    protected AbstractBlock(int positionCount, @Nullable int[] firstValueIndexes, @Nullable BitSet nullsMask) {
+    protected AbstractBlock(int positionCount, @Nullable int[] firstValueIndexes, @Nullable BitSet nullsMask, BlockFactory blockFactory) {
         assert positionCount >= 0;
         this.positionCount = positionCount;
+        this.blockFactory = blockFactory;
         this.firstValueIndexes = firstValueIndexes;
         this.nullsMask = nullsMask == null || nullsMask.isEmpty() ? null : nullsMask;
-        assert (firstValueIndexes == null && this.nullsMask == null) == false;
+        assert nullsMask != null || firstValueIndexes != null : "Create VectorBlock instead";
+        assert assertInvariants();
+    }
+
+    private boolean assertInvariants() {
+        if (firstValueIndexes != null) {
+            assert firstValueIndexes.length == getPositionCount() + 1;
+            for (int i = 0; i < getPositionCount(); i++) {
+                assert (firstValueIndexes[i + 1] - firstValueIndexes[i]) >= 0;
+            }
+        }
+        if (nullsMask != null) {
+            assert nullsMask.nextSetBit(getPositionCount() + 1) == -1;
+        }
+        if (firstValueIndexes != null && nullsMask != null) {
+            for (int i = 0; i < getPositionCount(); i++) {
+                // Either we have multi-values or a null but never both.
+                assert ((nullsMask.get(i) == false) || (firstValueIndexes[i + 1] - firstValueIndexes[i]) == 1);
+            }
+        }
+        return true;
     }
 
     @Override
@@ -84,5 +108,20 @@ abstract class AbstractBlock implements Block {
     @Override
     public boolean areAllValuesNull() {
         return nullValuesCount() == getPositionCount();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
+    }
+
+    @Override
+    public final boolean isReleased() {
+        return hasReferences() == false;
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
@@ -120,6 +121,6 @@ public class TransportVersionUtils {
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
     public static TransportVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.current());
+        return randomVersionBetween(random, TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current());
     }
 }

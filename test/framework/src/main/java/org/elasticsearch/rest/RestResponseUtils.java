@@ -11,6 +11,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -45,7 +46,7 @@ public class RestResponseUtils {
             out.flush();
             return out.bytes();
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            return ESTestCase.fail(e);
         }
     }
 
@@ -57,7 +58,7 @@ public class RestResponseUtils {
             writer.flush();
             return writer.toString();
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            return ESTestCase.fail(e);
         }
     }
 }

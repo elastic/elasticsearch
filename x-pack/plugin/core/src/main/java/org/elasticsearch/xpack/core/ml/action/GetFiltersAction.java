@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -27,7 +27,7 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
         super(NAME, Response::new);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public Request() {
             setAllowNoResources(true);
@@ -53,7 +53,7 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
         }
     }
 
-    public static class Response extends AbstractGetResourcesResponse<MlFilter> implements StatusToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<MlFilter> implements ToXContentObject {
 
         public Response(QueryPage<MlFilter> filters) {
             super(filters);

@@ -8,6 +8,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -128,7 +129,7 @@ abstract class OutboundMessage extends NetworkMessage {
         @Override
         protected void writeVariableHeader(StreamOutput stream) throws IOException {
             super.writeVariableHeader(stream);
-            if (version.before(TransportVersion.V_8_0_0)) {
+            if (version.before(TransportVersions.V_8_0_0)) {
                 // empty features array
                 stream.writeStringArray(Strings.EMPTY_ARRAY);
             }

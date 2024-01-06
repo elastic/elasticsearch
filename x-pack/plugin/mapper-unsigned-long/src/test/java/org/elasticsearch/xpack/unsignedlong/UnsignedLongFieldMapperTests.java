@@ -32,6 +32,7 @@ import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -399,6 +400,19 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }
         assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
+    }
+
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> {
+            // Numbers are in the block as a long but the test needs to compare them to their BigInteger value parsed from xcontent.
+            if (v instanceof BigInteger ul) {
+                if (ul.bitLength() < Long.SIZE) {
+                    return ul.longValue() ^ Long.MIN_VALUE;
+                }
+                return ul.subtract(BigInteger.ONE.shiftLeft(Long.SIZE - 1)).longValue();
+            }
+            return ((Long) v).longValue() ^ Long.MIN_VALUE;
+        };
     }
 
     final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {

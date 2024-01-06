@@ -28,7 +28,19 @@ public class DonwsampleConfigTests extends ESTestCase {
         {
             String downsampledIndex = "downsample-1h-test";
             IndexMetadata indexMeta = IndexMetadata.builder(downsampledIndex)
-                .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, "test"))
+                .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME_KEY, "test"))
+                .build();
+            assertThat(generateDownsampleIndexName("downsample-", indexMeta, new DateHistogramInterval("8h")), is("downsample-8h-test"));
+        }
+
+        {
+            // test origin takes higher precedence than the configured source setting
+            String downsampledIndex = "downsample-1h-test";
+            IndexMetadata indexMeta = IndexMetadata.builder(downsampledIndex)
+                .settings(
+                    indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME_KEY, "test")
+                        .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, "downsample-1s-test")
+                )
                 .build();
             assertThat(generateDownsampleIndexName("downsample-", indexMeta, new DateHistogramInterval("8h")), is("downsample-8h-test"));
         }

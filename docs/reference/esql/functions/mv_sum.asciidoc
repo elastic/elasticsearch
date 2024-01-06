@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_sum]]
 === `MV_SUM`
 Converts a multivalued field into a single valued field containing the sum

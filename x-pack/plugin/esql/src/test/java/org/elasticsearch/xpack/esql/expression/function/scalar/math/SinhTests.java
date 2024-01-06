@@ -25,7 +25,42 @@ public class SinhTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("SinhEvaluator", "val", Math::sinh);
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "SinhEvaluator",
+            "val",
+            Math::sinh,
+            -710d,
+            710d,  // Hyperbolic sine grows extremely fast. Values outside this range return Double.POSITIVE_INFINITY
+            List.of()
+        );
+
+        // Out of range cases
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "SinhEvaluator",
+                "val",
+                k -> null,
+                Double.NEGATIVE_INFINITY,
+                -711d,
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: sinh overflow"
+                )
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "SinhEvaluator",
+                "val",
+                k -> null,
+                711d,
+                Double.POSITIVE_INFINITY,
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: sinh overflow"
+                )
+            )
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

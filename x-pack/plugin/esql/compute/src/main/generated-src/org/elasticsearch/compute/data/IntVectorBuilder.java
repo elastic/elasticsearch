@@ -10,14 +10,17 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of IntBlocks.
+ * Builder for {@link IntVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.Builder {
 
     private int[] values;
 
-    IntVectorBuilder(int estimatedSize) {
+    IntVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new int[Math.max(estimatedSize, 2)];
     }
 
@@ -27,6 +30,11 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
         values[valueCount] = value;
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Integer.BYTES;
     }
 
     @Override
@@ -41,12 +49,17 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
 
     @Override
     public IntVector build() {
+        finish();
+        IntVector vector;
         if (valueCount == 1) {
-            return new ConstantIntVector(values[0], 1);
+            vector = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes).asVector();
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = blockFactory.newIntArrayVector(values, valueCount, estimatedBytes);
         }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
-        return new IntArrayVector(values, valueCount);
+        built();
+        return vector;
     }
 }

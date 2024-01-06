@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
@@ -88,17 +88,11 @@ public interface Operator extends Releasable {
      * If the operator is not blocked, this method returns {@link #NOT_BLOCKED} which is an already
      * completed future.
      */
-    default ListenableActionFuture<Void> isBlocked() {
+    default SubscribableListener<Void> isBlocked() {
         return NOT_BLOCKED;
     }
 
-    ListenableActionFuture<Void> NOT_BLOCKED = newCompletedFuture();
-
-    static ListenableActionFuture<Void> newCompletedFuture() {
-        ListenableActionFuture<Void> fut = new ListenableActionFuture<>();
-        fut.onResponse(null);
-        return fut;
-    }
+    SubscribableListener<Void> NOT_BLOCKED = SubscribableListener.newSucceeded(null);
 
     /**
      * A factory for creating intermediate operators.

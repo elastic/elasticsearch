@@ -21,19 +21,23 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:elasticsearch-dissect')
   implementation project(':libs:elasticsearch-grok')
+  // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
   testImplementation project('qa:testFixtures')
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(path: xpackModule('enrich'))
+
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:ingest-common')
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":client:rest-high-level")
+  internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
 /*
@@ -64,12 +68,29 @@ tasks.getByName('test') {
       )
     }
     doLast {
-      project.sync {
-        from "${projectDir}/build/testrun/test/temp/esql/functions"
-        into "${rootDir}/docs/reference/esql/functions"
-        include '**/*.asciidoc', '**/*.svg'
-        preserve {
-          include '/*.asciidoc'
+      List signatures = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list().findAll {it.endsWith("svg")}
+      List types = file("${projectDir}/build/testrun/test/temp/esql/functions/types").list().findAll {it.endsWith("asciidoc")}
+      int count = signatures == null ? 0 : signatures.size()
+      if (count == 0) {
+        logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
+      } else if (count == 1) {
+        logger.quiet("ESQL Docs: Only updated $signatures and $types, patching them into place")
+        project.sync {
+          from "${projectDir}/build/testrun/test/temp/esql/functions"
+          into "${rootDir}/docs/reference/esql/functions"
+          include '**/*.asciidoc', '**/*.svg'
+          preserve {
+            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg'
+          }
+        }
+      } else {
+        project.sync {
+          from "${projectDir}/build/testrun/test/temp/esql/functions"
+          into "${rootDir}/docs/reference/esql/functions"
+          include '**/*.asciidoc', '**/*.svg'
+          preserve {
+            include '/*.asciidoc'
+          }
         }
       }
     }
@@ -178,6 +199,23 @@ tasks.register("regen") {
     // remove tabs in antlr generated files
     ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
       fileset(dir: outputPath, includes: 'EsqlBase*.java')
+    }
+    // suppress this-escape warnings on EsqlBaseLexer
+    ant.replaceregexp(
+      match: 'public EsqlBaseLexer',
+      replace: '@SuppressWarnings("this-escape")${line.separator}  public EsqlBaseLexer',
+      encoding: 'UTF-8'
+    ) {
+      fileset(dir: outputPath, includes: 'EsqlBaseLexer.java')
+    }
+    // suppress this-escape warnings on all internal EsqlBaseParser class constructores
+    ant.replaceregexp(
+      match: '([ ]+)public ([A-Z][a-z]+[a-z,A-Z]+\\()',
+      flags: 'g',
+      replace: '\\1@SuppressWarnings("this-escape")${line.separator}\\1public \\2',
+      encoding: 'UTF-8'
+    ) {
+      fileset(dir: outputPath, includes: 'EsqlBaseParser.java')
     }
     // fix line endings
     ant.fixcrlf(srcdir: outputPath, eol: 'lf') {

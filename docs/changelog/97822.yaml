@@ -1,5 +1,0 @@
-pr: 97822
-summary: Allow Lucene directory implementations to estimate their size
-area: Store
-type: enhancement
-issues: []

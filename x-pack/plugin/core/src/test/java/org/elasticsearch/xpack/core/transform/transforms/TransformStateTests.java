@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -92,10 +92,10 @@ public class TransformStateTests extends AbstractXContentSerializingTestCase<Tra
             null
         );
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.V_7_5_0);
+            output.setTransportVersion(TransportVersions.V_7_5_0);
             state.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                in.setTransportVersion(TransportVersion.V_7_5_0);
+                in.setTransportVersion(TransportVersions.V_7_5_0);
                 TransformState streamedState = new TransformState(in);
                 assertEquals(expectedState, streamedState);
             }

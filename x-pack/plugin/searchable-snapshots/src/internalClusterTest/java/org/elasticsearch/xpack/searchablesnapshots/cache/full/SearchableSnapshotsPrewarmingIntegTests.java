@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -40,6 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -136,10 +138,9 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             if (nbDocs > 0) {
                 final BulkRequestBuilder bulkRequest = client().prepareBulk();
                 for (int i = 0; i < nbDocs; i++) {
-                    bulkRequest.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+                    bulkRequest.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
                 }
                 final BulkResponse bulkResponse = bulkRequest.get();
-                assertThat(bulkResponse.status(), is(RestStatus.OK));
                 assertThat(bulkResponse.hasFailures(), is(false));
             }
             docsPerIndex.put(indexName, nbDocs);
@@ -230,7 +231,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     assertThat(restoreSnapshotResponse.status(), is(RestStatus.OK));
                     assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(shardsPerIndex.get(indexName)));
                     assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-                    assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true).get(), docsPerIndex.get(indexName));
+                    assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docsPerIndex.get(indexName));
 
                     final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(indexName).get();
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_ENABLED_SETTING.getKey()), equalTo("true"));
@@ -251,11 +252,13 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         final CountDownLatch startPrewarmingLatch = new CountDownLatch(1);
         final var threadPool = getInstanceFromNode(ThreadPool.class);
         final int maxUploadTasks = threadPool.info(CACHE_PREWARMING_THREAD_POOL_NAME).getMax();
+        final CountDownLatch maxUploadTasksCreated = new CountDownLatch(maxUploadTasks);
         for (int i = 0; i < maxUploadTasks; i++) {
             threadPool.executor(CACHE_PREWARMING_THREAD_POOL_NAME).execute(new AbstractRunnable() {
 
                 @Override
                 protected void doRun() throws Exception {
+                    maxUploadTasksCreated.countDown();
                     startPrewarmingLatch.await();
                 }
 
@@ -265,7 +268,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 }
             });
         }
-
+        safeAwait(maxUploadTasksCreated);
         var prewarmingExecutor = threadPool.executor(CACHE_PREWARMING_THREAD_POOL_NAME);
         assertThat(prewarmingExecutor, instanceOf(ThreadPoolExecutor.class));
         assertThat(((ThreadPoolExecutor) prewarmingExecutor).getActiveCount(), equalTo(maxUploadTasks));
@@ -399,12 +402,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
     }
 
     private TrackingRepositoryPlugin getTrackingRepositoryPlugin() {
-        for (RepositoryPlugin plugin : getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)) {
-            if (plugin instanceof TrackingRepositoryPlugin) {
-                return ((TrackingRepositoryPlugin) plugin);
-            }
-        }
-        throw new IllegalStateException("tracking repository missing");
+        return getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)
+            .filter(p -> p instanceof TrackingRepositoryPlugin)
+            .map(p -> (TrackingRepositoryPlugin) p)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("tracking repository missing"));
     }
 
     /**
@@ -439,7 +441,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 "tracking",
@@ -463,8 +466,9 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                                 }
 
                                 @Override
-                                public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-                                    delegate.deleteBlobsIgnoringIfNotExists(blobNames);
+                                public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames)
+                                    throws IOException {
+                                    delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
                                 }
 
                                 @Override
@@ -486,8 +490,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public InputStream readBlob(String blobName, long position, long length) throws IOException {
-                return new FilterInputStream(super.readBlob(blobName, position, length)) {
+            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                return new FilterInputStream(super.readBlob(purpose, blobName, position, length)) {
                     long bytesRead = 0L;
 
                     @Override

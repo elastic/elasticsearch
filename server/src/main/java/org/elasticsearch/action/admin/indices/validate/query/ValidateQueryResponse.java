@@ -65,7 +65,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
     ValidateQueryResponse(StreamInput in) throws IOException {
         super(in);
         valid = in.readBoolean();
-        queryExplanations = in.readList(QueryExplanation::new);
+        queryExplanations = in.readCollectionAsList(QueryExplanation::new);
     }
 
     ValidateQueryResponse(

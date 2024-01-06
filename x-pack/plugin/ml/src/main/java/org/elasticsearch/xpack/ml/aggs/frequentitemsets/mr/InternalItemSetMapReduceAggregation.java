@@ -87,7 +87,7 @@ public final class InternalItemSetMapReduceAggregation<
             this.mapReduceResult = this.mapReducer.readResult(in, bigArraysForMapReduce);
         }
 
-        this.fields = in.readList(Field::new);
+        this.fields = in.readCollectionAsList(Field::new);
         this.profiling = in.readBoolean();
     }
 

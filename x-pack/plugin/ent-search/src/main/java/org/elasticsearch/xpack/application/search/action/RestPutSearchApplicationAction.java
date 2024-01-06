@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -47,11 +46,10 @@ public class RestPutSearchApplicationAction extends EnterpriseSearchBaseRestHand
             restRequest.content(),
             restRequest.getXContentType()
         );
-        return channel -> client.execute(PutSearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(PutSearchApplicationAction.Response response) {
-                return response.status();
-            }
-        });
+        return channel -> client.execute(
+            PutSearchApplicationAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel, PutSearchApplicationAction.Response::status, r -> null)
+        );
     }
 }

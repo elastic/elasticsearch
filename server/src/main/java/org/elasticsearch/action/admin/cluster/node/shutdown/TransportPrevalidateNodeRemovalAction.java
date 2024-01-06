@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -73,7 +74,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             PrevalidateNodeRemovalRequest::new,
             indexNameExpressionResolver,
             PrevalidateNodeRemovalResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
     }
@@ -242,7 +243,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         }
     }
 
-    private NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, PrevalidateShardPathResponse response) {
+    private static NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, PrevalidateShardPathResponse response) {
         List<NodeResult> nodeResults = new ArrayList<>(response.getNodes().size() + response.failures().size());
         for (NodePrevalidateShardPathResponse nodeResponse : response.getNodes()) {
             Result result;

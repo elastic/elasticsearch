@@ -1,0 +1,9 @@
+pr: 101609
+summary: >
+  Add a node feature join barrier. This prevents nodes from joining clusters that do not have
+  all the features already present in the cluster. This ensures that once a features is supported
+  by all the nodes in a cluster, that feature will never then not be supported in the future.
+  This is the corresponding functionality for the version join barrier, but for features
+area: "Cluster Coordination"
+type: feature
+issues: []

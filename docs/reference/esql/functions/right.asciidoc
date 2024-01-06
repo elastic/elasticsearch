@@ -1,0 +1,20 @@
+[discrete]
+[[esql-right]]
+=== `RIGHT`
+[.text-center]
+image::esql/functions/signature/right.svg[Embedded,opts=inline]
+
+Return the substring that extracts 'length' chars from the 'string' starting from the right.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=right]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=right-result]
+|===
+
+Supported types:
+
+include::types/right.asciidoc[]

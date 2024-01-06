@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CtxMap;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
@@ -94,12 +96,24 @@ public final class IngestDocument {
 
     /**
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided.
+     *
+     * @throws IllegalArgumentException if the passed-in ingest document references itself
      */
     public IngestDocument(IngestDocument other) {
         this(
-            new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
+            new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+    }
+
+    /**
+     * Internal helper utility method to get around the issue that a {@code this(...) } constructor call must be the first statement
+     * in a constructor. This is only for use in the {@link IngestDocument#IngestDocument(IngestDocument)} copy constructor, it's not a
+     * general purpose method.
+     */
+    private static Map<String, Object> ensureNoSelfReferences(Map<String, Object> source) {
+        CollectionUtils.ensureNoSelfReferences(source, null);
+        return source;
     }
 
     /**
@@ -177,18 +191,6 @@ public final class IngestDocument {
     }
 
     /**
-     * Returns the value contained in the document with the provided templated path
-     * @param pathTemplate The path within the document in dot-notation
-     * @param clazz The expected class of the field value
-     * @return the value for the provided path if existing, null otherwise
-     * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    public <T> T getFieldValue(TemplateScript.Factory pathTemplate, Class<T> clazz) {
-        return getFieldValue(renderTemplate(pathTemplate), clazz);
-    }
-
-    /**
      * Returns the value contained in the document for the provided path as a byte array.
      * If the path value is a string, a base64 decode operation will happen.
      * If the path value is a byte array, it is just returned
@@ -224,16 +226,6 @@ public final class IngestDocument {
                 "Content field [" + path + "] of unknown type [" + object.getClass().getName() + "], must be string or byte array"
             );
         }
-    }
-
-    /**
-     * Checks whether the document contains a value for the provided templated path
-     * @param fieldPathTemplate the template for the path within the document in dot-notation
-     * @return true if the document contains a value for the field, false otherwise
-     * @throws IllegalArgumentException if the path is null, empty or invalid
-     */
-    public boolean hasField(TemplateScript.Factory fieldPathTemplate) {
-        return hasField(renderTemplate(fieldPathTemplate));
     }
 
     /**
@@ -314,15 +306,6 @@ public final class IngestDocument {
             }
         }
         return false;
-    }
-
-    /**
-     * Removes the field identified by the provided path.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
-     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
-     */
-    public void removeField(TemplateScript.Factory fieldPathTemplate) {
-        removeField(renderTemplate(fieldPathTemplate));
     }
 
     /**
@@ -455,17 +438,13 @@ public final class IngestDocument {
      * the provided value will be added to the newly created list.
      * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
      * existing (or newly created) list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @param allowDuplicates When false, any values that already exist in the field will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
-    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
-        appendFieldValue(
-            fieldPathTemplate.newInstance(templateModel).execute(),
-            valueSource.copyAndResolve(templateModel),
-            allowDuplicates
-        );
+    public void appendFieldValue(String path, ValueSource valueSource, boolean allowDuplicates) {
+        appendFieldValue(path, valueSource.copyAndResolve(templateModel), allowDuplicates);
     }
 
     /**
@@ -486,26 +465,26 @@ public final class IngestDocument {
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value to put in for the path key
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
+    public void setFieldValue(String path, ValueSource valueSource) {
+        setFieldValue(path, valueSource.copyAndResolve(templateModel));
     }
 
     /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value to put in for the path key
      * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
+    public void setFieldValue(String path, ValueSource valueSource, boolean ignoreEmptyValue) {
         Object value = valueSource.copyAndResolve(templateModel);
         if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
             if (value == null) {
@@ -517,20 +496,20 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
+        setFieldValue(path, value);
     }
 
     /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
      * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
+    public void setFieldValue(String path, Object value, boolean ignoreEmptyValue) {
         if (ignoreEmptyValue) {
             if (value == null) {
                 return;
@@ -542,7 +521,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
+        setFieldValue(path, value);
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
@@ -711,6 +690,21 @@ public final class IngestDocument {
         );
     }
 
+    /**
+     * Renders a template into a string. This allows field access via both literal fields like {@code "foo.bar.baz"} and dynamic fields
+     * like {@code "{{other_field}}"} (that is, look up the value of the 'other_field' in the document and then use the resulting string as
+     * the field to operate on).
+     * <p>
+     * See {@link ConfigurationUtils#compileTemplate(String, String, String, String, ScriptService)} and associated methods, which
+     * create these {@link TemplateScript.Factory} instances.
+     * <p>
+     * Note: for clarity and efficiency reasons, it is advisable to invoke this method outside IngestDocument itself -- fields should be
+     * rendered by a caller (once), and then passed to an ingest document repeatedly. There are enough methods on IngestDocument that
+     * operate on String paths already, we don't want to mirror all of them with twin methods that accept a template.
+     *
+     * @param template the template or literal string to evaluate
+     * @return a literal string field path
+     */
     public String renderTemplate(TemplateScript.Factory template) {
         return template.newInstance(templateModel).execute();
     }
@@ -896,24 +890,6 @@ public final class IngestDocument {
      */
     public void doNoSelfReferencesCheck(boolean doNoSelfReferencesCheck) {
         this.doNoSelfReferencesCheck = doNoSelfReferencesCheck;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(ctxMap, other.ctxMap) && Objects.equals(ingestMetadata, other.ingestMetadata);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ctxMap, ingestMetadata);
     }
 
     @Override

@@ -4,6 +4,7 @@
 
 selectAll
 FROM apps [metadata _id];
+ignoreOrder:true
 
 id:integer |name:keyword   |version:version     | _id:keyword
 1          |aaaaa          |1                   | 1

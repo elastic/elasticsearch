@@ -70,7 +70,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             actionFilters,
             indexNameExpressionResolver,
             DataStreamsStatsAction.Request::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -229,11 +229,11 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                 assert dataStream != null;
 
                 // Aggregate global stats
-                totalStoreSizeBytes += shardStat.getStoreStats().sizeInBytes();
+                totalStoreSizeBytes += shardStat.getStoreStats().totalDataSetSizeInBytes();
 
                 // Aggregate data stream stats
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                stats.storageBytes += shardStat.getStoreStats().sizeInBytes();
+                stats.storageBytes += shardStat.getStoreStats().totalDataSetSizeInBytes();
                 stats.maxTimestamp = Math.max(stats.maxTimestamp, shardStat.getMaxTimestamp());
             }
 

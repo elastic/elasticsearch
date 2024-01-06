@@ -18,16 +18,22 @@ abstract class AbstractArrayBlock extends AbstractBlock {
     /**
      * @param positionCount the number of values in this block
      */
-    protected AbstractArrayBlock(int positionCount, MvOrdering mvOrdering) {
-        super(positionCount);
+    protected AbstractArrayBlock(int positionCount, MvOrdering mvOrdering, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.mvOrdering = mvOrdering;
     }
 
     /**
      * @param positionCount the number of values in this block
      */
-    protected AbstractArrayBlock(int positionCount, @Nullable int[] firstValueIndexes, @Nullable BitSet nullsMask, MvOrdering mvOrdering) {
-        super(positionCount, firstValueIndexes, nullsMask);
+    protected AbstractArrayBlock(
+        int positionCount,
+        @Nullable int[] firstValueIndexes,
+        @Nullable BitSet nullsMask,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
+        super(positionCount, firstValueIndexes, nullsMask, blockFactory);
         this.mvOrdering = mvOrdering;
     }
 
@@ -46,7 +52,7 @@ abstract class AbstractArrayBlock extends AbstractBlock {
     }
 
     protected BitSet shiftNullsToExpandedPositions() {
-        BitSet expanded = new BitSet(getTotalValueCount());
+        BitSet expanded = new BitSet(nullsMask.size());
         int next = -1;
         while ((next = nullsMask.nextSetBit(next + 1)) != -1) {
             expanded.set(getFirstValueIndex(next));

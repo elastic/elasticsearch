@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -28,7 +30,7 @@ public class JwtUtilTests extends JwtTestCase {
             clientAuthenticationTypeKey,
             JwtRealmSettings.ClientAuthenticationType.NONE,
             clientAuthenticationSharedSecretKey,
-            sharedSecretNullOrEmpty
+            new RotatableSecret(sharedSecretNullOrEmpty)
         );
         // If type is None, verify non-empty is rejected
         final Exception exception1 = expectThrows(
@@ -37,7 +39,7 @@ public class JwtUtilTests extends JwtTestCase {
                 clientAuthenticationTypeKey,
                 JwtRealmSettings.ClientAuthenticationType.NONE,
                 clientAuthenticationSharedSecretKey,
-                sharedSecretNonEmpty
+                new RotatableSecret(sharedSecretNonEmpty)
             )
         );
         assertThat(
@@ -60,7 +62,7 @@ public class JwtUtilTests extends JwtTestCase {
             clientAuthenticationTypeKey,
             JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET,
             clientAuthenticationSharedSecretKey,
-            sharedSecretNonEmpty
+            new RotatableSecret(sharedSecretNonEmpty)
         );
         // If type is SharedSecret, verify null or empty is rejected
         final Exception exception2 = expectThrows(
@@ -69,7 +71,7 @@ public class JwtUtilTests extends JwtTestCase {
                 clientAuthenticationTypeKey,
                 JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET,
                 clientAuthenticationSharedSecretKey,
-                sharedSecretNullOrEmpty
+                new RotatableSecret(sharedSecretNullOrEmpty)
             )
         );
         assertThat(

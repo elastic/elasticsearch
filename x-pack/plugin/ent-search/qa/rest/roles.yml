@@ -21,7 +21,8 @@ user:
       "test-index1",
       "test-search-application",
       "test-search-application-1",
-      "test-search-application-with-list"
+      "test-search-application-with-list",
+      "test-search-application-with-list-invalid"
     ]
       privileges: [ "read" ]
 

@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -26,13 +26,15 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public abstract class AsyncOperator implements Operator {
 
-    private volatile ListenableActionFuture<Void> blockedFuture;
+    private volatile SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Page> buffers = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<Exception> failure = new AtomicReference<>();
+    private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
     private boolean finished = false;
+    private volatile boolean closed = false;
 
     /*
      * The checkpoint tracker is used to maintain the order of emitted pages after passing through this async operator.
@@ -50,7 +52,8 @@ public abstract class AsyncOperator implements Operator {
      *
      * @param maxOutstandingRequests the maximum number of outstanding requests
      */
-    public AsyncOperator(int maxOutstandingRequests) {
+    public AsyncOperator(DriverContext driverContext, int maxOutstandingRequests) {
+        this.driverContext = driverContext;
         this.maxOutstandingRequests = maxOutstandingRequests;
     }
 
@@ -62,15 +65,34 @@ public abstract class AsyncOperator implements Operator {
 
     @Override
     public void addInput(Page input) {
-        checkFailure();
+        if (failure.get() != null) {
+            input.releaseBlocks();
+            return;
+        }
         final long seqNo = checkpoint.generateSeqNo();
-        performAsync(input, ActionListener.wrap(output -> {
-            buffers.put(seqNo, output);
-            onSeqNoCompleted(seqNo);
-        }, e -> {
-            onFailure(e);
-            onSeqNoCompleted(seqNo);
-        }));
+        driverContext.addAsyncAction();
+        boolean success = false;
+        try {
+            final ActionListener<Page> listener = ActionListener.wrap(output -> {
+                buffers.put(seqNo, output);
+                onSeqNoCompleted(seqNo);
+            }, e -> {
+                releasePageOnAnyThread(input);
+                onFailure(e);
+                onSeqNoCompleted(seqNo);
+            });
+            performAsync(input, ActionListener.runAfter(listener, driverContext::removeAsyncAction));
+            success = true;
+        } finally {
+            if (success == false) {
+                driverContext.removeAsyncAction();
+            }
+        }
+    }
+
+    private void releasePageOnAnyThread(Page page) {
+        page.allowPassingToDifferentDriver();
+        page.releaseBlocks();
     }
 
     /**
@@ -80,6 +102,8 @@ public abstract class AsyncOperator implements Operator {
      * @param listener  the listener
      */
     protected abstract void performAsync(Page inputPage, ActionListener<Page> listener);
+
+    protected abstract void doClose();
 
     private void onFailure(Exception e) {
         failure.getAndUpdate(first -> {
@@ -105,11 +129,14 @@ public abstract class AsyncOperator implements Operator {
         if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint()) {
             notifyIfBlocked();
         }
+        if (closed || failure.get() != null) {
+            discardPages();
+        }
     }
 
     private void notifyIfBlocked() {
         if (blockedFuture != null) {
-            final ListenableActionFuture<Void> future;
+            final SubscribableListener<Void> future;
             synchronized (this) {
                 future = blockedFuture;
                 this.blockedFuture = null;
@@ -123,8 +150,28 @@ public abstract class AsyncOperator implements Operator {
     private void checkFailure() {
         Exception e = failure.get();
         if (e != null) {
+            discardPages();
             throw ExceptionsHelper.convertToElastic(e);
         }
+    }
+
+    private void discardPages() {
+        long nextCheckpoint;
+        while ((nextCheckpoint = checkpoint.getPersistedCheckpoint() + 1) <= checkpoint.getProcessedCheckpoint()) {
+            Page page = buffers.remove(nextCheckpoint);
+            checkpoint.markSeqNoAsPersisted(nextCheckpoint);
+            if (page != null) {
+                releasePageOnAnyThread(page);
+            }
+        }
+    }
+
+    @Override
+    public final void close() {
+        finish();
+        closed = true;
+        discardPages();
+        doClose();
     }
 
     @Override
@@ -153,7 +200,8 @@ public abstract class AsyncOperator implements Operator {
     }
 
     @Override
-    public ListenableActionFuture<Void> isBlocked() {
+    public SubscribableListener<Void> isBlocked() {
+        // TODO: Add an exchange service between async operation instead?
         if (finished) {
             return Operator.NOT_BLOCKED;
         }
@@ -167,7 +215,7 @@ public abstract class AsyncOperator implements Operator {
                 return Operator.NOT_BLOCKED;
             }
             if (blockedFuture == null) {
-                blockedFuture = new ListenableActionFuture<>();
+                blockedFuture = new SubscribableListener<>();
             }
             return blockedFuture;
         }

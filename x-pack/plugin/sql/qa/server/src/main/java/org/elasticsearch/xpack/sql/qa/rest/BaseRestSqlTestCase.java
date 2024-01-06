@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
@@ -221,24 +222,32 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
         deleteIndexWithProvisioningClient(TEST_INDEX);
     }
 
-    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
+    protected void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
     }
 
-    public static void createDataStream(String dataStreamName) throws IOException {
+    public static void createDataStream(String dataStreamName, RestClient provisioningClient) throws IOException {
         Request request = new Request("PUT", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
         request.setJsonEntity("{\"index_patterns\": [\"" + dataStreamName + "*\"], \"data_stream\": {}}");
-        assertOK(provisioningClient().performRequest(request));
+        assertOK(provisioningClient.performRequest(request));
 
         request = new Request("PUT", "/_data_stream/" + dataStreamName);
-        assertOK(provisioningClient().performRequest(request));
+        assertOK(provisioningClient.performRequest(request));
     }
 
-    public static void deleteDataStream(String dataStreamName) throws IOException {
+    public void createDataStream(String dataStreamName) throws IOException {
+        createDataStream(dataStreamName, provisioningClient());
+    }
+
+    public static void deleteDataStream(String dataStreamName, RestClient provisioningClient) throws IOException {
         Request request = new Request("DELETE", "_data_stream/" + dataStreamName);
-        provisioningClient().performRequest(request);
+        provisioningClient.performRequest(request);
         request = new Request("DELETE", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
-        provisioningClient().performRequest(request);
+        provisioningClient.performRequest(request);
+    }
+
+    public void deleteDataStream(String dataStreamName) throws IOException {
+        deleteDataStream(dataStreamName, provisioningClient());
     }
 
     public static RequestObjectBuilder query(String query) {

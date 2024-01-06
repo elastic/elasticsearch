@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -34,7 +35,7 @@ public class PiTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Pi Test", () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
-                "LiteralsEvaluator[block=3.141592653589793]",
+                "LiteralsEvaluator[lit=3.141592653589793]",
                 DataTypes.DOUBLE,
                 equalTo(Math.PI)
             );
@@ -59,5 +60,10 @@ public class PiTests extends AbstractScalarFunctionTestCase {
     @Override
     protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
         assertThat(((DoubleBlock) value).asVector().getDouble(0), equalTo(Math.PI));
+    }
+
+    @Override
+    protected Matcher<Object> allNullsMatcher() {
+        return equalTo(Math.PI);
     }
 }

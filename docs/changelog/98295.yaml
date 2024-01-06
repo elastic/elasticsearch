@@ -1,6 +1,0 @@
-pr: 98295
-summary: Skip segment for `MatchNoDocsQuery` filters
-area: Aggregations
-type: bug
-issues:
- - 94637

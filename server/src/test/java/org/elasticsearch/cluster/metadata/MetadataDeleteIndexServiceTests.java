@@ -73,7 +73,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteMissing() {
         Index index = new Index("missing", "doesn't matter");
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> service.deleteIndices(state, Set.of(index)));
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> MetadataDeleteIndexService.deleteIndices(state, Set.of(index), Settings.EMPTY)
+        );
         assertEquals(index, e.getIndex());
     }
 
@@ -100,7 +103,11 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
         Exception e = expectThrows(
             SnapshotInProgressException.class,
-            () -> service.deleteIndices(state, Set.of(state.metadata().getIndices().get(index).getIndex()))
+            () -> MetadataDeleteIndexService.deleteIndices(
+                state,
+                Set.of(state.metadata().getIndices().get(index).getIndex()),
+                Settings.EMPTY
+            )
         );
         assertEquals(
             "Cannot delete indices that are being snapshotted: [["
@@ -155,7 +162,11 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .blocks(ClusterBlocks.builder().addBlocks(idxMetadata))
             .build();
 
-        ClusterState after = service.deleteIndices(before, Set.of(before.metadata().getIndices().get(index).getIndex()));
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(
+            before,
+            Set.of(before.metadata().getIndices().get(index).getIndex()),
+            Settings.EMPTY
+        );
 
         assertNull(after.metadata().getIndices().get(index));
         assertNull(after.routingTable().index(index));
@@ -175,7 +186,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
-        ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY);
 
         assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
@@ -200,7 +211,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         for (int k : indexNumbersToDelete) {
             indicesToDelete.add(before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, k)).getIndex());
         }
-        ClusterState after = service.deleteIndices(before, indicesToDelete);
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(before, indicesToDelete, Settings.EMPTY);
 
         DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
         assertThat(dataStream, notNullValue());
@@ -221,7 +232,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         );
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> service.deleteIndices(before, Set.of(indexToDelete)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY)
+        );
 
         assertThat(
             e.getMessage(),

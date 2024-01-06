@@ -15,12 +15,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.apache.lucene.index.VectorValues.MAX_DIMENSIONS;
-
 /**
  * Holds enhanced stats about a dense vector mapped field.
  */
 public final class DenseVectorFieldStats extends FieldStats {
+    static final int UNSET = -1;
+
     int indexedVectorCount; // number of times vectors with index:true are used in mappings of this cluster
     int indexedVectorDimMin; // minimum dimension of indexed vectors in this cluster
     int indexedVectorDimMax; // maximum dimension of indexed vectors in this cluster
@@ -28,8 +28,8 @@ public final class DenseVectorFieldStats extends FieldStats {
     DenseVectorFieldStats(String name) {
         super(name);
         indexedVectorCount = 0;
-        indexedVectorDimMin = MAX_DIMENSIONS;
-        indexedVectorDimMax = 0;
+        indexedVectorDimMin = UNSET;
+        indexedVectorDimMax = UNSET;
     }
 
     DenseVectorFieldStats(StreamInput in) throws IOException {

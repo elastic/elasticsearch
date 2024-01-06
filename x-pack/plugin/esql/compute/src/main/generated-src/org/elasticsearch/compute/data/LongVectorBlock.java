@@ -7,16 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.Releasables;
+
 /**
- * Block view of a LongVector.
+ * Block view of a {@link LongVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class LongVectorBlock extends AbstractVectorBlock implements LongBlock {
 
     private final LongVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     LongVectorBlock(LongVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -42,7 +47,12 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public LongBlock filter(int... positions) {
-        return new FilterLongVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -61,5 +71,21 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
+        Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

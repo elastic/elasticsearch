@@ -31,7 +31,7 @@ public class FlushBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("test", "init").execute().actionGet();
+            prepareIndex("test").setId("" + i).setSource("test", "init").get();
         }
 
         // Request is not blocked
@@ -44,7 +44,7 @@ public class FlushBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test", blockSetting);
-                FlushResponse response = indicesAdmin().prepareFlush("test").execute().actionGet();
+                FlushResponse response = indicesAdmin().prepareFlush("test").get();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {

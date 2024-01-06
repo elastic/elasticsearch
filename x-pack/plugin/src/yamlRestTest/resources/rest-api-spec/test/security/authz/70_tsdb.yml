@@ -232,7 +232,6 @@ create_doc permission can create:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       bulk:
-        refresh: true
         index: test
         body:
           - '{"create": {}}'
@@ -242,7 +241,6 @@ create_doc permission can create:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       index:
-        refresh: true
         index: test
         body:
           "@timestamp": "2021-04-28T23:51:03.142Z"
@@ -256,6 +254,16 @@ create_doc permission can create:
                 tx: 111434595272
                 rx: 430605511
   - match: { _version: 1 }
+
+  - do: # superuser
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+    # Original 8 docs ("setup") + 2 more (above)
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
 
 ---
 create_doc permission can't overwrite:
@@ -290,7 +298,6 @@ create_doc permission can't overwrite:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       bulk:
-        refresh: true
         index: test
         body:
           - '{"index": {}}'
@@ -301,7 +308,6 @@ create_doc permission can't overwrite:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       catch: "/is\ unauthorized\ for\ user\ \\[limited\\]/"
       index:
-        refresh: true
         index: test
         op_type: index
         body:
@@ -315,6 +321,16 @@ create_doc permission can't overwrite:
               network:
                 tx: 111434595272
                 rx: 430605511
+
+  - do: # superuser
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+    # Original 8 docs ("setup") but no more (above)
+  - match: { hits.total.value: 8 }
+  - match: { hits.total.relation: "eq" }
 
 ---
 index permission can create:
@@ -349,7 +365,6 @@ index permission can create:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       bulk:
-        refresh: true
         index: test
         body:
           - '{"create": {}}'
@@ -359,7 +374,6 @@ index permission can create:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       index:
-        refresh: true
         index: test
         body:
           "@timestamp": "2021-04-28T23:51:03.142Z"
@@ -373,6 +387,16 @@ index permission can create:
                 tx: 111434595272
                 rx: 430605511
   - match: { _version: 1 }
+
+  - do: # superuser
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+    # Original 8 docs ("setup") + 2 more (above)
+  - match: { hits.total.value: 10 }
+  - match: { hits.total.relation: "eq" }
 
 ---
 index permission can overwrite:
@@ -407,7 +431,6 @@ index permission can overwrite:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       bulk:
-        refresh: true
         index: test
         body:
           - '{"index": {}}'
@@ -417,7 +440,6 @@ index permission can overwrite:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       index:
-        refresh: true
         index: test
         op_type: index
         body:
@@ -432,3 +454,13 @@ index permission can overwrite:
                 tx: 111434595272
                 rx: 430605511
   - match: { _version: 2 }
+
+  - do: # superuser
+      indices.refresh:
+        index: test
+  - do:
+      search:
+        index: test
+    # Original 8 docs ("setup") even though 2 have been overwritten (above)
+  - match: { hits.total.value: 8 }
+  - match: { hits.total.relation: "eq" }

@@ -31,7 +31,7 @@ public class ShardSegments implements Writeable, Iterable<Segment> {
 
     ShardSegments(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
-        segments = in.readList(Segment::new);
+        segments = in.readCollectionAsList(Segment::new);
     }
 
     @Override

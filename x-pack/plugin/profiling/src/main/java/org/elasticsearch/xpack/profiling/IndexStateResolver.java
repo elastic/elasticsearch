@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.util.List;
 import java.util.Map;
@@ -52,7 +52,7 @@ class IndexStateResolver {
             logger.trace("Index [{}] health status is RED, any pending mapping upgrades will wait until this changes", metadata.getIndex());
             return new IndexState<>(index, metadata.getIndex(), IndexStatus.UNHEALTHY);
         }
-        if (checkOutdatedIndices && metadata.getCreationVersion().before(IndexVersion.V_8_9_1)) {
+        if (checkOutdatedIndices && metadata.getCreationVersion().before(IndexVersions.V_8_9_1)) {
             logger.trace(
                 "Index [{}] has been created before version 8.9.1 and must be deleted before proceeding with the upgrade.",
                 metadata.getIndex()

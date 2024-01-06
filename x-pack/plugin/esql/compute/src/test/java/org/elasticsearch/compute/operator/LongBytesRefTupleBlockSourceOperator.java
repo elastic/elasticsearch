@@ -8,8 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
@@ -26,28 +25,28 @@ public class LongBytesRefTupleBlockSourceOperator extends AbstractBlockSourceOpe
 
     private final List<Tuple<Long, BytesRef>> values;
 
-    public LongBytesRefTupleBlockSourceOperator(Stream<Tuple<Long, BytesRef>> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public LongBytesRefTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, BytesRef>> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public LongBytesRefTupleBlockSourceOperator(Stream<Tuple<Long, BytesRef>> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public LongBytesRefTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, BytesRef>> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.toList();
     }
 
-    public LongBytesRefTupleBlockSourceOperator(List<Tuple<Long, BytesRef>> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public LongBytesRefTupleBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, BytesRef>> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public LongBytesRefTupleBlockSourceOperator(List<Tuple<Long, BytesRef>> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public LongBytesRefTupleBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, BytesRef>> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values;
     }
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        var blockBuilder1 = LongBlock.newBlockBuilder(length);
-        var blockBuilder2 = BytesRefBlock.newBlockBuilder(length);
+        var blockBuilder1 = blockFactory.newLongBlockBuilder(length);
+        var blockBuilder2 = blockFactory.newBytesRefBlockBuilder(length);
         for (int i = 0; i < length; i++) {
             Tuple<Long, BytesRef> item = values.get(positionOffset + i);
             if (item.v1() == null) {

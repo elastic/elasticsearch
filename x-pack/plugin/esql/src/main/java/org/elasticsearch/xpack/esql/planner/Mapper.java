@@ -151,7 +151,7 @@ public class Mapper {
         }
 
         if (p instanceof MvExpand mvExpand) {
-            return new MvExpandExec(mvExpand.source(), map(mvExpand.child()), mvExpand.target());
+            return new MvExpandExec(mvExpand.source(), map(mvExpand.child()), mvExpand.target(), mvExpand.expanded());
         }
 
         //

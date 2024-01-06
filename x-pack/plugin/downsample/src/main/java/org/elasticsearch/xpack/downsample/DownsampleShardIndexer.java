@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -157,7 +158,6 @@ class DownsampleShardIndexer {
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
             bucketCollector.preCollection();
             timeSeriesSearcher.search(initialStateQuery, bucketCollector);
-            bucketCollector.postCollection();
         }
 
         logger.info(
@@ -281,7 +281,7 @@ class DownsampleShardIndexer {
                         bulkIngestTookMillis,
                         bulkTookMillis,
                         response.hasFailures(),
-                        response.status().getStatus()
+                        RestStatus.OK.getStatus()
                     )
                 );
                 task.updateBulkInfo(bulkIngestTookMillis, bulkTookMillis);

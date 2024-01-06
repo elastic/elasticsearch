@@ -118,7 +118,7 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
             values.sort(Double::compare);
             iterator = values.iterator();
 
-            return true;
+            return values.isEmpty() == false;
         }
 
         @Override

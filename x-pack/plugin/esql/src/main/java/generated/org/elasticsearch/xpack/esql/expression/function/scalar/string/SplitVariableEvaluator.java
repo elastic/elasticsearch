@@ -4,87 +4,142 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Split}.
  * This class is generated. Do not edit it.
  */
 public final class SplitVariableEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator delim;
 
   private final BytesRef scratch;
 
-  public SplitVariableEvaluator(EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator delim, BytesRef scratch) {
+  private final DriverContext driverContext;
+
+  public SplitVariableEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
+      EvalOperator.ExpressionEvaluator delim, BytesRef scratch, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
+    this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (BytesRefBlock delimBlock = (BytesRefBlock) delim.eval(page)) {
+        BytesRefVector strVector = strBlock.asVector();
+        if (strVector == null) {
+          return eval(page.getPositionCount(), strBlock, delimBlock);
+        }
+        BytesRefVector delimVector = delimBlock.asVector();
+        if (delimVector == null) {
+          return eval(page.getPositionCount(), strBlock, delimBlock);
+        }
+        return eval(page.getPositionCount(), strVector, delimVector);
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block delimUncastBlock = delim.eval(page);
-    if (delimUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock delimBlock = (BytesRefBlock) delimUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, delimBlock);
-    }
-    BytesRefVector delimVector = delimBlock.asVector();
-    if (delimVector == null) {
-      return eval(page.getPositionCount(), strBlock, delimBlock);
-    }
-    return eval(page.getPositionCount(), strVector, delimVector);
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock delimBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef delimScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef delimScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (delimBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (delimBlock.getValueCount(p) != 1) {
+          if (delimBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch), scratch);
       }
-      if (delimBlock.isNull(p) || delimBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch), scratch);
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector,
       BytesRefVector delimVector) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef delimScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      Split.process(result, strVector.getBytesRef(p, strScratch), delimVector.getBytesRef(p, delimScratch), scratch);
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef delimScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        Split.process(result, strVector.getBytesRef(p, strScratch), delimVector.getBytesRef(p, delimScratch), scratch);
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
   public String toString() {
     return "SplitVariableEvaluator[" + "str=" + str + ", delim=" + delim + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(str, delim);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory delim;
+
+    private final Function<DriverContext, BytesRef> scratch;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory delim, Function<DriverContext, BytesRef> scratch) {
+      this.source = source;
+      this.str = str;
+      this.delim = delim;
+      this.scratch = scratch;
+    }
+
+    @Override
+    public SplitVariableEvaluator get(DriverContext context) {
+      return new SplitVariableEvaluator(source, str.get(context), delim.get(context), scratch.apply(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SplitVariableEvaluator[" + "str=" + str + ", delim=" + delim + "]";
+    }
   }
 }

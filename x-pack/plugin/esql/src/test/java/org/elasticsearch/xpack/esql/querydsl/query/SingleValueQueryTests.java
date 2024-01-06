@@ -57,8 +57,11 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (String fieldType : new String[] { "long", "integer", "short", "byte", "double", "float", "keyword" }) {
-            params.add(new Object[] { new StandardSetup(fieldType, false) });
-            params.add(new Object[] { new StandardSetup(fieldType, true) });
+            for (boolean multivaluedField : new boolean[] { true, false }) {
+                for (boolean allowEmpty : new boolean[] { true, false }) {
+                    params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, allowEmpty, 100) });
+                }
+            }
         }
         params.add(new Object[] { new FieldMissingSetup() });
         return params;
@@ -71,44 +74,37 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     }
 
     public void testMatchAll() throws IOException {
-        testCase(
-            new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").asBuilder(),
-            false,
-            false,
-            (fieldValues, count) -> assertThat(count, equalTo((int) fieldValues.stream().filter(l -> l.size() == 1).count()))
-        );
+        testCase(new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").asBuilder(), false, false, this::runCase);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102997")
     public void testMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
-            new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", new SingleValueQuery.Stats()),
+            new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
             false,
             false,
-            (fieldValues, count) -> {
-                int expected = 0;
-                for (int i = 0; i < max; i++) {
-                    if (fieldValues.get(i).size() == 1) {
-                        expected++;
-                    }
-                }
-                assertThat(count, equalTo(expected));
-            }
+            (fieldValues, count) -> runCase(fieldValues, count, null, max)
         );
     }
 
     public void testSubPhrase() throws IOException {
         testCase(
-            new SingleValueQuery.Builder(new MatchPhraseQueryBuilder("str", "fox jumped"), "foo", new SingleValueQuery.Stats()),
+            new SingleValueQuery.Builder(
+                new MatchPhraseQueryBuilder("str", "fox jumped"),
+                "foo",
+                new SingleValueQuery.Stats(),
+                Source.EMPTY
+            ),
             false,
             true,
-            (fieldValues, count) -> assertThat(count, equalTo((int) fieldValues.stream().filter(l -> l.size() == 1).count()))
+            this::runCase
         );
     }
 
     public void testMatchNone() throws IOException {
         testCase(
-            new SingleValueQuery.Builder(new MatchNoneQueryBuilder(), "foo", new SingleValueQuery.Stats()),
+            new SingleValueQuery.Builder(new MatchNoneQueryBuilder(), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
             true,
             false,
             (fieldValues, count) -> assertThat(count, equalTo(0))
@@ -117,7 +113,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
     public void testRewritesToMatchNone() throws IOException {
         testCase(
-            new SingleValueQuery.Builder(new TermQueryBuilder("missing", 0), "foo", new SingleValueQuery.Stats()),
+            new SingleValueQuery.Builder(new TermQueryBuilder("missing", 0), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
             true,
             false,
             (fieldValues, count) -> assertThat(count, equalTo(0))
@@ -138,31 +134,51 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             new SingleValueQuery(new MatchAll(Source.EMPTY).negate(Source.EMPTY), "foo").negate(Source.EMPTY).asBuilder(),
             false,
             false,
-            (fieldValues, count) -> assertThat(count, equalTo((int) fieldValues.stream().filter(l -> l.size() == 1).count()))
+            this::runCase
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102997")
     public void testNotMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
             new SingleValueQuery(new RangeQuery(Source.EMPTY, "i", null, false, max, false, null), "foo").negate(Source.EMPTY).asBuilder(),
             false,
             true,
-            (fieldValues, count) -> {
-                int expected = 0;
-                for (int i = max; i < 100; i++) {
-                    if (fieldValues.get(i).size() == 1) {
-                        expected++;
-                    }
-                }
-                assertThat(count, equalTo(expected));
-            }
+            (fieldValues, count) -> runCase(fieldValues, count, max, 100)
         );
     }
 
     @FunctionalInterface
     interface TestCase {
         void run(List<List<Object>> fieldValues, int count) throws IOException;
+    }
+
+    private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop) {
+        int expected = 0;
+        int min = docsStart != null ? docsStart : 0;
+        int max = docsStop != null ? docsStop : fieldValues.size();
+        int valuesCount = 0;
+        for (int i = min; i < max; i++) {
+            int mvCount = fieldValues.get(i).size();
+            if (mvCount == 1) {
+                expected++;
+            }
+            valuesCount += mvCount;
+        }
+        assertThat(count, equalTo(expected));
+
+        // query's count runs against the full set, not just min-to-max
+        if (valuesCount > 0 && fieldValues.stream().anyMatch(x -> x.size() > 1)) {
+            assertWarnings(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+            );
+        }
+    }
+
+    private void runCase(List<List<Object>> fieldValues, int count) {
+        runCase(fieldValues, count, null, null);
     }
 
     private void testCase(SingleValueQuery.Builder builder, boolean rewritesToMatchNone, boolean subHasTwoPhase, TestCase testCase)
@@ -196,7 +212,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         }
     }
 
-    private record StandardSetup(String fieldType, boolean multivaluedField) implements Setup {
+    private record StandardSetup(String fieldType, boolean multivaluedField, boolean empty, int count) implements Setup {
         @Override
         public XContentBuilder mapping(XContentBuilder builder) throws IOException {
             builder.startObject("i").field("type", "long").endObject();
@@ -207,25 +223,30 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         @Override
         public List<List<Object>> build(RandomIndexWriter iw) throws IOException {
             List<List<Object>> fieldValues = new ArrayList<>(100);
-            for (int i = 0; i < 100; i++) {
-                // i == 10 forces at least one multivalued field when we're configured for multivalued fields
-                boolean makeMultivalued = multivaluedField && (i == 10 || randomBoolean());
-                List<Object> values;
-                if (makeMultivalued) {
-                    int count = between(2, 10);
-                    Set<Object> set = new HashSet<>(count);
-                    while (set.size() < count) {
-                        set.add(randomValue());
-                    }
-                    values = List.copyOf(set);
-                } else {
-                    values = List.of(randomValue());
-                }
+            for (int i = 0; i < count; i++) {
+                List<Object> values = values(i);
                 fieldValues.add(values);
                 iw.addDocument(docFor(i, values));
             }
-
             return fieldValues;
+        }
+
+        private List<Object> values(int i) {
+            // i == 10 forces at least one multivalued field when we're configured for multivalued fields
+            boolean makeMultivalued = multivaluedField && (i == 10 || randomBoolean());
+            if (makeMultivalued) {
+                int count = between(2, 10);
+                Set<Object> set = new HashSet<>(count);
+                while (set.size() < count) {
+                    set.add(randomValue());
+                }
+                return List.copyOf(set);
+            }
+            // i == 0 forces at least one empty field when we're configured for empty fields
+            if (empty && (i == 0 || randomBoolean())) {
+                return List.of();
+            }
+            return List.of(randomValue());
         }
 
         private Object randomValue() {
@@ -279,7 +300,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                     assertThat(builder.stats().bytesApprox(), equalTo(0));
                     assertThat(builder.stats().bytesNoApprox(), equalTo(0));
 
-                    if (multivaluedField) {
+                    if (multivaluedField || empty) {
                         assertThat(builder.stats().numericSingle(), greaterThanOrEqualTo(0));
                         if (subHasTwoPhase) {
                             assertThat(builder.stats().numericMultiNoApprox(), equalTo(0));
@@ -300,7 +321,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                     assertThat(builder.stats().numericMultiApprox(), equalTo(0));
                     assertThat(builder.stats().bytesApprox(), equalTo(0));
                     assertThat(builder.stats().bytesNoApprox(), equalTo(0));
-                    if (multivaluedField) {
+                    if (multivaluedField || empty) {
                         assertThat(builder.stats().ordinalsSingle(), greaterThanOrEqualTo(0));
                         if (subHasTwoPhase) {
                             assertThat(builder.stats().ordinalsMultiNoApprox(), equalTo(0));

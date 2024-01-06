@@ -87,7 +87,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -204,14 +204,6 @@ public class TokenCountFieldMapper extends FieldMapper {
      */
     public String analyzer() {
         return analyzer.name();
-    }
-
-    /**
-     * Indicates if position increments are counted.
-     * @return <code>true</code> if position increments are counted
-     */
-    public boolean enablePositionIncrements() {
-        return enablePositionIncrements;
     }
 
     @Override

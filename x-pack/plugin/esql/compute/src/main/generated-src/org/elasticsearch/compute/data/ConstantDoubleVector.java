@@ -7,16 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Vector implementation that stores a constant double value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
+final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
+
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
     private final double value;
 
-    public ConstantDoubleVector(double value, int positionCount) {
-        super(positionCount);
+    ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -32,7 +36,7 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     @Override
     public DoubleVector filter(int... positions) {
-        return new ConstantDoubleVector(value, positions.length);
+        return blockFactory().newConstantDoubleVector(value, positions.length);
     }
 
     @Override
@@ -43,6 +47,11 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED;
     }
 
     @Override

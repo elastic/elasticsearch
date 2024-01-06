@@ -6,18 +6,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefArrayBlock;
-import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -26,13 +21,14 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromBooleanEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
-    super(field, source);
+  public ToStringFromBooleanEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
+    super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToString";
+    return "ToStringFromBoolean";
   }
 
   @Override
@@ -40,30 +36,14 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
     BooleanVector vector = (BooleanVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return new ConstantBytesRefVector(evalValue(vector, 0), positionCount).asBlock();
-      } catch (Exception e) {
-        registerException(e);
-        return Block.constantNullBlock(positionCount);
-      }
+      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
     }
-    BitSet nullsMask = null;
-    BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        values.append(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
-        }
-        nullsMask.set(p);
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        builder.appendBytesRef(evalValue(vector, p));
       }
+      return builder.build();
     }
-    return nullsMask == null
-          ? new BytesRefArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new BytesRefArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
   }
 
   private static BytesRef evalValue(BooleanVector container, int index) {
@@ -75,15 +55,14 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
   public Block evalBlock(Block b) {
     BooleanBlock block = (BooleanBlock) b;
     int positionCount = block.getPositionCount();
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = block.getValueCount(p);
-      int start = block.getFirstValueIndex(p);
-      int end = start + valueCount;
-      boolean positionOpened = false;
-      boolean valuesAppended = false;
-      for (int i = start; i < end; i++) {
-        try {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
           BytesRef value = evalValue(block, i);
           if (positionOpened == false && valueCount > 1) {
             builder.beginPositionEntry();
@@ -91,21 +70,40 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
           }
           builder.appendBytesRef(value);
           valuesAppended = true;
-        } catch (Exception e) {
-          registerException(e);
+        }
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
         }
       }
-      if (valuesAppended == false) {
-        builder.appendNull();
-      } else if (positionOpened) {
-        builder.endPositionEntry();
-      }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static BytesRef evalValue(BooleanBlock container, int index) {
     boolean value = container.getBoolean(index);
     return ToString.fromBoolean(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToStringFromBooleanEvaluator get(DriverContext context) {
+      return new ToStringFromBooleanEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToStringFromBooleanEvaluator[field=" + field + "]";
+    }
   }
 }

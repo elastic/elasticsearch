@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -503,7 +502,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     public ClusterState createState(SnapshotLifecycleMetadata snapMeta, boolean localNodeMaster) {
         Metadata metadata = Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, snapMeta).build();
         final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
-            .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9300), "local"))
+            .add(DiscoveryNodeUtils.create("local", new TransportAddress(TransportAddress.META_ADDRESS, 9300)))
             .add(DiscoveryNodeUtils.create("remote", new TransportAddress(TransportAddress.META_ADDRESS, 9301)))
             .localNodeId("local")
             .masterNodeId(localNodeMaster ? "local" : "remote");

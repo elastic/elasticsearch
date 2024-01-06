@@ -7,21 +7,52 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
+
 import java.util.BitSet;
-import java.util.stream.IntStream;
 
 /**
- * Block implementation that stores an array of int.
+ * Block implementation that stores values in a {@link IntArrayVector}.
  * This class is generated. Do not edit it.
  */
-public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
+final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
-    private final int[] values;
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
 
-    public IntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        super(positionCount, firstValueIndexes, nulls, mvOrdering);
-        this.values = values;
+    private final IntArrayVector vector;
+
+    IntArrayBlock(
+        int[] values,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
+        this(
+            new IntArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering,
+            blockFactory
+        );
+    }
+
+    private IntArrayBlock(
+        IntArrayVector vector,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
+        this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
     }
 
     @Override
@@ -31,12 +62,32 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
 
     @Override
     public int getInt(int valueIndex) {
-        return values[valueIndex];
+        return vector.getInt(valueIndex);
     }
 
     @Override
     public IntBlock filter(int... positions) {
-        return new FilterIntBlock(this, positions);
+        // TODO use reference counting to share the vector
+        try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendInt(getInt(getFirstValueIndex(pos)));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendInt(getInt(first + c));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override
@@ -47,14 +98,40 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     @Override
     public IntBlock expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
-        int end = firstValueIndexes[getPositionCount()];
         if (nullsMask == null) {
-            return new IntArrayVector(values, end).asBlock();
+            vector.incRef();
+            return vector.asBlock();
         }
-        int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new IntArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
+
+        // The following line is correct because positions with multi-values are never null.
+        int expandedPositionCount = vector.getPositionCount();
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate, false);
+
+        IntArrayBlock expanded = new IntArrayBlock(
+            vector,
+            expandedPositionCount,
+            null,
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
+            blockFactory()
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate, true);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
+        return expanded;
+    }
+
+    private long ramBytesUsedOnlyBlock() {
+        return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesUsedOnlyBlock() + vector.ramBytesUsed();
     }
 
     @Override
@@ -77,8 +154,20 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-            + ", values="
-            + Arrays.toString(values)
+            + ", vector="
+            + vector
             + ']';
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        super.allowPassingToDifferentDriver();
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public void closeInternal() {
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock(), true);
+        Releasables.closeExpectNoException(vector);
     }
 }

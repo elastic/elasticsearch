@@ -37,7 +37,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -50,7 +49,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,13 +79,14 @@ public class PointInTimeIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("test").setId(id).setSource("value", i).get();
+            prepareIndex("test").setId(id).setSource("value", i).get();
         }
         refresh("test");
         String pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
-        SearchResponse resp1 = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-        assertThat(resp1.pointInTimeId(), equalTo(pitId));
-        assertHitCount(resp1, numDocs);
+        assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp1 -> {
+            assertThat(resp1.pointInTimeId(), equalTo(pitId));
+            assertHitCount(resp1, numDocs);
+        });
         int deletedDocs = 0;
         for (int i = 0; i < numDocs; i++) {
             if (randomBoolean()) {
@@ -96,19 +97,20 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
         refresh("test");
         if (randomBoolean()) {
-            SearchResponse resp2 = client().prepareSearch("test").setPreference(null).setQuery(new MatchAllQueryBuilder()).get();
-            assertNoFailures(resp2);
-            assertHitCount(resp2, numDocs - deletedDocs);
+            final int delDocCount = deletedDocs;
+            assertNoFailuresAndResponse(
+                prepareSearch("test").setQuery(new MatchAllQueryBuilder()),
+                resp2 -> assertHitCount(resp2, numDocs - delDocCount)
+            );
         }
         try {
-            SearchResponse resp3 = client().prepareSearch()
-                .setPreference(null)
-                .setQuery(new MatchAllQueryBuilder())
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
-            assertNoFailures(resp3);
-            assertHitCount(resp3, numDocs);
-            assertThat(resp3.pointInTimeId(), equalTo(pitId));
+            assertNoFailuresAndResponse(
+                prepareSearch().setQuery(new MatchAllQueryBuilder()).setPointInTime(new PointInTimeBuilder(pitId)),
+                resp3 -> {
+                    assertHitCount(resp3, numDocs);
+                    assertThat(resp3.pointInTimeId(), equalTo(pitId));
+                }
+            );
         } finally {
             closePointInTime(pitId);
         }
@@ -123,34 +125,79 @@ public class PointInTimeIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
             String index = "index-" + randomIntBetween(1, numIndices);
-            client().prepareIndex(index).setId(id).setSource("value", i).get();
+            prepareIndex(index).setId(id).setSource("value", i).get();
         }
         refresh();
         String pitId = openPointInTime(new String[] { "*" }, TimeValue.timeValueMinutes(2));
         try {
-            SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-            assertNoFailures(resp);
-            assertHitCount(resp, numDocs);
-            assertNotNull(resp.pointInTimeId());
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
             int moreDocs = randomIntBetween(10, 50);
-            for (int i = 0; i < moreDocs; i++) {
-                String id = "more-" + i;
-                String index = "index-" + randomIntBetween(1, numIndices);
-                client().prepareIndex(index).setId(id).setSource("value", i).get();
-            }
-            refresh();
-            resp = client().prepareSearch().get();
-            assertNoFailures(resp);
-            assertHitCount(resp, numDocs + moreDocs);
-
-            resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-            assertNoFailures(resp);
-            assertHitCount(resp, numDocs);
-            assertNotNull(resp.pointInTimeId());
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertHitCount(resp, numDocs);
+                assertNotNull(resp.pointInTimeId());
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                for (int i = 0; i < moreDocs; i++) {
+                    String id = "more-" + i;
+                    String index = "index-" + randomIntBetween(1, numIndices);
+                    prepareIndex(index).setId(id).setSource("value", i).get();
+                }
+                refresh();
+            });
+            assertNoFailuresAndResponse(prepareSearch(), resp -> assertHitCount(resp, numDocs + moreDocs));
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertHitCount(resp, numDocs);
+                assertNotNull(resp.pointInTimeId());
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+            });
         } finally {
             closePointInTime(pitId);
+        }
+    }
+
+    public void testIndexFilter() {
+        int numDocs = randomIntBetween(1, 9);
+        for (int i = 1; i <= 3; i++) {
+            String index = "index-" + i;
+            createIndex(index);
+            for (int j = 1; j <= numDocs; j++) {
+                String id = Integer.toString(j);
+                client().prepareIndex(index).setId(id).setSource("@timestamp", "2023-0" + i + "-0" + j).get();
+            }
+        }
+        refresh();
+
+        {
+
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
+            final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+            try {
+                SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), response.getPointInTimeId());
+                String[] actualIndices = searchContextId.getActualIndices();
+                assertEquals(3, actualIndices.length);
+            } finally {
+                closePointInTime(response.getPointInTimeId());
+            }
+        }
+        {
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
+            request.indexFilter(new RangeQueryBuilder("@timestamp").gte("2023-03-01"));
+            final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+            String pitId = response.getPointInTimeId();
+            try {
+                SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), pitId);
+                String[] actualIndices = searchContextId.getActualIndices();
+                assertEquals(1, actualIndices.length);
+                assertEquals("index-3", actualIndices[0]);
+                assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(50), resp -> {
+                    assertHitCount(resp, numDocs);
+                    assertNotNull(resp.pointInTimeId());
+                    assertThat(resp.pointInTimeId(), equalTo(pitId));
+                    for (SearchHit hit : resp.getHits()) {
+                        assertEquals("index-3", hit.getIndex());
+                    }
+                });
+            } finally {
+                closePointInTime(pitId);
+            }
         }
     }
 
@@ -160,15 +207,15 @@ public class PointInTimeIT extends ESIntegTestCase {
         ensureGreen("test");
         int numDocs = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("value", i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("value", i).get();
         }
         refresh();
         String pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
         try {
-            SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-            assertNoFailures(resp);
-            assertHitCount(resp, numDocs);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertHitCount(resp, numDocs);
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+            });
             final Set<String> dataNodes = clusterService().state()
                 .nodes()
                 .getDataNodes()
@@ -181,14 +228,14 @@ public class PointInTimeIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 int moreDocs = randomIntBetween(10, 50);
                 for (int i = 0; i < moreDocs; i++) {
-                    client().prepareIndex("test").setId("more-" + i).setSource("value", i).get();
+                    prepareIndex("test").setId("more-" + i).setSource("value", i).get();
                 }
                 refresh();
             }
-            resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-            assertNoFailures(resp);
-            assertHitCount(resp, numDocs);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertHitCount(resp, numDocs);
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+            });
             assertBusy(() -> {
                 final Set<String> assignedNodes = clusterService().state()
                     .routingTable()
@@ -198,10 +245,10 @@ public class PointInTimeIT extends ESIntegTestCase {
                     .collect(Collectors.toSet());
                 assertThat(assignedNodes, everyItem(not(in(excludedNodes))));
             }, 30, TimeUnit.SECONDS);
-            resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-            assertNoFailures(resp);
-            assertHitCount(resp, numDocs);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertHitCount(resp, numDocs);
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+            });
         } finally {
             closePointInTime(pitId);
         }
@@ -212,24 +259,28 @@ public class PointInTimeIT extends ESIntegTestCase {
         int index1 = randomIntBetween(10, 50);
         for (int i = 0; i < index1; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index").setId(id).setSource("value", i).get();
+            prepareIndex("index").setId(id).setSource("value", i).get();
         }
         refresh();
         String pit = openPointInTime(new String[] { "index" }, TimeValue.timeValueSeconds(5));
-        SearchResponse resp1 = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get();
-        assertNoFailures(resp1);
-        assertHitCount(resp1, index1);
-        if (rarely()) {
-            assertBusy(() -> {
-                final CommonStats stats = indicesAdmin().prepareStats().setSearch(true).get().getTotal();
-                assertThat(stats.search.getOpenContexts(), equalTo(0L));
-            }, 60, TimeUnit.SECONDS);
-        } else {
-            closePointInTime(resp1.pointInTimeId());
-        }
+        assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pit)), resp1 -> {
+            assertHitCount(resp1, index1);
+            if (rarely()) {
+                try {
+                    assertBusy(() -> {
+                        final CommonStats stats = indicesAdmin().prepareStats().setSearch(true).get().getTotal();
+                        assertThat(stats.search.getOpenContexts(), equalTo(0L));
+                    }, 60, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            } else {
+                closePointInTime(resp1.pointInTimeId());
+            }
+        });
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get()
+            prepareSearch().setPointInTime(new PointInTimeBuilder(pit))
         );
         for (ShardSearchFailure failure : e.shardFailures()) {
             assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(SearchContextMissingException.class));
@@ -243,44 +294,36 @@ public class PointInTimeIT extends ESIntegTestCase {
         int index1 = randomIntBetween(10, 50);
         for (int i = 0; i < index1; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-1").setId(id).setSource("value", i).get();
+            prepareIndex("index-1").setId(id).setSource("value", i).get();
         }
 
         int index2 = randomIntBetween(10, 50);
         for (int i = 0; i < index2; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-2").setId(id).setSource("value", i).get();
+            prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
         refresh();
         String pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
         try {
-            SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pit)).get();
-            assertNoFailures(resp);
-            assertHitCount(resp, index1 + index2);
+            assertNoFailuresAndResponse(
+                prepareSearch().setPointInTime(new PointInTimeBuilder(pit)),
+                resp -> assertHitCount(resp, index1 + index2)
+            );
             indicesAdmin().prepareDelete("index-1").get();
             if (randomBoolean()) {
-                resp = client().prepareSearch("index-*").get();
-                assertNoFailures(resp);
-                assertHitCount(resp, index2);
+                assertNoFailuresAndResponse(prepareSearch("index-*"), resp -> assertHitCount(resp, index2));
             }
 
             // Allow partial search result
-            resp = client().prepareSearch()
-                .setPreference(null)
-                .setAllowPartialSearchResults(true)
-                .setPointInTime(new PointInTimeBuilder(pit))
-                .get();
-            assertFailures(resp);
-            assertHitCount(resp, index2);
+            assertResponse(prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pit)), resp -> {
+                assertFailures(resp);
+                assertHitCount(resp, index2);
+            });
 
             // Do not allow partial search result
             expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareSearch()
-                    .setPreference(null)
-                    .setAllowPartialSearchResults(false)
-                    .setPointInTime(new PointInTimeBuilder(pit))
-                    .get()
+                prepareSearch().setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pit))
             );
         } finally {
             closePointInTime(pit);
@@ -290,8 +333,8 @@ public class PointInTimeIT extends ESIntegTestCase {
     public void testAllowNoIndex() {
         var request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .keepAlive(TimeValue.timeValueMinutes(between(1, 10)));
-        String pit = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet().getPointInTimeId();
-        var closeResp = client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pit)).actionGet();
+        String pit = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet().getPointInTimeId();
+        var closeResp = client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet();
         assertThat(closeResp.status(), equalTo(RestStatus.OK));
     }
 
@@ -312,16 +355,15 @@ public class PointInTimeIT extends ESIntegTestCase {
                     }
                 }
             }
-            client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
-            SearchResponse resp = client().prepareSearch()
-                .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setPreference(null)
-                .setPreFilterShardSize(randomIntBetween(2, 3))
-                .setMaxConcurrentShardRequests(randomIntBetween(1, 2))
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
-            assertThat(resp.getHits().getHits(), arrayWithSize(0));
+            prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+            assertResponse(
+                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setPreFilterShardSize(randomIntBetween(2, 3))
+                    .setMaxConcurrentShardRequests(randomIntBetween(1, 2))
+                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                resp -> assertThat(resp.getHits().getHits(), arrayWithSize(0))
+            );
             for (String node : internalCluster().nodesInclude("test")) {
                 for (IndexService indexService : internalCluster().getInstance(IndicesService.class, node)) {
                     for (IndexShard indexShard : indexService) {
@@ -364,29 +406,26 @@ public class PointInTimeIT extends ESIntegTestCase {
 
         int numDocs1 = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs1; i++) {
-            client().prepareIndex(randomFrom("test-1")).setId(Integer.toString(i)).setSource("value", i).get();
+            prepareIndex(randomFrom("test-1")).setId(Integer.toString(i)).setSource("value", i).get();
         }
         int numDocs2 = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs2; i++) {
-            client().prepareIndex(randomFrom("test-2")).setId(Integer.toString(i)).setSource("value", i).get();
+            prepareIndex(randomFrom("test-2")).setId(Integer.toString(i)).setSource("value", i).get();
         }
         refresh();
         String pitId = openPointInTime(new String[] { "test-*" }, TimeValue.timeValueMinutes(2));
         try {
-            SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
-            assertNoFailures(resp);
-            assertHitCount(resp, numDocs1 + numDocs2);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertHitCount(resp, numDocs1 + numDocs2);
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+            });
 
             internalCluster().restartNode(assignedNodeForIndex1);
-            resp = client().prepareSearch()
-                .setPreference(null)
-                .setAllowPartialSearchResults(true)
-                .setPointInTime(new PointInTimeBuilder(pitId))
-                .get();
-            assertFailures(resp);
-            assertThat(resp.pointInTimeId(), equalTo(pitId));
-            assertHitCount(resp, numDocs2);
+            assertResponse(prepareSearch().setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertFailures(resp);
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                assertHitCount(resp, numDocs2);
+            });
         } finally {
             closePointInTime(pitId);
         }
@@ -401,7 +440,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             createIndex(index, Settings.builder().put("index.number_of_shards", 1).build());
             int numDocs = randomIntBetween(3, 20);
             for (int j = 0; j < numDocs; j++) {
-                client().prepareIndex(index).setSource("value", randomIntBetween(0, 2)).get();
+                prepareIndex(index).setSource("value", randomIntBetween(0, 2)).get();
                 expectedNumDocs++;
             }
         }
@@ -437,8 +476,8 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testCloseInvalidPointInTime() {
-        expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
-        List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        expectThrows(Exception.class, client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest("")));
+        List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(TransportClosePointInTimeAction.TYPE.name()).get().getTasks();
         assertThat(tasks, empty());
     }
 
@@ -457,7 +496,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                         .build()
                 )
         );
-        var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getName());
+        final var transportService = MockTransportService.getInstance(dataNode.getName());
         try {
             CountDownLatch sentLatch = new CountDownLatch(maxConcurrentRequests);
             CountDownLatch readyLatch = new CountDownLatch(1);
@@ -479,7 +518,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             OpenPointInTimeRequest request = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(1));
             request.maxConcurrentShardRequests(maxConcurrentRequests);
             PlainActionFuture<OpenPointInTimeResponse> future = new PlainActionFuture<>();
-            client().execute(OpenPointInTimeAction.INSTANCE, request, future);
+            client().execute(TransportOpenPointInTimeAction.TYPE, request, future);
             assertTrue(sentLatch.await(1, TimeUnit.MINUTES));
             readyLatch.countDown();
             closePointInTime(future.actionGet().getPointInTimeId());
@@ -491,7 +530,7 @@ public class PointInTimeIT extends ESIntegTestCase {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private void assertPagination(PointInTimeBuilder pit, int expectedNumDocs, int size, SortBuilder<?>... sorts) throws Exception {
         Set<String> seen = new HashSet<>();
-        SearchRequestBuilder builder = client().prepareSearch().setSize(size).setPointInTime(pit);
+        SearchRequestBuilder builder = prepareSearch().setSize(size).setPointInTime(pit);
         for (SortBuilder<?> sort : sorts) {
             builder.addSort(sort);
         }
@@ -503,51 +542,56 @@ public class PointInTimeIT extends ESIntegTestCase {
             reverseMuls[i] = expectedSorts.get(i).order() == SortOrder.ASC ? 1 : -1;
         }
         SearchResponse response = client().search(searchRequest).get();
-        Object[] lastSortValues = null;
-        while (response.getHits().getHits().length > 0) {
-            Object[] lastHitSortValues = null;
-            for (SearchHit hit : response.getHits().getHits()) {
-                assertTrue(seen.add(hit.getIndex() + hit.getId()));
+        try {
+            Object[] lastSortValues = null;
+            while (response.getHits().getHits().length > 0) {
+                Object[] lastHitSortValues = null;
+                for (SearchHit hit : response.getHits().getHits()) {
+                    assertTrue(seen.add(hit.getIndex() + hit.getId()));
 
-                if (lastHitSortValues != null) {
+                    if (lastHitSortValues != null) {
+                        for (int i = 0; i < expectedSorts.size(); i++) {
+                            Comparable value = (Comparable) hit.getRawSortValues()[i];
+                            int cmp = value.compareTo(lastHitSortValues[i]) * reverseMuls[i];
+                            if (cmp != 0) {
+                                assertThat(cmp, equalTo(1));
+                                break;
+                            }
+                        }
+                    }
+                    lastHitSortValues = hit.getRawSortValues();
+                }
+                int len = response.getHits().getHits().length;
+                SearchHit last = response.getHits().getHits()[len - 1];
+                if (lastSortValues != null) {
                     for (int i = 0; i < expectedSorts.size(); i++) {
-                        Comparable value = (Comparable) hit.getRawSortValues()[i];
-                        int cmp = value.compareTo(lastHitSortValues[i]) * reverseMuls[i];
+                        Comparable value = (Comparable) last.getSortValues()[i];
+                        int cmp = value.compareTo(lastSortValues[i]) * reverseMuls[i];
                         if (cmp != 0) {
                             assertThat(cmp, equalTo(1));
                             break;
                         }
                     }
                 }
-                lastHitSortValues = hit.getRawSortValues();
+                assertThat(last.getSortValues().length, equalTo(expectedSorts.size()));
+                lastSortValues = last.getSortValues();
+                searchRequest.source().searchAfter(last.getSortValues());
+                response.decRef();
+                response = client().search(searchRequest).get();
             }
-            int len = response.getHits().getHits().length;
-            SearchHit last = response.getHits().getHits()[len - 1];
-            if (lastSortValues != null) {
-                for (int i = 0; i < expectedSorts.size(); i++) {
-                    Comparable value = (Comparable) last.getSortValues()[i];
-                    int cmp = value.compareTo(lastSortValues[i]) * reverseMuls[i];
-                    if (cmp != 0) {
-                        assertThat(cmp, equalTo(1));
-                        break;
-                    }
-                }
-            }
-            assertThat(last.getSortValues().length, equalTo(expectedSorts.size()));
-            lastSortValues = last.getSortValues();
-            searchRequest.source().searchAfter(last.getSortValues());
-            response = client().search(searchRequest).get();
+        } finally {
+            response.decRef();
         }
         assertThat(seen.size(), equalTo(expectedNumDocs));
     }
 
     private String openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
-        final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
     private void closePointInTime(String readerId) {
-        client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(readerId)).actionGet();
+        client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

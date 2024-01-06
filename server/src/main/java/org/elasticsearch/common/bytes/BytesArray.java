@@ -9,6 +9,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.ByteUtils;
 
@@ -109,6 +110,23 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public BytesRef toBytesRef() {
         return new BytesRef(bytes, offset, length);
+    }
+
+    @Override
+    public BytesRefIterator iterator() {
+        if (length == 0) {
+            return BytesRefIterator.EMPTY;
+        }
+        return new BytesRefIterator() {
+            BytesRef ref = toBytesRef();
+
+            @Override
+            public BytesRef next() {
+                BytesRef r = ref;
+                ref = null; // only return it once...
+                return r;
+            }
+        };
     }
 
     @Override

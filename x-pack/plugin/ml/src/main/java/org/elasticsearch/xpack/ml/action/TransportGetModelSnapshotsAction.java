@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -41,7 +42,13 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<
         JobManager jobManager,
         ClusterService clusterService
     ) {
-        super(GetModelSnapshotsAction.NAME, transportService, actionFilters, GetModelSnapshotsAction.Request::new);
+        super(
+            GetModelSnapshotsAction.NAME,
+            transportService,
+            actionFilters,
+            GetModelSnapshotsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.clusterService = clusterService;

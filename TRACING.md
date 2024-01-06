@@ -158,6 +158,6 @@ explicitly opening a scope via the `Tracer`.
 [otel]: https://opentelemetry.io/
 [thread-context]: ./server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java
 [w3c]: https://www.w3.org/TR/trace-context/
-[tracing]: ./server/src/main/java/org/elasticsearch/tracing
+[tracing]: ./server/src/main/java/org/elasticsearch/telemetry
 [agent-config]: https://www.elastic.co/guide/en/apm/agent/java/master/configuration.html
 [agent]: https://www.elastic.co/guide/en/apm/agent/java/current/index.html

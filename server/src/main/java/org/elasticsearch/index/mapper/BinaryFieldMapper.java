@@ -67,7 +67,7 @@ public class BinaryFieldMapper extends FieldMapper {
                 name,
                 new BinaryFieldType(context.buildFullName(name), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 this
             );
         }
@@ -191,7 +191,7 @@ public class BinaryFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static class CustomBinaryDocValuesField extends CustomDocValuesField {
+    public static final class CustomBinaryDocValuesField extends CustomDocValuesField {
 
         private final List<byte[]> bytesList;
 

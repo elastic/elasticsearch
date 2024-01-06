@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
 public interface AggregatorFunction extends Releasable {
@@ -17,9 +18,9 @@ public interface AggregatorFunction extends Releasable {
 
     void addIntermediateInput(Page page);
 
-    void evaluateIntermediate(Block[] blocks, int offset);
+    void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext);
 
-    void evaluateFinal(Block[] blocks, int offset);
+    void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext);
 
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();

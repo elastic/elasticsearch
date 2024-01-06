@@ -16,7 +16,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/bwc-snapshots-windows.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/bwc-snapshots-windows.*'
           github-hooks: true
           status-context: elasticsearch-ci/bwc-snapshots-windows
           cancel-builds-on-update: true
@@ -24,10 +25,7 @@
             - 6.8
           excluded-regions:
             - ^docs/.*
-          white-list-labels:
-            - 'test-windows'
-          black-list-labels:
-            - '>test-mute'
+            - ^x-pack/docs/.*
     axes:
       - axis:
           type: slave
@@ -40,7 +38,7 @@
           name: "BWC_VERSION"
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
             JAVA11_HOME=$USERPROFILE\\.java\\java11

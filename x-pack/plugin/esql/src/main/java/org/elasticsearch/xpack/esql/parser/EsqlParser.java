@@ -72,8 +72,8 @@ public class EsqlParser {
 
             ParserRuleContext tree = parseFunction.apply(parser);
 
-            if (log.isDebugEnabled()) {
-                log.debug("Parse tree: {}", tree.toStringTree());
+            if (log.isTraceEnabled()) {
+                log.trace("Parse tree: {}", tree.toStringTree());
             }
 
             return result.apply(new AstBuilder(paramTokens), tree);
@@ -135,7 +135,7 @@ public class EsqlParser {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
                 if (param >= params.size()) {
-                    throw new ParsingException("Not enough actual parameters {} ", params.size());
+                    throw new ParsingException("Not enough actual parameters {}", params.size());
                 }
                 paramTokens.put(token, params.get(param));
                 param++;

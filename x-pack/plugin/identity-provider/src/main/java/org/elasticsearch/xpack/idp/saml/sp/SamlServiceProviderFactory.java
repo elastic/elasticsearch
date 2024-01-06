@@ -89,7 +89,7 @@ public final class SamlServiceProviderFactory {
         return new ServiceProviderPrivileges(defaults.applicationName, resource, roleMapping);
     }
 
-    private URL parseUrl(SamlServiceProviderDocument document) {
+    private static URL parseUrl(SamlServiceProviderDocument document) {
         final URL acs;
         try {
             acs = new URL(document.acs);

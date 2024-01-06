@@ -50,10 +50,12 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     // Like Lucene's LongField but single-valued (NUMERIC doc values instead of SORTED_NUMERIC doc values)
     private static class SingleValueLongField extends Field {
 
-        private static final FieldType FIELD_TYPE = new FieldType();
+        private static final FieldType FIELD_TYPE;
         static {
-            FIELD_TYPE.setDimensions(1, Long.BYTES);
-            FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
+            FieldType ft = new FieldType();
+            ft.setDimensions(1, Long.BYTES);
+            ft.setDocValuesType(DocValuesType.NUMERIC);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
         private final BytesRef pointValue;

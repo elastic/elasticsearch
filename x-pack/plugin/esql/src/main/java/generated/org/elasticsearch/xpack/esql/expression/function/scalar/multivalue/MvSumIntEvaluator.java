@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,8 +21,9 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public final class MvSumIntEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
   private final Warnings warnings;
 
-  public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field) {
-    super(field);
+  public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
+      DriverContext driverContext) {
+    super(driverContext, field);
     this.warnings = new Warnings(source);
   }
 
@@ -37,28 +39,50 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
   public Block evalNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
-      }
-      try {
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        int value = v.getInt(first);
-        for (int i = first + 1; i < end; i++) {
-          int next = v.getInt(i);
-          value = MvSum.process(value, next);
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
         }
-        int result = value;
-        builder.appendInt(result);
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        builder.appendNull();
+        try {
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          int value = v.getInt(first);
+          for (int i = first + 1; i < end; i++) {
+            int next = v.getInt(i);
+            value = MvSum.process(value, next);
+          }
+          int result = value;
+          builder.appendInt(result);
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+      this.source = source;
+      this.field = field;
+    }
+
+    @Override
+    public MvSumIntEvaluator get(DriverContext context) {
+      return new MvSumIntEvaluator(source, field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
+    }
   }
 }

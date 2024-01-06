@@ -7,13 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.data.BlockFactory;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -21,12 +17,12 @@ import static org.hamcrest.Matchers.matchesPattern;
 /**
  * Superclass for testing any {@link Operator}, including {@link SourceOperator}s.
  */
-public abstract class AnyOperatorTestCase extends ESTestCase {
+public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * The operator configured a "simple" or basic way, used for smoke testing
-     * descriptions and {@link BigArrays} and scatter/gather.
+     * descriptions, {@link CircuitBreaker}s, and scatter/gather.
      */
-    protected abstract Operator.OperatorFactory simple(BigArrays bigArrays);
+    protected abstract Operator.OperatorFactory simple();
 
     /**
      * The description of the operator produced by {@link #simple}.
@@ -57,11 +53,10 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleDescription() {
-        Operator.OperatorFactory factory = simple(nonBreakingBigArrays());
+        Operator.OperatorFactory factory = simple();
         String description = factory.describe();
         assertThat(description, equalTo(expectedDescriptionOfSimple()));
-        DriverContext driverContext = new DriverContext();
-        try (Operator op = factory.get(driverContext)) {
+        try (Operator op = factory.get(driverContext())) {
             if (op instanceof GroupingAggregatorFunction) {
                 assertThat(description, matchesPattern(GROUPING_AGG_FUNCTION_DESCRIBE_PATTERN));
             } else {
@@ -74,15 +69,21 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleToString() {
-        try (Operator operator = simple(nonBreakingBigArrays()).get(new DriverContext())) {
+        try (Operator operator = simple().get(driverContext())) {
             assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
         }
     }
 
     /**
-     * A {@link BigArrays} that won't throw {@link CircuitBreakingException}.
+     * A {@link DriverContext} with a nonBreakingBigArrays.
      */
-    protected final BigArrays nonBreakingBigArrays() {
-        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking();
+    protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
+        BlockFactory blockFactory = blockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+    }
+
+    protected final DriverContext crankyDriverContext() {
+        BlockFactory blockFactory = crankyBlockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory);
     }
 }

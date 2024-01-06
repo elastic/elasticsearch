@@ -14,11 +14,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.hamcrest.Matchers;
 
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class BlobStoreSizeLimitIT extends AbstractSnapshotIntegTestCase {
 
@@ -32,7 +35,11 @@ public class BlobStoreSizeLimitIT extends AbstractSnapshotIntegTestCase {
         );
         final List<String> snapshotNames = createNSnapshots(repoName, maxSnapshots);
         final ActionFuture<CreateSnapshotResponse> failingSnapshotFuture = startFullSnapshot(repoName, "failing-snapshot");
-        final RepositoryException repositoryException = expectThrows(RepositoryException.class, failingSnapshotFuture::actionGet);
+        final SnapshotException snapshotException = expectThrows(SnapshotException.class, failingSnapshotFuture);
+        assertThat(snapshotException.getRepositoryName(), equalTo(repoName));
+        assertThat(snapshotException.getSnapshotName(), equalTo("failing-snapshot"));
+        assertThat(snapshotException.getCause(), instanceOf(RepositoryException.class));
+        final RepositoryException repositoryException = (RepositoryException) snapshotException.getCause();
         assertThat(
             repositoryException.getMessage(),
             Matchers.endsWith(

@@ -16,8 +16,8 @@ import java.io.IOException;
  * Vector that stores double values.
  * This class is generated. Do not edit it.
  */
-public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, FilterDoubleVector, DoubleArrayVector,
-    DoubleBigArrayVector {
+public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector,
+    ConstantNullVector {
     double getDouble(int position);
 
     @Override
@@ -73,17 +73,18 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static DoubleVector of(StreamInput in) throws IOException {
+    static DoubleVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantDoubleVector(in.readDouble(), positions);
+            return blockFactory.newConstantDoubleVector(in.readDouble(), positions);
         } else {
-            var builder = DoubleVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendDouble(in.readDouble());
+            try (var builder = blockFactory.newDoubleVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendDouble(in.readDouble());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 
@@ -101,11 +102,10 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
         }
     }
 
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new DoubleVectorBuilder(estimatedSize);
-    }
-
-    sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder {
+    /**
+     * A builder that grows as needed.
+     */
+    sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder, FixedBuilder {
         /**
          * Appends a double to the current entry.
          */
@@ -113,5 +113,16 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
 
         @Override
         DoubleVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Builder permits DoubleVectorFixedBuilder {
+        /**
+         * Appends a double to the current entry.
+         */
+        @Override
+        FixedBuilder appendDouble(double value);
     }
 }

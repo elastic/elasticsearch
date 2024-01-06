@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.time.DateTimeException;
+import java.time.Duration;
+import java.time.Period;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
@@ -30,11 +32,11 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             left,
             right,
             ADD,
-            AddIntsEvaluator::new,
-            AddLongsEvaluator::new,
-            AddUnsignedLongsEvaluator::new,
-            (s, l, r) -> new AddDoublesEvaluator(l, r),
-            AddDatetimesEvaluator::new
+            AddIntsEvaluator.Factory::new,
+            AddLongsEvaluator.Factory::new,
+            AddUnsignedLongsEvaluator.Factory::new,
+            (s, lhs, rhs) -> new AddDoublesEvaluator.Factory(source, lhs, rhs),
+            AddDatetimesEvaluator.Factory::new
         );
     }
 
@@ -87,5 +89,15 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
         return asMillis(asDateTime(datetime).plus(temporalAmount));
+    }
+
+    @Override
+    public Period fold(Period left, Period right) {
+        return left.plus(right);
+    }
+
+    @Override
+    public Duration fold(Duration left, Duration right) {
+        return left.plus(right);
     }
 }

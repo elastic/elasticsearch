@@ -185,6 +185,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     // package private for tests
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
+    @SuppressWarnings("this-escape")
     public ScriptService(
         Settings settings,
         Map<String, ScriptEngine> engines,

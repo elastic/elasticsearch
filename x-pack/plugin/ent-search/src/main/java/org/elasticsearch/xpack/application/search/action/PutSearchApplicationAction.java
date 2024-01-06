@@ -15,7 +15,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -133,7 +132,7 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         final DocWriteResponse.Result result;
 
@@ -159,7 +158,6 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
             return builder;
         }
 
-        @Override
         public RestStatus status() {
             return switch (result) {
                 case CREATED -> RestStatus.CREATED;

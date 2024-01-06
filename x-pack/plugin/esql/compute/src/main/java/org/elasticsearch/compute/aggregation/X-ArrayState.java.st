@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 $if(long)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.$Type$Vector;
 $if(double)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -70,24 +70,26 @@ $if(long)$
     }
 $endif$
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
+    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            $Type$Vector.Builder builder = $Type$Vector.newVectorBuilder(selected.getPositionCount());
+            try ($Type$Vector.Builder builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    builder.append$Type$(values.get(selected.getInt(i)));
+                }
+                return builder.build().asBlock();
+            }
+        }
+        try ($Type$Block.Builder builder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
-                builder.append$Type$(values.get(selected.getInt(i)));
+                int group = selected.getInt(i);
+                if (hasValue(group)) {
+                    builder.append$Type$(values.get(group));
+                } else {
+                    builder.appendNull();
+                }
             }
-            return builder.build().asBlock();
+            return builder.build();
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(selected.getPositionCount());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            if (hasValue(group)) {
-                builder.append$Type$(values.get(group));
-            } else {
-                builder.appendNull();
-            }
-        }
-        return builder.build();
     }
 
     private void ensureCapacity(int groupId) {
@@ -100,21 +102,29 @@ $endif$
 
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
-    public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public void toIntermediate(
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        org.elasticsearch.compute.operator.DriverContext driverContext
+    ) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = $Type$Block.newBlockBuilder(selected.getPositionCount());
-        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            if (group < values.size()) {
-                valuesBuilder.append$Type$(values.get(group));
-            } else {
-                valuesBuilder.append$Type$(0); // TODO can we just use null?
+        try (
+            var valuesBuilder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount());
+            var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
+        ) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                if (group < values.size()) {
+                    valuesBuilder.append$Type$(values.get(group));
+                } else {
+                    valuesBuilder.append$Type$(0); // TODO can we just use null?
+                }
+                hasValueBuilder.appendBoolean(hasValue(group));
             }
-            hasValueBuilder.appendBoolean(hasValue(group));
+            blocks[offset + 0] = valuesBuilder.build();
+            blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
-        blocks[offset + 0] = valuesBuilder.build();
-        blocks[offset + 1] = hasValueBuilder.build();
     }
 
     @Override

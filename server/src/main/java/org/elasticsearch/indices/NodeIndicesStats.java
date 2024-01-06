@@ -9,6 +9,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -57,7 +58,8 @@ import java.util.Objects;
  */
 public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
-    private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersion.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersions.V_8_5_0;
+    private static final Map<Index, List<IndexShardStats>> EMPTY_STATS_BY_SHARD = Map.of();
 
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
@@ -85,8 +87,17 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         }
     }
 
-    public NodeIndicesStats(CommonStats oldStats, Map<Index, CommonStats> statsByIndex, Map<Index, List<IndexShardStats>> statsByShard) {
-        this.statsByShard = Objects.requireNonNull(statsByShard);
+    public NodeIndicesStats(
+        CommonStats oldStats,
+        Map<Index, CommonStats> statsByIndex,
+        Map<Index, List<IndexShardStats>> statsByShard,
+        boolean includeShardsStats
+    ) {
+        if (includeShardsStats) {
+            this.statsByShard = Objects.requireNonNull(statsByShard);
+        } else {
+            this.statsByShard = EMPTY_STATS_BY_SHARD;
+        }
         this.statsByIndex = Objects.requireNonNull(statsByIndex);
 
         // make a total common stats from old ones and current ones
@@ -206,9 +217,9 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        out.writeMap(statsByShard, (o, k) -> k.writeTo(o), (streamOutput, list) -> streamOutput.writeCollection(list));
+        out.writeMap(statsByShard, StreamOutput::writeWriteable, StreamOutput::writeCollection);
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            out.writeMap(statsByIndex, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+            out.writeMap(statsByIndex);
         }
     }
 

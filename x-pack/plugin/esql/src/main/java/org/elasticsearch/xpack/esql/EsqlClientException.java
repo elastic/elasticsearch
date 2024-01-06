@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.xpack.ql.QlClientException;
 
-public abstract class EsqlClientException extends QlClientException {
+public class EsqlClientException extends QlClientException {
 
-    protected EsqlClientException(String message, Object... args) {
+    public EsqlClientException(String message, Object... args) {
         super(message, args);
     }
 

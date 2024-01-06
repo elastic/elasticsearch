@@ -7,13 +7,17 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+
 /**
  * A dense Vector of single values.
  */
-public interface Vector {
+public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
-     * {@return Returns a Block view over this vector.}
+     * {@return Returns a new Block containing this vector.}
      */
     Block asBlock();
 
@@ -44,10 +48,31 @@ public interface Vector {
      */
     boolean isConstant();
 
-    interface Builder {
+    /** The block factory associated with this vector. */
+    // TODO: Renaming this to owningBlockFactory
+    BlockFactory blockFactory();
+
+    /**
+     * Before passing a Vector to another Driver, it is necessary to switch the owning block factory to its parent, which is associated
+     * with the global circuit breaker. This ensures that when the new driver releases this Vector, it returns memory directly to the
+     * parent block factory instead of the local block factory of this Block. This is important because the local block factory is
+     * not thread safe and doesn't support simultaneous access by more than one thread.
+     */
+    void allowPassingToDifferentDriver();
+
+    /**
+     * Builds {@link Vector}s. Typically, you use one of it's direct supinterfaces like {@link IntVector.Builder}.
+     * This is {@link Releasable} and should be released after building the vector or if building the vector fails.
+     */
+    interface Builder extends Releasable {
         /**
          * Builds the block. This method can be called multiple times.
          */
         Vector build();
     }
+
+    /**
+     * Whether this vector was released
+     */
+    boolean isReleased();
 }

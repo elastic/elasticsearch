@@ -158,7 +158,7 @@ public final class CrossClusterAccessSubjectInfo {
         out.setTransportVersion(authentication.getEffectiveSubject().getTransportVersion());
         TransportVersion.writeVersion(authentication.getEffectiveSubject().getTransportVersion(), out);
         authentication.writeTo(out);
-        out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
+        out.writeCollection(roleDescriptorsBytesList);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
@@ -169,7 +169,7 @@ public final class CrossClusterAccessSubjectInfo {
         final TransportVersion version = TransportVersion.readVersion(in);
         in.setTransportVersion(version);
         final Authentication authentication = new Authentication(in);
-        final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
+        final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readCollectionAsImmutableList(RoleDescriptorsBytes::new);
         return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsBytesList);
     }
 

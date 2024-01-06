@@ -1,11 +1,17 @@
 tag::troubleshooting-network-timeouts-gc-vm[]
 * GC pauses are recorded in the GC logs that {es} emits by default, and also
 usually by the `JvmMonitorService` in the main node logs. Use these logs to
-confirm whether or not GC is resulting in delays.
+confirm whether or not the node is experiencing high heap usage with long GC
+pauses. If so, <<high-jvm-memory-pressure,the troubleshooting guide for high
+heap usage>> has some suggestions for further investigation but typically you
+will need to capture a heap dump during a time of high heap usage to fully
+understand the problem.
 
 * VM pauses also affect other processes on the same host. A VM pause also
 typically causes a discontinuity in the system clock, which {es} will report in
-its logs.
+its logs. If you see evidence of other processes pausing at the same time, or
+unexpected clock discontinuities, investigate the infrastructure on which you
+are running {es}.
 end::troubleshooting-network-timeouts-gc-vm[]
 
 tag::troubleshooting-network-timeouts-packet-capture-elections[]
@@ -28,9 +34,9 @@ end::troubleshooting-network-timeouts-packet-capture-fault-detection[]
 
 tag::troubleshooting-network-timeouts-threads[]
 * Long waits for particular threads to be available can be identified by taking
-stack dumps (for example, using `jstack`) or a profiling trace (for example,
-using Java Flight Recorder) in the few seconds leading up to the relevant log
-message.
+stack dumps of the main {es} process (for example, using `jstack`) or a
+profiling trace (for example, using Java Flight Recorder) in the few seconds
+leading up to the relevant log message.
 +
 The <<cluster-nodes-hot-threads>> API sometimes yields useful information, but
 bear in mind that this API also requires a number of `transport_worker` and
@@ -41,5 +47,7 @@ since it doesn't require any JVM threads.
 The threads involved in discovery and cluster membership are mainly
 `transport_worker` and `cluster_coordination` threads, for which there should
 never be a long wait. There may also be evidence of long waits for threads in
-the {es} logs. See <<modules-network-threading-model>> for more information.
+the {es} logs, particularly looking at warning logs from
+`org.elasticsearch.transport.InboundHandler`. See
+<<modules-network-threading-model>> for more information.
 end::troubleshooting-network-timeouts-threads[]

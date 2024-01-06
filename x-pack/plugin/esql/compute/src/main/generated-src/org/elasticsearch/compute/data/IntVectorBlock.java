@@ -7,16 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.Releasables;
+
 /**
- * Block view of a IntVector.
+ * Block view of a {@link IntVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
 
     private final IntVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     IntVectorBlock(IntVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -42,7 +47,12 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public IntBlock filter(int... positions) {
-        return new FilterIntVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -61,5 +71,21 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
+        Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

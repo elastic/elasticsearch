@@ -16,6 +16,7 @@ import java.io.IOException;
 
 public class ResourceAlreadyExistsException extends ElasticsearchException {
 
+    @SuppressWarnings("this-escape")
     public ResourceAlreadyExistsException(Index index) {
         this("index {} already exists", index.toString());
         setIndex(index);

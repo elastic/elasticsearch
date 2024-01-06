@@ -14,6 +14,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -38,33 +38,67 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_ARRAY;
 
 public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesRequest {
+
+    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
 
     private static final ConstructingObjectParser<TypedParamValue, Void> PARAM_PARSER = new ConstructingObjectParser<>(
         "params",
         true,
         objects -> new TypedParamValue((String) objects[1], objects[0])
     );
+    private static final ParseField VALUE = new ParseField("value");
+    private static final ParseField TYPE = new ParseField("type");
+
+    static {
+        PARAM_PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
+        PARAM_PARSER.declareString(constructorArg(), TYPE);
+    }
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
-    private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
+    private static final ParseField PROFILE_FIELD = new ParseField("profile");
 
-    private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
+    static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
+    static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
+    static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
+
+    private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(EsqlQueryRequest::syncEsqlQueryRequest);
+    private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(EsqlQueryRequest::asyncEsqlQueryRequest);
+
+    private boolean async;
 
     private String query;
     private boolean columnar;
-    private ZoneId zoneId;
+    private boolean profile;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private List<TypedParamValue> params = List.of();
+    private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
+    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    private boolean keepOnCompletion;
+
+    private static EsqlQueryRequest syncEsqlQueryRequest() {
+        return new EsqlQueryRequest(false);
+    }
+
+    private static EsqlQueryRequest asyncEsqlQueryRequest() {
+        return new EsqlQueryRequest(true);
+    }
+
+    private EsqlQueryRequest(boolean async) {
+        this.async = async;
+    }
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
@@ -92,6 +126,14 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return query;
     }
 
+    public void async(boolean async) {
+        this.async = async;
+    }
+
+    public boolean async() {
+        return async;
+    }
+
     public void columnar(boolean columnar) {
         this.columnar = columnar;
     }
@@ -100,12 +142,19 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return columnar;
     }
 
-    public void zoneId(ZoneId zoneId) {
-        this.zoneId = zoneId;
+    /**
+     * Enable profiling, sacrificing performance to return information about
+     * what operations are taking the most time.
+     */
+    public void profile(boolean profile) {
+        this.profile = profile;
     }
 
-    public ZoneId zoneId() {
-        return zoneId;
+    /**
+     * Is profiling enabled?
+     */
+    public boolean profile() {
+        return profile;
     }
 
     public void locale(Locale locale) {
@@ -140,17 +189,41 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         this.params = params;
     }
 
-    public static EsqlQueryRequest fromXContent(XContentParser parser) {
-        EsqlQueryRequest result = PARSER.apply(parser, null);
-        validateParams(result.params);
-        return result;
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
     }
 
-    private static ObjectParser<EsqlQueryRequest, Void> objectParser(Supplier<EsqlQueryRequest> supplier) {
-        ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
+    public void waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
+    }
+
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
+
+    public void keepAlive(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
+    }
+
+    public boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
+
+    public void keepOnCompletion(boolean keepOnCompletion) {
+        this.keepOnCompletion = keepOnCompletion;
+    }
+
+    public static EsqlQueryRequest fromXContentSync(XContentParser parser) {
+        return SYNC_PARSER.apply(parser, null);
+    }
+
+    public static EsqlQueryRequest fromXContentAsync(XContentParser parser) {
+        return ASYNC_PARSER.apply(parser, null);
+    }
+
+    private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
-        parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
         parser.declareObject(
             EsqlQueryRequest::pragmas,
@@ -159,7 +232,31 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         );
         parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
+    }
 
+    private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {
+        ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
+        objectParserCommon(parser);
+        return parser;
+    }
+
+    private static ObjectParser<EsqlQueryRequest, Void> objectParserAsync(Supplier<EsqlQueryRequest> supplier) {
+        ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/async_query", false, supplier);
+        objectParserCommon(parser);
+        parser.declareBoolean(EsqlQueryRequest::keepOnCompletion, KEEP_ON_COMPLETION);
+        parser.declareField(
+            EsqlQueryRequest::waitForCompletionTimeout,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), WAIT_FOR_COMPLETION_TIMEOUT.getPreferredName()),
+            WAIT_FOR_COMPLETION_TIMEOUT,
+            ObjectParser.ValueType.VALUE
+        );
+        parser.declareField(
+            EsqlQueryRequest::keepAlive,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE.getPreferredName()),
+            KEEP_ALIVE,
+            ObjectParser.ValueType.VALUE
+        );
         return parser;
     }
 
@@ -171,7 +268,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
             Object value = null;
             String type = null;
             TypedParamValue previousParam = null;
-            TypedParamValue currentParam = null;
+            TypedParamValue currentParam;
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
@@ -200,9 +297,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
                         } else if (numberType == XContentParser.NumberType.LONG) {
                             value = p.longValue();
                             type = "long";
-                        } else if (numberType == XContentParser.NumberType.FLOAT) {
-                            value = p.floatValue();
-                            type = "float";
                         } else if (numberType == XContentParser.NumberType.DOUBLE) {
                             value = p.doubleValue();
                             type = "double";
@@ -242,17 +336,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // Pass the query as the description
         return new CancellableTask(id, type, action, query, parentTaskId, headers);
-    }
-
-    protected static void validateParams(List<TypedParamValue> params) {
-        for (TypedParamValue param : params) {
-            if (param.hasExplicitType()) {
-                throw new XContentParseException(
-                    fromProto(param.tokenLocation()),
-                    "[params] must be an array where each entry is a single field (no " + "objects supported)"
-                );
-            }
-        }
     }
 
     static org.elasticsearch.xcontent.XContentLocation fromProto(ContentLocation fromProto) {

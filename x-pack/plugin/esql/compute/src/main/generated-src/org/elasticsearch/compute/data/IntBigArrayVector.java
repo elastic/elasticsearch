@@ -7,19 +7,23 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed IntArray.
+ * Vector implementation that defers to an enclosed {@link IntArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class IntBigArrayVector extends AbstractVector implements IntVector, Releasable {
 
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
+
     private final IntArray values;
 
-    public IntBigArrayVector(IntArray values, int positionCount) {
-        super(positionCount);
+    public IntBigArrayVector(IntArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -44,12 +48,24 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public IntVector filter(int... positions) {
-        return new FilterIntVector(this, positions);
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
     @Override
-    public void close() {
+    public IntVector filter(int... positions) {
+        var blockFactory = blockFactory();
+        final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length, true);
+        for (int i = 0; i < positions.length; i++) {
+            filtered.set(i, values.get(positions[i]));
+        }
+        return new IntBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link IntArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

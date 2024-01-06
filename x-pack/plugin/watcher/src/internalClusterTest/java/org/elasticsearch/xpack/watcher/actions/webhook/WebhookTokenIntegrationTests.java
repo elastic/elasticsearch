@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
+import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -100,8 +100,12 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         }
         // Reload the keystore to load the new settings
         NodesReloadSecureSettingsRequest reloadReq = new NodesReloadSecureSettingsRequest();
-        reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
-        client().execute(NodesReloadSecureSettingsAction.INSTANCE, reloadReq).get();
+        try {
+            reloadReq.setSecureStorePassword(new SecureString("".toCharArray()));
+            client().execute(TransportNodesReloadSecureSettingsAction.TYPE, reloadReq).get();
+        } finally {
+            reloadReq.decRef();
+        }
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
@@ -134,14 +138,17 @@ public class WebhookTokenIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(webServer.requests().get(0).getBody(), is("_body"));
 
         SearchResponse response = searchWatchRecords(b -> QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"));
-
-        assertNoFailures(response);
-        XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
-        String body = source.getValue("result.actions.0.webhook.response.body");
-        assertThat(body, notNullValue());
-        assertThat(body, is("body"));
-        Number status = source.getValue("result.actions.0.webhook.response.status");
-        assertThat(status, notNullValue());
-        assertThat(status.intValue(), is(200));
+        try {
+            assertNoFailures(response);
+            XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
+            String body = source.getValue("result.actions.0.webhook.response.body");
+            assertThat(body, notNullValue());
+            assertThat(body, is("body"));
+            Number status = source.getValue("result.actions.0.webhook.response.status");
+            assertThat(status, notNullValue());
+            assertThat(status.intValue(), is(200));
+        } finally {
+            response.decRef();
+        }
     }
 }

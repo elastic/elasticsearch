@@ -8,26 +8,26 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class IsNaN extends RationalUnaryPredicate {
-    public IsNaN(Source source, Expression field) {
+
+    @FunctionInfo(returnType = "boolean", description = "Returns true if the argument is a Not-a-Number (NaN) value.")
+    public IsNaN(Source source, @Param(name = "n", type = { "double" }, description = "A floating-point value") Expression field) {
         super(source, field);
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
-        return () -> new IsNaNEvaluator(field.get());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        return new IsNaNEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Evaluator

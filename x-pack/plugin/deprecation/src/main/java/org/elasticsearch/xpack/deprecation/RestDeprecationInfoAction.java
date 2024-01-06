@@ -45,7 +45,7 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
         }
     }
 
-    private RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {
+    private static RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {
         Request infoRequest = new Request(Strings.splitStringByCommaToArray(request.param("index")));
         return channel -> client.execute(DeprecationInfoAction.INSTANCE, infoRequest, new RestToXContentListener<>(channel));
     }

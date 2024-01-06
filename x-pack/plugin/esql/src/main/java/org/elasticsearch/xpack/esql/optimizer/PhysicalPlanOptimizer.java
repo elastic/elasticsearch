@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
@@ -20,8 +21,8 @@ import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.List;
 
 import static java.lang.Boolean.FALSE;
@@ -91,7 +91,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         public PhysicalPlan apply(PhysicalPlan plan) {
             var projectAll = new Holder<>(TRUE);
             var keepCollecting = new Holder<>(TRUE);
-            var attributes = new LinkedHashSet<Attribute>();
+            var attributes = new AttributeSet();
             var aliases = new AttributeMap<Expression>();
 
             return plan.transformDown(UnaryExec.class, p -> {
@@ -107,13 +107,17 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                             aliases.put(attr, as.child());
                             attributes.remove(attr);
                         } else {
-                            if (aliases.containsKey(attr) == false) {
+                            // skip synthetically added attributes (the ones from AVG), see LogicalPlanOptimizer.SubstituteSurrogates
+                            if (attr.synthetic() == false && aliases.containsKey(attr) == false) {
                                 attributes.add(attr);
                             }
                         }
                     });
                     if (p instanceof RegexExtractExec ree) {
                         attributes.removeAll(ree.extractedFields());
+                    }
+                    if (p instanceof MvExpandExec mvee) {
+                        attributes.remove(mvee.expanded());
                     }
                     if (p instanceof EnrichExec ee) {
                         for (NamedExpression enrichField : ee.enrichFields()) {

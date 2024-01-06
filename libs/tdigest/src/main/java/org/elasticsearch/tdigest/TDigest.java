@@ -94,7 +94,7 @@ public abstract class TDigest {
      * @param x The value to add.
      * @param w The weight of this point.
      */
-    public abstract void add(double x, int w);
+    public abstract void add(double x, long w);
 
     /**
      * Add a single sample to this TDigest.
@@ -105,7 +105,7 @@ public abstract class TDigest {
         add(x, 1);
     }
 
-    final void checkValue(double x) {
+    static void checkValue(double x) {
         if (Double.isNaN(x) || Double.isInfinite(x)) {
             throw new IllegalArgumentException("Invalid value: " + x);
         }

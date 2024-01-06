@@ -30,7 +30,7 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 /**
  * A request to gather terms for a given field matching a string prefix
  */
-public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
+public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
     public static int DEFAULT_SIZE = 10;

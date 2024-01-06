@@ -42,13 +42,11 @@ public class HealthApiStatsTransportAction extends TransportNodesAction<
     ) {
         super(
             HealthApiStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            HealthApiStatsAction.Request::new,
             HealthApiStatsAction.Request.Node::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.healthApiStats = healthApiStats;
     }

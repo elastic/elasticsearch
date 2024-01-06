@@ -13,8 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -151,10 +149,10 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private static final ParseField MODEL = new ParseField("model");
-        private ModelSnapshot model;
+        private final ModelSnapshot model;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -172,11 +170,6 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             model.writeTo(out);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

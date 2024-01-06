@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -17,8 +17,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
  * This class is generated. Do not edit it.
  */
 public final class MvMaxBooleanEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvMaxBooleanEvaluator(EvalOperator.ExpressionEvaluator field) {
-    super(field);
+  public MvMaxBooleanEvaluator(EvalOperator.ExpressionEvaluator field,
+      DriverContext driverContext) {
+    super(driverContext, field);
   }
 
   @Override
@@ -31,55 +32,57 @@ public final class MvMaxBooleanEvaluator extends AbstractMultivalueFunction.Abst
    */
   @Override
   public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNullable(fieldVal);
     }
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        boolean value = v.getBoolean(first);
+        for (int i = first + 1; i < end; i++) {
+          boolean next = v.getBoolean(i);
+          value = MvMax.process(value, next);
+        }
+        boolean result = value;
+        builder.appendBoolean(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      boolean value = v.getBoolean(first);
-      for (int i = first + 1; i < end; i++) {
-        boolean next = v.getBoolean(i);
-        value = MvMax.process(value, next);
-      }
-      boolean result = value;
-      builder.appendBoolean(result);
+      return builder.build();
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+  public Block evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNotNullable(fieldVal);
     }
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    boolean[] values = new boolean[positionCount];
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      boolean value = v.getBoolean(first);
-      for (int i = first + 1; i < end; i++) {
-        boolean next = v.getBoolean(i);
-        value = MvMax.process(value, next);
+    try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        boolean value = v.getBoolean(first);
+        for (int i = first + 1; i < end; i++) {
+          boolean next = v.getBoolean(i);
+          value = MvMax.process(value, next);
+        }
+        boolean result = value;
+        builder.appendBoolean(result);
       }
-      boolean result = value;
-      values[p] = result;
+      return builder.build().asBlock();
     }
-    return new BooleanArrayVector(values, positionCount);
   }
 
   /**
@@ -88,35 +91,55 @@ public final class MvMaxBooleanEvaluator extends AbstractMultivalueFunction.Abst
   private Block evalAscendingNullable(Block fieldVal) {
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMax.ascendingIndex(valueCount);
+        boolean result = v.getBoolean(first + idx);
+        builder.appendBoolean(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMax.ascendingIndex(valueCount);
-      boolean result = v.getBoolean(first + idx);
-      builder.appendBoolean(result);
+      return builder.build();
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Vector evalAscendingNotNullable(Block fieldVal) {
+  private Block evalAscendingNotNullable(Block fieldVal) {
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    boolean[] values = new boolean[positionCount];
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMax.ascendingIndex(valueCount);
-      boolean result = v.getBoolean(first + idx);
-      values[p] = result;
+    try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMax.ascendingIndex(valueCount);
+        boolean result = v.getBoolean(first + idx);
+        builder.appendBoolean(result);
+      }
+      return builder.build().asBlock();
     }
-    return new BooleanArrayVector(values, positionCount);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMaxBooleanEvaluator get(DriverContext context) {
+      return new MvMaxBooleanEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMax[field=" + field + "]";
+    }
   }
 }

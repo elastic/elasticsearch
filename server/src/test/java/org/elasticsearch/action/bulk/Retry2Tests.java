@@ -18,6 +18,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,6 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class Retry2Tests extends ESTestCase {
     private static final int CALLS_TO_FAIL = 5;
 
+    private TestThreadPool threadPool;
     private MockBulkClient bulkClient;
     /**
      * Headers that are expected to be sent with all bulk requests.
@@ -49,7 +52,8 @@ public class Retry2Tests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        this.bulkClient = new MockBulkClient(getTestName(), CALLS_TO_FAIL);
+        this.threadPool = createThreadPool();
+        this.bulkClient = new MockBulkClient(threadPool, CALLS_TO_FAIL);
         // Stash some random headers so we can assert that we preserve them
         bulkClient.threadPool().getThreadContext().stashContext();
         expectedHeaders.clear();
@@ -60,8 +64,8 @@ public class Retry2Tests extends ESTestCase {
     @Override
     @After
     public void tearDown() throws Exception {
+        this.threadPool.close();
         super.tearDown();
-        this.bulkClient.close();
     }
 
     private BulkRequest createBulkRequest() {
@@ -77,7 +81,7 @@ public class Retry2Tests extends ESTestCase {
     public void testRetryBacksOff() throws Exception {
         BulkRequest bulkRequest = createBulkRequest();
         Retry2 retry2 = new Retry2(CALLS_TO_FAIL);
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
         BulkResponse response = future.actionGet();
 
@@ -89,7 +93,7 @@ public class Retry2Tests extends ESTestCase {
         BulkRequest bulkRequest = createBulkRequest();
         try {
             Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1);
-            PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
             BulkResponse response = future.actionGet();
             /*
@@ -267,8 +271,8 @@ public class Retry2Tests extends ESTestCase {
     private class MockBulkClient extends NoOpClient {
         private int numberOfCallsToFail;
 
-        private MockBulkClient(String testName, int numberOfCallsToFail) {
-            super(testName);
+        private MockBulkClient(ThreadPool threadPool, int numberOfCallsToFail) {
+            super(threadPool);
             this.numberOfCallsToFail = numberOfCallsToFail;
         }
 

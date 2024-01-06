@@ -188,11 +188,11 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.applicationNames, StreamOutput::writeString);
+            out.writeStringCollection(this.applicationNames);
         }
 
         public static WriteProfileDataPrivileges createFrom(StreamInput in) throws IOException {
-            final Set<String> applications = in.readSet(StreamInput::readString);
+            final Set<String> applications = in.readCollectionAsSet(StreamInput::readString);
             return new WriteProfileDataPrivileges(applications);
         }
 
@@ -297,11 +297,11 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.applicationNames, StreamOutput::writeString);
+            out.writeStringCollection(this.applicationNames);
         }
 
         public static ManageApplicationPrivileges createFrom(StreamInput in) throws IOException {
-            final Set<String> applications = in.readSet(StreamInput::readString);
+            final Set<String> applications = in.readCollectionAsSet(StreamInput::readString);
             return new ManageApplicationPrivileges(applications);
         }
 

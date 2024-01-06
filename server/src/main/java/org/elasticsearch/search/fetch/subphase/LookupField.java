@@ -28,7 +28,7 @@ import java.util.List;
 public record LookupField(String targetIndex, QueryBuilder query, List<FieldAndFormat> fetchFields, int size) implements Writeable {
 
     public LookupField(StreamInput in) throws IOException {
-        this(in.readString(), in.readNamedWriteable(QueryBuilder.class), in.readList(FieldAndFormat::new), in.readVInt());
+        this(in.readString(), in.readNamedWriteable(QueryBuilder.class), in.readCollectionAsList(FieldAndFormat::new), in.readVInt());
     }
 
     @Override

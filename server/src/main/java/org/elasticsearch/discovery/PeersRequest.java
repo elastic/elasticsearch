@@ -30,7 +30,7 @@ public class PeersRequest extends TransportRequest {
     public PeersRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        knownPeers = in.readList(DiscoveryNode::new);
+        knownPeers = in.readCollectionAsList(DiscoveryNode::new);
     }
 
     @Override

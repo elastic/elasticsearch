@@ -57,7 +57,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
             Request::new,
             Response::new,
             Response::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 

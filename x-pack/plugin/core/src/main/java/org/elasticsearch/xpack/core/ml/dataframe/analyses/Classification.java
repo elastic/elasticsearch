@@ -223,7 +223,7 @@ public class Classification implements DataFrameAnalysis {
         numTopClasses = in.readOptionalVInt();
         trainingPercent = in.readDouble();
         randomizeSeed = in.readOptionalLong();
-        featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
+        featureProcessors = Collections.unmodifiableList(in.readNamedWriteableCollectionAsList(PreProcessor.class));
         earlyStoppingEnabled = in.readBoolean();
     }
 
@@ -278,7 +278,7 @@ public class Classification implements DataFrameAnalysis {
         out.writeOptionalVInt(numTopClasses);
         out.writeDouble(trainingPercent);
         out.writeOptionalLong(randomizeSeed);
-        out.writeNamedWriteableList(featureProcessors);
+        out.writeNamedWriteableCollection(featureProcessors);
         out.writeBoolean(earlyStoppingEnabled);
     }
 

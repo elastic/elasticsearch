@@ -135,7 +135,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
 
     RollupIndexCaps(StreamInput in) throws IOException {
         this.rollupIndexName = in.readString();
-        this.jobCaps = in.readList(RollupJobCaps::new);
+        this.jobCaps = in.readCollectionAsList(RollupJobCaps::new);
     }
 
     protected List<RollupJobCaps> getJobCaps() {

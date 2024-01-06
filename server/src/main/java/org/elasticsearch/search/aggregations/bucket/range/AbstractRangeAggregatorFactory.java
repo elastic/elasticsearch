@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapp
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,12 +26,10 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final InternalRange.Factory<?, ?> rangeFactory;
     private final R[] ranges;
     private final boolean keyed;
-    private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
     private final RangeAggregatorSupplier aggregatorSupplier;
 
     public AbstractRangeAggregatorFactory(
         String name,
-        ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,
         ValuesSourceConfig config,
         R[] ranges,
         boolean keyed,
@@ -47,7 +44,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
-        this.registryKey = registryKey;
         this.aggregatorSupplier = aggregatorSupplier;
     }
 

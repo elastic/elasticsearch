@@ -26,7 +26,7 @@ public class InProcessor implements Processor {
     }
 
     public InProcessor(StreamInput in) throws IOException {
-        processsors = in.readNamedWriteableList(Processor.class);
+        processsors = in.readNamedWriteableCollectionAsList(Processor.class);
     }
 
     @Override
@@ -36,7 +36,7 @@ public class InProcessor implements Processor {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(processsors);
+        out.writeNamedWriteableCollection(processsors);
     }
 
     @Override

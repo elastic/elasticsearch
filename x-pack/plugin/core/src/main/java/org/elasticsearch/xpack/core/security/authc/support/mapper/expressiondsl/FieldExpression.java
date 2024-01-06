@@ -45,7 +45,7 @@ public final class FieldExpression implements RoleMapperExpression {
     }
 
     public FieldExpression(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(FieldValue::readFrom));
+        this(in.readString(), in.readCollectionAsList(FieldValue::readFrom));
     }
 
     @Override

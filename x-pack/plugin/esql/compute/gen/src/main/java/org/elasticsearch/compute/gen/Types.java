@@ -12,7 +12,11 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
+
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Types used by the code generator.
@@ -31,7 +35,6 @@ public class Types {
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
-    static final ClassName BYTES_REF_ARRAY = ClassName.get("org.elasticsearch.common.util", "BytesRefArray");
 
     static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
     static final ClassName BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefBlock");
@@ -53,6 +56,17 @@ public class Types {
     static final ClassName LONG_VECTOR = ClassName.get(DATA_PACKAGE, "LongVector");
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");
 
+    static final ClassName BOOLEAN_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "Builder");
+    static final ClassName BYTES_REF_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BytesRefVector", "Builder");
+    static final ClassName INT_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "Builder");
+    static final ClassName LONG_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "LongVector", "Builder");
+    static final ClassName DOUBLE_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "DoubleVector", "Builder");
+
+    static final ClassName BOOLEAN_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "FixedBuilder");
+    static final ClassName INT_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "FixedBuilder");
+    static final ClassName LONG_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "LongVector", "FixedBuilder");
+    static final ClassName DOUBLE_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "DoubleVector", "FixedBuilder");
+
     static final ClassName BOOLEAN_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanArrayVector");
     static final ClassName BYTES_REF_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefArrayVector");
     static final ClassName INT_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "IntArrayVector");
@@ -71,10 +85,6 @@ public class Types {
     static final ClassName LONG_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantLongVector");
     static final ClassName DOUBLE_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantDoubleVector");
 
-    static final ClassName INT_ARRAY_STATE = ClassName.get(AGGREGATION_PACKAGE, "IntArrayState");
-    static final ClassName LONG_ARRAY_STATE = ClassName.get(AGGREGATION_PACKAGE, "LongArrayState");
-    static final ClassName DOUBLE_ARRAY_STATE = ClassName.get(AGGREGATION_PACKAGE, "DoubleArrayState");
-
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName AGGREGATOR_FUNCTION_SUPPLIER = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunctionSupplier");
     static final ClassName GROUPING_AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorFunction");
@@ -88,7 +98,10 @@ public class Types {
     static final ClassName INTERMEDIATE_STATE_DESC = ClassName.get(AGGREGATION_PACKAGE, "IntermediateStateDesc");
     static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);
 
+    static final ClassName DRIVER_CONTEXT = ClassName.get(OPERATOR_PACKAGE, "DriverContext");
+
     static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
+    static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator", "Factory");
     static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
         "AbstractMultivalueFunction",
@@ -110,6 +123,9 @@ public class Types {
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.ql.tree", "Source");
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
+
+    static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
+    static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
     static ClassName blockType(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
@@ -185,6 +201,56 @@ public class Types {
             return DOUBLE_VECTOR;
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+    }
+
+    static ClassName builderType(TypeName resultType) {
+        if (resultType.equals(BOOLEAN_BLOCK)) {
+            return BOOLEAN_BLOCK_BUILDER;
+        }
+        if (resultType.equals(BOOLEAN_VECTOR)) {
+            return BOOLEAN_VECTOR_BUILDER;
+        }
+        if (resultType.equals(BYTES_REF_BLOCK)) {
+            return BYTES_REF_BLOCK_BUILDER;
+        }
+        if (resultType.equals(BYTES_REF_VECTOR)) {
+            return BYTES_REF_VECTOR_BUILDER;
+        }
+        if (resultType.equals(INT_BLOCK)) {
+            return INT_BLOCK_BUILDER;
+        }
+        if (resultType.equals(INT_VECTOR)) {
+            return INT_VECTOR_BUILDER;
+        }
+        if (resultType.equals(LONG_BLOCK)) {
+            return LONG_BLOCK_BUILDER;
+        }
+        if (resultType.equals(LONG_VECTOR)) {
+            return LONG_VECTOR_BUILDER;
+        }
+        if (resultType.equals(DOUBLE_BLOCK)) {
+            return DOUBLE_BLOCK_BUILDER;
+        }
+        if (resultType.equals(DOUBLE_VECTOR)) {
+            return DOUBLE_VECTOR_BUILDER;
+        }
+        throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
+    }
+
+    static ClassName vectorFixedBuilderType(TypeName elementType) {
+        if (elementType.equals(TypeName.BOOLEAN)) {
+            return BOOLEAN_VECTOR_FIXED_BUILDER;
+        }
+        if (elementType.equals(TypeName.INT)) {
+            return INT_VECTOR_FIXED_BUILDER;
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return LONG_VECTOR_FIXED_BUILDER;
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return DOUBLE_VECTOR_FIXED_BUILDER;
+        }
+        throw new IllegalArgumentException("unknown vector fixed builder type for [" + elementType + "]");
     }
 
     static ClassName arrayVectorType(TypeName elementType) {
@@ -263,4 +329,16 @@ public class Types {
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }
 
+    static boolean extendsSuper(javax.lang.model.util.Types types, TypeMirror c, String superName) {
+        Deque<TypeMirror> mirrors = new ArrayDeque<>();
+        mirrors.add(c);
+        while (mirrors.isEmpty() == false) {
+            TypeMirror m = mirrors.pop();
+            if (m.toString().equals(superName)) {
+                return true;
+            }
+            mirrors.addAll(types.directSupertypes(m));
+        }
+        return false;
+    }
 }

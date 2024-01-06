@@ -6,15 +6,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantDoubleVector;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -23,13 +20,14 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToDoubleFromUnsignedLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDoubleFromUnsignedLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
-    super(field, source);
+  public ToDoubleFromUnsignedLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
+    super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToDouble";
+    return "ToDoubleFromUnsignedLong";
   }
 
   @Override
@@ -37,30 +35,14 @@ public final class ToDoubleFromUnsignedLongEvaluator extends AbstractConvertFunc
     LongVector vector = (LongVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return new ConstantDoubleVector(evalValue(vector, 0), positionCount).asBlock();
-      } catch (Exception e) {
-        registerException(e);
-        return Block.constantNullBlock(positionCount);
-      }
+      return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
     }
-    BitSet nullsMask = null;
-    double[] values = new double[positionCount];
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        values[p] = evalValue(vector, p);
-      } catch (Exception e) {
-        registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
-        }
-        nullsMask.set(p);
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        builder.appendDouble(evalValue(vector, p));
       }
+      return builder.build();
     }
-    return nullsMask == null
-          ? new DoubleArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new DoubleArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
   }
 
   private static double evalValue(LongVector container, int index) {
@@ -72,15 +54,14 @@ public final class ToDoubleFromUnsignedLongEvaluator extends AbstractConvertFunc
   public Block evalBlock(Block b) {
     LongBlock block = (LongBlock) b;
     int positionCount = block.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = block.getValueCount(p);
-      int start = block.getFirstValueIndex(p);
-      int end = start + valueCount;
-      boolean positionOpened = false;
-      boolean valuesAppended = false;
-      for (int i = start; i < end; i++) {
-        try {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
           double value = evalValue(block, i);
           if (positionOpened == false && valueCount > 1) {
             builder.beginPositionEntry();
@@ -88,21 +69,40 @@ public final class ToDoubleFromUnsignedLongEvaluator extends AbstractConvertFunc
           }
           builder.appendDouble(value);
           valuesAppended = true;
-        } catch (Exception e) {
-          registerException(e);
+        }
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
         }
       }
-      if (valuesAppended == false) {
-        builder.appendNull();
-      } else if (positionOpened) {
-        builder.endPositionEntry();
-      }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static double evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
     return ToDouble.fromUnsignedLong(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToDoubleFromUnsignedLongEvaluator get(DriverContext context) {
+      return new ToDoubleFromUnsignedLongEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToDoubleFromUnsignedLongEvaluator[field=" + field + "]";
+    }
   }
 }

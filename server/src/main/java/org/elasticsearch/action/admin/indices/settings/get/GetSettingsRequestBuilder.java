@@ -18,8 +18,8 @@ public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBui
     GetSettingsResponse,
     GetSettingsRequestBuilder> {
 
-    public GetSettingsRequestBuilder(ElasticsearchClient client, GetSettingsAction action, String... indices) {
-        super(client, action, new GetSettingsRequest().indices(indices));
+    public GetSettingsRequestBuilder(ElasticsearchClient client, String... indices) {
+        super(client, GetSettingsAction.INSTANCE, new GetSettingsRequest().indices(indices));
     }
 
     public GetSettingsRequestBuilder setIndices(String... indices) {

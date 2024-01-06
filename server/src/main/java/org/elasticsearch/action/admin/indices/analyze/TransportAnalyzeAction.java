@@ -83,7 +83,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             actionFilters,
             indexNameExpressionResolver,
             AnalyzeAction.Request::new,
-            ThreadPool.Names.ANALYZE
+            threadPool.executor(ThreadPool.Names.ANALYZE)
         );
         this.settings = settings;
         this.indicesService = indicesService;

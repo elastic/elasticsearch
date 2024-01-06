@@ -8,9 +8,10 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-
-import java.util.function.Supplier;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
@@ -18,28 +19,31 @@ import java.util.function.Supplier;
  */
 public class EvalOperator extends AbstractPageMappingOperator {
 
-    public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator) implements OperatorFactory {
+    public record EvalOperatorFactory(ExpressionEvaluator.Factory evaluator) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get());
+            return new EvalOperator(driverContext.blockFactory(), evaluator.get(driverContext));
         }
 
         @Override
         public String describe() {
-            return "EvalOperator[evaluator=" + evaluator.get() + "]";
+            return "EvalOperator[evaluator=" + evaluator + "]";
         }
     }
 
+    private final BlockFactory blockFactory;
     private final ExpressionEvaluator evaluator;
 
-    public EvalOperator(ExpressionEvaluator evaluator) {
+    public EvalOperator(BlockFactory blockFactory, ExpressionEvaluator evaluator) {
+        this.blockFactory = blockFactory;
         this.evaluator = evaluator;
     }
 
     @Override
     protected Page process(Page page) {
-        return page.appendBlock(evaluator.eval(page));
+        Block block = evaluator.eval(page);
+        return page.appendBlock(block);
     }
 
     @Override
@@ -47,14 +51,41 @@ public class EvalOperator extends AbstractPageMappingOperator {
         return getClass().getSimpleName() + "[evaluator=" + evaluator + "]";
     }
 
-    public interface ExpressionEvaluator {
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(evaluator, super::close);
+    }
+
+    /**
+     * Evaluates an expression {@code a + b} or {@code log(c)} one {@link Page} at a time.
+     */
+    public interface ExpressionEvaluator extends Releasable {
+        /** A Factory for creating ExpressionEvaluators. */
+        interface Factory {
+            ExpressionEvaluator get(DriverContext context);
+        }
+
+        /**
+         * Evaluate the expression.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
+         */
         Block eval(Page page);
     }
 
-    public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
+    public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {
         @Override
-        public Block eval(Page page) {
-            return Block.constantNullBlock(page.getPositionCount());
+        public ExpressionEvaluator get(DriverContext driverContext) {
+            return new ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    return driverContext.blockFactory().newConstantNullBlock(page.getPositionCount());
+                }
+
+                @Override
+                public void close() {
+
+                }
+            };
         }
 
         @Override

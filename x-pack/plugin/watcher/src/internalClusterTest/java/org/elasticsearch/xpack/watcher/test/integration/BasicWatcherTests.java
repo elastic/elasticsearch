@@ -75,7 +75,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testIndexWatch() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        client().prepareIndex("idx").setSource("field", "foo").get();
+        prepareIndex("idx").setSource("field", "foo").get();
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "foo")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name")
@@ -109,7 +109,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithNoActionNeeded("_name", 1);
 
         // Index sample doc after we register the watch and the watch's condition should meet
-        client().prepareIndex("idx").setSource("field", "value").get();
+        prepareIndex("idx").setSource("field", "value").get();
         refresh();
 
         timeWarp().clock().fastForwardSeconds(5);
@@ -134,7 +134,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(deleteWatchResponse.isFound(), is(true));
 
         refresh();
-        assertHitCount(client().prepareSearch(Watch.INDEX).setSize(0).get(), 0L);
+        assertHitCount(prepareSearch(Watch.INDEX).setSize(0), 0L);
 
         // Deleting the same watch for the second time
         deleteWatchResponse = new DeleteWatchRequestBuilder(client()).setId("_name").get();
@@ -145,7 +145,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testMalformedWatch() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        client().prepareIndex("idx").setSource("field", "value").get();
+        prepareIndex("idx").setSource("field", "value").get();
         XContentBuilder watchSource = jsonBuilder();
 
         watchSource.startObject();
@@ -166,7 +166,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {
-            client().prepareIndex().setIndex(Watch.INDEX).setId("_name").setSource(watchSource).get();
+            prepareIndex(Watch.INDEX).setId("_name").setSource(watchSource).get();
             fail();
         } catch (Exception e) {
             // The watch index template the mapping is defined as strict
@@ -236,7 +236,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     ),
                     XContentType.JSON
                 )
-                .get()
         );
 
         Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());
@@ -252,7 +251,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testInputFiltering() throws Exception {
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        client().prepareIndex("idx").setSource(jsonBuilder().startObject().field("field", "foovalue").endObject()).get();
+        prepareIndex("idx").setSource(jsonBuilder().startObject().field("field", "foovalue").endObject()).get();
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "foovalue")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name1")
@@ -279,9 +278,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         // Check that the input result payload has been filtered
         refresh();
         SearchResponse searchResponse = searchWatchRecords(builder -> builder.setQuery(matchQuery("watch_id", "_name1")));
-        assertHitCount(searchResponse, 1);
-        XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
-        assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
+        try {
+            assertHitCount(searchResponse, 1);
+            XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
+            assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testPutWatchWithNegativeSchedule() throws Exception {
@@ -382,21 +385,21 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         logger.info("created watch [{}] at [{}]", watchName, ZonedDateTime.now(Clock.systemUTC()));
 
-        client().prepareIndex("events").setSource("level", "a").get();
-        client().prepareIndex("events").setSource("level", "a").get();
+        prepareIndex("events").setSource("level", "a").get();
+        prepareIndex("events").setSource("level", "a").get();
 
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 1);
 
-        client().prepareIndex("events").setSource("level", "b").get();
+        prepareIndex("events").setSource("level", "b").get();
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 2);
 
-        client().prepareIndex("events").setSource("level", "a").get();
+        prepareIndex("events").setSource("level", "a").get();
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);

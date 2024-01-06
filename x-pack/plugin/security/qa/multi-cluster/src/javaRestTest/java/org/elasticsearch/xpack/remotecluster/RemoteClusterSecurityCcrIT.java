@@ -276,12 +276,19 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                 throw new AssertionError(e);
             }
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numberOfDocs));
-            assertThat(
-                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of(indices))
-            );
+            final SearchResponse searchResponse;
+            try (var parser = responseAsParser(response)) {
+                searchResponse = SearchResponse.fromXContent(parser);
+            }
+            try {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numberOfDocs));
+                assertThat(
+                    Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
+                    equalTo(Set.of(indices))
+                );
+            } finally {
+                searchResponse.decRef();
+            }
         });
     }
 

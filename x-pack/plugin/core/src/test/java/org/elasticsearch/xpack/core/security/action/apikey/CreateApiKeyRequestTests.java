@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -161,12 +161,12 @@ public class CreateApiKeyRequestTests extends ESTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             if (testV710Bwc) {
-                out.setTransportVersion(TransportVersion.V_7_9_0); // a version before 7.10
+                out.setTransportVersion(TransportVersions.V_7_9_0); // a version before 7.10
             }
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 if (testV710Bwc) {
-                    in.setTransportVersion(TransportVersion.V_7_9_0);
+                    in.setTransportVersion(TransportVersions.V_7_9_0);
                 }
                 final CreateApiKeyRequest serialized = new CreateApiKeyRequest(in);
                 assertEquals(name, serialized.getName());

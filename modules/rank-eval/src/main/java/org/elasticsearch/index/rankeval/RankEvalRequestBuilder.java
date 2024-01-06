@@ -9,13 +9,12 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse> {
 
-    public RankEvalRequestBuilder(ElasticsearchClient client, ActionType<RankEvalResponse> action, RankEvalRequest request) {
-        super(client, action, request);
+    public RankEvalRequestBuilder(ElasticsearchClient client, RankEvalRequest request) {
+        super(client, RankEvalPlugin.ACTION, request);
     }
 
     public void setRankEvalSpec(RankEvalSpec spec) {

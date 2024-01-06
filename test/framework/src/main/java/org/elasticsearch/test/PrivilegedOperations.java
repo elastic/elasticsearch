@@ -53,6 +53,13 @@ public final class PrivilegedOperations {
         }
     }
 
+    public record ClosableURLClassLoader(URLClassLoader classloader) implements AutoCloseable {
+        @Override
+        public void close() throws Exception {
+            closeURLClassLoader(classloader);
+        }
+    }
+
     public static Boolean compilationTaskCall(JavaCompiler.CompilationTask compilationTask) {
         return AccessController.doPrivileged(
             (PrivilegedAction<Boolean>) () -> compilationTask.call(),

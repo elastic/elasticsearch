@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -267,13 +266,13 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             return false;
         }
 
-        return Version.CURRENT.onOrBefore(readMappingVersion(descriptor, mappingMetadata));
+        return descriptor.getMappingsVersion().version() <= readMappingVersion(descriptor, mappingMetadata);
     }
 
     /**
      * Fetches the mapping version from an index's mapping's `_meta` info.
      */
-    private static Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
+    private static int readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {
             @SuppressWarnings("unchecked")
@@ -286,28 +285,28 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
                 );
                 // This can happen with old system indices, such as .watches, which were created before we had the convention of
                 // storing a version under `_meta.` We should just replace the template to be sure.
-                return Version.V_EMPTY;
+                return -1;
             }
 
-            final Object rawVersion = meta.get(descriptor.getMappingsNodeVersionMetaKey());
-            if (rawVersion instanceof Integer) {
-                // This can happen with old system indices, such as .tasks, which were created before we used an Elasticsearch
-                // version here. We should just replace the template to be sure.
-                return Version.V_EMPTY;
-            }
-            final String versionString = rawVersion != null ? rawVersion.toString() : null;
-            if (versionString == null) {
+            final Object rawVersion = meta.get(SystemIndexDescriptor.VERSION_META_KEY);
+            if (rawVersion == null) {
                 logger.warn(
                     "No value found in mappings for [_meta.{}], assuming mappings update required",
-                    descriptor.getMappingsNodeVersionMetaKey()
+                    SystemIndexDescriptor.VERSION_META_KEY
                 );
-                // If we called `Version.fromString(null)`, it would return `Version.CURRENT` and we wouldn't update the mappings
-                return Version.V_EMPTY;
+                return -1;
             }
-            return Version.fromString(versionString);
+            if (rawVersion instanceof Integer == false) {
+                logger.warn(
+                    "Value in [_meta.{}] was not an integer, assuming mappings update required",
+                    SystemIndexDescriptor.VERSION_META_KEY
+                );
+                return -1;
+            }
+            return (int) rawVersion;
         } catch (ElasticsearchParseException | IllegalArgumentException e) {
             logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
-            return Version.V_EMPTY;
+            return -1;
         }
     }
 

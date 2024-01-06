@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -145,7 +144,7 @@ public abstract class IgnoreMalformedStoredValues {
             values = emptyList();
         }
 
-        private void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
+        private static void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
             switch (r.bytes[r.offset]) {
                 case 'b':
                     b.value(r.bytes, r.offset + 1, r.length - 1);
@@ -189,9 +188,10 @@ public abstract class IgnoreMalformedStoredValues {
             }
         }
 
-        private void decodeAndWriteXContent(XContentBuilder b, XContentType type, BytesRef r) throws IOException {
-            BytesReference ref = new BytesArray(r.bytes, r.offset + 1, r.length - 1);
-            try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, ref.streamInput())) {
+        private static void decodeAndWriteXContent(XContentBuilder b, XContentType type, BytesRef r) throws IOException {
+            try (
+                XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, r.bytes, r.offset + 1, r.length - 1)
+            ) {
                 b.copyCurrentStructure(parser);
             }
         }

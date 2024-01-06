@@ -45,7 +45,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.policies = in.readList(LifecyclePolicyResponseItem::new);
+            this.policies = in.readCollectionAsList(LifecyclePolicyResponseItem::new);
         }
 
         public Response(List<LifecyclePolicyResponseItem> policies) {

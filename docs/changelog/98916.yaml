@@ -1,0 +1,5 @@
+pr: 98916
+summary: Make knn search a query
+area: Vector Search
+type: feature
+issues: []

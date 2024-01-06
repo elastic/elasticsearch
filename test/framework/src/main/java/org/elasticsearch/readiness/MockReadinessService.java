@@ -29,6 +29,10 @@ public class MockReadinessService extends ReadinessService {
      */
     public static class TestPlugin extends Plugin {}
 
+    private static final int RETRIES = 3;
+
+    private static final int RETRY_DELAY_IN_MILLIS = 10;
+
     private static final String METHOD_NOT_MOCKED = "This method has not been mocked";
 
     private static class MockServerSocketChannel extends ServerSocketChannel {
@@ -90,20 +94,30 @@ public class MockReadinessService extends ReadinessService {
         super(clusterService, environment, MockServerSocketChannel::openMock);
     }
 
-    static void tcpReadinessProbeTrue(ReadinessService readinessService) {
+    private static boolean socketIsOpen(ReadinessService readinessService) {
         ServerSocketChannel mockedSocket = readinessService.serverChannel();
-        if (mockedSocket == null) {
-            throw new AssertionError("Mocked socket not created for this node");
-        }
-        if (mockedSocket.isOpen() == false) {
-            throw new AssertionError("Readiness socket should be open");
-        }
+        return mockedSocket != null && mockedSocket.isOpen();
     }
 
-    static void tcpReadinessProbeFalse(ReadinessService readinessService) {
-        ServerSocketChannel mockedSocket = readinessService.serverChannel();
-        if (mockedSocket != null && mockedSocket.isOpen()) {
-            throw new AssertionError("Readiness socket should be closed");
+    public static void tcpReadinessProbeTrue(ReadinessService readinessService) throws InterruptedException {
+        for (int i = 1; i <= RETRIES; ++i) {
+            if (socketIsOpen(readinessService)) {
+                return;
+            }
+            Thread.sleep(RETRY_DELAY_IN_MILLIS * i);
         }
+
+        throw new AssertionError("Readiness socket should be open");
+    }
+
+    public static void tcpReadinessProbeFalse(ReadinessService readinessService) throws InterruptedException {
+        for (int i = 0; i < RETRIES; ++i) {
+            if (socketIsOpen(readinessService) == false) {
+                return;
+            }
+            Thread.sleep(RETRY_DELAY_IN_MILLIS * i);
+        }
+
+        throw new AssertionError("Readiness socket should be closed");
     }
 }

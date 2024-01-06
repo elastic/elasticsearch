@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.sameInstance;
 public class IndexVersionTests extends ESTestCase {
 
     public void testVersionComparison() {
-        IndexVersion V_7_2_0 = IndexVersion.V_7_2_0;
-        IndexVersion V_8_0_0 = IndexVersion.V_8_0_0;
+        IndexVersion V_7_2_0 = IndexVersions.V_7_2_0;
+        IndexVersion V_8_0_0 = IndexVersions.V_8_0_0;
         assertThat(V_7_2_0.before(V_8_0_0), is(true));
         assertThat(V_7_2_0.before(V_7_2_0), is(false));
         assertThat(V_8_0_0.before(V_7_2_0), is(false));
@@ -70,7 +70,7 @@ public class IndexVersionTests extends ESTestCase {
 
     public void testStaticIndexVersionChecks() {
         assertThat(
-            IndexVersion.getAllVersionIds(IndexVersionTests.CorrectFakeVersion.class),
+            IndexVersions.getAllVersionIds(IndexVersionTests.CorrectFakeVersion.class),
             equalTo(
                 Map.of(
                     199,
@@ -84,7 +84,7 @@ public class IndexVersionTests extends ESTestCase {
                 )
             )
         );
-        AssertionError e = expectThrows(AssertionError.class, () -> IndexVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        AssertionError e = expectThrows(AssertionError.class, () -> IndexVersions.getAllVersionIds(DuplicatedIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
@@ -94,7 +94,6 @@ public class IndexVersionTests extends ESTestCase {
 
     public void testDefinedConstants() throws IllegalAccessException {
         Pattern historicalVersion = Pattern.compile("^V_(\\d{1,2})_(\\d{1,2})_(\\d{1,2})$");
-        Pattern IndexVersion = Pattern.compile("^V_(\\d+)_(\\d{3})_(\\d{3})$");
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
 
         for (java.lang.reflect.Field field : IndexVersion.class.getFields()) {
@@ -107,8 +106,10 @@ public class IndexVersionTests extends ESTestCase {
                     field.getModifiers()
                 );
 
-                Matcher matcher = historicalVersion.matcher(field.getName());
-                if (matcher.matches()) {
+                Matcher matcher;
+                if ("UPGRADE_TO_LUCENE_9_9".equals(field.getName())) {
+                    // OK
+                } else if ((matcher = historicalVersion.matcher(field.getName())).matches()) {
                     // old-style version constant
                     String idString = matcher.group(1) + padNumber(matcher.group(2)) + padNumber(matcher.group(3)) + "99";
                     assertEquals(
@@ -116,15 +117,6 @@ public class IndexVersionTests extends ESTestCase {
                         idString,
                         field.get(null).toString()
                     );
-                } else if ((matcher = IndexVersion.matcher(field.getName())).matches()) {
-                    String idString = matcher.group(1) + matcher.group(2) + matcher.group(3);
-                    assertEquals(
-                        "Field " + field.getName() + " does not have expected id " + idString,
-                        idString,
-                        field.get(null).toString()
-                    );
-                } else {
-                    fail("Field " + field.getName() + " does not have expected format");
                 }
             }
         }
@@ -164,7 +156,7 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testVersionConstantPresent() {
-        Set<IndexVersion> ignore = Set.of(IndexVersion.ZERO, IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE);
+        Set<IndexVersion> ignore = Set.of(IndexVersions.ZERO, IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE);
         assertThat(IndexVersion.current(), sameInstance(IndexVersion.fromId(IndexVersion.current().id())));
         assertThat(IndexVersion.current().luceneVersion(), equalTo(org.apache.lucene.util.Version.LATEST));
         final int iters = scaledRandomIntBetween(20, 100);
@@ -177,7 +169,7 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(IndexVersion.getAllVersions()), is(IndexVersion.current()));
+        assertThat(Collections.max(IndexVersions.getAllVersions()), is(IndexVersion.current()));
     }
 
     public void testToString() {
@@ -195,5 +187,24 @@ public class IndexVersionTests extends ESTestCase {
             String string = luceneVersion.toString().toUpperCase(Locale.ROOT).replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
             assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
         }
+    }
+
+    public void testLuceneVersionOnUnknownVersions() {
+        // between two known versions, should use the lucene version of the previous version
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion();
+        IndexVersion currentVersion = IndexVersion.current();
+        int intermediateVersionId = previousVersion.id() + randomInt(currentVersion.id() - previousVersion.id() - 1);
+        IndexVersion intermediateVersion = IndexVersion.fromId(intermediateVersionId);
+        // the version is either the previous version or between the previous version and the current version excluded, so it is assumed to
+        // use the same Lucene version as the previous version
+        assertThat(intermediateVersion.luceneVersion(), equalTo(previousVersion.luceneVersion()));
+
+        // too old version, major should be the oldest supported lucene version minus 1
+        IndexVersion oldVersion = IndexVersion.fromId(5020199);
+        assertThat(oldVersion.luceneVersion().major, equalTo(IndexVersionUtils.getFirstVersion().luceneVersion().major - 1));
+
+        // future version, should be the same version as today
+        IndexVersion futureVersion = IndexVersion.fromId(currentVersion.id() + 100);
+        assertThat(futureVersion.luceneVersion(), equalTo(currentVersion.luceneVersion()));
     }
 }

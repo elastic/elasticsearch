@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -478,24 +478,27 @@ public class JobManager {
 
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (modelSnapshotId != null && ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) == false) {
-            voidChainTaskExecutor.add(listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
-                if (newModelSnapshot == null) {
-                    String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
-                    listener.onFailure(new ResourceNotFoundException(message));
-                    return;
-                }
-                jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
-                    if (oldModelSnapshot != null && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
-                        String message = "Job ["
-                            + job.getId()
-                            + "] has a more recent model snapshot ["
-                            + oldModelSnapshot.result.getSnapshotId()
-                            + "]";
-                        listener.onFailure(new IllegalArgumentException(message));
+            voidChainTaskExecutor.add(
+                listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, false, newModelSnapshot -> {
+                    if (newModelSnapshot == null) {
+                        String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
+                        listener.onFailure(new ResourceNotFoundException(message));
+                        return;
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure);
-            }, listener::onFailure));
+                    jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), false, oldModelSnapshot -> {
+                        if (oldModelSnapshot != null
+                            && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
+                            String message = "Job ["
+                                + job.getId()
+                                + "] has a more recent model snapshot ["
+                                + oldModelSnapshot.result.getSnapshotId()
+                                + "]";
+                            listener.onFailure(new IllegalArgumentException(message));
+                        }
+                        listener.onResponse(null);
+                    }, listener::onFailure);
+                }, listener::onFailure)
+            );
         }
     }
 
@@ -540,13 +543,13 @@ public class JobManager {
         }
     }
 
-    private boolean isJobOpen(ClusterState clusterState, String jobId) {
+    private static boolean isJobOpen(ClusterState clusterState, String jobId) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
-    private Set<String> openJobIds(ClusterState clusterState) {
+    private static Set<String> openJobIds(ClusterState clusterState) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.openJobIds(persistentTasks);
     }
@@ -666,7 +669,7 @@ public class JobManager {
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
-        CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
+        CheckedConsumer<DocWriteResponse, Exception> modelSizeStatsResponseHandler = response -> {
             // In case we are reverting to the empty snapshot the quantiles will be null
             if (modelSnapshot.getQuantiles() == null) {
                 actionListener.onResponse(new RevertModelSnapshotAction.Response(modelSnapshot));

@@ -26,6 +26,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
+import javax.tools.Diagnostic;
 
 /**
  * Glues the {@link EvaluatorImplementer} into the jdk's annotation
@@ -70,47 +71,64 @@ public class EvaluatorProcessor implements Processor {
             for (Element evaluatorMethod : roundEnvironment.getElementsAnnotatedWith(ann)) {
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
                 if (evaluatorAnn != null) {
-                    AggregatorProcessor.write(
-                        evaluatorMethod,
-                        "evaluator",
-                        new EvaluatorImplementer(
-                            env.getElementUtils(),
-                            (ExecutableElement) evaluatorMethod,
-                            evaluatorAnn.extraName(),
-                            warnExceptions(evaluatorMethod)
-                        ).sourceFile(),
-                        env
-                    );
+                    try {
+                        AggregatorProcessor.write(
+                            evaluatorMethod,
+                            "evaluator",
+                            new EvaluatorImplementer(
+                                env.getElementUtils(),
+                                env.getTypeUtils(),
+                                (ExecutableElement) evaluatorMethod,
+                                evaluatorAnn.extraName(),
+                                warnExceptions(evaluatorMethod)
+                            ).sourceFile(),
+                            env
+                        );
+                    } catch (Exception e) {
+                        env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed to build " + evaluatorMethod.getEnclosingElement());
+                        throw e;
+                    }
                 }
                 MvEvaluator mvEvaluatorAnn = evaluatorMethod.getAnnotation(MvEvaluator.class);
                 if (mvEvaluatorAnn != null) {
-                    AggregatorProcessor.write(
-                        evaluatorMethod,
-                        "evaluator",
-                        new MvEvaluatorImplementer(
-                            env.getElementUtils(),
-                            (ExecutableElement) evaluatorMethod,
-                            mvEvaluatorAnn.extraName(),
-                            mvEvaluatorAnn.finish(),
-                            mvEvaluatorAnn.single(),
-                            mvEvaluatorAnn.ascending(),
-                            warnExceptions(evaluatorMethod)
-                        ).sourceFile(),
-                        env
-                    );
+                    try {
+                        AggregatorProcessor.write(
+                            evaluatorMethod,
+                            "evaluator",
+                            new MvEvaluatorImplementer(
+                                env.getElementUtils(),
+                                (ExecutableElement) evaluatorMethod,
+                                mvEvaluatorAnn.extraName(),
+                                mvEvaluatorAnn.finish(),
+                                mvEvaluatorAnn.single(),
+                                mvEvaluatorAnn.ascending(),
+                                warnExceptions(evaluatorMethod)
+                            ).sourceFile(),
+                            env
+                        );
+                    } catch (Exception e) {
+                        env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed to build " + evaluatorMethod.getEnclosingElement());
+                        throw e;
+                    }
                 }
                 ConvertEvaluator convertEvaluatorAnn = evaluatorMethod.getAnnotation(ConvertEvaluator.class);
                 if (convertEvaluatorAnn != null) {
-                    AggregatorProcessor.write(
-                        evaluatorMethod,
-                        "evaluator",
-                        new ConvertEvaluatorImplementer(
-                            env.getElementUtils(),
-                            (ExecutableElement) evaluatorMethod,
-                            convertEvaluatorAnn.extraName()
-                        ).sourceFile(),
-                        env
-                    );
+                    try {
+                        AggregatorProcessor.write(
+                            evaluatorMethod,
+                            "evaluator",
+                            new ConvertEvaluatorImplementer(
+                                env.getElementUtils(),
+                                (ExecutableElement) evaluatorMethod,
+                                convertEvaluatorAnn.extraName(),
+                                warnExceptions(evaluatorMethod)
+                            ).sourceFile(),
+                            env
+                        );
+                    } catch (Exception e) {
+                        env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed to build " + evaluatorMethod.getEnclosingElement());
+                        throw e;
+                    }
                 }
             }
         }
@@ -121,7 +139,10 @@ public class EvaluatorProcessor implements Processor {
         List<TypeMirror> result = new ArrayList<>();
         for (var mirror : evaluatorMethod.getAnnotationMirrors()) {
             String annotationType = mirror.getAnnotationType().toString();
-            if (annotationType.equals(Evaluator.class.getName()) || annotationType.equals(MvEvaluator.class.getName())) {
+            if (annotationType.equals(Evaluator.class.getName())
+                || annotationType.equals(MvEvaluator.class.getName())
+                || annotationType.equals(ConvertEvaluator.class.getName())) {
+
                 for (var e : mirror.getElementValues().entrySet()) {
                     if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
                         continue;

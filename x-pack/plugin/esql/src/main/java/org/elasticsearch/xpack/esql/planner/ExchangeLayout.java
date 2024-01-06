@@ -7,44 +7,33 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.expression.NameId;
 
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Decorating layout that creates the NameId -> Value lazily based on the calls made to its content.
  * Essentially it maps the existing (old) NameIds to the new ones.
  */
-class ExchangeLayout extends Layout {
-
-    private final Map<NameId, Integer> delegate;
-    private final Map<Integer, Set<NameId>> inverse;
+class ExchangeLayout implements Layout {
+    private final Layout delegate;
+    private final List<ChannelSet> inverse;
     private final Map<NameId, NameId> mappingToOldLayout;
     private int counter;
 
-    ExchangeLayout(Layout layout) {
-        super(emptyMap(), 0);
-        this.delegate = layout.internalLayout();
-        this.mappingToOldLayout = Maps.newMapWithExpectedSize(delegate.size());
-        this.inverse = Maps.newMapWithExpectedSize(delegate.size());
-
-        for (Map.Entry<NameId, Integer> entry : delegate.entrySet()) {
-            NameId key = entry.getKey();
-            Integer value = entry.getValue();
-            inverse.computeIfAbsent(value, k -> new HashSet<>()).add(key);
-        }
+    ExchangeLayout(Layout delegate) {
+        this.delegate = delegate;
+        this.inverse = delegate.inverse();
+        this.mappingToOldLayout = new HashMap<>(inverse.size());
     }
 
     @Override
-    public Integer getChannel(NameId id) {
+    public ChannelAndType get(NameId id) {
         var oldId = mappingToOldLayout.get(id);
-        if (oldId == null && counter < delegate.size()) {
-            var names = inverse.get(counter++);
+        if (oldId == null && counter < inverse.size()) {
+            var names = inverse.get(counter++).nameIds();
             for (var name : names) {
                 oldId = name;
                 mappingToOldLayout.put(id, oldId);
@@ -54,12 +43,22 @@ class ExchangeLayout extends Layout {
     }
 
     @Override
-    public int numberOfIds() {
-        return delegate.size();
+    public int numberOfChannels() {
+        return delegate.numberOfChannels();
     }
 
     @Override
-    public int numberOfChannels() {
-        return inverse.size();
+    public String toString() {
+        return "ExchangeLayout{" + delegate + '}';
+    }
+
+    @Override
+    public Builder builder() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<ChannelSet> inverse() {
+        throw new UnsupportedOperationException();
     }
 }

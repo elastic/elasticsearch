@@ -7,18 +7,22 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
  * Vector implementation that stores an array of boolean values.
  * This class is generated. Do not edit it.
  */
-public final class BooleanArrayVector extends AbstractVector implements BooleanVector {
+final class BooleanArrayVector extends AbstractVector implements BooleanVector {
+
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class);
 
     private final boolean[] values;
 
-    public BooleanArrayVector(boolean[] values, int positionCount) {
-        super(positionCount);
+    BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -44,7 +48,21 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
 
     @Override
     public BooleanVector filter(int... positions) {
-        return new FilterBooleanVector(this, positions);
+        try (BooleanVector.Builder builder = blockFactory().newBooleanVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendBoolean(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    public static long ramBytesEstimated(boolean[] values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
     }
 
     @Override
@@ -64,4 +82,5 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
 }

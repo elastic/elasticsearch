@@ -23,7 +23,7 @@ public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public RemoteClusterFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.remoteConnectionInfos = in.readImmutableList(RemoteConnectionInfo::new);
+        this.remoteConnectionInfos = in.readCollectionAsImmutableList(RemoteConnectionInfo::new);
     }
 
     public RemoteClusterFeatureSetUsage(List<RemoteConnectionInfo> remoteConnectionInfos) {

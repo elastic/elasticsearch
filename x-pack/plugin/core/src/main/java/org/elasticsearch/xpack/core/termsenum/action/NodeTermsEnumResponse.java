@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,14 +31,14 @@ class NodeTermsEnumResponse extends TransportResponse {
 
     NodeTermsEnumResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
-            terms = in.readList(r -> {
+        if (in.getTransportVersion().before(TransportVersions.V_8_2_0)) {
+            terms = in.readCollectionAsList(r -> {
                 String term = r.readString();
                 in.readLong(); // obsolete docCount field
                 return term;
             });
         } else {
-            terms = in.readStringList();
+            terms = in.readStringCollectionAsList();
         }
         error = in.readOptionalString();
         complete = in.readBoolean();
@@ -70,7 +70,7 @@ class NodeTermsEnumResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_8_2_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_2_0)) {
             out.writeCollection(terms.stream().map(term -> (Writeable) out1 -> {
                 out1.writeString(term);
                 out1.writeLong(1); // obsolete docCount field

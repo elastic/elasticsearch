@@ -34,7 +34,7 @@ public class NodeListDanglingIndicesResponse extends BaseNodeResponse {
 
     protected NodeListDanglingIndicesResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexMetaData = in.readList(DanglingIndexInfo::new);
+        this.indexMetaData = in.readCollectionAsList(DanglingIndexInfo::new);
     }
 
     @Override

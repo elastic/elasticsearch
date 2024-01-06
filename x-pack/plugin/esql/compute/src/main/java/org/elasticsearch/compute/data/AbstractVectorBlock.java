@@ -12,8 +12,8 @@ package org.elasticsearch.compute.data;
  */
 abstract class AbstractVectorBlock extends AbstractBlock {
 
-    AbstractVectorBlock(int positionCount) {
-        super(positionCount);
+    AbstractVectorBlock(int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
     }
 
     @Override
@@ -52,11 +52,12 @@ abstract class AbstractVectorBlock extends AbstractBlock {
 
     @Override
     public final MvOrdering mvOrdering() {
-        return MvOrdering.UNORDERED;
+        return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
     }
 
     @Override
     public final Block expand() {
+        incRef();
         return this;
     }
 }

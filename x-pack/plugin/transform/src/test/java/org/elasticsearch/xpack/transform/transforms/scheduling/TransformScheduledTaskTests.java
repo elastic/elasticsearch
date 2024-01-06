@@ -9,13 +9,9 @@ package org.elasticsearch.xpack.transform.transforms.scheduling;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler.Listener;
 
-import java.time.Instant;
-
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class TransformScheduledTaskTests extends ESTestCase {
@@ -34,11 +30,6 @@ public class TransformScheduledTaskTests extends ESTestCase {
         assertThat(task.getFailureCount(), is(equalTo(0)));
         assertThat(task.getNextScheduledTimeMillis(), is(equalTo(123L)));
         assertThat(task.getListener(), is(equalTo(LISTENER)));
-    }
-
-    public void testDefaultFrequency() {
-        TransformScheduledTask task = new TransformScheduledTask(TRANSFORM_ID, null, LAST_TRIGGERED_TIME_MILLIS, 0, 0, LISTENER);
-        assertThat(task.getFrequency(), is(equalTo(DEFAULT_FREQUENCY)));
     }
 
     public void testNextScheduledTimeMillis() {
@@ -62,50 +53,5 @@ public class TransformScheduledTaskTests extends ESTestCase {
             // Verify that the next scheduled time is calculated properly when failure count is greater than 0
             assertThat(task.getNextScheduledTimeMillis(), is(equalTo(105000L)));
         }
-    }
-
-    public void testCalculateNextScheduledTimeExponentialBackoff() {
-        long lastTriggeredTimeMillis = Instant.now().toEpochMilli();
-        long[] expectedDelayMillis = {
-            Transform.DEFAULT_TRANSFORM_FREQUENCY.millis(),    // normal schedule
-            5000,    // 5s
-            5000,    // 5s
-            8000,    // 8s
-            16000,   // 16s
-            32000,   // 32s
-            64000,   // ~1min
-            128000,  // ~2min
-            256000,  // ~4min
-            512000,  // ~8.5min
-            1024000, // ~17min
-            2048000, // ~34min
-            3600000, // 1h
-            3600000, // 1h
-            3600000, // 1h
-            3600000  // 1h
-        };
-        for (int failureCount = 0; failureCount < 1000; ++failureCount) {
-            assertThat(
-                "failureCount = " + failureCount,
-                TransformScheduledTask.calculateNextScheduledTime(lastTriggeredTimeMillis, null, failureCount),
-                is(equalTo(lastTriggeredTimeMillis + expectedDelayMillis[Math.min(failureCount, expectedDelayMillis.length - 1)]))
-            );
-        }
-    }
-
-    public void testCalculateNextScheduledTime() {
-        long now = Instant.now().toEpochMilli();
-        assertThat(
-            TransformScheduledTask.calculateNextScheduledTime(null, TimeValue.timeValueSeconds(10), 0),
-            is(greaterThanOrEqualTo(now + 10_000))
-        );
-        assertThat(
-            TransformScheduledTask.calculateNextScheduledTime(now, null, 0),
-            is(equalTo(now + Transform.DEFAULT_TRANSFORM_FREQUENCY.millis()))
-        );
-        assertThat(
-            TransformScheduledTask.calculateNextScheduledTime(null, null, 0),
-            is(greaterThanOrEqualTo(now + Transform.DEFAULT_TRANSFORM_FREQUENCY.millis()))
-        );
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -28,7 +29,7 @@ public class DeleteSamlServiceProviderRequestTests extends IdpSamlTestCase {
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_7_0,
+            TransportVersions.V_7_7_0,
             TransportVersion.current()
         );
         final DeleteSamlServiceProviderRequest read = copyWriteable(

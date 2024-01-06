@@ -18,6 +18,13 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
+import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -27,14 +34,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper.TimestampFieldType;
+import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import static org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+
 public class SearchStats {
 
     private final List<SearchContext> contexts;
 
     private static class FieldStat {
         private Long count;
-        private Boolean exists;
         private Object min, max;
+        // TODO: use a multi-bitset instead
+        private Boolean exists;
+        private Boolean singleValue;
+        private Boolean indexed;
+        private Boolean runtime;
     }
 
     private static final int CACHE_SIZE = 32;
@@ -53,7 +68,10 @@ public class SearchStats {
 
     public long count() {
         var count = new long[] { 0 };
-        boolean completed = doWithContexts(r -> count[0] += r.numDocs(), false);
+        boolean completed = doWithContexts(r -> {
+            count[0] += r.numDocs();
+            return true;
+        }, false);
         return completed ? count[0] : -1;
     }
 
@@ -61,7 +79,10 @@ public class SearchStats {
         var stat = cache.computeIfAbsent(field, s -> new FieldStat());
         if (stat.count == null) {
             var count = new long[] { 0 };
-            boolean completed = doWithContexts(r -> count[0] += countEntries(r, field), false);
+            boolean completed = doWithContexts(r -> {
+                count[0] += countEntries(r, field);
+                return true;
+            }, false);
             stat.count = completed ? count[0] : -1;
         }
         return stat.count;
@@ -70,7 +91,10 @@ public class SearchStats {
     public long count(String field, BytesRef value) {
         var count = new long[] { 0 };
         Term term = new Term(field, value);
-        boolean completed = doWithContexts(r -> count[0] += r.docFreq(term), false);
+        boolean completed = doWithContexts(r -> {
+            count[0] += r.docFreq(term);
+            return true;
+        }, false);
         return completed ? count[0] : -1;
     }
 
@@ -85,6 +109,12 @@ public class SearchStats {
                     stat.exists = true;
                     break;
                 }
+            }
+
+            // populate additional properties to save on the lookups
+            if (stat.exists == false) {
+                stat.indexed = false;
+                stat.singleValue = true;
             }
         }
         return stat.exists;
@@ -104,7 +134,7 @@ public class SearchStats {
                         throw new EsqlIllegalArgumentException("Don't know how to compare with previous min");
                     }
                 }
-
+                return true;
             }, true);
             stat.min = min[0];
         }
@@ -115,7 +145,6 @@ public class SearchStats {
     public byte[] max(String field, DataType dataType) {
         var stat = cache.computeIfAbsent(field, s -> new FieldStat());
         if (stat.max == null) {
-
             var max = new byte[][] { null };
             doWithContexts(r -> {
                 byte[] localMax = PointValues.getMaxPackedValue(r, field);
@@ -127,11 +156,128 @@ public class SearchStats {
                         throw new EsqlIllegalArgumentException("Don't know how to compare with previous max");
                     }
                 }
+                return true;
             }, true);
             stat.max = max[0];
         }
         // return stat.max;
         return null;
+    }
+
+    public boolean isSingleValue(String field) {
+        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        if (stat.singleValue == null) {
+            // there's no such field so no need to worry about multi-value fields
+            if (exists(field) == false) {
+                stat.singleValue = true;
+            } else {
+                var sv = new boolean[] { true };
+                for (SearchContext context : contexts) {
+                    var sec = context.getSearchExecutionContext();
+                    MappedFieldType mappedType = sec.isFieldMapped(field) ? null : sec.getFieldType(field);
+                    if (mappedType != null) {
+                        doWithContexts(r -> {
+                            sv[0] &= detectSingleValue(r, mappedType, field);
+                            return sv[0];
+                        }, true);
+                        break;
+                    }
+                }
+                stat.singleValue = sv[0];
+            }
+        }
+        return stat.singleValue;
+    }
+
+    public boolean isRuntimeField(String field) {
+        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        if (stat.runtime == null) {
+            stat.runtime = false;
+            if (exists(field)) {
+                for (SearchContext context : contexts) {
+                    var sec = context.getSearchExecutionContext();
+                    if (sec.isFieldMapped(field)) {
+                        if (sec.getFieldType(field) instanceof AbstractScriptFieldType<?>) {
+                            stat.runtime = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return stat.runtime;
+    }
+
+    public boolean isIndexed(String field) {
+        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        if (stat.indexed == null) {
+            stat.indexed = false;
+            if (exists(field)) {
+                boolean indexed = true;
+                for (SearchContext context : contexts) {
+                    var sec = context.getSearchExecutionContext();
+                    if (sec.isFieldMapped(field)) {
+                        if (sec.getFieldType(field).isIndexed() == false) {
+                            indexed = false;
+                            break;
+                        }
+                    }
+                }
+                stat.indexed = indexed;
+            }
+        }
+        return stat.indexed;
+    }
+
+    private boolean detectSingleValue(IndexReader r, MappedFieldType fieldType, String name) throws IOException {
+        // types that are always single value (and are accessible through instanceof)
+        if (fieldType instanceof ConstantFieldType || fieldType instanceof DocCountFieldType || fieldType instanceof TimestampFieldType) {
+            return true;
+        }
+
+        var typeName = fieldType.typeName();
+
+        // non-visible fields, check their names
+        boolean found = switch (typeName) {
+            case IdFieldMapper.NAME, SeqNoFieldMapper.NAME -> true;
+            default -> false;
+        };
+
+        if (found) {
+            return true;
+        }
+
+        // check against doc size
+        DocCountTester tester = null;
+        if (fieldType instanceof DateFieldType || fieldType instanceof NumberFieldType) {
+            tester = lr -> {
+                PointValues values = lr.getPointValues(name);
+                return values == null || values.size() == values.getDocCount();
+            };
+        } else if (fieldType instanceof KeywordFieldType) {
+            tester = lr -> {
+                Terms terms = lr.terms(name);
+                return terms == null || terms.size() == terms.getDocCount();
+            };
+        }
+
+        if (tester != null) {
+            // check each leaf
+            for (LeafReaderContext context : r.leaves()) {
+                if (tester.test(context.reader()) == false) {
+                    return false;
+                }
+            }
+            // field is missing or single value
+            return true;
+        }
+
+        // unsupported type - default to MV
+        return false;
+    }
+
+    private interface DocCountTester {
+        Boolean test(LeafReader leafReader) throws IOException;
     }
 
     //
@@ -172,7 +318,10 @@ public class SearchStats {
     }
 
     private interface IndexReaderConsumer {
-        void consume(IndexReader reader) throws IOException;
+        /**
+         * Returns true if the consumer should keep on going, false otherwise.
+         */
+        boolean consume(IndexReader reader) throws IOException;
     }
 
     private boolean doWithContexts(IndexReaderConsumer consumer, boolean acceptsDeletions) {
@@ -183,7 +332,10 @@ public class SearchStats {
                     if (acceptsDeletions == false && reader.hasDeletions()) {
                         return false;
                     }
-                    consumer.consume(reader);
+                    // check if the looping continues or not
+                    if (consumer.consume(reader) == false) {
+                        return false;
+                    }
                 }
             }
             return true;

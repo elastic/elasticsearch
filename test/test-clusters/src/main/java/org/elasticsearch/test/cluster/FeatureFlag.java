@@ -15,7 +15,8 @@ import org.elasticsearch.test.cluster.util.Version;
  * to indicate that this feature is required and should be enabled when appropriate.
  */
 public enum FeatureFlag {
-    TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null);
+    TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
+    FAILURE_STORE_ENABLED("es.failure_store_feature_flag_enabled=true", Version.fromString("8.12.0"), null);
 
     public final String systemProperty;
     public final Version from;

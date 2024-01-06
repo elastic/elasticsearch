@@ -1,11 +1,11 @@
 [[esql-task-management]]
-== {esql} task management
+=== {esql} task management
 
 ++++
 <titleabbrev>Task management</titleabbrev>
 ++++
 
-You can get running {esql} queries with the <<tasks,task management API>>:
+You can list running {esql} queries with the <<tasks,task management API>>:
 
 [source,console,id=esql-task-management-get-all]
 ----

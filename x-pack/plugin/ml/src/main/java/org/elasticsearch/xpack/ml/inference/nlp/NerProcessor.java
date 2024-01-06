@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -88,7 +88,7 @@ public class NerProcessor extends NlpTask.Processor {
     /**
      * Checks labels are valid entity tags and none are duplicated
      */
-    private void validate(List<String> classificationLabels) {
+    private static void validate(List<String> classificationLabels) {
         if (classificationLabels == null || classificationLabels.isEmpty()) {
             return;
         }

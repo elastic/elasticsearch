@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.DoubleArrayVector;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -23,32 +24,32 @@ public class SequenceDoubleBlockSourceOperator extends AbstractBlockSourceOperat
 
     private final double[] values;
 
-    public SequenceDoubleBlockSourceOperator(DoubleStream values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceDoubleBlockSourceOperator(BlockFactory blockFactory, DoubleStream values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceDoubleBlockSourceOperator(DoubleStream values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceDoubleBlockSourceOperator(BlockFactory blockFactory, DoubleStream values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.toArray();
     }
 
-    public SequenceDoubleBlockSourceOperator(List<Double> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceDoubleBlockSourceOperator(BlockFactory blockFactory, List<Double> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceDoubleBlockSourceOperator(List<Double> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceDoubleBlockSourceOperator(BlockFactory blockFactory, List<Double> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.stream().mapToDouble(Double::doubleValue).toArray();
     }
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        final double[] array = new double[length];
+        DoubleVector.FixedBuilder builder = blockFactory.newDoubleVectorFixedBuilder(length);
         for (int i = 0; i < length; i++) {
-            array[i] = values[positionOffset + i];
+            builder.appendDouble(values[positionOffset + i]);
         }
         currentPosition += length;
-        return new Page(new DoubleArrayVector(array, array.length).asBlock());
+        return new Page(builder.build().asBlock());
     }
 
     protected int remaining() {

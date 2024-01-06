@@ -34,15 +34,21 @@ import java.util.stream.Collectors;
 
 public class ContextGeneratorCommon {
     @SuppressForbidden(reason = "retrieving data from an internal API not exposed as part of the REST client")
+    @SuppressWarnings("unchecked")
     public static List<PainlessContextInfo> getContextInfos() throws IOException {
         URLConnection getContextNames = new URL("http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context")
             .openConnection();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, getContextNames.getInputStream());
-        parser.nextToken();
-        parser.nextToken();
-        @SuppressWarnings("unchecked")
-        List<String> contextNames = (List<String>) (Object) parser.list();
-        parser.close();
+        List<String> contextNames;
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY,
+                getContextNames.getInputStream()
+            )
+        ) {
+            parser.nextToken();
+            parser.nextToken();
+            contextNames = (List<String>) (Object) parser.list();
+        }
         ((HttpURLConnection) getContextNames).disconnect();
 
         List<PainlessContextInfo> contextInfos = new ArrayList<>();
@@ -51,9 +57,10 @@ public class ContextGeneratorCommon {
             URLConnection getContextInfo = new URL(
                 "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName
             ).openConnection();
-            parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, getContextInfo.getInputStream());
-            contextInfos.add(PainlessContextInfo.fromXContent(parser));
-            ((HttpURLConnection) getContextInfo).disconnect();
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, getContextInfo.getInputStream())) {
+                contextInfos.add(PainlessContextInfo.fromXContent(parser));
+                ((HttpURLConnection) getContextInfo).disconnect();
+            }
         }
 
         contextInfos.sort(Comparator.comparing(PainlessContextInfo::getName));
@@ -210,7 +217,7 @@ public class ContextGeneratorCommon {
             }
         }
 
-        private <T> Set<T> getCommon(List<PainlessContextInfo> painlessContexts, Function<PainlessContextInfo, List<T>> getter) {
+        private static <T> Set<T> getCommon(List<PainlessContextInfo> painlessContexts, Function<PainlessContextInfo, List<T>> getter) {
             Map<T, Integer> infoCounts = new HashMap<>();
             for (PainlessContextInfo contextInfo : painlessContexts) {
                 for (T info : getter.apply(contextInfo)) {

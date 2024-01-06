@@ -220,8 +220,6 @@ dfs knn vector profiling:
   - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.score: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.compute_max_score_count: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.compute_max_score: 0 }
-  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.advance_count: 0 }
-  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.advance: 0 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.build_scorer_count: 0 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.build_scorer: 0 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.create_weight: 0 }
@@ -230,6 +228,72 @@ dfs knn vector profiling:
   - match: { profile.shards.0.dfs.knn.0.collector.0.name: "SimpleTopScoreDocCollector" }
   - match: { profile.shards.0.dfs.knn.0.collector.0.reason: "search_top_hits" }
   - gt: { profile.shards.0.dfs.knn.0.collector.0.time_in_nanos: 0 }
+
+---
+dfs knn vector profiling with vector_operations_count:
+  - skip:
+      version: ' - 8.11.99'
+      reason: vector_operations_count in dfs profiling added in 8.12.0
+
+  - do:
+      indices.create:
+        index: images
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              image:
+                type: "dense_vector"
+                dims: 3
+                index: true
+                similarity: "l2_norm"
+
+  - do:
+      index:
+        index: images
+        id: "1"
+        refresh: true
+        body:
+          image: [1, 5, -20]
+
+  - do:
+      search:
+        index: images
+        body:
+          profile: true
+          knn:
+            field: "image"
+            query_vector: [-5, 9, -12]
+            k: 1
+            num_candidates: 100
+
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.type: "DocAndScoreQuery" }
+  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScore[100]" }
+  - match: { profile.shards.0.dfs.knn.0.vector_operations_count: 1 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.time_in_nanos: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score_count: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.match_count: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.match: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.shallow_advance_count: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.shallow_advance: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.next_doc_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.next_doc: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.score_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.score: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.compute_max_score_count: 0 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.compute_max_score: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.build_scorer_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.build_scorer: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.create_weight: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.create_weight_count: 0 }
+  - gt: { profile.shards.0.dfs.knn.0.rewrite_time: 0 }
+  - match: { profile.shards.0.dfs.knn.0.collector.0.name: "SimpleTopScoreDocCollector" }
+  - match: { profile.shards.0.dfs.knn.0.collector.0.reason: "search_top_hits" }
+  - gt: { profile.shards.0.dfs.knn.0.collector.0.time_in_nanos: 0 }
+
 
 ---
 dfs profile for search with dfs_query_then_fetch:

@@ -78,7 +78,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        this.innerHits = in.readList(InnerHitBuilder::new);
+        this.innerHits = in.readCollectionAsList(InnerHitBuilder::new);
     }
 
     @Override
@@ -204,6 +204,6 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             );
         }
 
-        return new CollapseContext(field, fieldType, innerHits);
+        return new CollapseContext(field, fieldType);
     }
 }

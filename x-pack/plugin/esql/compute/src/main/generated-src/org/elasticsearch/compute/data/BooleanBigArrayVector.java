@@ -7,19 +7,23 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed BooleanArray.
+ * Vector implementation that defers to an enclosed {@link BitArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class BooleanBigArrayVector extends AbstractVector implements BooleanVector, Releasable {
 
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
+
     private final BitArray values;
 
-    public BooleanBigArrayVector(BitArray values, int positionCount) {
-        super(positionCount);
+    public BooleanBigArrayVector(BitArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -44,12 +48,26 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     }
 
     @Override
-    public BooleanVector filter(int... positions) {
-        return new FilterBooleanVector(this, positions);
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
     @Override
-    public void close() {
+    public BooleanVector filter(int... positions) {
+        var blockFactory = blockFactory();
+        final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
+        for (int i = 0; i < positions.length; i++) {
+            if (values.get(positions[i])) {
+                filtered.set(i);
+            }
+        }
+        return new BooleanBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BitArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

@@ -58,7 +58,7 @@ public abstract class InternalMappedSignificantTerms<
         subsetSize = in.readVLong();
         supersetSize = in.readVLong();
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
-        buckets = in.readList(stream -> bucketReader.read(stream, subsetSize, supersetSize, format));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, subsetSize, supersetSize, format));
     }
 
     @Override

@@ -43,7 +43,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     public ResetFeatureStateResponse(StreamInput in) throws IOException {
         super(in);
-        this.resetFeatureStateStatusList = in.readList(ResetFeatureStateStatus::new);
+        this.resetFeatureStateStatusList = in.readCollectionAsList(ResetFeatureStateStatus::new);
     }
 
     /**

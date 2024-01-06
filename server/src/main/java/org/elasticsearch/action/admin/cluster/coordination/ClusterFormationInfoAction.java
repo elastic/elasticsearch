@@ -130,7 +130,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
                 transportService,
                 actionFilters,
                 ClusterFormationInfoAction.Request::new,
-                ThreadPool.Names.CLUSTER_COORDINATION
+                transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION)
             );
             this.coordinator = coordinator;
         }

@@ -275,3 +275,13 @@ The service account used to access the bucket must have the "Writer" access to t
 3. Go to the https://console.cloud.google.com/storage/browser[Storage Browser].
 4. Select the bucket and "Edit bucket permission".
 5. The service account must be configured as a "User" with "Writer" access.
+
+[[repository-gcs-linearizable-registers]]
+==== Linearizable register implementation
+
+The linearizable register implementation for GCS repositories is based on GCS's
+support for strongly consistent preconditions on put-blob operations. To
+perform a compare-and-exchange operation on a register, {es} retrieves the
+register blob and its current generation, and then uploads the updated blob
+using the observed generation as its precondition. The precondition ensures
+that the generation has not changed in the meantime.

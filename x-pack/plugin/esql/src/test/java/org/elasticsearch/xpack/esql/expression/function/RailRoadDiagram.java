@@ -20,7 +20,6 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRElement;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
 import java.awt.Font;
@@ -43,12 +42,16 @@ public class RailRoadDiagram {
      */
     private static final LazyInitializable<Font, IOException> FONT = new LazyInitializable<>(() -> loadFont().deriveFont(20.0F));
 
+    /**
+     * Generate a railroad diagram for a function. The output would look like
+     * {@code FOO(a, b, c)}.
+     */
     static String functionSignature(FunctionDefinition definition) throws IOException {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
         boolean first = true;
-        List<String> args = ShowFunctions.signature(definition);
+        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
         for (String arg : args) {
             if (arg.endsWith("...")) {
                 expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));
@@ -62,10 +65,34 @@ public class RailRoadDiagram {
             }
         }
         expressions.add(new Syntax(")"));
-        net.nextencia.rrdiagram.grammar.model.Expression rr = new Sequence(
-            expressions.toArray(net.nextencia.rrdiagram.grammar.model.Expression[]::new)
-        );
-        RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("test", rr));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
+     * Generate a railroad diagram for binary operator. The output would look like
+     * {@code lhs + rhs}.
+     */
+    static String binaryOperator(String operator) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal("lhs"));
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal("rhs"));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
+     * Generate a railroad diagram for unary operator. The output would look like
+     * {@code -v}.
+     */
+    static String unaryOperator(String operator) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal("v"));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    private static String toSvg(Expression exp) throws IOException {
+        RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("", exp));
 
         RRDiagramToSVG toSvg = new RRDiagramToSVG();
         toSvg.setSpecialSequenceShape(RRDiagramToSVG.BoxShape.RECTANGLE);
@@ -75,20 +102,29 @@ public class RailRoadDiagram {
         toSvg.setLiteralFont(FONT.getOrCompute());
 
         toSvg.setRuleFont(FONT.getOrCompute());
-        /*
-         * "Tighten" the styles in the SVG so they beat the styles sitting in the
-         * main page. We need this because we're embedding the SVG into the page.
-         * We need to embed the SVG into the page so it can get fonts loaded in the
-         * primary stylesheet. We need to load a font so they images are consistent
-         * on all clients.
-         */
-        return toSvg.convert(rrDiagram).replace(".c", "#guide .c").replace(".k", "#guide .k").replace(".s", "#guide .s");
+        return tightenStyles(toSvg.convert(rrDiagram));
+    }
+
+    /**
+     * "Tighten" the styles in the SVG so they beat the styles sitting in the
+     * main page. We need this because we're embedding the SVG into the page.
+     * We need to embed the SVG into the page so it can get fonts loaded in the
+     * primary stylesheet. We need to load a font so they images are consistent
+     * on all clients.
+     */
+    private static String tightenStyles(String svg) {
+        for (String c : new String[] { "c", "k", "s", "j", "l" }) {
+            svg = svg.replace("." + c, "#guide ." + c);
+        }
+        return svg;
     }
 
     /**
      * Like a literal but with light grey text for a more muted appearance for syntax.
      */
     private static class Syntax extends Literal {
+        private static final String LITERAL_CLASS = "l";
+        private static final String SYNTAX_CLASS = "lsyn";
         private static final String LITERAL_TEXT_CLASS = "j";
         private static final String SYNTAX_TEXT_CLASS = "syn";
         private static final String SYNTAX_GREY = "8D8D8D";
@@ -102,13 +138,20 @@ public class RailRoadDiagram {
 
         @Override
         protected RRElement toRRElement(GrammarToRRDiagram grammarToRRDiagram) {
-            // This performs a monumentally rude hack to replace the text color of this element.
+            /*
+             * This performs a monumentally rude hack to replace the text color of this element.
+             * It renders a "literal" element but intercepts the layer that defines it's css class
+             * and replaces it with our own.
+             */
             return new RRText(RRText.Type.LITERAL, text, null) {
                 @Override
                 protected void toSVG(RRDiagramToSVG rrDiagramToSVG, int xOffset, int yOffset, RRDiagram.SvgContent svgContent) {
                     super.toSVG(rrDiagramToSVG, xOffset, yOffset, new RRDiagram.SvgContent() {
                         @Override
                         public String getDefinedCSSClass(String style) {
+                            if (style.equals(LITERAL_CLASS)) {
+                                return svgContent.getDefinedCSSClass(SYNTAX_CLASS);
+                            }
                             if (style.equals(LITERAL_TEXT_CLASS)) {
                                 return svgContent.getDefinedCSSClass(SYNTAX_TEXT_CLASS);
                             }
@@ -117,11 +160,18 @@ public class RailRoadDiagram {
 
                         @Override
                         public String setCSSClass(String cssClass, String definition) {
-                            if (false == cssClass.equals(LITERAL_TEXT_CLASS)) {
-                                return svgContent.setCSSClass(cssClass, definition);
+                            if (cssClass.equals(LITERAL_CLASS)) {
+                                svgContent.setCSSClass(cssClass, definition);
+                                return svgContent.setCSSClass(SYNTAX_CLASS, definition);
                             }
-                            svgContent.setCSSClass(cssClass, definition);
-                            return svgContent.setCSSClass(SYNTAX_TEXT_CLASS, definition.replace("fill:#000000", "fill:#" + SYNTAX_GREY));
+                            if (cssClass.equals(LITERAL_TEXT_CLASS)) {
+                                svgContent.setCSSClass(cssClass, definition);
+                                return svgContent.setCSSClass(
+                                    SYNTAX_TEXT_CLASS,
+                                    definition.replace("fill:#000000", "fill:#" + SYNTAX_GREY)
+                                );
+                            }
+                            return svgContent.setCSSClass(cssClass, definition);
                         }
 
                         @Override

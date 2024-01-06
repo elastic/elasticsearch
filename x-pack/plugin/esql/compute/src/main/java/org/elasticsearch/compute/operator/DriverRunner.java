@@ -9,20 +9,23 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Run a set of drivers to completion.
  */
 public abstract class DriverRunner {
+    private final ThreadContext threadContext;
+
+    public DriverRunner(ThreadContext threadContext) {
+        this.threadContext = threadContext;
+    }
+
     /**
      * Start a driver.
      */
@@ -33,8 +36,10 @@ public abstract class DriverRunner {
      */
     public void runToCompletion(List<Driver> drivers, ActionListener<Void> listener) {
         AtomicReference<Exception> failure = new AtomicReference<>();
+        var responseHeadersCollector = new ResponseHeadersCollector(threadContext);
         CountDown counter = new CountDown(drivers.size());
-        for (Driver driver : drivers) {
+        for (int i = 0; i < drivers.size(); i++) {
+            Driver driver = drivers.get(i);
             ActionListener<Void> driverListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -69,14 +74,9 @@ public abstract class DriverRunner {
                 }
 
                 private void done() {
+                    responseHeadersCollector.collect();
                     if (counter.countDown()) {
-                        for (Driver d : drivers) {
-                            if (d.status().status() == DriverStatus.Status.QUEUED) {
-                                d.close();
-                            } else {
-                                Releasables.close(d.driverContext().getSnapshot().releasables());
-                            }
-                        }
+                        responseHeadersCollector.finish();
                         Exception error = failure.get();
                         if (error != null) {
                             listener.onFailure(error);
@@ -89,34 +89,5 @@ public abstract class DriverRunner {
 
             start(driver, driverListener);
         }
-    }
-
-    /**
-     * Run all the of the listed drivers in the supplier {@linkplain ThreadPool}.
-     * @return the headers added to the context while running the drivers
-     */
-    public static Map<String, List<String>> runToCompletion(ThreadPool threadPool, int maxIterations, List<Driver> drivers) {
-        DriverRunner runner = new DriverRunner() {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.executor("esql"), driver, maxIterations, driverListener);
-            }
-        };
-        AtomicReference<Map<String, List<String>>> responseHeaders = new AtomicReference<>();
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        runner.runToCompletion(drivers, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                responseHeaders.set(threadPool.getThreadContext().getResponseHeaders());
-                future.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                future.onFailure(e);
-            }
-        });
-        future.actionGet();
-        return responseHeaders.get();
     }
 }

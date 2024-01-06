@@ -37,7 +37,8 @@ public class ShardFetchRequest extends TransportRequest {
 
     private final int[] docIds;
 
-    private ScoreDoc lastEmittedDoc;
+    @Nullable
+    private final ScoreDoc lastEmittedDoc;
 
     public ShardFetchRequest(ShardSearchContextId contextId, List<Integer> docIds, ScoreDoc lastEmittedDoc) {
         this.contextId = contextId;
@@ -60,6 +61,8 @@ public class ShardFetchRequest extends TransportRequest {
             lastEmittedDoc = Lucene.readScoreDoc(in);
         } else if (flag != 0) {
             throw new IOException("Unknown flag: " + flag);
+        } else {
+            lastEmittedDoc = null;
         }
     }
 

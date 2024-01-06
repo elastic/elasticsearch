@@ -229,9 +229,9 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
 
     public CategorizationAnalyzerConfig(StreamInput in) throws IOException {
         analyzer = in.readOptionalString();
-        charFilters = in.readList(NameOrDefinition::new);
+        charFilters = in.readCollectionAsList(NameOrDefinition::new);
         tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-        tokenFilters = in.readList(NameOrDefinition::new);
+        tokenFilters = in.readCollectionAsList(NameOrDefinition::new);
     }
 
     @Override
@@ -294,11 +294,14 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      */
     public Map<String, Object> asMap(NamedXContentRegistry xContentRegistry) throws IOException {
         String strRep = Strings.toString(this);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-            strRep
-        );
-        return parser.mapOrdered();
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                strRep
+            )
+        ) {
+            return parser.mapOrdered();
+        }
     }
 
     @Override

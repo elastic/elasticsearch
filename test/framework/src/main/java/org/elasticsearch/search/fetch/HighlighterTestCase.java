@@ -101,7 +101,8 @@ public class HighlighterTestCase extends MapperServiceTestCase {
      */
     protected static void assertHighlights(Map<String, HighlightField> highlights, String field, String... fragments) {
         assertNotNull("No highlights reported for field [" + field + "]", highlights.get(field));
-        List<String> actualFragments = Arrays.stream(highlights.get(field).getFragments()).map(Text::toString).collect(Collectors.toList());
+        HighlightField highlightField = highlights.get(field);
+        List<String> actualFragments = Arrays.stream(highlightField.fragments()).map(Text::toString).collect(Collectors.toList());
         List<String> expectedFragments = List.of(fragments);
         assertEquals(expectedFragments, actualFragments);
     }

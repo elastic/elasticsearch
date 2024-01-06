@@ -9,7 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
@@ -17,17 +17,16 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -42,13 +41,12 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -67,7 +65,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
-    private final SearchResponseSections internalResponse;
+    private final SearchHits hits;
+    private final Aggregations aggregations;
+    private final Suggest suggest;
+    private final SearchProfileResults profileResults;
+    private final boolean timedOut;
+    private final Boolean terminatedEarly;
+    private final int numReducePhases;
     private final String scrollId;
     private final String pointInTimeId;
     private final int totalShards;
@@ -79,7 +83,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
-        internalResponse = new InternalSearchResponse(in);
+        this.hits = new SearchHits(in);
+        this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
+        this.suggest = in.readBoolean() ? new Suggest(in) : null;
+        this.timedOut = in.readBoolean();
+        this.terminatedEarly = in.readOptionalBoolean();
+        this.profileResults = in.readOptionalWriteable(SearchProfileResults::new);
+        this.numReducePhases = in.readVInt();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         int size = in.readVInt();
@@ -95,15 +105,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            pointInTimeId = in.readOptionalString();
-        } else {
-            pointInTimeId = null;
-        }
+        pointInTimeId = in.readOptionalString();
     }
 
     public SearchResponse(
-        SearchResponseSections internalResponse,
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
         String scrollId,
         int totalShards,
         int successfulShards,
@@ -112,11 +124,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
-        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters, null);
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            null
+        );
     }
 
     public SearchResponse(
-        SearchResponseSections internalResponse,
+        SearchResponseSections searchResponseSections,
         String scrollId,
         int totalShards,
         int successfulShards,
@@ -126,7 +154,49 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         Clusters clusters,
         String pointInTimeId
     ) {
-        this.internalResponse = internalResponse;
+        this(
+            searchResponseSections.hits,
+            searchResponseSections.aggregations,
+            searchResponseSections.suggest,
+            searchResponseSections.timedOut,
+            searchResponseSections.terminatedEarly,
+            searchResponseSections.profileResults,
+            searchResponseSections.numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId
+        );
+    }
+
+    public SearchResponse(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
+        this.hits = hits;
+        this.aggregations = aggregations;
+        this.suggest = suggest;
+        this.profileResults = profileResults;
+        this.timedOut = timedOut;
+        this.terminatedEarly = terminatedEarly;
+        this.numReducePhases = numReducePhases;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
         this.clusters = clusters;
@@ -144,15 +214,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
 
-    public SearchResponseSections getInternalResponse() {
-        return internalResponse;
-    }
-
     /**
      * The search hits.
      */
     public SearchHits getHits() {
-        return internalResponse.hits();
+        return hits;
     }
 
     /**
@@ -160,7 +226,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * either {@code null} or {@link InternalAggregations#EMPTY}.
      */
     public @Nullable Aggregations getAggregations() {
-        return internalResponse.aggregations();
+        return aggregations;
     }
 
     /**
@@ -171,14 +237,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     public Suggest getSuggest() {
-        return internalResponse.suggest();
+        return suggest;
     }
 
     /**
      * Has the search operation timed out.
      */
     public boolean isTimedOut() {
-        return internalResponse.timedOut();
+        return timedOut;
     }
 
     /**
@@ -186,14 +252,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * <code>terminateAfter</code>
      */
     public Boolean isTerminatedEarly() {
-        return internalResponse.terminatedEarly();
+        return terminatedEarly;
     }
 
     /**
      * Returns the number of reduce phases applied to obtain this search response
      */
     public int getNumReducePhases() {
-        return internalResponse.getNumReducePhases();
+        return numReducePhases;
     }
 
     /**
@@ -261,7 +327,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     @Nullable
     public Map<String, SearchProfileShardResult> getProfileResults() {
-        return internalResponse.profile();
+        if (profileResults == null) {
+            return Collections.emptyMap();
+        }
+        return profileResults.getShardResults();
     }
 
     /**
@@ -286,7 +355,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return Iterators.concat(
             ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
             Iterators.single(clusters),
-            internalResponse.toXContentChunked(params)
+            Iterators.concat(
+                Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
+                Iterators.single((ToXContent) (b, p) -> {
+                    if (aggregations != null) {
+                        aggregations.toXContent(b, p);
+                    }
+                    return b;
+                }),
+                Iterators.single((b, p) -> {
+                    if (suggest != null) {
+                        suggest.toXContent(b, p);
+                    }
+                    return b;
+                }),
+                Iterators.single((b, p) -> {
+                    if (profileResults != null) {
+                        profileResults.toXContent(b, p);
+                    }
+                    return b;
+                })
+            )
         );
     }
 
@@ -387,7 +476,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                             }
                         } else if (token == Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                                while (parser.nextToken() != Token.END_ARRAY) {
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
                             } else {
@@ -404,17 +493,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
         }
-        SearchResponseSections searchResponseSections = new SearchResponseSections(
+        return new SearchResponse(
             hits,
             aggs,
             suggest,
             timedOut,
             terminatedEarly,
             profile,
-            numReducePhases
-        );
-        return new SearchResponse(
-            searchResponseSections,
+            numReducePhases,
             scrollId,
             totalShards,
             successfulShards,
@@ -428,7 +514,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        internalResponse.writeTo(out);
+        hits.writeTo(out);
+        out.writeOptionalWriteable((InternalAggregations) aggregations);
+        out.writeOptionalWriteable(suggest);
+        out.writeBoolean(timedOut);
+        out.writeOptionalBoolean(terminatedEarly);
+        out.writeOptionalWriteable(profileResults);
+        out.writeVInt(numReducePhases);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
 
@@ -440,9 +532,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            out.writeOptionalString(pointInTimeId);
-        }
+        out.writeOptionalString(pointInTimeId);
     }
 
     @Override
@@ -455,33 +545,37 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * and how many of them were skipped and further details in a Map of Cluster objects
      * (when doing a cross-cluster search).
      */
-    public static class Clusters implements ToXContentFragment, Writeable {
+    public static final class Clusters implements ToXContentFragment, Writeable {
 
         public static final Clusters EMPTY = new Clusters(0, 0, 0);
 
         static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
+        static final ParseField TOTAL_FIELD = new ParseField("total");
         static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
         static final ParseField SKIPPED_FIELD = new ParseField("skipped");
-        static final ParseField TOTAL_FIELD = new ParseField("total");
+        static final ParseField RUNNING_FIELD = new ParseField("running");
+        static final ParseField PARTIAL_FIELD = new ParseField("partial");
+        static final ParseField FAILED_FIELD = new ParseField("failed");
         static final ParseField DETAILS_FIELD = new ParseField("details");
 
         private final int total;
-        private final int successful; // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
-        private final int skipped;    // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
+        private final int successful;   // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
+        private final int skipped;      // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
 
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
         // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
-        // updates to the Cluster occur by CAS swapping in new Cluster objects into the AtomicReference in the map.
-        private final Map<String, AtomicReference<Cluster>> clusterInfo;
+        // updates to the Cluster occur with the updateCluster method that given the key to map transforms an
+        // old Cluster Object to a new Cluster Object with the remapping function.
+        private final Map<String, Cluster> clusterInfo;
 
         // not Writeable since it is only needed on the (primary) CCS coordinator
-        private transient Boolean ccsMinimizeRoundtrips;
+        private final transient Boolean ccsMinimizeRoundtrips;
 
         /**
          * For use with cross-cluster searches.
-         * When minimizing roundtrips, the number of successful and skipped clusters is not known until
-         * the end of the search and it the information in SearchResponse.Cluster object will be updated
-         * as each cluster returns.
+         * When minimizing roundtrips, the number of successful, skipped, running, partial and failed clusters
+         * is not known until the end of the search and it the information in SearchResponse.Cluster object
+         * will be updated as each cluster returns.
          * @param localIndices The localIndices to be searched - null if no local indices are to be searched
          * @param remoteClusterIndices mapping of clusterAlias -> OriginalIndices for each remote cluster
          * @param ccsMinimizeRoundtrips whether minimizing roundtrips for the CCS
@@ -496,22 +590,23 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ) {
             assert remoteClusterIndices.size() > 0 : "At least one remote cluster must be passed into this Cluster constructor";
             this.total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
+            assert total >= 1 : "No local indices or remote clusters passed in";
             this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
             this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-            Map<String, AtomicReference<Cluster>> m = new HashMap<>();
+            Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
             if (localIndices != null) {
                 String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
                 Cluster c = new Cluster(localKey, String.join(",", localIndices.indices()), false);
-                m.put(localKey, new AtomicReference<>(c));
+                m.put(localKey, c);
             }
             for (Map.Entry<String, OriginalIndices> remote : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remote.getKey();
                 boolean skipUnavailable = skipUnavailablePredicate.test(clusterAlias);
                 Cluster c = new Cluster(clusterAlias, String.join(",", remote.getValue().indices()), skipUnavailable);
-                m.put(clusterAlias, new AtomicReference<>(c));
+                m.put(clusterAlias, c);
             }
-            this.clusterInfo = Collections.unmodifiableMap(m);
+            this.clusterInfo = m;
         }
 
         /**
@@ -535,31 +630,52 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         public Clusters(StreamInput in) throws IOException {
             this.total = in.readVInt();
-            this.successful = in.readVInt();
-            this.skipped = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
-                List<Cluster> clusterList = in.readList(Cluster::new);
+            int successfulTemp = in.readVInt();
+            int skippedTemp = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+                List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
                     this.clusterInfo = Collections.emptyMap();
+                    this.successful = successfulTemp;
+                    this.skipped = skippedTemp;
                 } else {
-                    Map<String, AtomicReference<Cluster>> m = new HashMap<>();
-                    clusterList.forEach(c -> m.put(c.getClusterAlias(), new AtomicReference<>(c)));
-                    this.clusterInfo = Collections.unmodifiableMap(m);
+                    Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
+                    clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
+                    this.clusterInfo = m;
+                    this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
+                    this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
                 }
             } else {
+                this.successful = successfulTemp;
+                this.skipped = skippedTemp;
                 this.clusterInfo = Collections.emptyMap();
             }
+            int running = getClusterStateCount(Cluster.Status.RUNNING);
+            int partial = getClusterStateCount(Cluster.Status.PARTIAL);
+            int failed = getClusterStateCount(Cluster.Status.FAILED);
+            this.ccsMinimizeRoundtrips = false;
             assert total >= 0 : "total is negative: " + total;
-            assert total >= successful + skipped
-                : "successful + skipped is larger than total. total: " + total + " successful: " + successful + " skipped: " + skipped;
+            assert total == successful + skipped + running + partial + failed
+                : "successful + skipped + running + partial + failed is not equal to total. total: "
+                    + total
+                    + " successful: "
+                    + successful
+                    + " skipped: "
+                    + skipped
+                    + " running: "
+                    + running
+                    + " partial: "
+                    + partial
+                    + " failed: "
+                    + failed;
         }
 
-        private Clusters(Map<String, AtomicReference<Cluster>> clusterInfoMap) {
+        private Clusters(Map<String, Cluster> clusterInfoMap) {
             assert clusterInfoMap.size() > 0 : "this constructor should not be called with an empty Cluster info map";
             this.total = clusterInfoMap.size();
             this.clusterInfo = clusterInfoMap;
-            this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
-            this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
+            this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
+            this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
             // should only be called if "details" section of fromXContent is present (for ccsMinimizeRoundtrips)
             this.ccsMinimizeRoundtrips = true;
         }
@@ -569,9 +685,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
                 if (clusterInfo != null) {
-                    List<Cluster> clusterList = clusterInfo.values().stream().map(AtomicReference::get).toList();
+                    List<Cluster> clusterList = clusterInfo.values().stream().toList();
                     out.writeCollection(clusterList);
                 } else {
                     out.writeCollection(Collections.emptyList());
@@ -584,13 +700,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             if (total > 0) {
                 builder.startObject(_CLUSTERS_FIELD.getPreferredName());
                 builder.field(TOTAL_FIELD.getPreferredName(), total);
-                builder.field(SUCCESSFUL_FIELD.getPreferredName(), getSuccessful());
-                builder.field(SKIPPED_FIELD.getPreferredName(), getSkipped());
-                // TODO: add FAILED_FIELD
+                builder.field(SUCCESSFUL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SUCCESSFUL));
+                builder.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
+                builder.field(RUNNING_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.RUNNING));
+                builder.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
+                builder.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
                 if (clusterInfo.size() > 0) {
                     builder.startObject("details");
-                    for (AtomicReference<Cluster> cluster : clusterInfo.values()) {
-                        cluster.get().toXContent(builder, params);
+                    for (Cluster cluster : clusterInfo.values()) {
+                        cluster.toXContent(builder, params);
                     }
                     builder.endObject();
                 }
@@ -602,21 +720,30 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public static Clusters fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-            int successful = -1;
             int total = -1;
+            int successful = -1;
             int skipped = -1;
-            Map<String, AtomicReference<Cluster>> clusterInfoMap = new HashMap<>();
+            int running = 0;    // 0 for BWC
+            int partial = 0;    // 0 for BWC
+            int failed = 0;     // 0 for BWC
+            Map<String, Cluster> clusterInfoMap = ConcurrentCollections.newConcurrentMap();
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        successful = parser.intValue();
-                    } else if (Clusters.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (Clusters.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         total = parser.intValue();
+                    } else if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        successful = parser.intValue();
                     } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         skipped = parser.intValue();
+                    } else if (Clusters.RUNNING_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        running = parser.intValue();
+                    } else if (Clusters.PARTIAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        partial = parser.intValue();
+                    } else if (Clusters.FAILED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        failed = parser.intValue();
                     } else {
                         parser.skipChildren();
                     }
@@ -628,7 +755,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                                 currentDetailsFieldName = parser.currentName();  // cluster alias
                             } else if (token == Token.START_OBJECT) {
                                 Cluster c = Cluster.fromXContent(currentDetailsFieldName, parser);
-                                clusterInfoMap.put(currentDetailsFieldName, new AtomicReference<>(c));
+                                clusterInfoMap.put(currentDetailsFieldName, c);
                             } else {
                                 parser.skipChildren();
                             }
@@ -641,6 +768,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
             if (clusterInfoMap.isEmpty()) {
+                assert running == 0 && partial == 0 && failed == 0
+                    : "Non cross-cluster should have counter for running, partial and failed equal to 0";
                 return new Clusters(total, successful, skipped);
             } else {
                 return new Clusters(clusterInfoMap);
@@ -655,15 +784,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * @return how many total clusters the search was executed successfully on
+         * @param status the state you want to query
+         * @return how many clusters are currently in a specific state
          */
-        public int getSuccessful() {
+        public int getClusterStateCount(Cluster.Status status) {
             if (clusterInfo.isEmpty()) {
-                return successful;
+                return switch (status) {
+                    case SUCCESSFUL -> successful;
+                    case SKIPPED -> skipped;
+                    default -> 0;
+                };
             } else {
-                return determineCountFromClusterInfo(
-                    cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL || cluster.getStatus() == Cluster.Status.PARTIAL
-                );
+                return determineCountFromClusterInfo(cluster -> cluster.getStatus() == status);
             }
         }
 
@@ -675,20 +807,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @return count of clusters matching the predicate
          */
         private int determineCountFromClusterInfo(Predicate<Cluster> predicate) {
-            return (int) clusterInfo.values().stream().filter(c -> predicate.test(c.get())).count();
-        }
-
-        /**
-         * @return how many total clusters were used during the execution of the search request
-         */
-        public int getSkipped() {
-            if (clusterInfo.isEmpty()) {
-                return skipped;
-            } else {
-                return determineCountFromClusterInfo(cluster ->
-                // TODO: change this after adding an XContent field for FAILED clusters
-                cluster.getStatus() == Cluster.Status.SKIPPED || cluster.getStatus() == Cluster.Status.FAILED);
-            }
+            return (int) clusterInfo.values().stream().filter(predicate).count();
         }
 
         /**
@@ -702,8 +821,31 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @param clusterAlias The cluster alias as specified in the cluster collection
          * @return Cluster object associated with teh clusterAlias or null if not present
          */
-        public AtomicReference<Cluster> getCluster(String clusterAlias) {
+        public Cluster getCluster(String clusterAlias) {
             return clusterInfo.get(clusterAlias);
+        }
+
+        /**
+         * Utility to swap a Cluster object. Guidelines for the remapping function:
+         * <ul>
+         * <li> The remapping function should return a new Cluster object to swap it for
+         * the existing one.</li>
+         * <li> If in the remapping function you decide to abort the swap you must return
+         * the original Cluster object to keep the map unchanged.</li>
+         * <li> Do not return {@code null}. If the remapping function returns {@code null},
+         * the mapping is removed (or remains absent if initially absent).</li>
+         * <li> If the remapping function itself throws an (unchecked) exception, the exception
+         * is rethrown, and the current mapping is left unchanged. Throwing exception therefore
+         * is OK, but it is generally discouraged.</li>
+         * <li> The remapping function may be called multiple times in a CAS fashion underneath,
+         * make sure that is safe to do so.</li>
+         * </ul>
+         * @param clusterAlias key with which the specified value is associated
+         * @param remappingFunction function to swap the oldCluster to a newCluster
+         * @return the new Cluster object
+         */
+        public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
+            return clusterInfo.compute(clusterAlias, remappingFunction);
         }
 
         @Override
@@ -715,17 +857,41 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 return false;
             }
             Clusters clusters = (Clusters) o;
-            return total == clusters.total && successful == clusters.successful && skipped == clusters.skipped;
+            return total == clusters.total
+                && getClusterStateCount(Cluster.Status.SUCCESSFUL) == clusters.getClusterStateCount(Cluster.Status.SUCCESSFUL)
+                && getClusterStateCount(Cluster.Status.SKIPPED) == clusters.getClusterStateCount(Cluster.Status.SKIPPED)
+                && getClusterStateCount(Cluster.Status.RUNNING) == clusters.getClusterStateCount(Cluster.Status.RUNNING)
+                && getClusterStateCount(Cluster.Status.PARTIAL) == clusters.getClusterStateCount(Cluster.Status.PARTIAL)
+                && getClusterStateCount(Cluster.Status.FAILED) == clusters.getClusterStateCount(Cluster.Status.FAILED);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(total, successful, skipped);
+            return Objects.hash(
+                total,
+                getClusterStateCount(Cluster.Status.SUCCESSFUL),
+                getClusterStateCount(Cluster.Status.SKIPPED),
+                getClusterStateCount(Cluster.Status.RUNNING),
+                getClusterStateCount(Cluster.Status.PARTIAL),
+                getClusterStateCount(Cluster.Status.FAILED)
+            );
         }
 
         @Override
         public String toString() {
-            return "Clusters{total=" + total + ", successful=" + getSuccessful() + ", skipped=" + getSkipped() + '}';
+            return "Clusters{total="
+                + total
+                + ", successful="
+                + getClusterStateCount(Cluster.Status.SUCCESSFUL)
+                + ", skipped="
+                + getClusterStateCount(Cluster.Status.SKIPPED)
+                + ", running="
+                + getClusterStateCount(Cluster.Status.RUNNING)
+                + ", partial="
+                + getClusterStateCount(Cluster.Status.PARTIAL)
+                + ", failed="
+                + getClusterStateCount(Cluster.Status.FAILED)
+                + '}';
         }
 
         /**
@@ -733,8 +899,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *              or any Cluster is marked as timedOut.
          */
         public boolean hasPartialResults() {
-            for (AtomicReference<Cluster> clusterRef : clusterInfo.values()) {
-                Cluster cluster = clusterRef.get();
+            for (Cluster cluster : clusterInfo.values()) {
                 switch (cluster.getStatus()) {
                     case PARTIAL, SKIPPED, FAILED, RUNNING -> {
                         return true;
@@ -884,8 +1049,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 this.took = new TimeValue(took);
             }
             this.timedOut = in.readBoolean();
-            this.failures = Collections.unmodifiableList(in.readList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
+            this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_066)) {
                 this.skipUnavailable = in.readBoolean();
             } else {
                 this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
@@ -910,7 +1075,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             private List<ShardSearchFailure> failures;
             private TimeValue took;
             private Boolean timedOut;
-            private Cluster original;
+            private final Cluster original;
 
             public Builder(Cluster copyFrom) {
                 this.original = copyFrom;
@@ -990,7 +1155,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_067)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESP_SKIP_UNAVAILABLE_ADDED)) {
                 out.writeBoolean(skipUnavailable);
             }
         }
@@ -1092,7 +1257,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     }
                 } else if (token == Token.START_ARRAY) {
                     if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                        while (parser.nextToken() != Token.END_ARRAY) {
                             failures.add(ShardSearchFailure.fromXContent(parser));
                         }
                     } else {
@@ -1202,18 +1367,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
-        SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-            searchHits,
+        return new SearchResponse(
+            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
-            null,
             null,
             false,
             null,
-            0
-        );
-        return new SearchResponse(
-            internalSearchResponse,
+            null,
+            0,
             null,
             0,
             0,

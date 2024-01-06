@@ -10,14 +10,17 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of LongBlocks.
+ * Builder for {@link LongVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class LongVectorBuilder extends AbstractVectorBuilder implements LongVector.Builder {
 
     private long[] values;
 
-    LongVectorBuilder(int estimatedSize) {
+    LongVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new long[Math.max(estimatedSize, 2)];
     }
 
@@ -27,6 +30,11 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
         values[valueCount] = value;
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Long.BYTES;
     }
 
     @Override
@@ -41,12 +49,17 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
 
     @Override
     public LongVector build() {
+        finish();
+        LongVector vector;
         if (valueCount == 1) {
-            return new ConstantLongVector(values[0], 1);
+            vector = blockFactory.newConstantLongBlockWith(values[0], 1, estimatedBytes).asVector();
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = blockFactory.newLongArrayVector(values, valueCount, estimatedBytes);
         }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
-        return new LongArrayVector(values, valueCount);
+        built();
+        return vector;
     }
 }

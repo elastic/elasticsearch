@@ -54,13 +54,11 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     ) {
         super(
             WatcherStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            WatcherStatsRequest::new,
             WatcherStatsRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.lifeCycleService = lifeCycleService;
         this.executionService = executionService;

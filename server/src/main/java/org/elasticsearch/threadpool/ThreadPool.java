@@ -454,16 +454,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     /**
-     * @deprecated Use {@link #schedule(Runnable, TimeValue, Executor)} instead.
-     */
-    @Override
-    @SuppressWarnings("removal")
-    @Deprecated(forRemoval = true)
-    public final ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
-        return schedule(command, delay, executor(executor));
-    }
-
-    /**
      * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
      *
      * @param command the command to run
@@ -513,15 +503,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return new ScheduledCancellableAdapter(scheduler.schedule(toSchedule, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
-    /**
-     * @deprecated Use {@link #scheduleUnlessShuttingDown(TimeValue, Executor, Runnable)} instead.
-     */
-    @SuppressWarnings("removal")
-    @Deprecated(forRemoval = true)
-    public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
-        scheduleUnlessShuttingDown(delay, executor(executor), command);
-    }
-
     public void scheduleUnlessShuttingDown(TimeValue delay, Executor executor, Runnable command) {
         try {
             schedule(command, delay, executor);
@@ -540,16 +521,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 throw e;
             }
         }
-    }
-
-    /**
-     * @deprecated Use {@link #scheduleWithFixedDelay(Runnable, TimeValue, Executor)} instead.
-     */
-    @SuppressWarnings("removal")
-    @Deprecated(forRemoval = true)
-    @Override
-    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return scheduleWithFixedDelay(command, interval, executor(executor));
     }
 
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {

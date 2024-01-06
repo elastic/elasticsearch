@@ -151,11 +151,6 @@ public abstract class AggregationContext implements Releasable {
     public abstract Set<String> getMatchingFieldNames(String pattern);
 
     /**
-     * Returns true if the field identified by the provided name is mapped, false otherwise
-     */
-    public abstract boolean isFieldMapped(String field);
-
-    /**
      * Compile a script.
      */
     public abstract <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context);
@@ -475,11 +470,6 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public boolean isFieldMapped(String field) {
-            return context.isFieldMapped(field);
-        }
-
-        @Override
         public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> scriptContext) {
             return context.compile(script, scriptContext);
         }
@@ -552,7 +542,9 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public void removeReleasable(Aggregator aggregator) {
+        public synchronized void removeReleasable(Aggregator aggregator) {
+            // Removing an aggregator is done after calling Aggregator#buildTopLevel which happens on an executor thread.
+            // We need to synchronize the removal because he AggregatorContext it is shared between executor threads.
             assert releaseMe.contains(aggregator)
                 : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
             releaseMe.remove(aggregator);

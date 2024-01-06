@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
@@ -15,10 +16,11 @@ import java.io.IOException;
  * Wrapper around {@link DocVector} to make a valid {@link Block}.
  */
 public class DocBlock extends AbstractVectorBlock implements Block {
+
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -47,11 +49,35 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         return new DocBlock(asVector().filter(positions));
     }
 
+    @Override
+    public int hashCode() {
+        return vector.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DocBlock == false) {
+            return false;
+        }
+        return this == obj || vector.equals(((DocBlock) obj).vector);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
+    }
+
+    @Override
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
+        Releasables.closeExpectNoException(vector);
+    }
+
     /**
      * A builder the for {@link DocBlock}.
      */
-    public static Builder newBlockBuilder(int estimatedSize) {
-        return new Builder(estimatedSize);
+    public static Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+        return new Builder(blockFactory, estimatedSize);
     }
 
     public static class Builder implements Block.Builder {
@@ -59,10 +85,22 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
 
-        private Builder(int estimatedSize) {
-            shards = IntVector.newVectorBuilder(estimatedSize);
-            segments = IntVector.newVectorBuilder(estimatedSize);
-            docs = IntVector.newVectorBuilder(estimatedSize);
+        private Builder(BlockFactory blockFactory, int estimatedSize) {
+            IntVector.Builder shards = null;
+            IntVector.Builder segments = null;
+            IntVector.Builder docs = null;
+            try {
+                shards = blockFactory.newIntVectorBuilder(estimatedSize);
+                segments = blockFactory.newIntVectorBuilder(estimatedSize);
+                docs = blockFactory.newIntVectorBuilder(estimatedSize);
+            } finally {
+                if (docs == null) {
+                    Releasables.closeExpectNoException(shards, segments, docs);
+                }
+            }
+            this.shards = shards;
+            this.segments = segments;
+            this.docs = docs;
         }
 
         public Builder appendShard(int shard) {
@@ -113,13 +151,43 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
         @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
-            throw new UnsupportedOperationException("doc blocks only contain one value per position");
+            /*
+             * This is called when copying but otherwise doesn't do
+             * anything because there aren't multivalue fields in a
+             * block containing doc references. Every position can
+             * only reference one doc.
+             */
+            return this;
         }
 
         @Override
         public DocBlock build() {
             // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
-            return new DocVector(shards.build(), segments.build(), docs.build(), null).asBlock();
+            IntVector shards = null;
+            IntVector segments = null;
+            IntVector docs = null;
+            DocVector result = null;
+            try {
+                shards = this.shards.build();
+                segments = this.segments.build();
+                docs = this.docs.build();
+                result = new DocVector(shards, segments, docs, null);
+                return result.asBlock();
+            } finally {
+                if (result == null) {
+                    Releasables.closeExpectNoException(shards, segments, docs);
+                }
+            }
         }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(shards, segments, docs);
+        }
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
     }
 }

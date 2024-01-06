@@ -11,9 +11,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
@@ -26,16 +24,15 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -48,13 +45,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DISSECT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.EVAL;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.GROK;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 
@@ -70,9 +61,11 @@ public class Verifier {
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
+     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+        assert partialMetrics != null;
         Set<Failure> failures = new LinkedHashSet<>();
 
         // quick verification for unresolved attributes
@@ -88,6 +81,17 @@ public class Verifier {
             // p is resolved, skip
             else if (p.resolved()) {
                 return;
+            }
+            // handle aggregate first to disambiguate between missing fields or incorrect function declaration
+            if (p instanceof Aggregate aggregate) {
+                for (NamedExpression agg : aggregate.aggregates()) {
+                    if (agg instanceof Alias as) {
+                        var child = as.child();
+                        if (child instanceof UnresolvedAttribute u) {
+                            failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
+                        }
+                    }
+                }
             }
             p.forEachExpression(e -> {
                 // everything is fine, skip expression
@@ -121,119 +125,135 @@ public class Verifier {
 
         // Concrete verifications
         plan.forEachDown(p -> {
-            if (p instanceof Aggregate agg) {
-                agg.aggregates().forEach(e -> {
-                    var exp = e instanceof Alias ? ((Alias) e).child() : e;
-                    if (exp instanceof AggregateFunction aggFunc) {
-                        aggFunc.arguments().forEach(a -> {
-                            // TODO: allow an expression?
-                            if ((a instanceof FieldAttribute
-                                || a instanceof MetadataAttribute
-                                || a instanceof ReferenceAttribute
-                                || a instanceof Literal) == false) {
-                                failures.add(
-                                    fail(
-                                        e,
-                                        "aggregate function's parameters must be an attribute or literal; found ["
-                                            + a.sourceText()
-                                            + "] of type ["
-                                            + a.nodeName()
-                                            + "]"
-                                    )
-                                );
-                            }
-                        });
-                    } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
-                        failures.add(
-                            fail(
-                                exp,
-                                "expected an aggregate function or group but got ["
-                                    + exp.sourceText()
-                                    + "] of type ["
-                                    + exp.nodeName()
-                                    + "]"
-                            )
-                        );
-                    }
-                });
-            } else if (p instanceof RegexExtract re) {
-                Expression expr = re.input();
-                DataType type = expr.dataType();
-                if (EsqlDataTypes.isString(type) == false) {
-                    failures.add(
-                        fail(
-                            expr,
-                            "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
-                            re.getClass().getSimpleName(),
-                            expr.sourceText(),
-                            type
-                        )
-                    );
-                }
-            } else if (p instanceof Row row) {
-                failures.addAll(validateRow(row));
+            // if the children are unresolved, so will this node; counting it will only add noise
+            if (p.childrenResolved() == false) {
+                return;
             }
+            checkFilterConditionType(p, failures);
+            checkAggregate(p, failures);
+            checkRegexExtractOnlyOnStrings(p, failures);
 
-            p.forEachExpression(BinaryOperator.class, bo -> {
-                Failure f = validateUnsignedLongOperator(bo);
-                if (f != null) {
-                    failures.add(f);
-                }
-            });
-            p.forEachExpression(BinaryComparison.class, bc -> {
-                Failure f = validateBinaryComparison(bc);
-                if (f != null) {
-                    failures.add(f);
-                }
-            });
-            p.forEachExpression(Neg.class, neg -> {
-                Failure f = validateUnsignedLongNegation(neg);
-                if (f != null) {
-                    failures.add(f);
-                }
-            });
+            checkRow(p, failures);
+            checkEvalFields(p, failures);
+
+            checkOperationsOnUnsignedLong(p, failures);
+            checkBinaryComparison(p, failures);
         });
 
         // gather metrics
         if (failures.isEmpty()) {
-            gatherMetrics(plan);
+            gatherMetrics(plan, partialMetrics);
         }
 
         return failures;
     }
 
-    private void gatherMetrics(LogicalPlan plan) {
-        BitSet b = new BitSet(FeatureMetric.values().length);
-        plan.forEachDown(p -> {
-            if (p instanceof Dissect) {
-                b.set(DISSECT.ordinal());
-            } else if (p instanceof Eval) {
-                b.set(EVAL.ordinal());
-            } else if (p instanceof Grok) {
-                b.set(GROK.ordinal());
-            } else if (p instanceof Limit) {
-                b.set(LIMIT.ordinal());
-            } else if (p instanceof OrderBy) {
-                b.set(SORT.ordinal());
-            } else if (p instanceof Aggregate) {
-                b.set(STATS.ordinal());
-            } else if (p instanceof Filter) {
-                b.set(WHERE.ordinal());
+    private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof Aggregate agg) {
+            agg.aggregates().forEach(e -> {
+                var exp = e instanceof Alias ? ((Alias) e).child() : e;
+                if (exp instanceof AggregateFunction aggFunc) {
+                    Expression field = aggFunc.field();
+
+                    // TODO: allow an expression?
+                    if ((field instanceof FieldAttribute
+                        || field instanceof MetadataAttribute
+                        || field instanceof ReferenceAttribute
+                        || field instanceof Literal) == false) {
+                        failures.add(
+                            fail(
+                                e,
+                                "aggregate function's field must be an attribute or literal; found ["
+                                    + field.sourceText()
+                                    + "] of type ["
+                                    + field.nodeName()
+                                    + "]"
+                            )
+                        );
+                    }
+                } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
+                    failures.add(
+                        fail(
+                            exp,
+                            "expected an aggregate function or group but got [" + exp.sourceText() + "] of type [" + exp.nodeName() + "]"
+                        )
+                    );
+                }
+            });
+        }
+    }
+
+    private static void checkRegexExtractOnlyOnStrings(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof RegexExtract re) {
+            Expression expr = re.input();
+            DataType type = expr.dataType();
+            if (EsqlDataTypes.isString(type) == false) {
+                failures.add(
+                    fail(
+                        expr,
+                        "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
+                        re.getClass().getSimpleName(),
+                        expr.sourceText(),
+                        type
+                    )
+                );
+            }
+        }
+    }
+
+    private static void checkRow(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof Row row) {
+            row.fields().forEach(a -> {
+                if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
+                    failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+                }
+            });
+        }
+    }
+
+    private static void checkEvalFields(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof Eval eval) {
+            eval.fields().forEach(field -> {
+                DataType dataType = field.dataType();
+                if (EsqlDataTypes.isRepresentable(dataType) == false) {
+                    failures.add(
+                        fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
+                    );
+                }
+            });
+        }
+    }
+
+    private static void checkOperationsOnUnsignedLong(LogicalPlan p, Set<Failure> failures) {
+        p.forEachExpression(e -> {
+            Failure f = null;
+
+            if (e instanceof BinaryOperator<?, ?, ?, ?> bo) {
+                f = validateUnsignedLongOperator(bo);
+            } else if (e instanceof Neg neg) {
+                f = validateUnsignedLongNegation(neg);
+            }
+
+            if (f != null) {
+                failures.add(f);
             }
         });
+    }
+
+    private static void checkBinaryComparison(LogicalPlan p, Set<Failure> failures) {
+        p.forEachExpression(BinaryComparison.class, bc -> {
+            Failure f = validateBinaryComparison(bc);
+            if (f != null) {
+                failures.add(f);
+            }
+        });
+    }
+
+    private void gatherMetrics(LogicalPlan plan, BitSet b) {
+        plan.forEachDown(p -> FeatureMetric.set(p, b));
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
-    }
-
-    private static Collection<Failure> validateRow(Row row) {
-        List<Failure> failures = new ArrayList<>(row.fields().size());
-        row.fields().forEach(a -> {
-            if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
-                failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
-            }
-        });
-        return failures;
     }
 
     /**
@@ -258,6 +278,8 @@ public class Verifier {
         allowed.add(DataTypes.IP);
         allowed.add(DataTypes.DATETIME);
         allowed.add(DataTypes.VERSION);
+        allowed.add(EsqlDataTypes.GEO_POINT);
+        allowed.add(EsqlDataTypes.CARTESIAN_POINT);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataTypes.BOOLEAN);
         }

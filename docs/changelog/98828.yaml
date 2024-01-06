@@ -1,5 +1,0 @@
-pr: 98828
-summary: Fix how Maps#flatten handle map values inside a list
-area: Geo
-type: bug
-issues: []

@@ -8,18 +8,23 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Vector implementation that stores an array of BytesRef values.
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
-public final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
+final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
+
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class);
 
     private final BytesRefArray values;
 
-    public BytesRefArrayVector(BytesRefArray values, int positionCount) {
-        super(positionCount);
+    BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -45,7 +50,22 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public BytesRefVector filter(int... positions) {
-        return new FilterBytesRefVector(this, positions);
+        final var scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendBytesRef(values.get(pos, scratch));
+            }
+            return builder.build();
+        }
+    }
+
+    public static long ramBytesEstimated(BytesRefArray values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
     }
 
     @Override
@@ -64,5 +84,13 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
+    }
+
+    @Override
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
+        // of this class.
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        Releasables.closeExpectNoException(values);
     }
 }

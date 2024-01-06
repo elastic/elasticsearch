@@ -63,7 +63,7 @@ public class InternalProfileCollector extends ProfilerCollector implements TwoPh
 
         // Aggregation collector toString()'s include the user-defined agg name
         if (getReason().equals(CollectorResult.REASON_AGGREGATION) || getReason().equals(CollectorResult.REASON_AGGREGATION_GLOBAL)) {
-            s += ": [" + c + "]";
+            s += ": " + c;
         }
         return s;
     }

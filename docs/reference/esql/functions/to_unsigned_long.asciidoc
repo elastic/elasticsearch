@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_unsigned_long]]
 === `TO_UNSIGNED_LONG`
 Converts an input value to an unsigned long value.

@@ -9,7 +9,6 @@ package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -24,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -100,7 +100,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testBasic() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());
@@ -109,44 +109,65 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testGetWithFields() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
-        SearchResponse searchResponse = client().prepareSearch("test").addFetchField("_size").get();
-        assertEquals(source.length(), ((Long) searchResponse.getHits().getHits()[0].getFields().get("_size").getValue()).intValue());
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        assertResponse(
+            prepareSearch("test").addFetchField("_size"),
+            response -> assertEquals(
+                source.length(),
+                ((Long) response.getHits().getHits()[0].getFields().get("_size").getValue()).intValue()
+            )
+        );
 
         // this should not work when requesting fields via wildcard expression
-        searchResponse = client().prepareSearch("test").addFetchField("*").get();
-        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        assertResponse(
+            prepareSearch("test").addFetchField("*"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
 
         // This should STILL work
-        searchResponse = client().prepareSearch("test").addStoredField("*").get();
-        assertNotNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        assertResponse(
+            prepareSearch("test").addStoredField("*"),
+            response -> assertNotNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
     }
 
     public void testWildCardWithFieldsWhenDisabled() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=false"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
-        SearchResponse searchResponse = client().prepareSearch("test").addFetchField("_size").get();
-        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        assertResponse(
+            prepareSearch("test").addFetchField("_size"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
 
-        searchResponse = client().prepareSearch("test").addFetchField("*").get();
-        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        assertResponse(
+            prepareSearch("test").addFetchField("*"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
 
-        searchResponse = client().prepareSearch("test").addStoredField("*").get();
-        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        assertResponse(
+            prepareSearch("test").addStoredField("*"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
     }
 
     public void testWildCardWithFieldsWhenNotProvided() throws Exception {
         assertAcked(prepareCreate("test"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
-        SearchResponse searchResponse = client().prepareSearch("test").addFetchField("_size").get();
-        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        assertResponse(
+            prepareSearch("test").addFetchField("_size"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
 
-        searchResponse = client().prepareSearch("test").addFetchField("*").get();
-        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        assertResponse(
+            prepareSearch("test").addFetchField("*"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
 
-        searchResponse = client().prepareSearch("test").addStoredField("*").get();
-        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
+        assertResponse(
+            prepareSearch("test").addStoredField("*"),
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+        );
     }
 }

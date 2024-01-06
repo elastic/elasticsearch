@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -82,12 +85,26 @@ public class CoalesceTests extends AbstractFunctionTestCase {
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, exp);
         Layout layout = builder.build();
-        assertThat(toJavaObject(exp.toEvaluator(child -> {
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> map = child -> {
             if (child == evil) {
-                return () -> page -> { throw new AssertionError("shouldn't be called"); };
+                return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                    @Override
+                    public Block eval(Page page) {
+                        throw new AssertionError("shouldn't be called");
+                    }
+
+                    @Override
+                    public void close() {}
+                };
             }
             return EvalMapper.toEvaluator(child, layout);
-        }).get().eval(row(testCase.getDataValues())), 0), testCase.getMatcher());
+        };
+        try (
+            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(map).get(driverContext());
+            Block block = eval.eval(row(testCase.getDataValues()))
+        ) {
+            assertThat(toJavaObject(block, 0), testCase.getMatcher());
+        }
     }
 
     public void testCoalesceNullabilityIsUnknown() {

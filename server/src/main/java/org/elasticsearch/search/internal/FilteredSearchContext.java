@@ -175,11 +175,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        return in.hasFetchSourceContext();
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         return in.fetchSourceContext();
     }
@@ -362,16 +357,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
         in.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        return in.docIdsToLoad();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        return in.docIdsToLoad(docIdsToLoad);
     }
 
     @Override

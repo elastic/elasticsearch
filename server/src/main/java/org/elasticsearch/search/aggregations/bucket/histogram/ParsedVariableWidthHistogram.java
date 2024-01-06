@@ -36,7 +36,7 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
         return buckets;
     }
 
-    private static ObjectParser<ParsedVariableWidthHistogram, Void> PARSER = new ObjectParser<>(
+    private static final ObjectParser<ParsedVariableWidthHistogram, Void> PARSER = new ObjectParser<>(
         ParsedVariableWidthHistogram.class.getSimpleName(),
         true,
         ParsedVariableWidthHistogram::new
@@ -93,16 +93,6 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
             return min;
         }
 
-        public String getMinAsString() {
-            if (minAsString != null) {
-                return minAsString;
-            }
-            if (min != null) {
-                return Double.toString(min);
-            }
-            return null;
-        }
-
         public void setMax(Double max) {
             this.max = max;
         }
@@ -113,16 +103,6 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
 
         public double getMax() {
             return max;
-        }
-
-        public String getMaxAsString() {
-            if (maxAsString != null) {
-                return maxAsString;
-            }
-            if (max != null) {
-                return Double.toString(max);
-            }
-            return null;
         }
 
         static ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {

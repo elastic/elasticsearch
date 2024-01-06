@@ -1,0 +1,5 @@
+pr: 102391
+summary: "ESQL: Support the `_source` metadata field"
+area: ES|QL
+type: enhancement
+issues: []

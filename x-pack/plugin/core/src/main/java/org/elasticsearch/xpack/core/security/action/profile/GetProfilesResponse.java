@@ -31,7 +31,7 @@ public class GetProfilesResponse extends ActionResponse implements ToXContentObj
 
     public GetProfilesResponse(StreamInput in) throws IOException {
         super(in);
-        this.profiles = in.readImmutableList(Profile::new);
+        this.profiles = in.readCollectionAsImmutableList(Profile::new);
         this.errors = in.readMap(StreamInput::readException);
     }
 
@@ -46,7 +46,7 @@ public class GetProfilesResponse extends ActionResponse implements ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(profiles);
-        out.writeMap(errors, StreamOutput::writeString, StreamOutput::writeException);
+        out.writeMap(errors, StreamOutput::writeException);
     }
 
     @Override

@@ -9,7 +9,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset, k8s.pod.uid]
@@ -47,8 +46,16 @@ setup:
                       multi-counter:
                         type: long
                         time_series_metric: counter
+                      scaled-counter:
+                        type: scaled_float
+                        scaling_factor: 100
+                        time_series_metric: counter
                       multi-gauge:
                         type: integer
+                        time_series_metric: gauge
+                      scaled-gauge:
+                        type: scaled_float
+                        scaling_factor: 100
                         time_series_metric: gauge
                       network:
                         properties:
@@ -64,21 +71,21 @@ setup:
         index: test
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "multi-counter" : [10, 11, 12], "multi-gauge": [100, 200, 150], "network": {"tx": 2001818691, "rx": 802133794}, "created_at": "2021-04-28T19:34:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 6]}}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "multi-counter" : [10, 11, 12], "scaled-counter": 10.0, "multi-gauge": [100, 200, 150], "scaled-gauge": 100.0,  "network": {"tx": 2001818691, "rx": 802133794}, "created_at": "2021-04-28T19:34:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 6]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.26", "multi-counter" : [21, 22, 23], "multi-gauge": [90, 91, 95], "network": {"tx": 2005177954, "rx": 801479970}, "created_at": "2021-04-28T19:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west1"], "values": [1, 1, 3]}}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.26", "multi-counter" : [21, 22, 23], "scaled-counter": 20.0, "multi-gauge": [90, 91, 95], "scaled-gauge": 90.0, "network": {"tx": 2005177954, "rx": 801479970}, "created_at": "2021-04-28T19:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west1"], "values": [1, 1, 3]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.41", "multi-counter" : [1, 5, 10], "multi-gauge": [103, 110, 109], "network": {"tx": 2006223737, "rx": 802337279}, "created_at": "2021-04-28T19:36:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west2"], "values": [4, 1, 2]}}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.41", "multi-counter" : [1, 5, 10], "scaled-counter": 1.0, "multi-gauge": [103, 110, 109], "scaled-gauge": 104.0, "network": {"tx": 2006223737, "rx": 802337279}, "created_at": "2021-04-28T19:36:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west2"], "values": [4, 1, 2]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.22", "multi-counter" : [101, 102, 105], "multi-gauge": [100, 100, 100], "network": {"tx": 2012916202, "rx": 803685721}, "created_at": "2021-04-28T19:37:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 1]}}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.22", "multi-counter" : [101, 102, 105], "scaled-counter": 100.0, "multi-gauge": [100, 100, 100], "scaled-gauge": 102.0, "network": {"tx": 2012916202, "rx": 803685721}, "created_at": "2021-04-28T19:37:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 1]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.33", "multi-counter" : [7, 11, 44], "multi-gauge": [100, 100, 102], "network": {"tx": 1434521831, "rx": 530575198}, "created_at": "2021-04-28T19:42:00.000Z", "running": false, "number_of_containers": 1, "tags": ["backend", "test"], "values": [2, 3, 4]}}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.33", "multi-counter" : [7, 11, 44], "scaled-counter": 7.0, "multi-gauge": [100, 100, 102], "scaled-gauge": 100.0, "network": {"tx": 1434521831, "rx": 530575198}, "created_at": "2021-04-28T19:42:00.000Z", "running": false, "number_of_containers": 1, "tags": ["backend", "test"], "values": [2, 3, 4]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.56", "multi-counter" : [0, 0, 1], "multi-gauge": [101, 102, 102], "network": {"tx": 1434577921, "rx": 530600088}, "created_at": "2021-04-28T19:43:00.000Z", "running": false, "number_of_containers": 1, "tags": ["backend", "test", "us-west2"], "values": [2, 1, 1]}}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.56", "multi-counter" : [0, 0, 1], "scaled-counter": 0.0, "multi-gauge": [101, 102, 102], "scaled-gauge": 101.0, "network": {"tx": 1434577921, "rx": 530600088}, "created_at": "2021-04-28T19:43:00.000Z", "running": false, "number_of_containers": 1, "tags": ["backend", "test", "us-west2"], "values": [2, 1, 1]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.37", "multi-counter" : [1000, 1001, 1002], "multi-gauge": [99, 100, 110], "network": {"tx": 1434587694, "rx": 530604797}, "created_at": "2021-04-28T19:44:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [4, 5, 2]}}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.37", "multi-counter" : [1000, 1001, 1002], "scaled-counter": 1000.0, "multi-gauge": [99, 100, 110], "scaled-gauge": 99.0, "network": {"tx": 1434587694, "rx": 530604797}, "created_at": "2021-04-28T19:44:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [4, 5, 2]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.120", "multi-counter" : [76, 77, 78], "multi-gauge": [95, 98, 100], "network": {"tx": 1434595272, "rx": 530605511}, "created_at": "2021-04-28T19:45:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [3, 2, 1]}}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.120", "multi-counter" : [76, 77, 78], "scaled-counter": 70.0, "multi-gauge": [95, 98, 100], "scaled-gauge": 95.0, "network": {"tx": 1434595272, "rx": 530605511}, "created_at": "2021-04-28T19:45:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [3, 2, 1]}}}'
 
   - do:
       indices.put_settings:
@@ -92,7 +99,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -159,7 +165,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -225,7 +230,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -318,10 +322,15 @@ setup:
   - match:  { hits.hits.0._source.metricset: pod }
   - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
   - match:  { hits.hits.0._source.k8s.pod.multi-counter: 21 }
+  - match:  { hits.hits.0._source.k8s.pod.scaled-counter: 20.0 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.min: 90 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.max: 200 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.sum: 726 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.value_count: 6 }
+  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.min: 90.0 }
+  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.max: 100.0 }
+  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.sum: 190.0 }
+  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.value_count: 2 }
   - match:  { hits.hits.0._source.k8s.pod.network.tx.min: 2001818691 }
   - match:  { hits.hits.0._source.k8s.pod.network.tx.max: 2005177954 }
   - match:  { hits.hits.0._source.k8s.pod.network.tx.value_count: 2 }
@@ -343,7 +352,6 @@ setup:
   - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
   - match: { test-downsample.settings.index.downsample.source.name: test }
   - match: { test-downsample.settings.index.number_of_shards: "1" }
-  - match: { test-downsample.settings.index.number_of_replicas: "0" }
 
   # Assert rollup index mapping
   - do:
@@ -359,6 +367,13 @@ setup:
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-counter.type: scaled_float }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-counter.scaling_factor: 100 }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.type: aggregate_metric_double }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.default_metric: max }
+  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
 
@@ -373,7 +388,6 @@ setup:
       indices.segments:
         index: test-downsample
 
-  - match:   { _shards.total: 1}
   - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
   - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}
 
@@ -388,6 +402,38 @@ setup:
       indices.downsample:
         index: non-existing-index
         target_index: test-downsample
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"Downsample failure":
+  - skip:
+      version: " - 8.12.99"
+      reason: "#103615 merged to 8.13.0 and later"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [failed-downsample-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [failed-downsample-test]
+          template:
+            settings:
+              index:
+                routing:
+                  allocation:
+                    include:
+                      does-not-exist: "yes"
+
+  - do:
+      catch: /downsample task \[downsample-failed-downsample-test-0-1h\] failed/
+      indices.downsample:
+        index: test
+        target_index: failed-downsample-test
         body:  >
           {
             "fixed_interval": "1h"
@@ -424,7 +470,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -438,7 +483,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -452,8 +496,10 @@ setup:
         body:
           index.blocks.write: true
 
+  # The following two tests may return different exceptions, depending on whether security is enabled (serverless)
+  # or not (stateful).
   - do:
-      catch: /index_not_found_exception/
+      catch: /index_not_found_exception|illegal_argument_exception/
       indices.downsample:
         index: test*
         target_index: test-downsample
@@ -463,7 +509,7 @@ setup:
           }
 
   - do:
-      catch: /index_not_found_exception/
+      catch: /index_not_found_exception|illegal_argument_exception/
       indices.downsample:
         index: _all
         target_index: test-downsample
@@ -515,7 +561,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset]
@@ -609,7 +654,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset]
@@ -935,7 +979,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -1038,7 +1081,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -1141,7 +1183,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -1363,3 +1404,131 @@ setup:
   - match: { hits.hits.2._source.k8s.pod.value.value_count: 4 }
   - match: { hits.hits.2._source.k8s.pod.label: "xyz" }
   - match: { hits.hits.2._source.k8s.pod.unmapped: "xyz" }
+
+
+---
+"Downsample label with ignore_above":
+  - skip:
+      version: " - 8.7.99"
+      reason: "Downsample of time series index without metric allowed from version 8.8.0"
+
+  - do:
+      indices.create:
+        index: test-label-ignore-above
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      label:
+                        type: keyword
+                        ignore_above: 3
+                      gauge:
+                        type: long
+                        time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test-label-ignore-above
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "label": "foo", "value": 10 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "label": "foofoo", "value": 20 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "label": "foobar", "value": 10 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "label": "foo", "value": 20 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "fox", "uid":"7393ef8e-489c-11ee-be56-0242ac120002", "label": "foo", "value": 10 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "fox", "uid":"7393ef8e-489c-11ee-be56-0242ac120002", "label": "bar", "value": 20 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"a81ef23a-489c-11ee-be56-0242ac120005", "label": "foobar", "value": 10 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"a81ef23a-489c-11ee-be56-0242ac120005", "label": "barfoo", "value": 20 }}}'
+
+  - do:
+      indices.put_settings:
+        index: test-label-ignore-above
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test-label-ignore-above
+        target_index: test-downsample-label-ignore-above
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample-label-ignore-above
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.metricset: pod }
+  - match: { hits.hits.0._source.k8s.pod.name: fox }
+  - match: { hits.hits.0._source.k8s.pod.value: 20 }
+  - match: { hits.hits.0._source.k8s.pod.uid: 7393ef8e-489c-11ee-be56-0242ac120002 }
+  - match: { hits.hits.0._source.k8s.pod.label: bar }
+  - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - match: { hits.hits.1._source._doc_count: 2 }
+  - match: { hits.hits.1._source.metricset: pod }
+  - match: { hits.hits.1._source.k8s.pod.name: cat }
+  - match: { hits.hits.1._source.k8s.pod.value: 20 }
+  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  # NOTE: when downsampling a label field we propagate the last (most-recent timestamp-wise) non-null value,
+  # ignoring/skipping null values. Here the last document has a value that hits ignore_above ("foofoo") and,
+  # as a result, we propagate the value of the previous document ("foo")
+  - match: { hits.hits.1._source.k8s.pod.label: foo }
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - match: { hits.hits.2._source._doc_count: 2 }
+  - match: { hits.hits.2._source.metricset: pod }
+  - match: { hits.hits.2._source.k8s.pod.name: cow }
+  - match: { hits.hits.2._source.k8s.pod.value: 20 }
+  - match: { hits.hits.2._source.k8s.pod.uid: a81ef23a-489c-11ee-be56-0242ac120005 }
+  - match: { hits.hits.2._source.k8s.pod.label: null }
+  - match: { hits.hits.2._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - match: { hits.hits.3._source._doc_count: 2 }
+  - match: { hits.hits.3._source.metricset: pod }
+  - match: { hits.hits.3._source.k8s.pod.name: dog }
+  - match: { hits.hits.3._source.k8s.pod.value: 20 }
+  - match: { hits.hits.3._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.3._source.k8s.pod.label: foo }
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - do:
+      indices.get_mapping:
+        index: test-downsample-label-ignore-above
+
+  - match: { test-downsample-label-ignore-above.mappings.properties.k8s.properties.pod.properties.label.type: keyword }
+  - match: { test-downsample-label-ignore-above.mappings.properties.k8s.properties.pod.properties.label.ignore_above: 3 }

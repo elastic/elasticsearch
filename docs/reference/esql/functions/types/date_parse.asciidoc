@@ -1,0 +1,6 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+datePattern | dateString | result
+keyword | keyword | datetime
+keyword | text | datetime
+|===

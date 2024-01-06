@@ -53,14 +53,6 @@ public interface ActionPlugin {
     }
 
     /**
-     * Client actions added by this plugin. This defaults to all of the {@linkplain ActionType} in
-     * {@linkplain ActionPlugin#getActions()}.
-     */
-    default List<ActionType<? extends ActionResponse>> getClientActions() {
-        return getActions().stream().<ActionType<? extends ActionResponse>>map(a -> a.action).toList();
-    }
-
-    /**
      * ActionType filters added by this plugin.
      */
     default List<ActionFilter> getActionFilters() {

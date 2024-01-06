@@ -1,6 +1,0 @@
-pr: 98367
-summary: Check ILM status before reporting node migration STALLED
-area: Infra/Node Lifecycle
-type: enhancement
-issues:
- - 89486

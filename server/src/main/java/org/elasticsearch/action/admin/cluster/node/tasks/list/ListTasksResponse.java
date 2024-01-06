@@ -60,7 +60,7 @@ public class ListTasksResponse extends BaseTasksResponse {
 
     public ListTasksResponse(StreamInput in) throws IOException {
         super(in);
-        tasks = in.readImmutableList(TaskInfo::from);
+        tasks = in.readCollectionAsImmutableList(TaskInfo::from);
     }
 
     @Override

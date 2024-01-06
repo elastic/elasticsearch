@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.search.SearchHits;
@@ -32,7 +33,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
             NoopPlugin.NOOP_SEARCH_ACTION.name(),
             transportService,
             actionFilters,
-            SearchRequest::new,
+            (Writeable.Reader<SearchRequest>) SearchRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

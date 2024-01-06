@@ -17,6 +17,7 @@ import org.elasticsearch.tasks.TaskManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public abstract class StoredAsyncTask<Response extends ActionResponse> extends CancellableTask implements AsyncTask {
 
@@ -67,11 +68,11 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
         return expirationTimeMillis;
     }
 
-    public synchronized boolean addCompletionListener(ActionListener<Response> listener) {
+    public synchronized boolean addCompletionListener(Supplier<ActionListener<Response>> listenerSupplier) {
         if (hasCompleted) {
             return false;
         }
-        completionListeners.add(listener);
+        completionListeners.add(listenerSupplier.get());
         return true;
     }
 

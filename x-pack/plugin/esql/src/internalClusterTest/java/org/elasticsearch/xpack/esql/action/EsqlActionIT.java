@@ -86,6 +86,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex("test");
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        // TODO: Allow relocation once we have retry in ESQL (see #103081)
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("cluster.routing.rebalance.enable", "none")
+            .build();
+    }
+
     public void testProjectConstant() {
         try (EsqlQueryResponse results = run("from test | eval x = 1 | keep x")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfo("x", "integer"))));

@@ -165,7 +165,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             ctx.channel().close();
         } finally {
             if (success == false) {
-                promise.tryFailure(new ClosedChannelException());
+                promise.setFailure(new ClosedChannelException());
             }
         }
     }

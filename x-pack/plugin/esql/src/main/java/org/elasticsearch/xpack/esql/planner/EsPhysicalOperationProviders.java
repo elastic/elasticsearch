@@ -184,8 +184,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             docChannel,
             attrSource.name(),
             aggregatorFactories,
-            context.pageSize(aggregateExec.estimatedRowSize()),
-            context.bigArrays()
+            context.pageSize(aggregateExec.estimatedRowSize())
         );
     }
 }

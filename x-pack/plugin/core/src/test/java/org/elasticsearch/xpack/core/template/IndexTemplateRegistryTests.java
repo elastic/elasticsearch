@@ -16,8 +16,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -54,7 +54,8 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -108,10 +109,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
+            if (action == PutPipelineTransportAction.TYPE) {
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-final_pipeline");
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -133,10 +134,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
+            if (action == PutPipelineTransportAction.TYPE) {
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -166,7 +167,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 assertPutComponentTemplate(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -192,10 +193,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
+            if (action == PutPipelineTransportAction.TYPE) {
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -224,10 +225,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 assertPutComposableIndexTemplateAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutPipelineAction) {
+            } else if (action == PutPipelineTransportAction.TYPE) {
                 // ignore pipelines in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -254,10 +255,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComponentTemplateAction) {
                 // ignore the component template upgrade
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutPipelineAction) {
+            } else if (action == PutPipelineTransportAction.TYPE) {
                 // ignore pipelines in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -291,7 +292,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutPipelineAction) {
+            if (action == PutPipelineTransportAction.TYPE) {
                 assertPutPipelineAction(
                     calledTimes,
                     action,
@@ -301,7 +302,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                     "custom-plugin-final_pipeline"
                 );
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComponentTemplateAction) {
@@ -396,15 +397,16 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
         AtomicReference<Collection<RolloverResponse>> rolloverResponsesRef = registry.getRolloverResponses();
         assertBusy(() -> assertNotNull(rolloverResponsesRef.get()));
-        Collection<RolloverResponse> rolloverResponses = rolloverResponsesRef.get();
-        assertThat(rolloverResponses, hasSize(2));
+        assertThat(rolloverResponsesRef.get(), hasSize(2));
 
         // test again, to verify that the per-index-template creation lock gets released for reuse
         putIndexTemplateCounter.set(0);
         rolloverCounter.set(0);
+        rolloverResponsesRef.set(Collections.emptySet());
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
+        assertBusy(() -> assertThat(rolloverResponsesRef.get(), hasSize(2)));
 
         // test rollover failures
         putIndexTemplateCounter.set(0);
@@ -484,7 +486,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -512,7 +514,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 assertPutLifecycleAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -544,7 +546,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -576,7 +578,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -629,7 +631,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComposableIndexTemplateAction) {
                 // ignore this
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 assertPutLifecycleAction(calledTimes, action, request, listener);
                 return AcknowledgedResponse.TRUE;
 
@@ -713,7 +715,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         ActionListener<?> listener,
         String... pipelineIds
     ) {
-        assertThat(action, instanceOf(PutPipelineAction.class));
+        assertSame(PutPipelineTransportAction.TYPE, action);
         assertThat(request, instanceOf(PutPipelineRequest.class));
         final PutPipelineRequest putRequest = (PutPipelineRequest) request;
         assertThat(putRequest.getId(), oneOf(pipelineIds));
@@ -737,9 +739,9 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        assertThat(action, instanceOf(PutLifecycleAction.class));
-        assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-        final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+        assertSame(ILMActions.PUT, action);
+        assertThat(request, instanceOf(PutLifecycleRequest.class));
+        final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
         assertThat(putRequest.getPolicy().getName(), equalTo("custom-plugin-policy"));
         assertNotNull(listener);
         calledTimes.incrementAndGet();

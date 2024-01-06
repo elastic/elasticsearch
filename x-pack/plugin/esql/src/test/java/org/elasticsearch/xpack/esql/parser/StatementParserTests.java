@@ -699,7 +699,7 @@ public class StatementParserTests extends ESTestCase {
                 null,
                 List.of()
             ),
-            processingCommand("enrich [mode=" + mode.name() + "] countries ON country_code")
+            processingCommand("enrich [ccq.mode=" + mode.name() + "] countries ON country_code")
         );
 
         expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
@@ -713,8 +713,8 @@ public class StatementParserTests extends ESTestCase {
             "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
         );
         expectError(
-            "from a | enrich [mode=typo] countries on foo",
-            "line 1:24: Unrecognized value [typo], enrich mode needs to be one of [ANY, RELATIVE, ORIGINATOR]"
+            "from a | enrich [ccq.mode=typo] countries on foo",
+            "line 1:28: Unrecognized value [typo], ENRICH [ccq.mode] needs to be one of [ANY, RELATIVE, ORIGINATOR]"
         );
     }
 

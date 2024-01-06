@@ -399,7 +399,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Enrich.Mode visitEnrichPolicyMode(EsqlBaseParser.EnrichPolicyModeContext ctx) {
+    public Enrich.Mode visitEnrichMode(EsqlBaseParser.EnrichModeContext ctx) {
         if (ctx == null) {
             return null;
         }
@@ -408,8 +408,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (m == null) {
             throw new ParsingException(
                 source(ctx.FROM_UNQUOTED_IDENTIFIER()),
-                "Unrecognized value [{}], enrich mode needs to be one of {}",
+                "Unrecognized value [{}], ENRICH [{}] needs to be one of {}",
                 value,
+                ctx.ENRICH_CCQ_MODE().getText(),
                 Enrich.Mode.values()
             );
         }

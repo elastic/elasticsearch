@@ -82,7 +82,7 @@ null
 null
 null
 null
-'mode'
+'ccq.mode'
 'on'
 'with'
 null
@@ -184,7 +184,7 @@ AS
 RENAME_LINE_COMMENT
 RENAME_MULTILINE_COMMENT
 RENAME_WS
-MODE
+ENRICH_CCQ_MODE
 ON
 WITH
 ENRICH_LINE_COMMENT
@@ -252,7 +252,7 @@ subqueryExpression
 showCommand
 enrichCommand
 enrichWithClause
-enrichPolicyMode
+enrichMode
 
 
 atn:

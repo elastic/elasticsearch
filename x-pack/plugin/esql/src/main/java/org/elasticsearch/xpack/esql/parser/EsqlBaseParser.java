@@ -31,7 +31,7 @@ public class EsqlBaseParser extends Parser {
     FROM_LINE_COMMENT=72, FROM_MULTILINE_COMMENT=73, FROM_WS=74, PROJECT_UNQUOTED_IDENTIFIER=75, 
     PROJECT_LINE_COMMENT=76, PROJECT_MULTILINE_COMMENT=77, PROJECT_WS=78, 
     AS=79, RENAME_LINE_COMMENT=80, RENAME_MULTILINE_COMMENT=81, RENAME_WS=82, 
-    MODE=83, ON=84, WITH=85, ENRICH_LINE_COMMENT=86, ENRICH_MULTILINE_COMMENT=87, 
+    ENRICH_CCQ_MODE=83, ON=84, WITH=85, ENRICH_LINE_COMMENT=86, ENRICH_MULTILINE_COMMENT=87, 
     ENRICH_WS=88, ENRICH_FIELD_LINE_COMMENT=89, ENRICH_FIELD_MULTILINE_COMMENT=90, 
     ENRICH_FIELD_WS=91, MVEXPAND_LINE_COMMENT=92, MVEXPAND_MULTILINE_COMMENT=93, 
     MVEXPAND_WS=94, INFO=95, FUNCTIONS=96, SHOW_LINE_COMMENT=97, SHOW_MULTILINE_COMMENT=98, 
@@ -52,7 +52,7 @@ public class EsqlBaseParser extends Parser {
     RULE_booleanValue = 38, RULE_numericValue = 39, RULE_decimalValue = 40, 
     RULE_integerValue = 41, RULE_string = 42, RULE_comparisonOperator = 43, 
     RULE_explainCommand = 44, RULE_subqueryExpression = 45, RULE_showCommand = 46, 
-    RULE_enrichCommand = 47, RULE_enrichWithClause = 48, RULE_enrichPolicyMode = 49;
+    RULE_enrichCommand = 47, RULE_enrichWithClause = 48, RULE_enrichMode = 49;
   private static String[] makeRuleNames() {
     return new String[] {
       "singleStatement", "query", "sourceCommand", "processingCommand", "whereCommand", 
@@ -65,7 +65,7 @@ public class EsqlBaseParser extends Parser {
       "dissectCommand", "grokCommand", "mvExpandCommand", "commandOptions", 
       "commandOption", "booleanValue", "numericValue", "decimalValue", "integerValue", 
       "string", "comparisonOperator", "explainCommand", "subqueryExpression", 
-      "showCommand", "enrichCommand", "enrichWithClause", "enrichPolicyMode"
+      "showCommand", "enrichCommand", "enrichWithClause", "enrichMode"
     };
   }
   public static final String[] ruleNames = makeRuleNames();
@@ -81,8 +81,8 @@ public class EsqlBaseParser extends Parser {
       "'or'", "'?'", "'rlike'", "')'", "'true'", "'=='", "'!='", "'<'", "'<='", 
       "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", null, "']'", null, 
       null, null, null, null, "'metadata'", null, null, null, null, null, null, 
-      null, null, "'as'", null, null, null, "'mode'", "'on'", "'with'", null, 
-      null, null, null, null, null, null, null, null, "'info'", "'functions'"
+      null, null, "'as'", null, null, null, "'ccq.mode'", "'on'", "'with'", 
+      null, null, null, null, null, null, null, null, null, "'info'", "'functions'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -101,11 +101,11 @@ public class EsqlBaseParser extends Parser {
       "METADATA", "FROM_UNQUOTED_IDENTIFIER", "FROM_LINE_COMMENT", "FROM_MULTILINE_COMMENT", 
       "FROM_WS", "PROJECT_UNQUOTED_IDENTIFIER", "PROJECT_LINE_COMMENT", "PROJECT_MULTILINE_COMMENT", 
       "PROJECT_WS", "AS", "RENAME_LINE_COMMENT", "RENAME_MULTILINE_COMMENT", 
-      "RENAME_WS", "MODE", "ON", "WITH", "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", 
-      "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", "ENRICH_FIELD_MULTILINE_COMMENT", 
-      "ENRICH_FIELD_WS", "MVEXPAND_LINE_COMMENT", "MVEXPAND_MULTILINE_COMMENT", 
-      "MVEXPAND_WS", "INFO", "FUNCTIONS", "SHOW_LINE_COMMENT", "SHOW_MULTILINE_COMMENT", 
-      "SHOW_WS"
+      "RENAME_WS", "ENRICH_CCQ_MODE", "ON", "WITH", "ENRICH_LINE_COMMENT", 
+      "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", 
+      "ENRICH_FIELD_MULTILINE_COMMENT", "ENRICH_FIELD_WS", "MVEXPAND_LINE_COMMENT", 
+      "MVEXPAND_MULTILINE_COMMENT", "MVEXPAND_WS", "INFO", "FUNCTIONS", "SHOW_LINE_COMMENT", 
+      "SHOW_MULTILINE_COMMENT", "SHOW_WS"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -4375,12 +4375,14 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class EnrichCommandContext extends ParserRuleContext {
-    public EnrichPolicyModeContext enrichMode;
     public FromIdentifierContext policyName;
     public QualifiedNamePatternContext matchField;
     public TerminalNode ENRICH() { return getToken(EsqlBaseParser.ENRICH, 0); }
     public FromIdentifierContext fromIdentifier() {
       return getRuleContext(FromIdentifierContext.class,0);
+    }
+    public EnrichModeContext enrichMode() {
+      return getRuleContext(EnrichModeContext.class,0);
     }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
     public TerminalNode WITH() { return getToken(EsqlBaseParser.WITH, 0); }
@@ -4389,9 +4391,6 @@ public class EsqlBaseParser extends Parser {
     }
     public EnrichWithClauseContext enrichWithClause(int i) {
       return getRuleContext(EnrichWithClauseContext.class,i);
-    }
-    public EnrichPolicyModeContext enrichPolicyMode() {
-      return getRuleContext(EnrichPolicyModeContext.class,0);
     }
     public QualifiedNamePatternContext qualifiedNamePattern() {
       return getRuleContext(QualifiedNamePatternContext.class,0);
@@ -4436,7 +4435,7 @@ public class EsqlBaseParser extends Parser {
       if (_la==OPENING_BRACKET) {
         {
         setState(497);
-        ((EnrichCommandContext)_localctx).enrichMode = enrichPolicyMode();
+        enrichMode();
         }
       }
 
@@ -4562,42 +4561,42 @@ public class EsqlBaseParser extends Parser {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class EnrichPolicyModeContext extends ParserRuleContext {
+  public static class EnrichModeContext extends ParserRuleContext {
     public TerminalNode OPENING_BRACKET() { return getToken(EsqlBaseParser.OPENING_BRACKET, 0); }
-    public TerminalNode MODE() { return getToken(EsqlBaseParser.MODE, 0); }
+    public TerminalNode ENRICH_CCQ_MODE() { return getToken(EsqlBaseParser.ENRICH_CCQ_MODE, 0); }
     public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
     public TerminalNode FROM_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.FROM_UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode CLOSING_BRACKET() { return getToken(EsqlBaseParser.CLOSING_BRACKET, 0); }
     @SuppressWarnings("this-escape")
-    public EnrichPolicyModeContext(ParserRuleContext parent, int invokingState) {
+    public EnrichModeContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_enrichPolicyMode; }
+    @Override public int getRuleIndex() { return RULE_enrichMode; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterEnrichPolicyMode(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterEnrichMode(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitEnrichPolicyMode(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitEnrichMode(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitEnrichPolicyMode(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitEnrichMode(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final EnrichPolicyModeContext enrichPolicyMode() throws RecognitionException {
-    EnrichPolicyModeContext _localctx = new EnrichPolicyModeContext(_ctx, getState());
-    enterRule(_localctx, 98, RULE_enrichPolicyMode);
+  public final EnrichModeContext enrichMode() throws RecognitionException {
+    EnrichModeContext _localctx = new EnrichModeContext(_ctx, getState());
+    enterRule(_localctx, 98, RULE_enrichMode);
     try {
       enterOuterAlt(_localctx, 1);
       {
       setState(523);
       match(OPENING_BRACKET);
       setState(524);
-      match(MODE);
+      match(ENRICH_CCQ_MODE);
       setState(525);
       match(ASSIGN);
       setState(526);

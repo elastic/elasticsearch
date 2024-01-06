@@ -715,7 +715,7 @@ public final class PlanNamedTypes {
     }
 
     static Enrich readEnrich(PlanStreamInput in) throws IOException {
-        Enrich.Mode m = null;
+        Enrich.Mode m = Enrich.Mode.ANY;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQL_MODE)) {
             m = in.readEnum(Enrich.Mode.class);
         }

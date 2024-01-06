@@ -330,8 +330,8 @@ public class AsyncTaskManagementService<
             getCurrentResult(task, listener);
             return true;
         } else {
-            return task.addCompletionListener(() ->
-                ListenerTimeouts.wrapWithTimeout(
+            return task.addCompletionListener(
+                () -> ListenerTimeouts.wrapWithTimeout(
                     threadPool,
                     timeout,
                     threadPool.executor(ThreadPool.Names.SEARCH),

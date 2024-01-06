@@ -25,7 +25,7 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
-        super(fileName, groupName, testName, lineNumber, testCase);
+    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
+        super(fileName, groupName, testName, lineNumber, testCase, mode);
     }
 }

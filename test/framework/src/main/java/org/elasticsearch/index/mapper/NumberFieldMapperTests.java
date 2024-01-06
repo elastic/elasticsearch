@@ -22,11 +22,8 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -45,7 +42,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     /**
      * @return a List of OutOfRangeSpec to test for this number type
      */
-    protected abstract List<OutOfRangeSpec> outOfRangeSpecs();
+    protected abstract List<NumberTypeOutOfRangeSpec> outOfRangeSpecs();
 
     /**
      * @return an appropriate value to use for a missing value for this number type
@@ -234,7 +231,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-        for (OutOfRangeSpec item : outOfRangeSpecs()) {
+        for (NumberTypeOutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
             Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(item::write)));
             assertThat(
@@ -459,32 +456,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                     }
                 )
             );
-        }
-    }
-
-    // Copied from NumberFieldTypeTests, better to move this into a class of its own?
-    public static class OutOfRangeSpec {
-
-        final NumberFieldMapper.NumberType type;
-        final Object value;
-        final String message;
-
-        public static OutOfRangeSpec of(NumberFieldMapper.NumberType t, Object v, String m) {
-            return new OutOfRangeSpec(t, v, m);
-        }
-
-        OutOfRangeSpec(NumberFieldMapper.NumberType t, Object v, String m) {
-            type = t;
-            value = v;
-            message = m;
-        }
-
-        public void write(XContentBuilder b) throws IOException {
-            if (value instanceof BigInteger) {
-                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
-            } else {
-                b.field("field", value);
-            }
         }
     }
 }

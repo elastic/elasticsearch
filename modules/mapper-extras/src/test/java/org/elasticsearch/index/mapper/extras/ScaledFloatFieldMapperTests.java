@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapperTests;
+import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -434,7 +435,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected List<NumberFieldMapperTests.OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         // No outOfRangeSpecs are specified because ScaledFloatFieldMapper doesn't extend NumberFieldMapper and doesn't use a
         // NumberFieldMapper.NumberType that is present in OutOfRangeSpecs
         return Collections.emptyList();

@@ -72,7 +72,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final List<String> NO_WARNINGS = List.of();
 
     public static boolean shouldLog() {
-        return true; // TODO: revert to false
+        return false;
     }
 
     public enum Mode {

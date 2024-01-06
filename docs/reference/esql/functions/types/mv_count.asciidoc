@@ -2,8 +2,10 @@
 |===
 v | result
 boolean | integer
+cartesian_point | integer
 datetime | integer
 double | integer
+geo_point | integer
 integer | integer
 ip | integer
 keyword | integer

@@ -88,7 +88,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builder = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            builder.add(client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
+            builder.add(prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i), "the_id", id));
         }
         indexRandom(true, builder);
         for (int i = 0; i < numDocs; i++) {

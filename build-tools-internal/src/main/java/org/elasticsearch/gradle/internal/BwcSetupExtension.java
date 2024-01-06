@@ -83,11 +83,6 @@ public class BwcSetupExtension {
                 return getJavaHome(Integer.parseInt(minimumCompilerVersion));
             }));
 
-            // temporally workaround for reworked gradle enterprise setup
-            // removed when PR https://github.com/elastic/elasticsearch/pull/102180 backported
-            // to all BWC branches
-            loggedExec.getEnvironment().put("BUILDKITE", "false");
-
             if (BuildParams.isCi() && OS.current() != OS.WINDOWS) {
                 // TODO: Disabled for now until we can figure out why files are getting corrupted
                 // loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", System.getProperty("user.home") + "/gradle_ro_cache");
@@ -112,6 +107,10 @@ public class BwcSetupExtension {
             String buildCacheUrl = System.getProperty("org.elasticsearch.build.cache.url");
             if (buildCacheUrl != null) {
                 loggedExec.args("-Dorg.elasticsearch.build.cache.url=" + buildCacheUrl);
+            }
+
+            if (System.getProperty("isCI") != null) {
+                loggedExec.args("-DisCI");
             }
 
             loggedExec.args("-Dbuild.snapshot=true", "-Dscan.tag.NESTED");

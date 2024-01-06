@@ -12,8 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -84,10 +85,11 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testConstantDelimiter() {
+        DriverContext driverContext = driverContext();
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
                 new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
-            ).get(driverContext())
+            ).get(driverContext)
         ) {
             /*
              * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
@@ -96,8 +98,12 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
              */
             assert ':' == 58;
             assertThat(eval.toString(), equalTo("SplitSingleByteEvaluator[str=Attribute[channel=0], delim=58]"));
-            try (Block.Ref ref = eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1)))) {
-                assertThat(toJavaObject(ref.block(), 0), equalTo(List.of(new BytesRef("foo"), new BytesRef("bar"))));
+            BlockFactory blockFactory = driverContext.blockFactory();
+            Page page = new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("foo:bar"), 1));
+            try (Block block = eval.eval(page)) {
+                assertThat(toJavaObject(block, 0), equalTo(List.of(new BytesRef("foo"), new BytesRef("bar"))));
+            } finally {
+                page.releaseBlocks();
             }
         }
     }

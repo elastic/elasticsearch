@@ -21,11 +21,15 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -117,6 +121,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 stored.get(),
                 hasDocValues.get(),
                 parser,
+                nullValue.get(),
                 meta.get()
             );
             return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
@@ -182,6 +187,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     public static class PointFieldType extends AbstractGeometryFieldType<CartesianPoint> implements ShapeQueryable {
 
         private final ShapeQueryPointProcessor queryProcessor;
+        private final CartesianPoint nullValue;
 
         private PointFieldType(
             String name,
@@ -189,15 +195,17 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             boolean stored,
             boolean hasDocValues,
             CartesianPointParser parser,
+            CartesianPoint nullValue,
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, parser, meta);
+            this.nullValue = nullValue;
             this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
         // only used in test
         public PointFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap());
+            this(name, true, false, true, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -223,6 +231,19 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         protected Function<List<CartesianPoint>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, p -> new Point(p.getX(), p.getY()));
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+            ValueFetcher valueFetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT);
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            // TODO: Currently we use longs in the compute engine and render to WKT in ESQL
+            return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
         }
     }
 

@@ -1,0 +1,6 @@
+pr: 102165
+summary: Fix planning of duplicate aggs
+area: ES|QL
+type: bug
+issues:
+ - 102083

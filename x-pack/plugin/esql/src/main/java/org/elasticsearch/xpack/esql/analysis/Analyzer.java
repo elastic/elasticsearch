@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
@@ -62,10 +63,12 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -75,12 +78,16 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
+    static final List<Attribute> NO_FIELDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, false)
+    );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
@@ -104,11 +111,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
-        return verify(execute(plan));
+        BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
+        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
-    public LogicalPlan verify(LogicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
+    public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
+        Collection<Failure> failures = verifier.verify(plan, partialMetrics);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
@@ -142,7 +150,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes);
+            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes);
         }
 
     }
@@ -256,8 +264,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<NamedExpression> enrichFields,
             EnrichPolicy policy
         ) {
-            Map<String, Attribute> fieldMap = mapping.stream().collect(Collectors.toMap(NamedExpression::name, Function.identity()));
-            fieldMap.remove(policy.getMatchField());
+            Set<String> policyEnrichFieldSet = new HashSet<>(policy.getEnrichFields());
+            Map<String, Attribute> fieldMap = mapping.stream()
+                .filter(e -> policyEnrichFieldSet.contains(e.name()))
+                .collect(Collectors.toMap(NamedExpression::name, Function.identity()));
             List<NamedExpression> result = new ArrayList<>();
             if (enrichFields == null || enrichFields.isEmpty()) {
                 // use the policy to infer the enrich fields
@@ -342,7 +352,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     p.source(),
                     p.child(),
                     resolved,
-                    new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), null, resolved.nullable(), null, false)
+                    resolved.resolved()
+                        ? new ReferenceAttribute(
+                            resolved.source(),
+                            resolved.name(),
+                            resolved.dataType(),
+                            null,
+                            resolved.nullable(),
+                            null,
+                            false
+                        )
+                        : resolved
                 );
             }
             return p;
@@ -397,6 +417,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
         }
 
+        /**
+         * resolve each item manually.
+         *
+         * Fields are added in the order they appear.
+         *
+         * If one field matches multiple expressions, the following precedence rules apply (higher to lower):
+         * 1. complete field name (ie. no wildcards)
+         * 2. partial wildcard expressions (eg. fieldNam*)
+         * 3. wildcard only (ie. *)
+         *
+         * If a field name matches multiple expressions with the same precedence, last one is used.
+         *
+         * A few examples below:
+         *
+         * // full name
+         * row foo = 1, bar = 2 | keep foo, bar, foo   ->  bar, foo
+         *
+         * // the full name has precedence on wildcard expression
+         * row foo = 1, bar = 2 | keep foo, bar, foo*   ->  foo, bar
+         *
+         * // the two wildcard expressions have the same priority, even though the first one is more specific
+         * // so last one wins
+         * row foo = 1, bar = 2 | keep foo*, bar, fo*   ->  bar, foo
+         *
+         * // * has the lowest priority
+         * row foo = 1, bar = 2 | keep *, foo   ->  bar, foo
+         * row foo = 1, bar = 2 | keep foo, *   ->  foo, bar
+         * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
+         *
+         *
+         * @param p
+         * @param childOutput
+         * @return
+         */
         private LogicalPlan resolveKeep(Project p, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections = new ArrayList<>();
             var projections = p.projections();
@@ -408,26 +462,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             // otherwise resolve them
             else {
-                var starPosition = -1; // no star
-                // resolve each item manually while paying attention to:
-                // 1. name patterns a*, *b, a*b
-                // 2. star * - which can only appear once and signifies "everything else" - this will be added at the end
-                for (var ne : projections) {
-                    if (ne instanceof UnresolvedStar) {
-                        starPosition = resolvedProjections.size();
-                    } else if (ne instanceof UnresolvedAttribute ua) {
-                        resolvedProjections.addAll(resolveAgainstList(ua, childOutput));
-                    } else {
-                        // if this gets here it means it was already resolved
-                        resolvedProjections.add(ne);
+                Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
+                for (Attribute attribute : childOutput) {
+                    for (var proj : projections) {
+                        List<Attribute> resolved;
+                        int priority;
+                        if (proj instanceof UnresolvedStar) {
+                            resolved = childOutput;
+                            priority = 2;
+                        } else if (proj instanceof UnresolvedAttribute ua) {
+                            resolved = resolveAgainstList(ua, childOutput);
+                            priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
+                        } else {
+                            resolved = List.of(attribute);
+                            priority = 0;
+                        }
+                        for (Attribute attr : resolved) {
+                            Integer previousPrio = priorities.get(attr);
+                            if (previousPrio == null || previousPrio >= priority) {
+                                priorities.remove(attr);
+                                priorities.put(attr, priority);
+                            }
+                        }
                     }
                 }
-                // compute star if specified and add it to the list
-                if (starPosition >= 0) {
-                    var remainingProjections = new ArrayList<>(childOutput);
-                    remainingProjections.removeAll(resolvedProjections);
-                    resolvedProjections.addAll(starPosition, remainingProjections);
-                }
+                resolvedProjections = new ArrayList<>(priorities.keySet());
             }
 
             return new EsqlProject(p.source(), p.child(), resolvedProjections);
@@ -696,5 +755,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return result;
         }
+    }
+
+    private BitSet gatherPreAnalysisMetrics(LogicalPlan plan, BitSet b) {
+        // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
+        if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
+            b.set(LIMIT.ordinal());
+        }
+        plan.forEachDown(p -> FeatureMetric.set(p, b));
+        return b;
     }
 }

@@ -8,14 +8,12 @@
 package org.elasticsearch.action.downsample;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -64,7 +62,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super(in);
             sourceIndex = in.readString();
             targetIndex = in.readString();
-            waitTimeout = in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)
+            waitTimeout = in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)
                 ? TimeValue.parseTimeValue(in.readString(), "timeout")
                 : DEFAULT_WAIT_TIMEOUT;
             downsampleConfig = new DownsampleConfig(in);
@@ -91,7 +89,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             out.writeString(sourceIndex);
             out.writeString(targetIndex);
             out.writeString(
-                out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)
+                out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)
                     ? waitTimeout.getStringRep()
                     : DEFAULT_WAIT_TIMEOUT.getStringRep()
             );
@@ -164,10 +162,4 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        protected RequestBuilder(ElasticsearchClient client, DownsampleAction action) {
-            super(client, action, new Request());
-        }
-    }
 }

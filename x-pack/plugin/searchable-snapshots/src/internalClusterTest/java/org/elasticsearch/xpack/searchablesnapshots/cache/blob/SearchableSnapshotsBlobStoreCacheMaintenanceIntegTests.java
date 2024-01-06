@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -56,6 +57,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
@@ -166,28 +168,29 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 for (String mountedIndex : mountedIndices.keySet()) {
                     final Settings indexSettings = mountedIndices.get(mountedIndex).v1();
 
-                    final long remainingEntriesInCache = systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
-                        .setQuery(
-                            BlobStoreCacheMaintenanceService.buildDeleteByQuery(
-                                INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings),
-                                SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings),
-                                SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
+                    assertResponse(
+                        systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
+                            .setQuery(
+                                BlobStoreCacheMaintenanceService.buildDeleteByQuery(
+                                    INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings),
+                                    SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings),
+                                    SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
+                                )
                             )
-                        )
-                        .setSize(0)
-                        .get()
-                        .getHits()
-                        .getTotalHits().value;
-
-                    if (indicesToDelete.contains(mountedIndex)) {
-                        assertThat(remainingEntriesInCache, equalTo(0L));
-                    } else if (snapshotId.equals(SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))) {
-                        assertThat(remainingEntriesInCache, greaterThanOrEqualTo(mountedIndices.get(randomMountedIndex).v2()));
-                    } else if (moreIndicesToDelete.contains(mountedIndex)) {
-                        assertThat(remainingEntriesInCache, equalTo(0L));
-                    } else {
-                        assertThat(remainingEntriesInCache, equalTo(mountedIndices.get(mountedIndex).v2()));
-                    }
+                            .setSize(0),
+                        res -> {
+                            final long remainingEntriesInCache = res.getHits().getTotalHits().value;
+                            if (indicesToDelete.contains(mountedIndex)) {
+                                assertThat(remainingEntriesInCache, equalTo(0L));
+                            } else if (snapshotId.equals(SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))) {
+                                assertThat(remainingEntriesInCache, greaterThanOrEqualTo(mountedIndices.get(randomMountedIndex).v2()));
+                            } else if (moreIndicesToDelete.contains(mountedIndex)) {
+                                assertThat(remainingEntriesInCache, equalTo(0L));
+                            } else {
+                                assertThat(remainingEntriesInCache, equalTo(mountedIndices.get(mountedIndex).v2()));
+                            }
+                        }
+                    );
                 }
             });
         }
@@ -316,13 +319,12 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
     }
 
     private long numberOfEntriesInCache() {
-        return systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-            .setTrackTotalHits(true)
-            .setSize(0)
-            .get()
-            .getHits()
-            .getTotalHits().value;
+        return SearchResponseUtils.getTotalHitsValue(
+            systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .setTrackTotalHits(true)
+                .setSize(0)
+        );
     }
 
     private void refreshSystemIndex(boolean failIfNotExist) {
@@ -366,7 +368,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                         builder.field("int_" + j, randomInt());
                     }
                     builder.endObject();
-                    indexRequestBuilders.add(client().prepareIndex(indexName).setSource(builder));
+                    indexRequestBuilders.add(prepareIndex(indexName).setSource(builder));
                 }
                 indexRandom(true, indexRequestBuilders);
 

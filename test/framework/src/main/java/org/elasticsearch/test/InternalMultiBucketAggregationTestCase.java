@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -271,6 +272,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
      */
     protected static void expectReduceThrowsRealMemoryBreaker(InternalAggregation agg) {
         HierarchyCircuitBreakerService breaker = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%").build(),
             List.of(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

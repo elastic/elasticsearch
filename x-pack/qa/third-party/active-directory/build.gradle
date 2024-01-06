@@ -1,12 +1,15 @@
 apply plugin: 'elasticsearch.standalone-test'
-apply plugin: 'elasticsearch.test.fixtures'
 
+configurations.all {
+  exclude group: 'org.slf4j', module: 'slf4j-nop'
+}
 dependencies {
+  testImplementation project(':test:framework')
   testImplementation project(xpackModule('core'))
   testImplementation project(xpackModule('security'))
-  testImplementation(testArtifact(project(xpackModule('security'))))}
-
-testFixtures.useFixture ":x-pack:test:smb-fixture"
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(":x-pack:test:smb-fixture")
+}
 
 // add test resources from security, so tests can use example certs
 tasks.named("processTestResources").configure {
@@ -23,6 +26,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named("test").configure {
+  systemProperty 'tests.security.manager', 'false'
   include '**/*IT.class'
   include '**/*Tests.class'
 }

@@ -116,7 +116,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        DocWriteResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        DocWriteResponse response = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
@@ -135,7 +135,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        DocWriteResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        DocWriteResponse response = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
@@ -153,13 +153,8 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     public void testSystemIndicesAutoCreateRejectedWhenNotHidden() {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         request.settings(Settings.builder().put(SETTING_INDEX_HIDDEN, false).build());
-        ExecutionException exception = expectThrows(
-            ExecutionException.class,
-            () -> client().execute(AutoCreateAction.INSTANCE, request).get()
-        );
-
         assertThat(
-            exception.getCause().getMessage(),
+            expectThrows(IllegalStateException.class, client().execute(AutoCreateAction.INSTANCE, request)).getMessage(),
             containsString("Cannot auto-create system index [.unmanaged-system-idx] with [index.hidden] set to 'false'")
         );
     }

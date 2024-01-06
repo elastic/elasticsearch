@@ -55,22 +55,25 @@ public interface BlockLoader {
     interface AllReader extends ColumnAtATimeReader, RowStrideReader {}
 
     interface StoredFields {
-        Source source();
+        /**
+         * The {@code _source} of the document.
+         */
+        Source source() throws IOException;
 
         /**
          * @return the ID for the current document
          */
-        String id();
+        String id() throws IOException;
 
         /**
          * @return the routing path for the current document
          */
-        String routing();
+        String routing() throws IOException;
 
         /**
          * @return stored fields for the current document
          */
-        Map<String, List<Object>> storedFields();
+        Map<String, List<Object>> storedFields() throws IOException;
     }
 
     ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
@@ -136,7 +139,7 @@ public interface BlockLoader {
     class ConstantNullsReader implements AllReader {
         @Override
         public Block read(BlockFactory factory, Docs docs) throws IOException {
-            return factory.constantNulls(docs.count());
+            return factory.constantNulls();
         }
 
         @Override
@@ -170,7 +173,7 @@ public interface BlockLoader {
                 return new ColumnAtATimeReader() {
                     @Override
                     public Block read(BlockFactory factory, Docs docs) {
-                        return factory.constantBytes(value, docs.count());
+                        return factory.constantBytes(value);
                     }
 
                     @Override
@@ -389,13 +392,13 @@ public interface BlockLoader {
         /**
          * Build a block that contains only {@code null}.
          */
-        Block constantNulls(int size);
+        Block constantNulls();
 
         /**
          * Build a block that contains {@code value} repeated
          * {@code size} times.
          */
-        Block constantBytes(BytesRef value, int size);
+        Block constantBytes(BytesRef value);
 
         /**
          * Build a reader for reading keyword ordinals.

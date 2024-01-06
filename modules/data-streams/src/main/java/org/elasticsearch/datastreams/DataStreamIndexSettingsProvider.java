@@ -83,7 +83,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (indexMode != null) {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     Settings.Builder builder = Settings.builder();
-                    TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(allSettings);
+                    TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(allSettings);
                     TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(allSettings);
                     final Instant start;
                     final Instant end;

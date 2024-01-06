@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,6 +20,9 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportClearScrollAction extends HandledTransportAction<ClearScrollRequest, ClearScrollResponse> {
 
+    public static final String NAME = "indices:data/read/scroll/clear";
+
+    public static final ActionType<ClearScrollResponse> TYPE = new ActionType<>(NAME, ClearScrollResponse::new);
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
 
@@ -29,7 +33,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
         ActionFilters actionFilters,
         SearchTransportService searchTransportService
     ) {
-        super(ClearScrollAction.NAME, transportService, actionFilters, ClearScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(TYPE.name(), transportService, actionFilters, ClearScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
     }

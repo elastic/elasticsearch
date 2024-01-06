@@ -50,8 +50,7 @@ public class DfsProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 50);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(indexName)
-                .setId(String.valueOf(i))
+            docs[i] = prepareIndex(indexName).setId(String.valueOf(i))
                 .setSource(
                     textField,
                     English.intToEnglish(i),

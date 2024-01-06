@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -634,21 +634,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         transportService.connectToNode(joinRequest.getSourceNode(), new ActionListener<>() {
             @Override
             public void onResponse(Releasable response) {
-                boolean retainConnection = false;
-                try {
-                    validateJoinRequest(
-                        joinRequest,
-                        ActionListener.runBefore(joinListener, () -> Releasables.close(response))
-                            .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
-                    );
-                    retainConnection = true;
-                } catch (Exception e) {
-                    joinListener.onFailure(e);
-                } finally {
-                    if (retainConnection == false) {
-                        Releasables.close(response);
-                    }
-                }
+                validateJoinRequest(
+                    joinRequest,
+                    ActionListener.runBefore(joinListener, () -> Releasables.close(response))
+                        .delegateFailure((l, ignored) -> processJoinRequest(joinRequest, l))
+                );
             }
 
             @Override
@@ -687,48 +677,39 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // - if we're already master that it can make sense of the current cluster state.
         // - we have a healthy PING channel to the node
 
-        final ClusterState stateForJoinValidation = getStateForJoinValidationService();
-        final ListenableActionFuture<Void> validateStateListener = new ListenableActionFuture<>();
-        if (stateForJoinValidation != null) {
-            assert stateForJoinValidation.nodes().isLocalNodeElectedMaster();
-            onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
-            if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                // We do this in a couple of places including the cluster update thread. This one here is really just best effort to ensure
-                // we fail as fast as possible.
-                NodeJoinExecutor.ensureVersionBarrier(
-                    joinRequest.getSourceNode().getVersion(),
-                    stateForJoinValidation.getNodes().getMinNodeVersion()
-                );
+        try (var listeners = new RefCountingListener(validateListener)) {
+            // The join will be rejected if any of these steps fail, but we wait them all to complete, particularly state validation, since
+            // the node will retry and we don't want lots of cluster states in flight.
+
+            ActionListener.completeWith(listeners.acquire(), () -> {
+                final ClusterState stateForJoinValidation = getStateForJoinValidationService();
+                if (stateForJoinValidation == null) {
+                    return null;
+                }
+
+                assert stateForJoinValidation.nodes().isLocalNodeElectedMaster();
+                onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+                if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                    // We do this in a couple of places including the cluster update thread. This one here is really just best effort to
+                    // ensure we fail as fast as possible.
+                    NodeJoinExecutor.ensureVersionBarrier(
+                        joinRequest.getSourceNode().getVersion(),
+                        stateForJoinValidation.getNodes().getMinNodeVersion()
+                    );
+                }
+                sendJoinValidate(joinRequest.getSourceNode(), listeners.acquire());
+                return null;
+            });
+
+            if (listeners.isFailing() == false) {
+                // We may not have sent a state for validation, so just ping both channel types.
+                sendJoinPing(joinRequest.getSourceNode(), TransportRequestOptions.Type.PING, listeners.acquire());
+                sendJoinPing(joinRequest.getSourceNode(), TransportRequestOptions.Type.STATE, listeners.acquire());
             }
-            sendJoinValidate(joinRequest.getSourceNode(), validateStateListener);
-        } else {
-            sendJoinPing(joinRequest.getSourceNode(), TransportRequestOptions.Type.STATE, validateStateListener);
+        } catch (Exception e) {
+            logger.error("unexpected exception in validateJoinRequest", e);
+            assert false : e;
         }
-
-        sendJoinPing(joinRequest.getSourceNode(), TransportRequestOptions.Type.PING, new ActionListener<>() {
-            @Override
-            public void onResponse(Void ignored) {
-                validateStateListener.addListener(validateListener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                // The join will be rejected, but we wait for the state validation to complete as well since the node will retry and we
-                // don't want lots of cluster states in flight.
-                validateStateListener.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void ignored) {
-                        validateListener.onFailure(e);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e2) {
-                        e2.addSuppressed(e);
-                        validateListener.onFailure(e2);
-                    }
-                });
-            }
-        });
     }
 
     private void sendJoinValidate(DiscoveryNode discoveryNode, ActionListener<Void> listener) {

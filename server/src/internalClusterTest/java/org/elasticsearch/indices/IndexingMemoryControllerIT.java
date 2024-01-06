@@ -96,10 +96,10 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("index", indexSettings(1, 0).put("index.refresh_interval", -1).build());
         IndexShard shard = indexService.getShard(0);
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         // Force merge so we know all merges are done before we start deleting:
-        ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
+        ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(r);
         final RefreshStats refreshStats = shard.refreshStats();
         for (int i = 0; i < 100; i++) {

@@ -145,12 +145,8 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            numericType = in.readOptionalString();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            format = in.readOptionalString();
-        }
+        numericType = in.readOptionalString();
+        format = in.readOptionalString();
     }
 
     @Override
@@ -165,16 +161,8 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
         out.writeOptionalWriteable(nestedSort);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            out.writeOptionalString(numericType);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            out.writeOptionalString(format);
-        } else {
-            if (format != null) {
-                throw new IllegalArgumentException("Custom format for output of sort fields requires all nodes on 8.0 or later");
-            }
-        }
+        out.writeOptionalString(numericType);
+        out.writeOptionalString(format);
     }
 
     /** Returns the document field this sort should be based on. */

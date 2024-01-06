@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -25,7 +26,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -96,7 +96,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
 
-    private final ClusterService clusterService;
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
@@ -107,7 +106,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
-        this.clusterService = clusterService;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
         this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
@@ -249,7 +247,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders =
                                     new HashMap<>();
                                 buildShardLevelInfo(
-                                    clusterService.state().routingTable(),
                                     adjustShardStats(stats),
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
@@ -284,8 +281,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchNodeStats() {
             final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+            nodesStatsRequest.setIncludeShardsStats(false);
             nodesStatsRequest.clear();
-            nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
+            nodesStatsRequest.addMetric(NodesStatsRequestParameters.Metric.FS.metricName());
             nodesStatsRequest.timeout(fetchTimeout);
             client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
@@ -443,7 +441,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     static void buildShardLevelInfo(
-        RoutingTable routingTable,
         ShardStats[] stats,
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
@@ -451,7 +448,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
         for (ShardStats s : stats) {
-            final ShardRouting shardRouting = routingTable.deduplicate(s.getShardRouting());
+            final ShardRouting shardRouting = s.getShardRouting();
             dataPathByShard.put(ClusterInfo.NodeAndShard.from(shardRouting), s.getDataPath());
 
             final StoreStats storeStats = s.getStats().getStore();
@@ -460,7 +457,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
             final long size = storeStats.sizeInBytes();
             final long dataSetSize = storeStats.totalDataSetSizeInBytes();
-            final long reserved = storeStats.getReservedSize().getBytes();
+            final long reserved = storeStats.reservedSizeInBytes();
 
             final String shardIdentifier = ClusterInfo.shardIdentifierFromRouting(shardRouting);
             logger.trace("shard: {} size: {} reserved: {}", shardIdentifier, size, reserved);

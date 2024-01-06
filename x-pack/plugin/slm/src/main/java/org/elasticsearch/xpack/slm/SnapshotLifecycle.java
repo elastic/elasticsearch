@@ -124,6 +124,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
+            services.featureService(),
             threadPool,
             client,
             services.xContentRegistry()

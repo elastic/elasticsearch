@@ -1,0 +1,6 @@
+pr: 103003
+summary: "Fix: Watcher REST API `GET /_watcher/settings` now includes product header"
+area: "Watcher"
+type: bug
+issues:
+ - 102928

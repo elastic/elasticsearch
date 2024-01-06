@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.clone;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
@@ -20,22 +19,8 @@ public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuild
     AcknowledgedResponse,
     CloneSnapshotRequestBuilder> {
 
-    protected CloneSnapshotRequestBuilder(
-        ElasticsearchClient client,
-        ActionType<AcknowledgedResponse> action,
-        CloneSnapshotRequest request
-    ) {
-        super(client, action, request);
-    }
-
-    public CloneSnapshotRequestBuilder(
-        ElasticsearchClient client,
-        ActionType<AcknowledgedResponse> action,
-        String repository,
-        String source,
-        String target
-    ) {
-        this(client, action, new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
+    public CloneSnapshotRequestBuilder(ElasticsearchClient client, String repository, String source, String target) {
+        super(client, TransportCloneSnapshotAction.TYPE, new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
     }
 
     /**

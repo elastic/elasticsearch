@@ -1240,25 +1240,37 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testBlockLoaderFromColumnReader() throws IOException {
-        testBlockLoader(true);
+        testBlockLoader(false, true);
     }
 
     public final void testBlockLoaderFromRowStrideReader() throws IOException {
-        testBlockLoader(false);
+        testBlockLoader(false, false);
     }
 
-    protected boolean supportsColumnAtATimeReader(MappedFieldType ft) {
+    public final void testBlockLoaderFromColumnReaderWithSyntheticSource() throws IOException {
+        testBlockLoader(true, true);
+    }
+
+    public final void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
+        testBlockLoader(true, false);
+    }
+
+    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
         return ft.hasDocValues();
     }
 
-    private void testBlockLoader(boolean columnReader) throws IOException {
+    private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
+        // TODO if we're not using synthetic source use a different sort of example. Or something.
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
-            b.startObject("field");
-            example.mapping().accept(b);
-            b.endObject();
-        }));
-        BlockLoader loader = mapper.fieldType("field").blockLoader(new MappedFieldType.BlockLoaderContext() {
+        XContentBuilder mapping = syntheticSource ? syntheticSourceFieldMapping(example.mapping) : fieldMapping(example.mapping);
+        MapperService mapper = createMapperService(mapping);
+        testBlockLoader(columnReader, example, mapper, "field");
+    }
+
+    protected final void testBlockLoader(boolean columnReader, SyntheticSourceExample example, MapperService mapper, String loaderFieldName)
+        throws IOException {
+        SearchLookup searchLookup = new SearchLookup(mapper.mappingLookup().fieldTypesLookup()::get, null, null);
+        BlockLoader loader = mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
             @Override
             public String indexName() {
                 throw new UnsupportedOperationException();
@@ -1266,12 +1278,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             @Override
             public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
+                return searchLookup;
             }
 
             @Override
             public Set<String> sourcePaths(String name) {
                 return mapper.mappingLookup().sourcePaths(name);
+            }
+
+            @Override
+            public String parentField(String field) {
+                return mapper.mappingLookup().parentField(field);
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return (FieldNamesFieldMapper.FieldNamesFieldType) mapper.fieldType(FieldNamesFieldMapper.NAME);
             }
         });
         Function<Object, Object> valuesConvert = loadBlockExpected();
@@ -1291,8 +1313,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext ctx = reader.leaves().get(0);
                 TestBlock block;
                 if (columnReader) {
-                    if (supportsColumnAtATimeReader(mapper.fieldType("field"))) {
-                        block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.FACTORY, TestBlock.docs(0));
+                    if (supportsColumnAtATimeReader(mapper, mapper.fieldType(loaderFieldName))) {
+                        block = (TestBlock) loader.columnAtATimeReader(ctx)
+                            .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(0));
                     } else {
                         assertNull(loader.columnAtATimeReader(ctx));
                         return;
@@ -1300,10 +1323,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 } else {
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
                         StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-                        loader.rowStrideStoredFieldSpec().requiresSource()
+                        loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
                     );
                     storedFieldsLoader.advanceTo(0);
-                    BlockLoader.Builder builder = loader.builder(TestBlock.FACTORY, 1);
+                    BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);
                     loader.rowStrideReader(ctx).read(0, storedFieldsLoader, builder);
                     block = (TestBlock) builder.build();
                 }
@@ -1315,6 +1338,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         inBlock = valuesConvert.apply(inBlock);
                     }
                 }
+                // If we're reading from _source we expect the order to be preserved, otherwise it's jumbled.
                 Object expected = loader instanceof BlockSourceReader ? example.expectedParsed() : example.expectedParsedBlockLoader();
                 if (List.of().equals(expected)) {
                     assertThat(inBlock, nullValue());

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.internal.Client;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -60,6 +62,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -74,6 +77,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
@@ -96,13 +100,15 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import javax.net.ssl.SNIHostName;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -145,6 +151,12 @@ public class Node implements Closeable {
         "discovery.initial_state_timeout",
         TimeValue.timeValueSeconds(30),
         Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "node.maximum_shutdown_grace_period",
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
     );
 
     private final Lifecycle lifecycle = new Lifecycle();
@@ -419,6 +431,8 @@ public class Node implements Closeable {
             }
         }
 
+        injector.getInstance(NodeMetrics.class).start();
+
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -462,6 +476,7 @@ public class Node implements Closeable {
         stopIfStarted(GatewayService.class);
         stopIfStarted(SearchService.class);
         stopIfStarted(TransportService.class);
+        stopIfStarted(NodeMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -530,6 +545,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(injector.getInstance(NodeMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
@@ -575,20 +591,92 @@ public class Node implements Closeable {
      */
     public void prepareForClose() {
         HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
-        FutureTask<Void> stopper = new FutureTask<>(() -> {
-            httpServerTransport.stop();
-            return null;
-        });
-        new Thread(stopper, "http-server-transport-stop").start();
-
+        Map<String, Runnable> stoppers = new HashMap<>();
+        TimeValue maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(this.settings());
+        stoppers.put("http-server-transport-stop", httpServerTransport::close);
+        stoppers.put("async-search-stop", () -> this.awaitSearchTasksComplete(maxTimeout));
         if (terminationHandler != null) {
-            terminationHandler.handleTermination();
+            stoppers.put("termination-handler-stop", terminationHandler::handleTermination);
         }
 
+        Map<String, CompletableFuture<Void>> futures = new HashMap<>(stoppers.size());
+        for (var stopperEntry : stoppers.entrySet()) {
+            var future = new CompletableFuture<Void>();
+            new Thread(() -> {
+                try {
+                    stopperEntry.getValue().run();
+                } catch (Exception ex) {
+                    logger.warn("unexpected exception in shutdown task [" + stopperEntry.getKey() + "]", ex);
+                } finally {
+                    future.complete(null);
+                }
+            }, stopperEntry.getKey()).start();
+            futures.put(stopperEntry.getKey(), future);
+        }
+
+        @SuppressWarnings(value = "rawtypes") // Can't make an array of parameterized types, but it complains if you leave the type out
+        CompletableFuture<Void> allStoppers = CompletableFuture.allOf(futures.values().toArray(new CompletableFuture[stoppers.size()]));
+
         try {
-            stopper.get();
-        } catch (Exception e) {
-            logger.warn("unexpected exception while waiting for http server to close", e);
+            if (maxTimeout.millis() == 0) {
+                FutureUtils.get(allStoppers);
+            } else {
+                FutureUtils.get(allStoppers, maxTimeout.millis(), TimeUnit.MILLISECONDS);
+            }
+
+        } catch (ElasticsearchTimeoutException t) {
+            var unfinishedTasks = futures.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().isDone() == false)
+                .map(Map.Entry::getKey)
+                .toList();
+            logger.warn("timed out while waiting for graceful shutdown tasks: " + unfinishedTasks);
+        }
+    }
+
+    private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout) {
+        TaskManager taskManager = injector.getInstance(TransportService.class).getTaskManager();
+        long millisWaited = 0;
+        while (true) {
+            long searchTasksRemaining = taskManager.getTasks()
+                .values()
+                .stream()
+                .filter(task -> TransportSearchAction.TYPE.name().equals(task.getAction()))
+                .count();
+            if (searchTasksRemaining == 0) {
+                logger.debug("all search tasks complete");
+                return;
+            } else {
+                // Let the system work on those searches for a while. We're on a dedicated thread to manage app shutdown, so we
+                // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
+                // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
+                // be spending on finishing those searches.
+                final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
+                millisWaited += pollPeriod.millis();
+                if (millisWaited >= asyncSearchTimeout.millis()) {
+                    logger.warn(
+                        format(
+                            "timed out after waiting [%s] for [%d] search tasks to finish",
+                            asyncSearchTimeout.toString(),
+                            searchTasksRemaining
+                        )
+                    );
+                    return;
+                }
+                logger.debug(format("waiting for [%s] search tasks to finish, next poll in [%s]", searchTasksRemaining, pollPeriod));
+                try {
+                    Thread.sleep(pollPeriod.millis());
+                } catch (InterruptedException ex) {
+                    logger.warn(
+                        format(
+                            "interrupted while waiting [%s] for [%d] search tasks to finish",
+                            asyncSearchTimeout.toString(),
+                            searchTasksRemaining
+                        )
+                    );
+                    return;
+                }
+            }
         }
     }
 

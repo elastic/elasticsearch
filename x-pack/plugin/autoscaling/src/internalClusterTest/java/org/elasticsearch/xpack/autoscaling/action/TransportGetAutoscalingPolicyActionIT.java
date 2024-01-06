@@ -38,7 +38,7 @@ public class TransportGetAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(name);
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
-            () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet()
+            client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest)
         );
         assertThat(e.getMessage(), containsString("autoscaling policy with name [" + name + "] does not exist"));
     }

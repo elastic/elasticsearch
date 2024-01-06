@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -53,6 +56,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -60,6 +64,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -576,13 +581,10 @@ public class StatementParserTests extends ESTestCase {
     public void testMetadataFieldOnOtherSources() {
         expectError(
             "row a = 1 [metadata _index]",
-            "1:11: mismatched input '[' expecting {<EOF>, PIPE, 'and', COMMA, 'or', '+', '-', '*', '/', '%'}"
+            "1:11: mismatched input '[' expecting {<EOF>, '|', 'and', ',', 'or', '+', '-', '*', '/', '%'}"
         );
-        expectError("show functions [metadata _index]", "line 1:16: mismatched input '[' expecting {<EOF>, PIPE}");
-        expectError(
-            "explain [from foo] [metadata _index]",
-            "line 1:20: mismatched input '[' expecting {PIPE, COMMA, OPENING_BRACKET, ']'}"
-        );
+        expectError("show functions [metadata _index]", "line 1:16: token recognition error at: '['");
+        expectError("explain [from foo] [metadata _index]", "line 1:20: mismatched input '[' expecting {'|', ',', OPENING_BRACKET, ']'}");
     }
 
     public void testMetadataFieldMultipleDeclarations() {
@@ -636,6 +638,7 @@ public class StatementParserTests extends ESTestCase {
             "from a | dissect foo \"%{bar}\" append_separator=3",
             "Invalid value for dissect append_separator: expected a string, but was [3]"
         );
+        expectError("from a | dissect foo \"%{}\"", "Invalid pattern for dissect: [%{}]");
     }
 
     public void testGrokPattern() {
@@ -706,6 +709,17 @@ public class StatementParserTests extends ESTestCase {
         assertEquals(MvExpand.class, cmd.getClass());
         MvExpand expand = (MvExpand) cmd;
         assertThat(expand.target(), equalTo(attribute("a")));
+    }
+
+    // see https://github.com/elastic/elasticsearch/issues/103331
+    public void testKeepStarMvExpand() {
+        try {
+            String query = "from test | keep * | mv_expand a";
+            var plan = statement(query);
+        } catch (UnresolvedException e) {
+            fail(e, "Regression: https://github.com/elastic/elasticsearch/issues/103331");
+        }
+
     }
 
     public void testUsageOfProject() {
@@ -796,6 +810,29 @@ public class StatementParserTests extends ESTestCase {
 
     public void testMissingInputParams() {
         expectError("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1)), "Not enough actual parameters 1");
+    }
+
+    public void testFieldContainingDotsAndNumbers() {
+        LogicalPlan where = processingCommand("where `a.b.1m.4321`");
+        assertThat(where, instanceOf(Filter.class));
+        Filter w = (Filter) where;
+        assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));
+        assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
+    }
+
+    public void testFieldQualifiedName() {
+        LogicalPlan where = processingCommand("where a.b.`1m`.`4321`");
+        assertThat(where, instanceOf(Filter.class));
+        Filter w = (Filter) where;
+        assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));
+        assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
+    }
+
+    public void testQuotedName() {
+        // row `my-field`=123 | stats count(`my-field`) | eval x = `count(`my-field`)`
+        LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(``my-field``)`");
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("count(`my-field`)"));
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

@@ -80,7 +80,7 @@ final class DoubleBlockHash extends BlockHash {
     }
 
     private IntBlock add(DoubleBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(Block.Ref.floating(block)).hash(longHash); // TODO: block factory
+        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hash(blockFactory, longHash);
         seenNull |= result.sawNull();
         return result.ords();
     }

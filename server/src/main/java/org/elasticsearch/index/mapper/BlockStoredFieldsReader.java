@@ -42,7 +42,7 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
             return null;
         }
 
@@ -99,7 +99,7 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
             return new Bytes(field) {
                 private final BytesRef scratch = new BytesRef();
 

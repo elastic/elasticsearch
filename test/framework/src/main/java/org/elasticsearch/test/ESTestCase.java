@@ -39,6 +39,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -49,6 +51,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -77,6 +81,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -144,6 +149,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -161,8 +167,10 @@ import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -784,6 +792,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * @return a random instant between a min and a max value with a random nanosecond precision
+     */
+    public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
+        return Instant.ofEpochSecond(
+            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
+            randomLongBetween(0, 999999999)
+        );
+    }
+
+    /**
      * The maximum value that can be represented as an unsigned long.
      */
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
@@ -1174,6 +1192,32 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String randomDateFormatterPattern() {
         return randomFrom(FormatNames.values()).getName();
+    }
+
+    /**
+     * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
+     */
+    public static SpatialPoint randomGeoPoint() {
+        return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
+    }
+
+    /**
+     * Generate a random valid point constrained to cartesian ranges.
+     */
+    public static SpatialPoint randomCartesianPoint() {
+        double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        return new SpatialPoint() {
+            @Override
+            public double getX() {
+                return x;
+            }
+
+            @Override
+            public double getY() {
+                return y;
+            }
+        };
     }
 
     /**
@@ -1690,10 +1734,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContentParserConfiguration config, XContent xContent, BytesReference data)
         throws IOException {
-        if (data.hasArray()) {
-            return xContent.createParser(config, data.array(), data.arrayOffset(), data.length());
-        }
-        return xContent.createParser(config, data.streamInput());
+        return XContentHelper.createParserNotCompressed(config, data, xContent.type());
     }
 
     protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data, RestApiVersion restApiVersion)
@@ -2068,7 +2109,18 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static <T> T safeAwait(SubscribableListener<T> listener) {
-        return PlainActionFuture.get(listener::addListener, 10, TimeUnit.SECONDS);
+        final var future = new PlainActionFuture<T>();
+        listener.addListener(future);
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("safeAwait: interrupted", e);
+        } catch (ExecutionException e) {
+            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+        } catch (TimeoutException e) {
+            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
+        }
     }
 
     public static void safeSleep(long millis) {
@@ -2097,5 +2149,21 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static <T> T asInstanceOf(Class<T> clazz, Object o) {
         assertThat(o, Matchers.instanceOf(clazz));
         return (T) o;
+    }
+
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionFuture<? extends RefCounted> future) {
+        return expectThrows(
+            expectedType,
+            "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
+            () -> future.actionGet().decRef()  // dec ref if we unexpectedly fail to not leak transport response
+        );
+    }
+
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionRequestBuilder<?, ?> builder) {
+        return expectThrows(
+            expectedType,
+            "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
+            () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
+        );
     }
 }

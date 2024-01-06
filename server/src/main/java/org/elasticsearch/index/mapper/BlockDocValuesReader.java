@@ -95,12 +95,19 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return new SingletonLongs(singleton);
+                }
+                return new Longs(docValues);
+            }
+            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
                 return new SingletonLongs(singleton);
             }
-            return new Longs(docValues);
+            return new ConstantNullsReader();
         }
     }
 
@@ -223,12 +230,19 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return new SingletonInts(singleton);
+                }
+                return new Ints(docValues);
+            }
+            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
                 return new SingletonInts(singleton);
             }
-            return new Ints(docValues);
+            return new ConstantNullsReader();
         }
     }
 
@@ -362,12 +376,19 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return new SingletonDoubles(singleton, toDouble);
+                }
+                return new Doubles(docValues, toDouble);
+            }
+            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
                 return new SingletonDoubles(singleton, toDouble);
             }
-            return new Doubles(docValues, toDouble);
+            return new ConstantNullsReader();
         }
     }
 
@@ -496,12 +517,19 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            SortedSetDocValues docValues = ordinals(context);
-            SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
+            SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
+            if (docValues != null) {
+                SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return new SingletonOrdinals(singleton);
+                }
+                return new Ordinals(docValues);
+            }
+            SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
             if (singleton != null) {
                 return new SingletonOrdinals(singleton);
             }
-            return new Ordinals(docValues);
+            return new ConstantNullsReader();
         }
 
         @Override
@@ -513,6 +541,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
             return DocValues.getSortedSet(context.reader(), fieldName);
         }
+
+        @Override
+        public String toString() {
+            return "BytesRefsFromOrds[" + fieldName + "]";
+        }
     }
 
     private static class SingletonOrdinals extends BlockDocValuesReader {
@@ -522,8 +555,21 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             this.ordinals = ordinals;
         }
 
+        private BlockLoader.Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (ordinals.advanceExact(docId)) {
+                BytesRef v = ordinals.lookupOrd(ordinals.ordValue());
+                // the returned BytesRef can be reused
+                return factory.constantBytes(BytesRef.deepCopyOf(v));
+            } else {
+                return factory.constantNulls();
+            }
+        }
+
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
+            if (docs.count() == 1) {
+                return readSingleDoc(factory, docs.get(0));
+            }
             try (BlockLoader.SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(ordinals, docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -719,12 +765,19 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return new SingletonBooleans(singleton);
+                }
+                return new Booleans(docValues);
+            }
+            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
             if (singleton != null) {
                 return new SingletonBooleans(singleton);
             }
-            return new Booleans(docValues);
+            return new ConstantNullsReader();
         }
     }
 

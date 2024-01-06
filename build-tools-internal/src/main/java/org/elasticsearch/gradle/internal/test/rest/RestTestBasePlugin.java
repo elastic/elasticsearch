@@ -113,7 +113,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         configureArtifactTransforms(project);
 
         // Create configuration for aggregating historical feature metadata
-        Configuration featureMetadataConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {
+        FileCollection featureMetadataConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {
             c.setCanBeConsumed(false);
             c.setCanBeResolved(true);
             c.attributes(
@@ -127,7 +127,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             });
         });
 
-        Configuration defaultDistroFeatureMetadataConfig = project.getConfigurations()
+        FileCollection defaultDistroFeatureMetadataConfig = project.getConfigurations()
             .create(DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION, c -> {
                 c.setCanBeConsumed(false);
                 c.setCanBeResolved(true);
@@ -168,7 +168,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
-            task.getInputs().property(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, false);
+            task.getExtensions().getExtraProperties().set(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, false);
 
             // Disable the security manager and syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.security.manager", "false");

@@ -558,7 +558,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         final Instant now = Instant.now();
         SourceSupplier sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli());
+            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
             return XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)

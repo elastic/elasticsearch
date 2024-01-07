@@ -12,8 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -268,8 +268,8 @@ public abstract class TestCluster {
                 .toArray(String[]::new);
 
             if (templates.length != 0) {
-                var request = new DeleteComposableIndexTemplateAction.Request(templates);
-                assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, request).actionGet());
+                var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
+                assertAcked(client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request).actionGet());
             }
         }
     }
@@ -285,8 +285,8 @@ public abstract class TestCluster {
                 .toArray(String[]::new);
 
             if (templates.length != 0) {
-                var request = new DeleteComponentTemplateAction.Request(templates);
-                assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, request).actionGet());
+                var request = new TransportDeleteComponentTemplateAction.Request(templates);
+                assertAcked(client().execute(TransportDeleteComponentTemplateAction.TYPE, request).actionGet());
             }
         }
     }

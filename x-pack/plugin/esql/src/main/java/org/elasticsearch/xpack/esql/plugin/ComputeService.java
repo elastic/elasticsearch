@@ -208,6 +208,7 @@ public class ComputeService {
                     Set.of(localConcreteIndices.indices()),
                     localOriginalIndices.indices(),
                     exchangeSource,
+                    ActionListener.releaseAfter(refs.acquire(), exchangeSource.addEmptySink()),
                     () -> cancelOnFailure(rootTask, cancelled, refs.acquire()).map(response -> {
                         responseHeadersCollector.collect();
                         if (configuration.profile()) {
@@ -267,17 +268,16 @@ public class ComputeService {
         Set<String> concreteIndices,
         String[] originalIndices,
         ExchangeSourceHandler exchangeSource,
-        Supplier<ActionListener<ComputeResponse>> listenerSupplier
+        ActionListener<Void> parentListener,
+        Supplier<ActionListener<ComputeResponse>> dataNodeListenerSupplier
     ) {
-        // prevent the exchange source from completing until we have linked all remote sinks.
-        final Releasable emptySink = exchangeSource.addEmptySink();
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
-            try (RefCountingRunnable refs = new RefCountingRunnable(emptySink::close)) {
+            try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
                 for (DataNode node : dataNodes) {
-                    var dataNodeListener = ActionListener.releaseAfter(listenerSupplier.get(), refs.acquire());
+                    var dataNodeListener = ActionListener.releaseAfter(dataNodeListenerSupplier.get(), refs.acquire());
                     var queryPragmas = configuration.pragmas();
                     ExchangeService.openExchange(
                         transportService,
@@ -300,7 +300,7 @@ public class ComputeService {
                     );
                 }
             }
-        }, e -> ActionListener.runAfter(listenerSupplier.get(), emptySink::close).onFailure(e)));
+        }, parentListener::onFailure));
     }
 
     private void startComputeOnRemoteClusters(
@@ -673,6 +673,7 @@ public class ComputeService {
                 concreteIndices,
                 originalIndices,
                 exchangeSource,
+                ActionListener.releaseAfter(refs.acquire(), exchangeSource.addEmptySink()),
                 () -> cancelOnFailure(parentTask, cancelled, refs.acquire()).map(r -> {
                     responseHeadersCollector.collect();
                     if (configuration.profile()) {

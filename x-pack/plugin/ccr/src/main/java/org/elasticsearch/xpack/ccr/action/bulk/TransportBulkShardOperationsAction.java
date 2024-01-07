@@ -23,7 +23,9 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -283,6 +285,14 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
     }
 
     public static void adaptBulkShardOperationsResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+
+        final Engine engine = indexShard.getEngineOrNull();
+        if (indexShard.state() == IndexShardState.STARTED && engine != null && engine.refreshNeeded()) {
+            indexShard.refresh("doc_stats");
+        }
+        final DocsStats docsStats = indexShard.docStats();
+        response.setDocCount(docsStats.getCount());
+
         final SeqNoStats seqNoStats = indexShard.seqNoStats();
         // return a fresh global checkpoint after the operations have been replicated for the shard follow task
         response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());

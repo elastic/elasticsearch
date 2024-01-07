@@ -33,6 +33,7 @@ public class ShardChangesResponseTests extends AbstractWireSerializingTestCase<S
             leaderMaxSeqNo,
             maxSeqNoOfUpdatesOrDeletes,
             operations,
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }

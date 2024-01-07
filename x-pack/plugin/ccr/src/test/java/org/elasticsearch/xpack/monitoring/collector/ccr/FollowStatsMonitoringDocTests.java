@@ -117,6 +117,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             )
         );
         final long timeSinceLastReadMillis = randomNonNegativeLong();
+        final long followerDocsCount = randomNonNegativeLong();
+        final long leaderDocsCount = randomNonNegativeLong();
         final ShardFollowNodeTaskStatus taskStatus = new ShardFollowNodeTaskStatus(
             "leader_cluster",
             "leader_index",
@@ -146,7 +148,9 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             operationWritten,
             fetchExceptions,
             timeSinceLastReadMillis,
-            new ElasticsearchException("fatal error")
+            new ElasticsearchException("fatal error"),
+            followerDocsCount,
+            leaderDocsCount
         );
         final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, taskStatus);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
@@ -210,7 +214,9 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                 "fatal_exception": {
                                   "type": "exception",
                                   "reason": "fatal error"
-                                }
+                                },
+                                "follower_docs_count": %s,
+                                "leader_docs_count": %s
                               }
                             }""",
                         DATE_TIME_FORMATTER.formatMillis(timestamp),
@@ -241,7 +247,9 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                         operationWritten,
                         fetchExceptions.keySet().iterator().next(),
                         fetchExceptions.values().iterator().next().v1(),
-                        timeSinceLastReadMillis
+                        timeSinceLastReadMillis,
+                        followerDocsCount,
+                        leaderDocsCount
                     )
                 )
             )
@@ -281,7 +289,9 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             10,
             fetchExceptions,
             2,
-            new ElasticsearchException("fatal error")
+            new ElasticsearchException("fatal error"),
+            0,
+            1
         );
         XContentBuilder builder = jsonBuilder();
         builder.value(taskStatus);

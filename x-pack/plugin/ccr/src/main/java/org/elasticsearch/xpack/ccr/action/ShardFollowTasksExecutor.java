@@ -570,7 +570,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
     }
 
     interface FollowerStatsInfoHandler {
-        void accept(String followerHistoryUUID, long globalCheckpoint, long maxSeqNo);
+        void accept(String followerHistoryUUID, long globalCheckpoint, long maxSeqNo, long docsCount);
     }
 
     @Override
@@ -579,9 +579,15 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         logger.info("{} Starting to track leader shard {}", params.getFollowShardId(), params.getLeaderShardId());
 
-        FollowerStatsInfoHandler handler = (followerHistoryUUID, followerGCP, maxSeqNo) -> {
-            shardFollowNodeTask.start(followerHistoryUUID, followerGCP, maxSeqNo, followerGCP, maxSeqNo);
-        };
+        FollowerStatsInfoHandler handler = (followerHistoryUUID, followerGCP, maxSeqNo, docsCount) -> shardFollowNodeTask.start(
+            followerHistoryUUID,
+            followerGCP,
+            maxSeqNo,
+            followerGCP,
+            maxSeqNo,
+            docsCount
+        );
+
         Consumer<Exception> errorHandler = e -> {
             if (shardFollowNodeTask.isStopped()) {
                 return;
@@ -648,7 +654,8 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
                 final long globalCheckpoint = seqNoStats.getGlobalCheckpoint();
                 final long maxSeqNo = seqNoStats.getMaxSeqNo();
-                handler.accept(historyUUID, globalCheckpoint, maxSeqNo);
+                final long docsCount = shardStats.getStats().docs.getCount();
+                handler.accept(historyUUID, globalCheckpoint, maxSeqNo, docsCount);
             } else {
                 errorHandler.accept(new ShardNotFoundException(shardId));
             }

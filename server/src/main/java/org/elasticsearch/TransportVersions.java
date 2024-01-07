@@ -178,6 +178,7 @@ public class TransportVersions {
     public static final TransportVersion SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED = def(8_566_00_0);
     public static final TransportVersion SMALLER_RELOAD_SECURE_SETTINGS_REQUEST = def(8_567_00_0);
     public static final TransportVersion UPDATE_API_KEY_EXPIRATION_TIME_ADDED = def(8_568_00_0);
+    public static final TransportVersion EXTEND_FOLLOW_STATS_API_WITH_DOCS_COUNT = def(8_569_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

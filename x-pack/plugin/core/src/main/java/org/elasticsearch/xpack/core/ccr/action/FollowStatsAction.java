@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -77,22 +78,53 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
             // sort by index name, then shard ID
             Transports.assertNotTransportThread("collecting responses into a map may be expensive");
-            final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
-            for (final StatsResponse response : statsResponse) {
-                taskResponsesByIndex.computeIfAbsent(response.status().followerIndex(), k -> new TreeMap<>())
-                    .put(response.status().getShardId(), response);
+
+            final Map<String, Map<Integer, StatsResponse>> shardLevelStatsByIndex = new TreeMap<>();
+            final Map<String, AggregatedIndexStats> aggregatedIndexLevelStatsByIndex = new HashMap<>();
+
+            for (final StatsResponse shardFollowStats : statsResponse) {
+
+                final String indexName = shardFollowStats.status().followerIndex();
+
+                shardLevelStatsByIndex.computeIfAbsent(indexName, ignore -> new TreeMap<>())
+                    .put(shardFollowStats.status().getShardId(), shardFollowStats);
+
+                aggregatedIndexLevelStatsByIndex.computeIfAbsent(indexName, ignore -> new AggregatedIndexStats()).update(shardFollowStats);
             }
-            return innerToXContentChunked(taskResponsesByIndex);
+
+            return innerToXContentChunked(aggregatedIndexLevelStatsByIndex, shardLevelStatsByIndex);
         }
 
-        private static Iterator<ToXContent> innerToXContentChunked(Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex) {
+        private static class AggregatedIndexStats {
+            private long followerToLeaderLaggingDocsCount;
+
+            void update(final StatsResponse shardFollowStats) {
+                followerToLeaderLaggingDocsCount += calcFollowerToLeaderShardLaggingDocsCount(shardFollowStats);
+            }
+
+            private long calcFollowerToLeaderShardLaggingDocsCount(final StatsResponse stats) {
+                final ShardFollowNodeTaskStatus s = stats.status;
+                return Math.absExact(s.leaderDocsCount() - s.followerDocsCount());
+            }
+        }
+
+        private static Iterator<ToXContent> innerToXContentChunked(
+            final Map<String, AggregatedIndexStats> aggregatedIndexLevelStatsByIndex,
+            final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex
+        ) {
             return Iterators.concat(
                 Iterators.single((builder, params) -> builder.startObject().startArray("indices")),
                 Iterators.flatMap(
                     taskResponsesByIndex.entrySet().iterator(),
                     indexEntry -> Iterators.concat(
                         Iterators.<ToXContent>single(
-                            (builder, params) -> builder.startObject().field("index", indexEntry.getKey()).startArray("shards")
+                            (builder, params) -> builder.startObject()
+                                .field("index", indexEntry.getKey())
+                                .field(
+                                    "follower_to_leader_lagging_docs_count",
+                                    aggregatedIndexLevelStatsByIndex.get(indexEntry.getKey()).followerToLeaderLaggingDocsCount
+                                )
+                                .startArray("shards")
                         ),
                         indexEntry.getValue().values().iterator(),
                         Iterators.single((builder, params) -> builder.endArray().endObject())

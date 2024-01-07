@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
@@ -203,6 +204,70 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
 
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+    }
+
+    public void testFollowStatsApiReportsFollowerVsLeaderIndexDocumentsCount() throws Exception {
+        final int primaryShardsNumber = randomIntBetween(1, 5);
+        final String leaderIndexSettings = getIndexSettings(primaryShardsNumber, 0, Collections.emptyMap());
+        assertAcked(client().admin().indices().prepareCreate("leader1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureGreen("leader1");
+
+        PutFollowAction.Request followRequest = getPutFollowRequest("leader1", "follower1");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
+
+        // check that every shard responded with stats info
+        assertThat(response.getStatsResponses().size(), equalTo(primaryShardsNumber));
+
+        // ensure that follower vs leader counters are zeros before indexing started
+        final long followerDocsCountBefore = response.getStatsResponses()
+            .stream()
+            .map(s -> s.status().followerDocsCount())
+            .mapToLong(Long::longValue)
+            .sum();
+        assertThat(followerDocsCountBefore, equalTo(0L));
+
+        final long leaderDocsCountBefore = response.getStatsResponses()
+            .stream()
+            .map(s -> s.status().leaderDocsCount())
+            .mapToLong(Long::longValue)
+            .sum();
+        assertThat(leaderDocsCountBefore, equalTo(0L));
+
+        // index many docs on leader index
+        final long indexedDocsNumber = indexDocs(client(), "leader1");
+
+        // check that doc count in follower index matches with leader index
+        assertBusy(() -> {
+            final FollowStatsAction.StatsResponses freshStatsResponse = client().execute(FollowStatsAction.INSTANCE, statsRequest)
+                .actionGet();
+
+            final long followerDocsCountAfter = freshStatsResponse.getStatsResponses()
+                .stream()
+                .map(s -> s.status().followerDocsCount())
+                .mapToLong(Long::longValue)
+                .sum();
+
+            final long leaderDocsCountAfter = freshStatsResponse.getStatsResponses()
+                .stream()
+                .map(s -> s.status().leaderDocsCount())
+                .mapToLong(Long::longValue)
+                .sum();
+
+            assertThat(followerDocsCountAfter, equalTo(indexedDocsNumber));
+            assertThat(leaderDocsCountAfter, equalTo(indexedDocsNumber));
+        });
+    }
+
+    private long indexDocs(Client client, String index) {
+        int numDocs = between(100, 1000);
+        for (int i = 0; i < numDocs; i++) {
+            client.prepareIndex(index).setSource("f", "v").get();
+        }
+        client.admin().indices().prepareRefresh(index).get();
+        return numDocs;
     }
 
 }

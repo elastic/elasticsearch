@@ -1158,6 +1158,12 @@
                   "type": "text"
                 }
               }
+            },
+            "follower_docs_count": {
+              "type": "long"
+            },
+            "leader_docs_count": {
+              "type": "long"
             }
           }
         },

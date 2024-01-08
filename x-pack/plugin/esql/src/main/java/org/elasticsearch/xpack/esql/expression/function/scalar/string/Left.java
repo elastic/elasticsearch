@@ -43,7 +43,10 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     private final Expression length;
 
-    @FunctionInfo(returnType = "keyword", description = "Return the substring that extracts length chars from the string starting from the left.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Return the substring that extracts length chars from the string starting from the left."
+    )
     public Left(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }) Expression str,

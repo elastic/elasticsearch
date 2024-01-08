@@ -47,9 +47,18 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
 
     @FunctionInfo(returnType = "double", description = "Rounds a number to the closest number with the specified number of digits.")
     public Round(
-        Source source, 
-        @Param(name = "value", type = { "integer", "long", "double", "unsigned_long" }, description = "The numeric value to round") Expression field,
-        @Param(optional = true, name = "decimals", type = { "integer" }, description = "The number of decimal places to round to. Defaults to 0.") Expression decimals
+        Source source,
+        @Param(
+            name = "value",
+            type = { "integer", "long", "double", "unsigned_long" },
+            description = "The numeric value to round"
+        ) Expression field,
+        @Param(
+            optional = true,
+            name = "decimals",
+            type = { "integer" },
+            description = "The number of decimal places to round to. Defaults to 0."
+        ) Expression decimals
     ) {
         super(source, decimals != null ? Arrays.asList(field, decimals) : Arrays.asList(field));
         this.field = field;

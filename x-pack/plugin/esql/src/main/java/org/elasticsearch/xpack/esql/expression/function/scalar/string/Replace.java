@@ -39,9 +39,12 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
     private final Expression newStr;
     private final Expression regex;
 
-    @FunctionInfo(returnType = "keyword", description = "The function substitutes in the string any match of the regular expression with the replacement string.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "The function substitutes in the string any match of the regular expression with the replacement string."
+    )
     public Replace(
-        Source source, 
+        Source source,
         @Param(name = "str", type = { "keyword", "text" }) Expression str,
         @Param(name = "regex", type = { "keyword", "text" }) Expression regex,
         @Param(name = "newStr", type = { "keyword", "text" }) Expression newStr

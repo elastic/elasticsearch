@@ -37,9 +37,12 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
 
     private final Expression str, start, length;
 
-    @FunctionInfo(returnType = "keyword", description = "Returns a substring of a string, specified by a start position and an optional length")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Returns a substring of a string, specified by a start position and an optional length"
+    )
     public Substring(
-        Source source, 
+        Source source,
         @Param(name = "str", type = { "keyword", "text" }) Expression str,
         @Param(name = "start", type = { "keyword", "text" }) Expression start,
         @Param(optional = true, name = "length", type = { "integer" }) Expression length

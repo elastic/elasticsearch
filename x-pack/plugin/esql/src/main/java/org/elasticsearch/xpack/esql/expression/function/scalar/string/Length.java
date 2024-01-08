@@ -30,10 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 public class Length extends UnaryScalarFunction implements EvaluatorMapper {
 
     @FunctionInfo(returnType = "integer", description = "Returns the character length of a string.")
-    public Length(
-        Source source,
-        @Param(name = "field", type = { "keyword", "text" }) Expression field
-    ) {
+    public Length(Source source, @Param(name = "field", type = { "keyword", "text" }) Expression field) {
         super(source, field);
     }
 

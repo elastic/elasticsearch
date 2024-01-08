@@ -254,7 +254,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         } else {
             // Missing units:
             throw new ElasticsearchParseException(
-                "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
+                "failed to parse [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
                 settingName,
                 sValue
             );
@@ -266,14 +266,9 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
         try {
             return ByteSizeValue.ofBytes(Long.parseLong(s));
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+            throw new ElasticsearchParseException("failed to parse [{}] with value [{}]", e, settingName, initialInput);
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchParseException(
-                "failed to parse setting [{}] with value [{}] as a size in bytes",
-                e,
-                settingName,
-                initialInput
-            );
+            throw new ElasticsearchParseException("failed to parse [{}] with value [{}] as a size in bytes", e, settingName, initialInput);
         }
     }
 
@@ -294,22 +289,17 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                     DeprecationLoggerHolder.deprecationLogger.warn(
                         DeprecationCategory.PARSING,
                         "fractional_byte_values",
-                        "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
+                        "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for [{}]",
                         initialInput,
                         settingName
                     );
                     return ByteSizeValue.ofBytes((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
-                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
+                    throw new ElasticsearchParseException("failed to parse [{}] with value [{}]", e, settingName, initialInput);
                 }
             }
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchParseException(
-                "failed to parse setting [{}] with value [{}] as a size in bytes",
-                e,
-                settingName,
-                initialInput
-            );
+            throw new ElasticsearchParseException("failed to parse [{}] with value [{}] as a size in bytes", e, settingName, initialInput);
         }
     }
 

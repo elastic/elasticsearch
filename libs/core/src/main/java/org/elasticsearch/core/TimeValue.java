@@ -329,33 +329,37 @@ public class TimeValue implements Comparable<TimeValue> {
         };
     }
 
-    public static TimeValue parseTimeValue(String sValue, String settingName) {
-        Objects.requireNonNull(settingName);
+    public static TimeValue parseTimeValue(String sValue, String fieldName) {
+        Objects.requireNonNull(fieldName);
         Objects.requireNonNull(sValue);
-        return parseTimeValue(sValue, null, settingName);
+        return parseTimeValue(sValue, null, fieldName);
     }
 
-    public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String settingName) {
-        settingName = Objects.requireNonNull(settingName);
+    public static TimeValue parseTimeValue(String sValue, TimeValue defaultValue, String fieldName) {
+        fieldName = Objects.requireNonNull(fieldName);
         if (sValue == null) {
             return defaultValue;
         }
         final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
         if (normalized.endsWith("nanos")) {
-            return new TimeValue(parse(sValue, normalized, "nanos", settingName), TimeUnit.NANOSECONDS);
+            return new TimeValue(parse(sValue, normalized, "nanos", fieldName), TimeUnit.NANOSECONDS);
+        } else if (normalized.endsWith("ns")) {
+            return new TimeValue(parse(sValue, normalized, "ns", fieldName), TimeUnit.NANOSECONDS);
         } else if (normalized.endsWith("micros")) {
-            return new TimeValue(parse(sValue, normalized, "micros", settingName), TimeUnit.MICROSECONDS);
+            return new TimeValue(parse(sValue, normalized, "micros", fieldName), TimeUnit.MICROSECONDS);
+        } else if (normalized.endsWith("us")) {
+            return new TimeValue(parse(sValue, normalized, "us", fieldName), TimeUnit.MICROSECONDS);
         } else if (normalized.endsWith("ms")) {
-            return new TimeValue(parse(sValue, normalized, "ms", settingName), TimeUnit.MILLISECONDS);
+            return new TimeValue(parse(sValue, normalized, "ms", fieldName), TimeUnit.MILLISECONDS);
         } else if (normalized.endsWith("s")) {
-            return new TimeValue(parse(sValue, normalized, "s", settingName), TimeUnit.SECONDS);
+            return new TimeValue(parse(sValue, normalized, "s", fieldName), TimeUnit.SECONDS);
         } else if (sValue.endsWith("m")) {
             // parsing minutes should be case-sensitive as 'M' means "months", not "minutes"; this is the only special case.
-            return new TimeValue(parse(sValue, normalized, "m", settingName), TimeUnit.MINUTES);
+            return new TimeValue(parse(sValue, normalized, "m", fieldName), TimeUnit.MINUTES);
         } else if (normalized.endsWith("h")) {
-            return new TimeValue(parse(sValue, normalized, "h", settingName), TimeUnit.HOURS);
+            return new TimeValue(parse(sValue, normalized, "h", fieldName), TimeUnit.HOURS);
         } else if (normalized.endsWith("d")) {
-            return new TimeValue(parse(sValue, normalized, "d", settingName), TimeUnit.DAYS);
+            return new TimeValue(parse(sValue, normalized, "d", fieldName), TimeUnit.DAYS);
         } else if (normalized.matches("-0*1")) {
             return TimeValue.MINUS_ONE;
         } else if (normalized.matches("0+")) {
@@ -363,20 +367,20 @@ public class TimeValue implements Comparable<TimeValue> {
         } else {
             // Missing units:
             throw new IllegalArgumentException(
-                "failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized"
+                "failed to parse [" + fieldName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized"
             );
         }
     }
 
-    private static long parse(final String initialInput, final String normalized, final String suffix, String settingName) {
+    private static long parse(final String initialInput, final String normalized, final String suffix, String fieldName) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
         try {
             final long value = Long.parseLong(s);
             if (value < -1) {
                 // -1 is magic, but reject any other negative values
                 throw new IllegalArgumentException(
-                    "failed to parse setting ["
-                        + settingName
+                    "failed to parse ["
+                        + fieldName
                         + "] with value ["
                         + initialInput
                         + "] as a time value: negative durations are not supported"

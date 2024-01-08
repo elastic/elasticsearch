@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.UnitOfMeasurement;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -246,6 +247,11 @@ public class NumberFieldMapper extends FieldMapper {
 
         public Builder allowMultipleValues(boolean allowMultipleValues) {
             this.allowMultipleValues = allowMultipleValues;
+            return this;
+        }
+
+        public Builder meta(Map<String, String> meta) {
+            this.meta.setValue(meta);
             return this;
         }
 
@@ -1533,6 +1539,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final MetricType metricType;
         private final IndexMode indexMode;
+        private final UnitOfMeasurement unit;
 
         public NumberFieldType(
             String name,
@@ -1556,6 +1563,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.isDimension = isDimension;
             this.metricType = metricType;
             this.indexMode = indexMode;
+            this.unit = UnitOfMeasurement.of(meta.get("unit"));
         }
 
         NumberFieldType(String name, Builder builder) {
@@ -1619,12 +1627,13 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            return type.termQuery(name(), value, isIndexed());
+            return type.termQuery(name(), unit.tryConvert(value, name()), isIndexed());
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
+            values = values.stream().map(v -> unit.tryConvert(v, name())).toList();
             if (isIndexed()) {
                 return type.termsQuery(name(), values);
             } else {
@@ -1641,6 +1650,8 @@ public class NumberFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
+            lowerTerm = unit.tryConvert(lowerTerm, name());
+            upperTerm = unit.tryConvert(upperTerm, name());
             return type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context, isIndexed());
         }
 

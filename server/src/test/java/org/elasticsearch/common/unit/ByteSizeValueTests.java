@@ -122,12 +122,12 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
 
     public void testFailOnMissingUnits() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("23", "test"));
-        assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+        assertThat(e.getMessage(), containsString("failed to parse [test]"));
     }
 
     public void testFailOnUnknownUnits() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("23jw", "test"));
-        assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+        assertThat(e.getMessage(), containsString("failed to parse [test]"));
     }
 
     public void testFailOnEmptyParsing() {
@@ -135,7 +135,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ElasticsearchParseException.class,
             () -> assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb"))
         );
-        assertThat(e.getMessage(), containsString("failed to parse setting [emptyParsing]"));
+        assertThat(e.getMessage(), containsString("failed to parse [emptyParsing]"));
     }
 
     public void testFailOnEmptyNumberParsing() {
@@ -143,12 +143,12 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ElasticsearchParseException.class,
             () -> assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b"))
         );
-        assertThat(e.getMessage(), containsString("failed to parse setting [emptyNumberParsing] with value [g]"));
+        assertThat(e.getMessage(), containsString("failed to parse [emptyNumberParsing] with value [g]"));
     }
 
     public void testNoDotsAllowed() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue("42b.", null, "test"));
-        assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+        assertThat(e.getMessage(), containsString("failed to parse [test]"));
     }
 
     public void testCompareEquality() {
@@ -277,7 +277,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ElasticsearchParseException.class,
             () -> ByteSizeValue.parseBytesSizeValue("-6" + unitSuffix, "test_setting")
         );
-        assertEquals("failed to parse setting [test_setting] with value [-6" + unitSuffix + "] as a size in bytes", exception.getMessage());
+        assertEquals("failed to parse [test_setting] with value [-6" + unitSuffix + "] as a size in bytes", exception.getMessage());
         assertNotNull(exception.getCause());
         assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
     }
@@ -303,7 +303,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             () -> ByteSizeValue.parseBytesSizeValue("notANumber", "test")
         );
         assertEquals(
-            "failed to parse setting [test] with value [notANumber] as a size in bytes: unit is missing or unrecognized",
+            "failed to parse [test] with value [notANumber] as a size in bytes: unit is missing or unrecognized",
             exception.getMessage()
         );
 
@@ -312,7 +312,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             ElasticsearchParseException.class,
             () -> ByteSizeValue.parseBytesSizeValue("notANumber" + unitSuffix, "test")
         );
-        assertEquals("failed to parse setting [test] with value [notANumber" + unitSuffix + "]", exception.getMessage());
+        assertEquals("failed to parse [test] with value [notANumber" + unitSuffix + "]", exception.getMessage());
     }
 
     public void testParseFractionalNumber() throws IOException {
@@ -321,9 +321,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
         assertEquals(fractionalValue, instance.toString());
         assertWarnings(
-            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
-                + fractionalValue
-                + "] found for setting [test]"
+            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [" + fractionalValue + "] found for [test]"
         );
     }
 

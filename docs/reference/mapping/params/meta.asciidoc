@@ -37,12 +37,33 @@ can follow these same metadata conventions to get a better out-of-the-box
 experience with your data.
 
 unit::
++
+--
+The unit associated with a numeric field, preferably a case-sensitive http://unitsofmeasure.org/ucum.html[UCUM symbol].
+When a well-known unit is used, term and range queries support conversions within the same unit.
+Also supports some non-UCUM symbols as well-known units for convenience and compatibility.
+Well-known units:
 
-  The unit associated with a numeric field: `"percent"`, `"byte"` or a
-  <<time-units,time unit>>. By default, a field does not have a unit.
-  Only valid for numeric fields. The convention for percents is to use
-  value `1` to mean `100%`.
+|===
+|Unit |Value of `unit` |Supported unit symbols in queries
 
+|Byte size
+|`By` (preferred), `byte`
+|<<byte-units, byte units>>
+
+|Time
+|`ns`, `us`, `ms`, `s`, `min`, `h`, `d`
+|<<time-units, time units>>
+
+|Percent (`0.01` means `1%`)
+|`%` (preferred), `percent`
+|`%`
+|===
+
+According to [UCUM](https://unitsofmeasure.org/ucum#para-50), symbols commonly used as units that are no real units of measurement can be used in curly brace expressions.
+Examples: `{requests}, `{connections}`, `{threads}`
+
+--
 metric_type::
 
   The metric type of a numeric field: `"gauge"` or `"counter"`. A gauge is a

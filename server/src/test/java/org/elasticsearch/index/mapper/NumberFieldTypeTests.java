@@ -32,6 +32,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -58,6 +59,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -160,6 +163,44 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
             e2.getMessage()
         );
+    }
+
+    public void testTermQueryTimeUnitConversion() {
+        NumberFieldType ft = numberFieldMapperWithUnit(NumberType.LONG, "us").fieldType();
+        assertEquals(LongPoint.newExactQuery("field", TimeUnit.MILLISECONDS.toMicros(42)), ft.termQuery("42ms", MOCK_CONTEXT));
+    }
+
+    public void testTermsQueryTimeUnitConversion() {
+        NumberFieldType ft = numberFieldMapperWithUnit(NumberType.LONG, "us").fieldType();
+        assertEquals(LongPoint.newSetQuery("field", 1, 2, 3, 4000), ft.termsQuery(Arrays.asList(1, "2", "3us", "4ms"), MOCK_CONTEXT));
+    }
+
+    public void testTermQueryTimeUnitNoUnits() {
+        NumberFieldType ft = numberFieldMapperWithUnit(NumberType.LONG, "us").fieldType();
+        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery(42, MOCK_CONTEXT));
+        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery(42.0, MOCK_CONTEXT));
+        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
+    }
+
+    public void testTermQueryTimeUnitInvalid() {
+        NumberFieldType ft = numberFieldMapperWithUnit(NumberType.LONG, "us").fieldType();
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> ft.termQuery("42mb", MOCK_CONTEXT));
+        assertEquals("failed to parse [field] with value [42mb] as a time value: unit is missing or unrecognized", e.getMessage());
+    }
+
+    public void testRangeQueryUnitConversion() {
+        NumberFieldType ft = numberFieldMapperWithUnit(NumberType.LONG, "us").fieldType();
+        Query expected = new IndexOrDocValuesQuery(
+            LongPoint.newRangeQuery("field", 1, 3000),
+            SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3000)
+        );
+        assertEquals(expected, ft.rangeQuery("1us", "3ms", true, true, null, null, null, MOCK_CONTEXT));
+    }
+
+    private static NumberFieldMapper numberFieldMapperWithUnit(NumberType numberType, String unit) {
+        return new NumberFieldMapper.Builder("field", numberType, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).meta(
+            Map.of("unit", unit)
+        ).build(MapperBuilderContext.root(false, false));
     }
 
     public void testRangeQueryWithNegativeBounds() {

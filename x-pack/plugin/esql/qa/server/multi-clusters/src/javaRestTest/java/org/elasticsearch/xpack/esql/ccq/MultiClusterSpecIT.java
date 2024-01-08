@@ -127,7 +127,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 Response resp1 = remoteClient.performRequest(clones[0]);
                 Response resp2 = localClient.performRequest(clones[1]);
                 assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
-                return randomFrom(resp1, resp2);
+                return resp2;
             }
         });
         doAnswer(invocation -> {

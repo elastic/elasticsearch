@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -64,8 +63,6 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
-        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.3.0")));
         assertThat(section.getSkipSection().getReason(), equalTo("there is a reason"));
         assertThat(section.getDoSections().size(), equalTo(2));
         assertThat(((DoSection) section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));

@@ -16,7 +16,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -323,21 +323,17 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             return;
         }
         logger.info("rebuilding [{}] connections after credentials update", totalConnectionsToRebuild);
-        try (var refCountingListener = new RefCountingListener(totalConnectionsToRebuild, listener)) {
+        try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
             for (var clusterAlias : result.addedClusterAliases()) {
-                maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, refCountingListener);
+                maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, connectionRefs);
             }
             for (var clusterAlias : result.removedClusterAliases()) {
-                maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, refCountingListener);
+                maybeRebuildConnectionOnCredentialsChange(clusterAlias, settings, connectionRefs);
             }
         }
     }
 
-    private void maybeRebuildConnectionOnCredentialsChange(
-        String clusterAlias,
-        Settings settings,
-        RefCountingListener refCountingListener
-    ) {
+    private void maybeRebuildConnectionOnCredentialsChange(String clusterAlias, Settings settings, RefCountingRunnable connectionRefs) {
         if (false == remoteClusters.containsKey(clusterAlias)) {
             // A credential was added or removed before a remote connection was configured.
             // Without an existing connection, there is nothing to rebuild.
@@ -345,12 +341,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             return;
         }
 
-        final var listener = refCountingListener.acquire();
-        updateRemoteCluster(clusterAlias, settings, true, new ActionListener<>() {
+        updateRemoteCluster(clusterAlias, settings, true, ActionListener.releaseAfter(new ActionListener<>() {
             @Override
             public void onResponse(RemoteClusterConnectionStatus status) {
                 logger.info("remote cluster connection [{}] updated after credentials change: [{}]", clusterAlias, status);
-                listener.onResponse(null);
             }
 
             @Override
@@ -359,9 +353,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 // a failed credential reload; same as for remote cluster settings updates, we "handle" the failure by logging a WARN
                 // message
                 logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "] after credentials change", e);
-                listener.onResponse(null);
             }
-        });
+        }, connectionRefs.acquire()));
     }
 
     @Override

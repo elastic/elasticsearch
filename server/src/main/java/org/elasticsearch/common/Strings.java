@@ -19,9 +19,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,18 +38,6 @@ import java.util.stream.Collectors;
 public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];
-
-    public static void spaceify(int spaces, String from, StringBuilder to) throws IOException {
-        char[] spaceChars = new char[spaces];
-        Arrays.fill(spaceChars, ' ');
-
-        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                to.append(spaceChars).append(line).append('\n');
-            }
-        }
-    }
 
     // ---------------------------------------------------------------------
     // General convenience methods for working with Strings

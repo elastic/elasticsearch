@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -248,17 +249,7 @@ public class SubscribableListenerTests extends ESTestCase {
 
         try (var refs = new RefCountingRunnable(() -> completion.set(true))) {
             final var expectedResult = new Object();
-            final var assertingListener = new ActionListener<>() {
-                @Override
-                public void onResponse(Object result) {
-                    assertSame(expectedResult, result);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            };
+            final var assertingListener = ActionTestUtils.assertNoFailureListener(result -> assertSame(expectedResult, result));
 
             final var listener = new SubscribableListener<>();
             final var headerName = "test-header";
@@ -322,7 +313,11 @@ public class SubscribableListenerTests extends ESTestCase {
         });
         try (var ignored = threadPool.getThreadContext().stashContext()) {
             threadPool.getThreadContext().putHeader(headerName, headerValue);
-            listener.addTimeout(TimeValue.timeValueSeconds(30), threadPool, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+            listener.addTimeout(
+                TimeValue.timeValueSeconds(30),
+                threadPool,
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic())
+            );
         }
 
         if (randomBoolean()) {
@@ -359,7 +354,11 @@ public class SubscribableListenerTests extends ESTestCase {
                 fail("should not fail");
             }
         });
-        listener.addTimeout(TimeValue.timeValueSeconds(30), threadPool, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+        listener.addTimeout(
+            TimeValue.timeValueSeconds(30),
+            threadPool,
+            randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic())
+        );
 
         deterministicTaskQueue.scheduleAt(
             deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, TimeValue.timeValueSeconds(30).millis() - 1),
@@ -373,4 +372,132 @@ public class SubscribableListenerTests extends ESTestCase {
         assertTrue(listener.isDone());
     }
 
+    public void testCreateUtils() throws Exception {
+        final var succeeded = SubscribableListener.newSucceeded("result");
+        assertTrue(succeeded.isDone());
+        assertEquals("result", succeeded.rawResult());
+
+        final var failed = SubscribableListener.newFailed(new ElasticsearchException("simulated"));
+        assertTrue(failed.isDone());
+        assertEquals("simulated", expectThrows(ElasticsearchException.class, failed::rawResult).getMessage());
+
+        final var forkedListenerRef = new AtomicReference<ActionListener<Object>>();
+        final var forked = SubscribableListener.newForked(forkedListenerRef::set);
+        assertSame(forked, forkedListenerRef.get());
+
+        final var forkFailed = SubscribableListener.newForked(l -> { throw new ElasticsearchException("simulated fork failure"); });
+        assertTrue(forkFailed.isDone());
+        assertEquals("simulated fork failure", expectThrows(ElasticsearchException.class, forkFailed::rawResult).getMessage());
+    }
+
+    public void testAndThenSuccess() {
+        final var initialListener = new SubscribableListener<>();
+        final var forked = new AtomicReference<ActionListener<Object>>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThen((l, o) -> {
+            forked.set(l);
+            result.set(o);
+        });
+        assertNull(forked.get());
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertSame(chainedListener, forked.get());
+        assertFalse(chainedListener.isDone());
+    }
+
+    public void testAndThenFailure() {
+        final var initialListener = new SubscribableListener<>();
+
+        final var chainedListener = initialListener.andThen((l, o) -> fail("should not be called"));
+        assertFalse(chainedListener.isDone());
+
+        initialListener.onFailure(new ElasticsearchException("simulated"));
+        assertComplete(chainedListener, "simulated");
+    }
+
+    public void testAndThenThreading() {
+        runAndThenThreadingTest(true);
+        runAndThenThreadingTest(false);
+    }
+
+    private static void runAndThenThreadingTest(boolean testSuccess) {
+        final var completeListener = testSuccess
+            ? SubscribableListener.newSucceeded(new Object())
+            : SubscribableListener.newFailed(new ElasticsearchException("immediate failure"));
+
+        assertComplete(
+            completeListener.andThen(r -> fail("should not fork"), null, ActionListener::onResponse),
+            testSuccess ? null : "immediate failure"
+        );
+
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var headerName = "test-header";
+        final var expectedHeader = randomAlphaOfLength(10);
+
+        final SubscribableListener<Object> deferredListener = new SubscribableListener<>();
+        final SubscribableListener<Object> chainedListener;
+        final AtomicReference<Runnable> forkedRunnable = new AtomicReference<>();
+
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader(headerName, expectedHeader);
+            chainedListener = deferredListener.andThen(
+                r -> assertTrue(forkedRunnable.compareAndSet(null, r)),
+                threadContext,
+                (l, response) -> {
+                    assertEquals(expectedHeader, threadContext.getHeader(headerName));
+                    l.onResponse(response);
+                }
+            );
+        }
+
+        assertFalse(chainedListener.isDone());
+        assertNull(forkedRunnable.get());
+
+        final AtomicBoolean isComplete = new AtomicBoolean();
+
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader(headerName, randomAlphaOfLength(10));
+            chainedListener.addListener(ActionListener.running(() -> {
+                assertEquals(expectedHeader, threadContext.getHeader(headerName));
+                assertTrue(isComplete.compareAndSet(false, true));
+            }));
+        }
+
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader(headerName, randomAlphaOfLength(10));
+            if (testSuccess) {
+                deferredListener.onResponse(new Object());
+            } else {
+                deferredListener.onFailure(new ElasticsearchException("simulated failure"));
+            }
+        }
+
+        assertFalse(chainedListener.isDone());
+        assertFalse(isComplete.get());
+
+        try (var ignored = threadContext.stashContext()) {
+            threadContext.putHeader(headerName, randomAlphaOfLength(10));
+            forkedRunnable.get().run();
+        }
+
+        assertComplete(chainedListener, testSuccess ? null : "simulated failure");
+        assertTrue(isComplete.get());
+    }
+
+    private static void assertComplete(SubscribableListener<Object> listener, @Nullable String expectedFailureMessage) {
+        assertTrue(listener.isDone());
+        if (expectedFailureMessage == null) {
+            try {
+                listener.rawResult();
+            } catch (Exception e) {
+                fail(e);
+            }
+        } else {
+            assertEquals(expectedFailureMessage, expectThrows(ElasticsearchException.class, listener::rawResult).getMessage());
+        }
+    }
 }

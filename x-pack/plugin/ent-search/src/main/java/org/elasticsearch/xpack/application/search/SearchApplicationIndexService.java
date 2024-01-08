@@ -24,7 +24,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -73,7 +72,6 @@ import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -95,8 +93,7 @@ public class SearchApplicationIndexService {
     public static final String SEARCH_APPLICATION_ALIAS_NAME = ".search-app";
     public static final String SEARCH_APPLICATION_CONCRETE_INDEX_NAME = ".search-app-1";
     public static final String SEARCH_APPLICATION_INDEX_NAME_PATTERN = ".search-app-*";
-    private static final String INCONSISTENT_INDICES_NOT_IN_ALIAS_MSG = "index is in search application but not in associated alias";
-    private static final String INCONSISTENT_ALIAS_NOT_IN_INDICES_MSG = "index is in alias but not associcated with search application";
+    private static final int SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION = 1;
 
     // The client to perform any operations on user indices (alias, ...).
     private final Client client;
@@ -155,16 +152,13 @@ public class SearchApplicationIndexService {
             {
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
                 {
                     builder.startObject(SearchApplication.NAME_FIELD.getPreferredName());
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject(SearchApplication.INDICES_FIELD.getPreferredName());
                     builder.field("type", "keyword");
                     builder.endObject();
 
@@ -206,45 +200,13 @@ public class SearchApplicationIndexService {
                 return;
             }
             final BytesReference source = getResponse.getSourceInternal();
-            final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
-            l.onResponse(res);
+            SearchApplication searchApplication = parseSearchApplicationBinaryFromSource(source, getAliasIndices(resourceName));
+            l.onResponse(searchApplication);
         }));
     }
 
-    /**
-     * Checks for consistency between the indices specified in the search application and the associated
-     * search application alias. Populates a map of inconsistent indices and the reason for inconsistency
-     * that can be used to generate Warning messages in response headers.
-     * @param app SearchApplication
-     * @param listener
-     */
-    public void checkAliasConsistency(SearchApplication app, ActionListener<Map<String, String>> listener) {
-        final Metadata metadata = clusterService.state().metadata();
-        final String searchAliasName = getSearchAliasName(app);
-        final Map<String, String> inconsistentIndices = new HashMap<>();
-
-        if (metadata.hasAlias(searchAliasName)) {
-            Set<String> indicesInAlias = metadata.aliasedIndices(searchAliasName).stream().map(Index::getName).collect(Collectors.toSet());
-            Set<String> configuredIndices = Set.of(app.indices());
-
-            Set<String> indicesInAliasButNotInSearchApp = findMissingIndices(indicesInAlias, configuredIndices);
-            indicesInAliasButNotInSearchApp.forEach(index -> inconsistentIndices.put(index, INCONSISTENT_ALIAS_NOT_IN_INDICES_MSG));
-
-            Set<String> indicesInSearchAppButNotInAlias = findMissingIndices(configuredIndices, indicesInAlias);
-            indicesInSearchAppButNotInAlias.forEach(index -> inconsistentIndices.put(index, INCONSISTENT_INDICES_NOT_IN_ALIAS_MSG));
-        } else {
-            for (String index : app.indices()) {
-                inconsistentIndices.put(index, INCONSISTENT_INDICES_NOT_IN_ALIAS_MSG);
-            }
-        }
-
-        listener.onResponse(inconsistentIndices);
-    }
-
-    private Set<String> findMissingIndices(Set<String> indices, Set<String> toExclude) {
-        Set<String> diff = new HashSet<>(indices);
-        diff.removeAll(toExclude);
-        return diff;
+    private String[] getAliasIndices(String searchApplicationName) {
+        return clusterService.state().metadata().aliasedIndices(searchApplicationName).stream().map(Index::getName).toArray(String[]::new);
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -258,7 +220,7 @@ public class SearchApplicationIndexService {
      * @param create If true, the search application must not already exist
      * @param listener The action listener to invoke on response/failure.
      */
-    public void putSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
+    public void putSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         createOrUpdateAlias(app, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -315,12 +277,11 @@ public class SearchApplicationIndexService {
         return aliasesRequestBuilder;
     }
 
-    private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
+    private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
-                    .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
@@ -421,7 +382,6 @@ public class SearchApplicationIndexService {
                 .size(size)
                 .query(new QueryStringQueryBuilder(queryString))
                 .docValueField(SearchApplication.NAME_FIELD.getPreferredName())
-                .docValueField(SearchApplication.INDICES_FIELD.getPreferredName())
                 .docValueField(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName())
                 .docValueField(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
@@ -459,13 +419,12 @@ public class SearchApplicationIndexService {
         final String resourceName = documentFields.get(SearchApplication.NAME_FIELD.getPreferredName()).getValue();
         return new SearchApplicationListItem(
             resourceName,
-            documentFields.get(SearchApplication.INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
             documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
             documentFields.get(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName()).getValue()
         );
     }
 
-    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source) {
+    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source, String[] indices) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -486,7 +445,7 @@ public class SearchApplicationIndexService {
                     try (
                         StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), namedWriteableRegistry)
                     ) {
-                        return parseSearchApplicationBinaryWithVersion(in);
+                        return parseSearchApplicationBinaryWithVersion(in, indices);
                     }
                 } else {
                     XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
@@ -500,11 +459,11 @@ public class SearchApplicationIndexService {
         }
     }
 
-    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
+    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in, String[] indices) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
-        return new SearchApplication(in);
+        return new SearchApplication(in, indices);
     }
 
     static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)

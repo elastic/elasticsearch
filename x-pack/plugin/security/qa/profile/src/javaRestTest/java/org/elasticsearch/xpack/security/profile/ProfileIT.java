@@ -16,9 +16,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -41,6 +47,50 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = createCluster();
+
+    private static ElasticsearchCluster createCluster() {
+        LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
+            .nodes(2)
+            .distribution(DistributionType.DEFAULT)
+            .rolesFile(Resource.fromClasspath("roles.yml"))
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.enabled", "true")
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.security.authc.token.enabled", "true")
+            .setting("xpack.security.authc.api_key.enabled", "true")
+            .setting("xpack.security.authc.realms.ldap.ldap1.enabled", "false")
+            .setting("xpack.security.authc.domains.my_domain.realms", "default_file,ldap1")
+            .setting("xpack.security.authc.realms.saml.saml1.enabled", "false")
+            .setting("xpack.security.authc.realms.active_directory.ad1.enabled", "false")
+            .setting("xpack.security.authc.domains.other_domain.realms", "saml1,ad1")
+            // Ensure new cache setting is recognised
+            .setting("xpack.security.authz.store.roles.has_privileges.cache.max_size", "100")
+            .user("test-admin", "x-pack-test-password")
+            .user("rac-user", "x-pack-test-password", "rac_user_role", false);
+        if (Booleans.parseBoolean(System.getProperty("test.literalUsername"))) {
+            clusterBuilder.setting("xpack.security.authc.domains.my_domain.uid_generation.literal_username", "true")
+                .setting("xpack.security.authc.domains.my_domain.uid_generation.suffix", "es");
+        }
+        return clusterBuilder.build();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restAdminSettings() {
+        return Settings.builder()
+            .put(
+                ThreadContext.PREFIX + ".Authorization",
+                basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()))
+            )
+            .build();
+    }
 
     public static final String SAMPLE_PROFILE_DOCUMENT_TEMPLATE = """
         {
@@ -78,16 +128,6 @@ public class ProfileIT extends ESRestTestCase {
           }
         }
         """;
-
-    @Override
-    protected Settings restAdminSettings() {
-        return Settings.builder()
-            .put(
-                ThreadContext.PREFIX + ".Authorization",
-                basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()))
-            )
-            .build();
-    }
 
     public void testActivateProfile() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
@@ -406,7 +446,7 @@ public class ProfileIT extends ESRestTestCase {
         // should have the same hostname but listens on a different port.
         // A single node can have both ipv4 and ipv6 addresses. If we do not filter for the
         // same hostname, we might find the same node again (e.g. node0 but has an ipv6 address).
-        final Node node1 = originalNodes.subList(1, originalNodes.size() - 1)
+        final Node node1 = originalNodes.subList(1, originalNodes.size())
             .stream()
             .filter(node -> node.getHost().getHostName().equals(node0.getHost().getHostName()))
             .findFirst()
@@ -443,14 +483,18 @@ public class ProfileIT extends ESRestTestCase {
         final Request putUserRequest = new Request("PUT", "_security/user/" + username);
         putUserRequest.setJsonEntity("{\"password\":\"x-pack-test-password\",\"roles\":[\"superuser\"]}");
         assertOK(adminClient().performRequest(putUserRequest));
-        final Map<String, Object> profile = doActivateProfile(username, "x-pack-test-password");
 
+        // Get user with profile uid before profile index exists will not show any profile_uid
         final Request getUserRequest = new Request("GET", "_security/user" + (randomBoolean() ? "/" + username : ""));
         getUserRequest.addParameter("with_profile_uid", "true");
-        final Response getUserResponse = adminClient().performRequest(getUserRequest);
-        assertOK(getUserResponse);
+        final Response getUserResponse1 = adminClient().performRequest(getUserRequest);
+        assertOK(getUserResponse1);
+        responseAsMap(getUserResponse1).forEach((k, v) -> assertThat(castToMap(v), not(hasKey("profile_uid"))));
 
-        responseAsMap(getUserResponse).forEach((k, v) -> {
+        // The profile_uid is retrieved for the user after the profile gets activated
+        final Map<String, Object> profile = doActivateProfile(username, "x-pack-test-password");
+        final Response getUserResponse2 = adminClient().performRequest(getUserRequest);
+        responseAsMap(getUserResponse2).forEach((k, v) -> {
             if (username.equals(k)) {
                 assertThat(castToMap(v).get("profile_uid"), equalTo(profile.get("uid")));
             } else {

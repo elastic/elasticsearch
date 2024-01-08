@@ -271,7 +271,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         return 0;
     }
 
-    private Set<String> listOfNewFileNames(IndexCommit previous, IndexCommit current) throws IOException {
+    private static Set<String> listOfNewFileNames(IndexCommit previous, IndexCommit current) throws IOException {
         final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
         return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
     }

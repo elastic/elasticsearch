@@ -1,7 +1,8 @@
 {
   "_doc": {
     "_meta": {
-      "version": "${xpack.ml.version}"
+      "version": "${xpack.ml.version}",
+      "managed_index_mappings_version": ${xpack.ml.managed.index.version}
     },
     "dynamic": false,
     "properties": {
@@ -10,6 +11,9 @@
       },
       "model_id": {
         "type": "keyword"
+      },
+      "platform_architecture" : {
+        "type" : "keyword"
       },
       "created_by": {
         "type": "keyword"
@@ -144,6 +148,9 @@
         }
       },
       "vocab": {
+        "enabled": false
+      },
+      "prefix_strings": {
         "enabled": false
       }
     }

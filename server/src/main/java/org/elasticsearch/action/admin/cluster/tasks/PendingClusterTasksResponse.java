@@ -26,7 +26,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
 
     public PendingClusterTasksResponse(StreamInput in) throws IOException {
         super(in);
-        pendingTasks = in.readList(PendingClusterTask::new);
+        pendingTasks = in.readCollectionAsList(PendingClusterTask::new);
     }
 
     PendingClusterTasksResponse(List<PendingClusterTask> pendingTasks) {
@@ -91,7 +91,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(pendingTasks);
+        out.writeCollection(pendingTasks);
     }
 
 }

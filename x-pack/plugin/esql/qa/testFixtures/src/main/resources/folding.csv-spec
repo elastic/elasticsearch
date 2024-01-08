@@ -1,0 +1,105 @@
+#
+# CSV specs for plans executed locally - plans that can be evaluated (folded) without hitting the storage
+#
+
+# source
+
+localSourceWithNumeric
+row a = 1;
+
+a:i
+1
+;
+
+localSourceWithString
+row s = "string";
+
+s:s
+"string"
+;
+
+localSourceMultiAttributeNumeric
+row a = 1, b = 2;
+
+a:i | b:i
+1   | 2
+;
+
+localSourceMultiAttributeString
+row a = "a", b = "b";
+
+a:s | b:s
+a   | b
+;
+
+localSourceMultiAttributeMixed
+row a = 1, b = "b";
+
+a:i | b:s
+1   | b
+;
+
+# filter
+
+filterAlwaysFalse
+row a = 1 | where true == false;
+
+a:i
+;
+
+filterEvaluationFalseNumeric
+row a = 1 | where a > 1;
+
+a:i
+;
+
+filterEvaluationTrueNumeric
+row a = 1 | where a == 1;
+
+a:i
+1 
+;
+
+filterEvaluationTrueString
+row s = "abc" | where starts_with(s, "a");
+
+s:s
+"abc" 
+;
+
+filterEvaluationFalseString
+row s = "abc" | where starts_with(s, "c");
+
+s:s 
+;
+
+filterDisjunctionMatches
+row a = 1, b = 2 | where a > 1 or b == 2;
+
+a:i | b:i
+1   | 2
+;
+
+filterConjunctionMatches
+row a = 1, b = 2 | where a > 0 and b > 1; 
+
+a:i | b:i
+1   | 2
+;
+
+# eval
+
+evalArithmetic
+row a = 1, b = 2 | eval x = a + b;
+
+a:i | b:i | x:i
+1   | 2   | 3
+;
+
+evalStringFunction
+row a = "some", b = "string" | eval x = length(a), y = concat(a, b), z = concat("another", b);
+
+a:s    | b:s      | x:i | y:s          | z:s
+"some" | "string" | 4   | "somestring" | "anotherstring"
+;
+

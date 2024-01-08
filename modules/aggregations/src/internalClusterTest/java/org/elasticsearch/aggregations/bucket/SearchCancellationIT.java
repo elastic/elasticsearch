@@ -12,9 +12,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
@@ -80,8 +80,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < numberOfDocsPerRefresh; j++) {
                 bulkRequestBuilder.add(
-                    client().prepareIndex("test")
-                        .setOpType(DocWriteRequest.OpType.CREATE)
+                    prepareIndex("test").setOpType(DocWriteRequest.OpType.CREATE)
                         .setSource(
                             "@timestamp",
                             now + (long) i * numberOfDocsPerRefresh + j,
@@ -97,8 +96,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         logger.info("Executing search");
         TimeSeriesAggregationBuilder timeSeriesAggregationBuilder = new TimeSeriesAggregationBuilder("test_agg");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addAggregation(
                 timeSeriesAggregationBuilder.subAggregation(
                     new ScriptedMetricAggregationBuilder("sub_agg").initScript(
@@ -117,7 +115,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             )
             .execute();
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
 
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, searchResponse::actionGet);

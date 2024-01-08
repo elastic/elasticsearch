@@ -89,8 +89,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     /** Script to extract a collection of numeric values from the 'numbers' field **/
     public static final String NUMERIC_VALUES_SCRIPT = "doc['numbers']";
 
-    public static final int HASHER_DEFAULT_SEED = 17;
-
     @Override
     protected ScriptService getMockScriptService() {
         final Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();

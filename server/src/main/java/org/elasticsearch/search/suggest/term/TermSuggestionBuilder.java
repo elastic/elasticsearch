@@ -16,6 +16,7 @@ import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -433,7 +434,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    public SuggestionContext build(SearchExecutionContext context) throws IOException {
+    public SuggestionContext build(SearchExecutionContext context) {
         TermSuggestionContext suggestionContext = new TermSuggestionContext(context);
         // copy over common settings to each suggestion builder
         populateCommonFields(context, suggestionContext);
@@ -459,7 +460,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     @Override

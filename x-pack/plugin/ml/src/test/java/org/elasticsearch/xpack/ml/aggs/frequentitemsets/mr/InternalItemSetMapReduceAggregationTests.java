@@ -26,7 +26,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.InternalItemSetMapReduceAggregationTests.WordCountMapReducer.WordCounts;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.ValueFormatter;
@@ -77,7 +77,7 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeMap(frequencies, StreamOutput::writeString, StreamOutput::writeLong);
+                out.writeMap(frequencies, StreamOutput::writeLong);
             }
 
             @Override
@@ -247,7 +247,7 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY);
+        return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
     }
 
     @Override

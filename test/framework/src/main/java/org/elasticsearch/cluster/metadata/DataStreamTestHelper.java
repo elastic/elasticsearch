@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -82,7 +81,6 @@ import static org.mockito.Mockito.when;
 
 public final class DataStreamTestHelper {
 
-    private static final Version DATE_IN_BACKING_INDEX_VERSION = Version.V_7_11_0;
     private static final Settings.Builder SETTINGS = ESTestCase.settings(IndexVersion.current()).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
@@ -113,16 +111,16 @@ public final class DataStreamTestHelper {
         boolean replicated,
         @Nullable DataStreamLifecycle lifecycle
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle);
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle, false, List.of());
     }
 
     public static String getLegacyDefaultBackingIndexName(
         String dataStreamName,
         long generation,
         long epochMillis,
-        Version minNodeVersion
+        boolean isNewIndexNameFormat
     ) {
-        if (minNodeVersion.onOrAfter(DATE_IN_BACKING_INDEX_VERSION)) {
+        if (isNewIndexNameFormat) {
             return String.format(
                 Locale.ROOT,
                 BACKING_INDEX_PREFIX + "%s-%s-%06d",
@@ -244,6 +242,11 @@ public final class DataStreamTestHelper {
         if (randomBoolean()) {
             metadata = Map.of("key", "value");
         }
+        List<Index> failureIndices = List.of();
+        boolean failureStore = randomBoolean();
+        if (failureStore) {
+            failureIndices = randomIndexInstances();
+        }
 
         return new DataStream(
             dataStreamName,
@@ -256,7 +259,9 @@ public final class DataStreamTestHelper {
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null
+            randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
+            failureStore,
+            failureIndices
         );
     }
 
@@ -329,7 +334,10 @@ public final class DataStreamTestHelper {
     ) {
         builder.put(
             "template_1",
-            new ComposableIndexTemplate(List.of("*"), null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate())
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
 
         List<IndexMetadata> allIndices = new ArrayList<>();
@@ -455,11 +463,11 @@ public final class DataStreamTestHelper {
                     .appendValue(generation);
             }
 
-            private String parseDataStreamName(String backingIndexName, int indexOfLastDash) {
+            private static String parseDataStreamName(String backingIndexName, int indexOfLastDash) {
                 return backingIndexName.substring(4, backingIndexName.lastIndexOf('-', indexOfLastDash - 1));
             }
 
-            private int parseGeneration(String backingIndexName, int indexOfLastDash) {
+            private static int parseGeneration(String backingIndexName, int indexOfLastDash) {
                 return Integer.parseInt(backingIndexName.substring(indexOfLastDash + 1));
             }
         };
@@ -478,7 +486,7 @@ public final class DataStreamTestHelper {
             ScriptCompiler.NONE,
             false,
             IndexVersion.current()
-        ).build(MapperBuilderContext.root(false));
+        ).build(MapperBuilderContext.root(false, true));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
         when(env.sharedDataFile()).thenReturn(null);
@@ -500,7 +508,7 @@ public final class DataStreamTestHelper {
             );
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.root(false)),
+                root.build(MapperBuilderContext.root(false, true)),
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
@@ -523,7 +531,7 @@ public final class DataStreamTestHelper {
             false,
             new IndexSettingProviders(providers)
         );
-        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, null, registry);
+        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, registry);
         return new MetadataRolloverService(
             testThreadPool,
             createIndexService,
@@ -556,7 +564,7 @@ public final class DataStreamTestHelper {
             MapperService mapperService = mock(MapperService.class);
 
             RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-                MapperBuilderContext.root(false)
+                MapperBuilderContext.root(false, false)
             );
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);
             DocumentMapper documentMapper = mock(DocumentMapper.class);

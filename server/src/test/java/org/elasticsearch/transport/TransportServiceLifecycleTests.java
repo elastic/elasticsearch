@@ -51,11 +51,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 for (int i = 0; i < threads.length; i++) {
                     final var seed = randomLong();
                     threads[i] = new Thread(() -> {
-                        try {
-                            startBarrier.await(10, TimeUnit.SECONDS);
-                        } catch (Exception e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(startBarrier);
                         final var random = new Random(seed);
                         while (keepGoing.get() && requestPermits.tryAcquire()) {
                             nodeB.transportService.sendRequest(
@@ -155,7 +151,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             for (final var executor : EXECUTOR_NAMES) {
                 transportService.registerRequestHandler(
                     ACTION_NAME_PREFIX + executor,
-                    executor,
+                    threadPool.executor(executor),
                     TransportRequest.Empty::new,
                     (request, channel, task) -> {
                         if (randomBoolean()) {

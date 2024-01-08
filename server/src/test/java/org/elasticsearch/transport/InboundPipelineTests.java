@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -78,7 +79,7 @@ public class InboundPipelineTests extends ESTestCase {
 
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(TransportVersion.current(), recycler);
+        final InboundDecoder decoder = new InboundDecoder(recycler);
         final String breakThisAction = "break_this_action";
         final String actionName = "actionName";
         final Predicate<String> canTripBreaker = breakThisAction::equals;
@@ -98,7 +99,7 @@ public class InboundPipelineTests extends ESTestCase {
             toRelease.clear();
             try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
-                    final TransportVersion version = randomFrom(TransportVersion.current(), TransportVersion.MINIMUM_COMPATIBLE);
+                    final TransportVersion version = randomFrom(TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
                     final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
                     Compression.Scheme compressionScheme = getCompressionScheme(version);
@@ -208,14 +209,14 @@ public class InboundPipelineTests extends ESTestCase {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(TransportVersion.current(), recycler);
+        final InboundDecoder decoder = new InboundDecoder(recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
             String actionName = "actionName";
-            final TransportVersion invalidVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
+            final TransportVersion invalidVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
             final String value = randomAlphaOfLength(1000);
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
@@ -253,7 +254,7 @@ public class InboundPipelineTests extends ESTestCase {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(TransportVersion.current(), recycler);
+        final InboundDecoder decoder = new InboundDecoder(recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);

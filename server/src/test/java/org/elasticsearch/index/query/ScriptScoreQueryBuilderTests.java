@@ -99,7 +99,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         Directory directory = newDirectory();
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
         iw.addDocument(new Document());
-        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        final IndexSearcher searcher = newSearcher(iw.getReader());
         iw.close();
         assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
 

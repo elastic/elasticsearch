@@ -21,9 +21,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.logging.ConsoleHandler;
+import java.util.logging.Handler;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -31,7 +31,7 @@ public class JULBridgeTests extends ESTestCase {
 
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger("");
     private static java.util.logging.Level savedLevel;
-    private static java.util.logging.Handler[] savedHandlers;
+    private static Handler[] savedHandlers;
 
     @BeforeClass
     public static void saveLoggerState() {
@@ -60,10 +60,12 @@ public class JULBridgeTests extends ESTestCase {
 
     private void assertLogged(Runnable loggingCode, LoggingExpectation... expectations) {
         Logger testLogger = LogManager.getLogger("");
-        Loggers.setLevel(testLogger, Level.ALL);
+        Level savedLevel = testLogger.getLevel();
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
+
         try {
+            Loggers.setLevel(testLogger, Level.ALL);
+            mockAppender.start();
             Loggers.addAppender(testLogger, mockAppender);
             for (var expectation : expectations) {
                 mockAppender.addExpectation(expectation);
@@ -71,6 +73,7 @@ public class JULBridgeTests extends ESTestCase {
             loggingCode.run();
             mockAppender.assertAllExpectationsMatched();
         } finally {
+            Loggers.setLevel(testLogger, savedLevel);
             Loggers.removeAppender(testLogger, mockAppender);
             mockAppender.stop();
         }

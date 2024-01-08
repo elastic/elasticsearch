@@ -18,7 +18,7 @@ import java.io.IOException;
 public class S3ServiceTests extends ESTestCase {
 
     public void testCachedClientsAreReleased() throws IOException {
-        final S3Service s3Service = new S3Service(Mockito.mock(Environment.class));
+        final S3Service s3Service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY);
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);

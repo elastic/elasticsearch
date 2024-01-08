@@ -29,7 +29,7 @@ public class NodePrevalidateShardPathResponse extends BaseNodeResponse {
 
     protected NodePrevalidateShardPathResponse(StreamInput in) throws IOException {
         super(in);
-        shardIds = in.readImmutableSet(ShardId::new);
+        shardIds = in.readCollectionAsImmutableSet(ShardId::new);
     }
 
     @Override

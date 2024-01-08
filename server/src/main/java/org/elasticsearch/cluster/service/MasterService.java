@@ -714,7 +714,7 @@ public class MasterService extends AbstractLifecycleComponent {
             } else if (countDown.countDown()) {
                 finish();
             } else {
-                this.ackTimeoutCallback = threadPool.schedule(this::onTimeout, timeLeft, ThreadPool.Names.GENERIC);
+                this.ackTimeoutCallback = threadPool.schedule(this::onTimeout, timeLeft, threadPool.generic());
                 // re-check if onNodeAck has not completed while we were scheduling the timeout
                 if (countDown.isCountedDown()) {
                     ackTimeoutCallback.cancel();
@@ -1525,7 +1525,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 timeoutCancellable = threadPool.schedule(
                     new TaskTimeoutHandler<>(timeout, source, taskHolder),
                     timeout,
-                    ThreadPool.Names.GENERIC
+                    threadPool.generic()
                 );
             } else {
                 timeoutCancellable = null;

@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -24,10 +24,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -111,7 +110,7 @@ public class ClientHelperTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
-        ClientHelper.executeAsyncWithOrigin(client, origin, ClusterHealthAction.INSTANCE, new ClusterHealthRequest(), listener);
+        ClientHelper.executeAsyncWithOrigin(client, origin, TransportClusterHealthAction.TYPE, new ClusterHealthRequest(), listener);
 
         latch.await();
     }
@@ -171,7 +170,7 @@ public class ClientHelperTests extends ESTestCase {
         SearchRequest request = new SearchRequest("foo");
 
         String originName = randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.ROLLUP_ORIGIN);
-        ClientHelper.executeWithHeadersAsync(Collections.emptyMap(), originName, client, SearchAction.INSTANCE, request, listener);
+        ClientHelper.executeWithHeadersAsync(Collections.emptyMap(), originName, client, TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -202,7 +201,7 @@ public class ClientHelperTests extends ESTestCase {
         headers.put("bar", "bar");
 
         String originName = randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.ROLLUP_ORIGIN);
-        ClientHelper.executeWithHeadersAsync(headers, originName, client, SearchAction.INSTANCE, request, listener);
+        ClientHelper.executeWithHeadersAsync(headers, originName, client, TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -235,7 +234,7 @@ public class ClientHelperTests extends ESTestCase {
         headers.put("_xpack_security_authentication", "bar");
 
         String originName = randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.ROLLUP_ORIGIN);
-        ClientHelper.executeWithHeadersAsync(headers, originName, client, SearchAction.INSTANCE, request, listener);
+        ClientHelper.executeWithHeadersAsync(headers, originName, client, TransportSearchAction.TYPE, request, listener);
 
         latch.await();
     }
@@ -247,18 +246,9 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
-            new SearchResponse(
-                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                null,
-                0,
-                0,
-                0,
-                0L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
-            )
+            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
         );
         when(client.search(any())).thenReturn(searchFuture);
         assertExecutionWithOrigin(Collections.emptyMap(), client);
@@ -271,18 +261,9 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
-            new SearchResponse(
-                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                null,
-                0,
-                0,
-                0,
-                0L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
-            )
+            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
         );
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> headers = Map.of(
@@ -306,18 +287,9 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
-            new SearchResponse(
-                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
-                null,
-                0,
-                0,
-                0,
-                0L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
-            )
+            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
         );
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> unrelatedHeaders = Map.of(randomAlphaOfLength(10), "anything");
@@ -341,7 +313,7 @@ public class ClientHelperTests extends ESTestCase {
             assertThat(headers, not(hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")));
 
             return client.search(new SearchRequest()).actionGet();
-        });
+        }).decRef();
     }
 
     /**
@@ -357,7 +329,7 @@ public class ClientHelperTests extends ESTestCase {
 
             consumer.accept(client.threadPool().getThreadContext().getHeaders());
             return client.search(new SearchRequest()).actionGet();
-        });
+        }).decRef();
     }
 
     public void testFilterSecurityHeaders() {
@@ -391,7 +363,7 @@ public class ClientHelperTests extends ESTestCase {
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersions.MINIMUM_COMPATIBLE);
         // No security header
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String nonSecurityHeaderKey = "not-a-security-header";
@@ -447,7 +419,7 @@ public class ClientHelperTests extends ESTestCase {
         // Rewritten for older version
         final TransportVersion previousVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion()
         );
         when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);

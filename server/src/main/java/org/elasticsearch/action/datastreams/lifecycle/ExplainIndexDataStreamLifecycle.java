@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.DSL_ERROR_STORE_INFORMATION_ENHANCED;
+
 /**
  * Encapsulates the information that describes an index from its data stream lifecycle perspective.
  */
@@ -50,7 +52,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     @Nullable
     private final DataStreamLifecycle lifecycle;
     @Nullable
-    private final String error;
+    private final ErrorEntry error;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
     public ExplainIndexDataStreamLifecycle(
@@ -60,7 +62,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
         @Nullable DataStreamLifecycle lifecycle,
-        @Nullable String error
+        @Nullable ErrorEntry error
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
@@ -79,7 +81,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-            this.error = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(DSL_ERROR_STORE_INFORMATION_ENHANCED)) {
+                this.error = in.readOptionalWriteable(ErrorEntry::new);
+            } else {
+                String bwcErrorMessage = in.readOptionalString();
+                this.error = new ErrorEntry(-1L, bwcErrorMessage, -1L, -1);
+            }
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;
@@ -123,7 +130,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                 lifecycle.toXContent(builder, params, rolloverConfiguration);
             }
             if (this.error != null) {
-                builder.field(ERROR_FIELD.getPreferredName(), error);
+                if (error.firstOccurrenceTimestamp() != -1L && error.recordedTimestamp() != -1L && error.retryCount() != -1) {
+                    builder.field(ERROR_FIELD.getPreferredName(), error);
+                } else {
+                    // bwc for error field being a string
+                    builder.field(ERROR_FIELD.getPreferredName(), error.error());
+                }
             }
         }
         builder.endObject();
@@ -139,7 +151,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
             out.writeOptionalWriteable(lifecycle);
-            out.writeOptionalString(error);
+            if (out.getTransportVersion().onOrAfter(DSL_ERROR_STORE_INFORMATION_ENHANCED)) {
+                out.writeOptionalWriteable(error);
+            } else {
+                String errorMessage = error != null ? error.error() : null;
+                out.writeOptionalString(errorMessage);
+            }
         }
     }
 
@@ -202,7 +219,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         return lifecycle;
     }
 
-    public String getError() {
+    public ErrorEntry getError() {
         return error;
     }
 

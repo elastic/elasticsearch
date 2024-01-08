@@ -29,7 +29,7 @@ public class SharedBytesTests extends ESTestCase {
         try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
             final SharedBytes sharedBytes = new SharedBytes(
                 regions,
-                randomIntBetween(1, 16) * 4096L,
+                randomIntBetween(1, 16) * 4096,
                 nodeEnv,
                 ignored -> {},
                 ignored -> {},

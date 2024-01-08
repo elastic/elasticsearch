@@ -16,20 +16,13 @@ public class ParsedScrollId {
 
     public static final String QUERY_AND_FETCH_TYPE = "queryAndFetch";
 
-    private final String source;
-
     private final String type;
 
     private final SearchContextIdForNode[] context;
 
-    ParsedScrollId(String source, String type, SearchContextIdForNode[] context) {
-        this.source = source;
+    ParsedScrollId(String type, SearchContextIdForNode[] context) {
         this.type = type;
         this.context = context;
-    }
-
-    public String getSource() {
-        return source;
     }
 
     public String getType() {

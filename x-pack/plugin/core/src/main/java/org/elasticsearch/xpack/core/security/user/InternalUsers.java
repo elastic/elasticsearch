@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -144,21 +146,28 @@ public class InternalUsers {
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
                         IndicesStatsAction.NAME + "*",
-                        UpdateSettingsAction.NAME
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        DownsampleAction.NAME,
+                        AddIndexBlockAction.NAME
                     )
                     .allowRestrictedIndices(false)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
-                        ".fleet-actions-results"
+                        ".fleet-actions-results",
+                        // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
+                        ".fleet-fileds*"
                     )
                     .privileges(
                         "delete_index",
                         RolloverAction.NAME,
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*"
+                        IndicesStatsAction.NAME + "*",
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        DownsampleAction.NAME,
+                        AddIndexBlockAction.NAME
                     )
                     .allowRestrictedIndices(true)
                     .build() },
@@ -180,7 +189,7 @@ public class InternalUsers {
             null,
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(ReloadAnalyzerAction.NAME).build(), },
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(TransportReloadAnalyzersAction.TYPE.name()).build(), },
             null,
             null,
             null,

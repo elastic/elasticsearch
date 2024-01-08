@@ -51,8 +51,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXC
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE_SETTING;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
@@ -547,6 +549,18 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     finalSettings.remove(nodeAttrIndexIncludeRoutingSetting);
                 }
 
+                if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(newSettings)) {
+                    String configuredTierPreference = null;
+                    try {
+                        configuredTierPreference = TIER_PREFERENCE_SETTING.get(newSettings);
+                    } catch (IllegalArgumentException ignored) {
+                        // we'll configure the correct tier preference below
+                    }
+                    if (configuredTierPreference == null || configuredTierPreference.equals(DATA_FROZEN) == false) {
+                        finalSettings.put(TIER_PREFERENCE_SETTING.getKey(), DATA_FROZEN);
+                    }
+                }
+
                 mb.put(
                     IndexMetadata.builder(indexMetadata).settings(finalSettings).settingsVersion(indexMetadata.getSettingsVersion() + 1)
                 );
@@ -676,7 +690,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
                 if (settings.keySet().contains(requireRoutingSetting) || settings.keySet().contains(includeRoutingSetting)) {
                     Template currentInnerTemplate = composableTemplate.template();
-                    ComposableIndexTemplate.Builder migratedComposableTemplateBuilder = new ComposableIndexTemplate.Builder();
+                    ComposableIndexTemplate.Builder migratedComposableTemplateBuilder = ComposableIndexTemplate.builder();
                     Settings.Builder settingsBuilder = Settings.builder().put(settings);
                     settingsBuilder.remove(requireRoutingSetting);
                     settingsBuilder.remove(includeRoutingSetting);
@@ -737,7 +751,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     ComponentTemplate migratedComponentTemplate = new ComponentTemplate(
                         migratedInnerTemplate,
                         componentTemplate.version(),
-                        componentTemplate.metadata()
+                        componentTemplate.metadata(),
+                        componentTemplate.deprecated()
                     );
 
                     mb.put(componentEntry.getKey(), migratedComponentTemplate);
@@ -751,7 +766,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
     private static Settings migrateToDefaultTierPreference(ClusterState currentState, IndexMetadata indexMetadata) {
         Settings currentIndexSettings = indexMetadata.getSettings();
-        List<String> tierPreference = DataTier.parseTierList(currentIndexSettings.get(DataTier.TIER_PREFERENCE));
+        List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(currentIndexSettings));
         if (tierPreference.isEmpty() == false) {
             return currentIndexSettings;
         }

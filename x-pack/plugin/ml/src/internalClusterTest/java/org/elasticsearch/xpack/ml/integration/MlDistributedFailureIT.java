@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +37,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -69,7 +69,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -81,6 +80,8 @@ import static org.elasticsearch.persistent.PersistentTasksClusterService.needsRe
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -209,10 +210,11 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         datafeedAuditSearchRequest.source().query(new TermsQueryBuilder("message.raw", "Datafeed stopped"));
         assertBusy(() -> {
             assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX));
-            SearchResponse searchResponse = client().search(datafeedAuditSearchRequest).actionGet();
-            assertThat(searchResponse.getHits(), notNullValue());
-            assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
-            assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("job_id"), is(jobId));
+            assertResponse(client().search(datafeedAuditSearchRequest), searchResponse -> {
+                assertThat(searchResponse.getHits(), notNullValue());
+                assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("job_id"), is(jobId));
+            });
         });
 
         // We should have an audit message indicating that the job was closed
@@ -221,10 +223,11 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         jobAuditSearchRequest.source().query(new TermsQueryBuilder("message.raw", expectedAuditMessage));
         assertBusy(() -> {
             assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX));
-            SearchResponse searchResponse = client().search(jobAuditSearchRequest).actionGet();
-            assertThat(searchResponse.getHits(), notNullValue());
-            assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
-            assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("job_id"), is(jobId));
+            assertResponse(client().search(jobAuditSearchRequest), searchResponse -> {
+                assertThat(searchResponse.getHits(), notNullValue());
+                assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("job_id"), is(jobId));
+            });
         });
     }
 
@@ -750,21 +753,23 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     // because then data counts have been persisted to an index (happens each 10s (DataCountsReporter)),
     // so when restarting job on another node the data counts
     // are what we expect them to be:
-    private static DataCounts getDataCountsFromIndex(String jobId) {
-        SearchResponse searchResponse = client().prepareSearch()
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-            .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
-            .get();
-        if (searchResponse.getHits().getTotalHits().value != 1) {
-            return new DataCounts(jobId);
-        }
-
-        BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
-        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
-            return DataCounts.PARSER.apply(parser, null);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    private static DataCounts getDataCountsFromIndex(String jobId) throws IOException {
+        SetOnce<DataCounts> setOnce = new SetOnce<>();
+        assertCheckedResponse(
+            prepareSearch().setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
+            searchResponse -> {
+                if (searchResponse.getHits().getTotalHits().value != 1) {
+                    setOnce.set(new DataCounts(jobId));
+                    return;
+                }
+                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+                try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
+                    setOnce.set(DataCounts.PARSER.apply(parser, null));
+                }
+            }
+        );
+        return setOnce.get();
     }
 
     private void waitForJobToHaveProcessedExactly(String jobId, long numDocs) throws Exception {
@@ -789,7 +794,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId).setLatestResultTimeStamp(dataCounts.getLatestRecordTimeStamp())
             .setLatestRecordTimeStamp(dataCounts.getLatestRecordTimeStamp())
-            .setMinVersion(Version.CURRENT)
+            .setMinVersion(MlConfigVersion.CURRENT)
             .setSnapshotId(jobId + "_mock_snapshot")
             .setTimestamp(new Date())
             .setModelSizeStats(new ModelSizeStats.Builder(jobId).build())

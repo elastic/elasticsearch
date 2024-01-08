@@ -18,11 +18,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class VerifyNodeRepositoryAction {
@@ -54,7 +56,7 @@ public class VerifyNodeRepositoryAction {
         this.repositoriesService = repositoriesService;
         transportService.registerRequestHandler(
             ACTION_NAME,
-            ThreadPool.Names.SNAPSHOT,
+            transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT),
             VerifyNodeRepositoryRequest::new,
             new VerifyNodeRepositoryRequestHandler()
         );
@@ -89,22 +91,27 @@ public class VerifyNodeRepositoryAction {
                     node,
                     ACTION_NAME,
                     new VerifyNodeRepositoryRequest(repository, verificationToken),
-                    new EmptyTransportResponseHandler(new ActionListener<>() {
+                    new TransportResponseHandler.Empty() {
                         @Override
-                        public void onResponse(Void unused) {
+                        public Executor executor(ThreadPool threadPool) {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
+                        }
+
+                        @Override
+                        public void handleResponse() {
                             if (counter.decrementAndGet() == 0) {
                                 finishVerification(repository, listener, nodes, errors);
                             }
                         }
 
                         @Override
-                        public void onFailure(Exception exp) {
+                        public void handleException(TransportException exp) {
                             errors.add(new VerificationFailure(node.getId(), exp));
                             if (counter.decrementAndGet() == 0) {
                                 finishVerification(repository, listener, nodes, errors);
                             }
                         }
-                    })
+                    }
                 );
             }
         }

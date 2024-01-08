@@ -115,9 +115,8 @@ public class RolloverConditions implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList(),
-            StreamOutput::writeNamedWriteable
+        out.writeNamedWriteableCollection(
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList()
         );
     }
 

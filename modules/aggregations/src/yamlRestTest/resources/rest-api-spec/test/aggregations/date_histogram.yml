@@ -25,8 +25,6 @@ setup:
       indices.create:
         index: date_histogram_timezone_test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date:
@@ -36,8 +34,6 @@ setup:
       indices.create:
         index: test_timezone_date_nanos
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date:
@@ -47,8 +43,6 @@ setup:
       indices.create:
         index: timezone_daylight_test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date:
@@ -499,8 +493,6 @@ setup:
       indices.create:
         index: date_field_type_date
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date_field:
@@ -510,8 +502,6 @@ setup:
       indices.create:
         index: date_field_type_date_nanos
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date_field:

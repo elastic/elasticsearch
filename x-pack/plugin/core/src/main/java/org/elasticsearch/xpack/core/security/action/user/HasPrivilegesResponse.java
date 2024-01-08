@@ -128,9 +128,9 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(completeMatch);
-        out.writeMap(cluster, StreamOutput::writeString, StreamOutput::writeBoolean);
+        out.writeMap(cluster, StreamOutput::writeBoolean);
         writeResourcePrivileges(out, index);
-        out.writeMap(application, StreamOutput::writeString, HasPrivilegesResponse::writeResourcePrivileges);
+        out.writeMap(application, HasPrivilegesResponse::writeResourcePrivileges);
         out.writeString(username);
     }
 
@@ -138,7 +138,7 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         out.writeVInt(privileges.size());
         for (ResourcePrivileges priv : privileges) {
             out.writeString(priv.getResource());
-            out.writeMap(priv.getPrivileges(), StreamOutput::writeString, StreamOutput::writeBoolean);
+            out.writeMap(priv.getPrivileges(), StreamOutput::writeBoolean);
         }
     }
 

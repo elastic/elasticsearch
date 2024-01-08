@@ -10,9 +10,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -85,39 +85,36 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                try (
-                    RemoteClusterAwareClient client = new RemoteClusterAwareClient(
-                        Settings.EMPTY,
-                        threadPool,
-                        service,
-                        "cluster1",
-                        threadPool.executor(TEST_THREAD_POOL_NAME),
-                        randomBoolean()
-                    )
-                ) {
-                    SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
-                        new String[] { "test-index" },
-                        IndicesOptions.strictExpandOpen(),
-                        new MatchAllQueryBuilder(),
-                        null,
-                        null,
-                        randomBoolean(),
-                        null
-                    );
-                    final SearchShardsResponse searchShardsResponse = PlainActionFuture.get(
-                        future -> client.execute(
-                            SearchShardsAction.INSTANCE,
-                            searchShardsRequest,
-                            ActionListener.runBefore(
-                                future,
-                                () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
-                            )
-                        ),
-                        10,
-                        TimeUnit.SECONDS
-                    );
-                    assertThat(searchShardsResponse.getNodes(), equalTo(knownNodes));
-                }
+                final var client = new RemoteClusterAwareClient(
+                    Settings.EMPTY,
+                    threadPool,
+                    service,
+                    "cluster1",
+                    threadPool.executor(TEST_THREAD_POOL_NAME),
+                    randomBoolean()
+                );
+                SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
+                    new String[] { "test-index" },
+                    IndicesOptions.strictExpandOpen(),
+                    new MatchAllQueryBuilder(),
+                    null,
+                    null,
+                    randomBoolean(),
+                    null
+                );
+                final SearchShardsResponse searchShardsResponse = PlainActionFuture.get(
+                    future -> client.execute(
+                        TransportSearchShardsAction.TYPE,
+                        searchShardsRequest,
+                        ActionListener.runBefore(
+                            future,
+                            () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
+                        )
+                    ),
+                    10,
+                    TimeUnit.SECONDS
+                );
+                assertThat(searchShardsResponse.getNodes(), equalTo(knownNodes));
             }
         }
     }
@@ -145,46 +142,44 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
 
-                try (
-                    RemoteClusterAwareClient client = new RemoteClusterAwareClient(
-                        Settings.EMPTY,
-                        threadPool,
-                        service,
-                        "cluster1",
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                        randomBoolean()
-                    )
-                ) {
-                    int numThreads = 10;
-                    ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
-                    for (int i = 0; i < numThreads; i++) {
-                        final String threadId = Integer.toString(i);
-                        PlainActionFuture<SearchShardsResponse> future = new PlainActionFuture<>();
-                        executorService.submit(() -> {
-                            ThreadContext threadContext = seedTransport.threadPool.getThreadContext();
-                            threadContext.putHeader("threadId", threadId);
-                            var searchShardsRequest = new SearchShardsRequest(
-                                new String[] { "test-index" },
-                                IndicesOptions.strictExpandOpen(),
-                                new MatchAllQueryBuilder(),
-                                null,
-                                null,
-                                randomBoolean(),
-                                null
-                            );
-                            client.execute(
-                                SearchShardsAction.INSTANCE,
-                                searchShardsRequest,
-                                ActionListener.runBefore(
-                                    future,
-                                    () -> assertThat(seedTransport.threadPool.getThreadContext().getHeader("threadId"), equalTo(threadId))
-                                )
-                            );
-                            assertThat(future.actionGet().getNodes(), equalTo(knownNodes));
-                        });
-                    }
-                    ThreadPool.terminate(executorService, 5, TimeUnit.SECONDS);
+                final var client = new RemoteClusterAwareClient(
+                    Settings.EMPTY,
+                    threadPool,
+                    service,
+                    "cluster1",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    randomBoolean()
+                );
+
+                int numThreads = 10;
+                ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+                for (int i = 0; i < numThreads; i++) {
+                    final String threadId = Integer.toString(i);
+                    PlainActionFuture<SearchShardsResponse> future = new PlainActionFuture<>();
+                    executorService.submit(() -> {
+                        ThreadContext threadContext = seedTransport.threadPool.getThreadContext();
+                        threadContext.putHeader("threadId", threadId);
+                        var searchShardsRequest = new SearchShardsRequest(
+                            new String[] { "test-index" },
+                            IndicesOptions.strictExpandOpen(),
+                            new MatchAllQueryBuilder(),
+                            null,
+                            null,
+                            randomBoolean(),
+                            null
+                        );
+                        client.execute(
+                            TransportSearchShardsAction.TYPE,
+                            searchShardsRequest,
+                            ActionListener.runBefore(
+                                future,
+                                () -> assertThat(seedTransport.threadPool.getThreadContext().getHeader("threadId"), equalTo(threadId))
+                            )
+                        );
+                        assertThat(future.actionGet().getNodes(), equalTo(knownNodes));
+                    });
                 }
+                ThreadPool.terminate(executorService, 5, TimeUnit.SECONDS);
             }
         }
     }

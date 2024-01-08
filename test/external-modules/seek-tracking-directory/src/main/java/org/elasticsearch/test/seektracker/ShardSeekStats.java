@@ -26,7 +26,7 @@ public record ShardSeekStats(String shard, Map<String, Long> seeksPerFile) imple
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.shard);
-        out.writeMap(this.seeksPerFile, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(this.seeksPerFile, StreamOutput::writeLong);
     }
 
     @Override

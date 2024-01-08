@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.search.internal.TwoPhaseCollector;
 
 import java.io.IOException;
 
@@ -79,7 +80,7 @@ public abstract class BucketCollector {
         return new BucketCollectorWrapper(this);
     }
 
-    private record BucketCollectorWrapper(BucketCollector bucketCollector) implements Collector {
+    public record BucketCollectorWrapper(BucketCollector bucketCollector) implements TwoPhaseCollector {
 
         @Override
         public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
@@ -89,6 +90,11 @@ public abstract class BucketCollector {
         @Override
         public ScoreMode scoreMode() {
             return bucketCollector.scoreMode();
+        }
+
+        @Override
+        public void doPostCollection() throws IOException {
+            bucketCollector.postCollection();
         }
     }
 }

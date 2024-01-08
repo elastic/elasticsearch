@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,20 +34,22 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class TransportAddVotingConfigExclusionsAction extends TransportMasterNodeAction<
     AddVotingConfigExclusionsRequest,
     ActionResponse.Empty> {
 
+    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/voting_config/add_exclusions");
     private static final Logger logger = LogManager.getLogger(TransportAddVotingConfigExclusionsAction.class);
 
     public static final Setting<Integer> MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING = Setting.intSetting(
@@ -72,7 +75,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
         Reconfigurator reconfigurator
     ) {
         super(
-            AddVotingConfigExclusionsAction.NAME,
+            TYPE.name(),
             false,
             transportService,
             clusterService,
@@ -81,7 +84,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
             AddVotingConfigExclusionsRequest::new,
             indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         maxVotingConfigExclusions = MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.get(settings);
@@ -107,13 +110,14 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
 
         submitUnbatchedTask("add-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
 
-            private Set<VotingConfigExclusion> resolvedExclusions;
-
             @Override
             public ClusterState execute(ClusterState currentState) {
-                assert resolvedExclusions == null : resolvedExclusions;
                 final int finalMaxVotingConfigExclusions = TransportAddVotingConfigExclusionsAction.this.maxVotingConfigExclusions;
-                resolvedExclusions = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, finalMaxVotingConfigExclusions);
+                final var resolvedExclusions = resolveVotingConfigExclusionsAndCheckMaximum(
+                    request,
+                    currentState,
+                    finalMaxVotingConfigExclusions
+                );
 
                 final CoordinationMetadata.Builder builder = CoordinationMetadata.builder(currentState.coordinationMetadata());
                 resolvedExclusions.forEach(builder::addVotingConfigExclusion);
@@ -138,13 +142,13 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                     threadPool.getThreadContext()
                 );
 
-                final Set<String> excludedNodeIds = resolvedExclusions.stream()
-                    .map(VotingConfigExclusion::getNodeId)
-                    .collect(Collectors.toSet());
-
                 final Predicate<ClusterState> allNodesRemoved = clusterState -> {
-                    final Set<String> votingConfigNodeIds = clusterState.getLastCommittedConfiguration().getNodeIds();
-                    return excludedNodeIds.stream().noneMatch(votingConfigNodeIds::contains);
+                    final Set<String> votingConfigNodeIds = new HashSet<>();
+                    votingConfigNodeIds.addAll(clusterState.getLastCommittedConfiguration().getNodeIds());
+                    votingConfigNodeIds.addAll(clusterState.getLastAcceptedConfiguration().getNodeIds());
+                    return clusterState.getVotingConfigExclusions()
+                        .stream()
+                        .noneMatch(votingConfigExclusion -> votingConfigNodeIds.contains(votingConfigExclusion.getNodeId()));
                 };
 
                 final Listener clusterStateListener = new Listener() {
@@ -156,20 +160,14 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                     @Override
                     public void onClusterServiceClose() {
                         listener.onFailure(
-                            new ElasticsearchException(
-                                "cluster service closed while waiting for voting config exclusions "
-                                    + resolvedExclusions
-                                    + " to take effect"
-                            )
+                            new ElasticsearchException("cluster service closed while waiting for voting config exclusions to take effect")
                         );
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         listener.onFailure(
-                            new ElasticsearchTimeoutException(
-                                "timed out waiting for voting config exclusions " + resolvedExclusions + " to take effect"
-                            )
+                            new ElasticsearchTimeoutException("timed out waiting for voting config exclusions to take effect")
                         );
                     }
                 };

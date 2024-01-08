@@ -48,6 +48,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
@@ -103,10 +104,10 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         final Map<String, Long> transformsCountByState = new HashMap<>();
         for (PersistentTasksCustomMetadata.PersistentTask<?> transformTask : transformTasks) {
             TransformState transformState = (TransformState) transformTask.getState();
-            TransformTaskState taskState = transformState.getTaskState();
-            if (taskState != null) {
-                transformsCountByState.merge(taskState.value(), 1L, Long::sum);
-            }
+            Optional.ofNullable(transformState)
+                .map(TransformState::getTaskState)
+                .map(TransformTaskState::value)
+                .ifPresent(value -> transformsCountByState.merge(value, 1L, Long::sum));
         }
         final SetOnce<Map<String, Long>> transformsCountByFeature = new SetOnce<>();
 

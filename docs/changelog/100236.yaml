@@ -1,0 +1,5 @@
+pr: 100236
+summary: Record operation purpose for s3 stats collection
+area: Distributed
+type: enhancement
+issues: []

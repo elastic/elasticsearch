@@ -50,7 +50,7 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
             actionFilters,
             indexNameExpressionResolver,
             TransportShardRefreshAction.TYPE,
-            ThreadPool.Names.REFRESH
+            transportService.getThreadPool().executor(ThreadPool.Names.REFRESH)
         );
     }
 

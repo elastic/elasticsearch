@@ -44,6 +44,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     protected final DoubleBounds hardBounds;
     protected final LongKeyedBucketOrds bucketOrds;
 
+    @SuppressWarnings("this-escape")
     public AbstractHistogramAggregator(
         String name,
         AggregatorFactories factories,

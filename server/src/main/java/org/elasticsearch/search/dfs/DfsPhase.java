@@ -33,6 +33,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.ProfilingQuery;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -171,7 +172,7 @@ public class DfsPhase {
         return null;
     };
 
-    private void executeKnnVectorQuery(SearchContext context) throws IOException {
+    private static void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
         if (source == null || source.knnSearch().isEmpty()) {
             return;
@@ -188,28 +189,44 @@ public class DfsPhase {
         }
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
         for (int i = 0; i < knnSearch.size(); i++) {
+            String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+            String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher()));
+            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
         }
         context.dfsResult().knnResults(knnResults);
     }
 
-    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher) throws IOException {
-        CollectorManager<? extends Collector, TopDocs> cm = TopScoreDocCollector.createSharedManager(k, null, Integer.MAX_VALUE);
-
-        if (profilers != null) {
-            ProfileCollectorManager<TopDocs> ipcm = new ProfileCollectorManager<>(cm, CollectorResult.REASON_SEARCH_TOP_HITS);
-            QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler(ipcm);
-            cm = ipcm;
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
+        throws IOException {
+        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = TopScoreDocCollector.createSharedManager(
+            k,
+            null,
+            Integer.MAX_VALUE
+        );
+        final TopDocs topDocs;
+        if (profilers == null) {
+            topDocs = searcher.search(knnQuery, topDocsCollectorManager);
+        } else {
+            QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler();
             // Set the current searcher profiler to gather query profiling information for gathering top K docs
             searcher.setProfiler(knnProfiler);
-        }
-        TopDocs topDocs = searcher.search(knnQuery, cm);
+            ProfileCollectorManager<TopDocs> ipcm = new ProfileCollectorManager<>(
+                topDocsCollectorManager,
+                CollectorResult.REASON_SEARCH_TOP_HITS
+            );
+            topDocs = searcher.search(knnQuery, ipcm);
 
+            if (knnQuery instanceof ProfilingQuery profilingQuery) {
+                profilingQuery.profile(knnProfiler);
+            }
+
+            knnProfiler.setCollectorResult(ipcm.getCollectorTree());
+        }
         // Set profiler back after running KNN searches
         if (profilers != null) {
             searcher.setProfiler(profilers.getCurrentQueryProfiler());
         }
-        return new DfsKnnResults(topDocs.scoreDocs);
+        return new DfsKnnResults(nestedPath, topDocs.scoreDocs);
     }
 }

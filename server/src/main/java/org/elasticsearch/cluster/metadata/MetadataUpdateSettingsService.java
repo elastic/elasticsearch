@@ -20,7 +20,11 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,7 +44,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -192,9 +198,57 @@ public class MetadataUpdateSettingsService {
             }
 
             if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices)
-                );
+                if (request.reopenShards()) {
+                    // We have non-dynamic settings and open indices. We will unassign all of the shards in these indices so that the new
+                    // changed settings are applied when the shards are re-assigned.
+                    routingTableBuilder = RoutingTable.builder(
+                        allocationService.getShardRoutingRoleStrategy(),
+                        currentState.routingTable()
+                    );
+                    for (Index index : openIndices) {
+                        // We only want to take on the expense of reopening all shards for an index if the setting is really changing
+                        Settings existingSettings = currentState.getMetadata().index(index).getSettings();
+                        boolean needToReopenIndex = false;
+                        for (String setting : skippedSettings) {
+                            String newValue = request.settings().get(setting);
+                            if (Objects.equals(newValue, existingSettings.get(setting)) == false) {
+                                needToReopenIndex = true;
+                                break;
+                            }
+                        }
+                        if (needToReopenIndex) {
+                            List<ShardRouting> shardRoutingList = currentState.routingTable().allShards(index.getName());
+                            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+                            for (ShardRouting shardRouting : shardRoutingList) {
+                                if (ShardRoutingState.UNASSIGNED.equals(shardRouting.state()) == false) {
+                                    indexRoutingTableBuilder.addShard(
+                                        shardRouting.moveToUnassigned(
+                                            new UnassignedInfo(
+                                                UnassignedInfo.Reason.INDEX_REOPENED,
+                                                "Unassigning shards to update static settings"
+                                            )
+                                        )
+                                    );
+                                } else {
+                                    indexRoutingTableBuilder.addShard(shardRouting);
+                                }
+                            }
+                            routingTableBuilder.add(indexRoutingTableBuilder.build());
+                            openIndices.remove(index);
+                            closedIndices.add(index);
+                        }
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "Can't update non dynamic settings [%s] for open indices %s unless the `reopen` query parameter is set to "
+                                + "true. Alternatively, close the indices, apply the settings changes, and reopen the indices",
+                            skippedSettings,
+                            openIndices
+                        )
+                    );
+                }
             }
 
             if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
@@ -209,10 +263,12 @@ public class MetadataUpdateSettingsService {
                      *
                      * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
                      */
-                    routingTableBuilder = RoutingTable.builder(
-                        allocationService.getShardRoutingRoleStrategy(),
-                        currentState.routingTable()
-                    );
+                    if (routingTableBuilder == null) {
+                        routingTableBuilder = RoutingTable.builder(
+                            allocationService.getShardRoutingRoleStrategy(),
+                            currentState.routingTable()
+                        );
+                    }
                     routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);

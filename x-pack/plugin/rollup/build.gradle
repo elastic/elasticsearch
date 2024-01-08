@@ -3,7 +3,7 @@ esplugin {
   name 'x-pack-rollup'
   description 'Elasticsearch Expanded Pack Plugin - Rollup'
   classname 'org.elasticsearch.xpack.rollup.Rollup'
-  extendedPlugins = ['x-pack-aggregate-metric']
+  extendedPlugins = ['x-pack-core']
 }
 
 base {
@@ -12,9 +12,6 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(':modules:data-streams')
-  testImplementation project(path: xpackModule('ilm'))
-  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

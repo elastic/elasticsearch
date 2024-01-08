@@ -14,11 +14,13 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory {
@@ -47,7 +49,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.NUMERIC,
+            List.of(CoreValuesSourceType.NUMERIC, TimeSeriesValuesSourceType.COUNTER),
             MedianAbsoluteDeviationAggregator::new,
             true
         );

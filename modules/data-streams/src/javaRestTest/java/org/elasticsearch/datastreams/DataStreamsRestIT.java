@@ -47,7 +47,7 @@ public class DataStreamsRestIT extends DisabledSecurityDataStreamTestCase {
 
         assertOK(client().performRequest(createDocRequest));
 
-        Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream/*?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
         assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
@@ -77,7 +77,7 @@ public class DataStreamsRestIT extends DisabledSecurityDataStreamTestCase {
 
         assertOK(client().performRequest(createDocRequest));
 
-        Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream/*?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
         assertEquals(Collections.singletonList(".hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));

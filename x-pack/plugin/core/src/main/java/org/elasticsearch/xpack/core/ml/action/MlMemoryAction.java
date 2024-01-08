@@ -318,12 +318,12 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
 
         @Override
         protected List<MlMemoryStats> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(MlMemoryStats::new);
+            return in.readCollectionAsList(MlMemoryStats::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<MlMemoryStats> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override

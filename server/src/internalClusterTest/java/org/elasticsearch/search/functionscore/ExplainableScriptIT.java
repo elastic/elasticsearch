@@ -12,11 +12,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.DocReader;
@@ -33,7 +31,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +46,7 @@ import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,7 +74,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                         }
 
                         @Override
-                        public ScoreScript newInstance(DocReader docReader) throws IOException {
+                        public ScoreScript newInstance(DocReader docReader) {
                             return new MyScript(params1, lookup, ((DocValuesDocReader) docReader).getLeafReaderContext());
                         }
                     };
@@ -99,13 +97,13 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
-            Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
-            return Explanation.match((float) (execute(null)), "This script returned " + execute(null), scoreExp);
+            double score = execute(null);
+            return Explanation.match((float) score, "This script returned " + score);
         }
 
         @Override
         public double execute(ExplanationHolder explanation) {
-            return ((Number) ((ScriptDocValues) getDoc().get("number_field")).get(0)).doubleValue();
+            return ((Number) (getDoc().get("number_field")).get(0)).doubleValue();
         }
     }
 
@@ -118,38 +116,37 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             indexRequests.add(
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
+                prepareIndex("test").setId(Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject())
             );
         }
         indexRandom(true, true, indexRequests);
         client().admin().indices().prepareRefresh().get();
         ensureYellow();
-        SearchResponse response = client().search(
-            new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
-                .source(
-                    searchSource().explain(true)
-                        .query(
-                            functionScoreQuery(
-                                termQuery("text", "text"),
-                                scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()))
-                            ).boostMode(CombineFunction.REPLACE)
-                        )
-                )
-        ).actionGet();
-
-        ElasticsearchAssertions.assertNoFailures(response);
-        SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(20L));
-        int idCounter = 19;
-        for (SearchHit hit : hits.getHits()) {
-            assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(), containsString(Double.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(), containsString("1 = n"));
-            assertThat(hit.getExplanation().toString(), containsString("1 = N"));
-            assertThat(hit.getExplanation().getDetails().length, equalTo(2));
-            idCounter--;
-        }
+        assertNoFailuresAndResponse(
+            client().search(
+                new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
+                    .source(
+                        searchSource().explain(true)
+                            .query(
+                                functionScoreQuery(
+                                    termQuery("text", "text"),
+                                    scriptFunction(new Script(ScriptType.INLINE, "test", "explainable_script", Collections.emptyMap()))
+                                ).boostMode(CombineFunction.REPLACE)
+                            )
+                    )
+            ),
+            response -> {
+                SearchHits hits = response.getHits();
+                assertThat(hits.getTotalHits().value, equalTo(20L));
+                int idCounter = 19;
+                for (SearchHit hit : hits.getHits()) {
+                    assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
+                    assertThat(hit.getExplanation().toString(), containsString(Double.toString(idCounter)));
+                    assertThat(hit.getExplanation().getDetails().length, equalTo(2));
+                    idCounter--;
+                }
+            }
+        );
     }
 }

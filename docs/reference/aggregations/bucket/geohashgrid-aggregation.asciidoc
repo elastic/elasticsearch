@@ -288,7 +288,10 @@ image:images/spatial/geoshape_grid.png[]
 ==== Options
 
 [horizontal]
-field::         Mandatory. The name of the field indexed with GeoPoints.
+field::         Mandatory. Field containing indexed geo-point or geo-shape 
+                values. Must be explicitly mapped as a <<geo-point,`geo_point`>>
+                or a <<geo-shape,`geo_shape`>> field. If the field contains an 
+                array, `geohash_grid` aggregates all array values.
 
 precision::     Optional. The string length of the geohashes used to define
                 cells/buckets in the results. Defaults to 5.

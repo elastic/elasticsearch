@@ -5,11 +5,14 @@
   "composed_of": [
     "profiling-stacktraces",
     "profiling-ilm",
-    "profiling-hot-tier"
+    "profiling-hot-tier",
+    "profiling-ilm@custom"
   ],
+  "ignore_missing_component_templates": ["profiling-ilm@custom"],
   "priority": 100,
   "_meta": {
-    "description": "Index template for .profiling-stacktraces"
+    "description": "Index template for .profiling-stacktraces",
+    "managed": true
   },
   "version": ${xpack.profiling.template.version}
 }

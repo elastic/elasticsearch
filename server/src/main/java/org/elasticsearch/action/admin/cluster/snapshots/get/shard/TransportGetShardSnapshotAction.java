@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexSnapshotsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -57,7 +58,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
             GetShardSnapshotRequest::new,
             indexNameExpressionResolver,
             GetShardSnapshotResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexSnapshotsService = new IndexSnapshotsService(repositoriesService);
     }
@@ -136,10 +137,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
 
     private static Iterator<String> getRequestedRepositories(GetShardSnapshotRequest request, ClusterState state) {
         if (request.getFromAllRepositories()) {
-            return Iterators.map(
-                state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repositories().iterator(),
-                RepositoryMetadata::name
-            );
+            return Iterators.map(RepositoriesMetadata.get(state).repositories().iterator(), RepositoryMetadata::name);
         } else {
             return request.getRepositories().iterator();
         }

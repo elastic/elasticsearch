@@ -35,7 +35,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
     private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };
 
     private SecureSetting(String key, Property... properties) {
-        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
+        super(key, (String) null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES));
         assert assertAllowedProperties(properties);
         KeyStoreWrapper.validateSettingName(key);
     }

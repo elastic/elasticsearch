@@ -26,16 +26,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WorkflowServiceTests extends ESTestCase {
 
-    private final WorkflowService workflowService = new WorkflowService();
-
     public void testResolveWorkflowAndStoreInThreadContextWithKnownRestHandler() {
         final Workflow expectedWorkflow = randomFrom(WorkflowResolver.allWorkflows());
         final RestHandler restHandler = new TestBaseRestHandler(randomFrom(expectedWorkflow.allowedRestHandlers()));
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-        final Workflow actualWorkflow = workflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
+        final Workflow actualWorkflow = WorkflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
         assertThat(actualWorkflow, equalTo(expectedWorkflow));
-        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), equalTo(expectedWorkflow.name()));
+        assertThat(WorkflowService.readWorkflowFromThreadContext(threadContext), equalTo(expectedWorkflow.name()));
     }
 
     public void testResolveWorkflowAndStoreInThreadContextWithUnknownRestHandler() {
@@ -51,9 +49,9 @@ public class WorkflowServiceTests extends ESTestCase {
         }
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-        final Workflow actualWorkflow = workflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
+        final Workflow actualWorkflow = WorkflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
         assertThat(actualWorkflow, nullValue());
-        assertThat(workflowService.readWorkflowFromThreadContext(threadContext), nullValue());
+        assertThat(WorkflowService.readWorkflowFromThreadContext(threadContext), nullValue());
     }
 
     public static class TestBaseRestHandler extends BaseRestHandler {

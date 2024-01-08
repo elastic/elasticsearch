@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -185,11 +186,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 final var seed = randomLong();
                 threads[i] = new Thread(() -> {
                     final var random = new Random(seed);
-                    try {
-                        startBarrier.await(10, TimeUnit.SECONDS);
-                    } catch (Exception e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(startBarrier);
 
                     while (keepGoing.get()) {
                         Thread.yield();
@@ -198,7 +195,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                                 randomFrom(random, otherNodes),
                                 ActionListener.assertOnce(new ActionListener<>() {
                                     @Override
-                                    public void onResponse(TransportResponse.Empty empty) {
+                                    public void onResponse(Void ignored) {
                                         validationPermits.release();
                                     }
 
@@ -343,7 +340,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         masterTransportService.acceptIncomingRequests();
 
         try {
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var future = new PlainActionFuture<Void>();
             joinValidationService.validateJoin(joiningNode, future);
             assertFalse(future.isDone());
             deterministicTaskQueue.runAllTasks();
@@ -395,12 +392,12 @@ public class JoinValidationServiceTests extends ESTestCase {
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             new ValidateJoinRequest(otherClusterState),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
+            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
         assertThat(
-            expectThrows(CoordinationStateRejectedException.class, future::actionGet).getMessage(),
+            expectThrows(CoordinationStateRejectedException.class, future).getMessage(),
             allOf(
                 containsString("This node previously joined a cluster with UUID"),
                 containsString("and is now trying to join a different cluster"),
@@ -446,14 +443,11 @@ public class JoinValidationServiceTests extends ESTestCase {
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             new ValidateJoinRequest(stateForValidation),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
+            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
-        assertThat(
-            expectThrows(IllegalStateException.class, future::actionGet).getMessage(),
-            allOf(containsString("simulated validation failure"))
-        );
+        assertThat(expectThrows(IllegalStateException.class, future).getMessage(), allOf(containsString("simulated validation failure")));
     }
 
     public void testJoinValidationFallsBackToPingIfNotMaster() {
@@ -487,7 +481,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         masterTransportService.acceptIncomingRequests();
 
         try {
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var future = new PlainActionFuture<Void>();
             joinValidationService.validateJoin(joiningNode, future);
             assertFalse(future.isDone());
             deterministicTaskQueue.runAllTasks();

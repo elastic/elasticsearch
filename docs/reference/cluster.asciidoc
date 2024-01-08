@@ -24,7 +24,7 @@ one of the following:
   `coordinating_only:true`, which respectively add to the subset all
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
   nodes, all machine learning nodes, and all coordinating-only nodes.
-* `master:false`, `data:false`, `ingest:false`, `voting_only:true`, `ml:false`,
+* `master:false`, `data:false`, `ingest:false`, `voting_only:false`, `ml:false`,
   or `coordinating_only:false`, which respectively remove from the subset all
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
   nodes, all machine learning nodes, and all coordinating-only nodes.

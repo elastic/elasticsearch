@@ -345,20 +345,14 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         public void onEviction(CacheFile evictedCacheFile) {
             try {
                 evictionLatch.countDown();
-                releaseLatch.await();
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
+                safeAwait(releaseLatch);
             } finally {
                 evictedCacheFile.release(this);
             }
         }
 
         public void waitForBlock() {
-            try {
-                evictionLatch.await();
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(evictionLatch);
         }
 
         public void unblock() {

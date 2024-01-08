@@ -1,5 +1,0 @@
-pr: 97899
-summary: Fork response reading in `TransportNodesAction`
-area: Distributed
-type: bug
-issues: []

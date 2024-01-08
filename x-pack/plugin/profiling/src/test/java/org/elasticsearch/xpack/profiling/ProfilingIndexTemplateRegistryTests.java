@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -42,7 +42,9 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -134,11 +136,10 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutLifecycleAction) {
+            if (action == ILMActions.PUT) {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(request, instanceOf(PutLifecycleRequest.class));
+                final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo("profiling-60-days"));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
@@ -156,7 +157,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent newEvent = createClusterChangedEvent(Map.of(), Map.of(), Map.of(), nodes);
         registry.clusterChanged(newEvent);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getPolicyConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLifecyclePolicies().size())));
     }
 
     public void testPolicyAlreadyExists() {
@@ -164,7 +165,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -175,10 +176,10 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -200,7 +201,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             "{\"_meta\":{\"version\":%d},\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}",
             ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION
         );
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -211,10 +212,10 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
@@ -253,7 +254,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         // set version to 0 to force an upgrade (proper versions start at 1)
         String priorPolicyStr = "{\"_meta\":{\"version\":0},\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -265,14 +266,13 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutIndexTemplateAction) {
+            } else if (action == TransportPutIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(request, instanceOf(PutLifecycleRequest.class));
+                final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo("profiling-60-days"));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
@@ -309,6 +309,87 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         }
     }
 
+    public void testAllResourcesPresentButOutdated() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            // outdated version
+            componentTemplates.put(templateName, randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            // outdated version
+            composableTemplates.put(templateName, randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            // make a copy as we're modifying the version mapping
+            Map<String, Object> metadata = new HashMap<>(policy.getMetadata());
+            // outdated version
+            metadata.put("version", randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
+            policies.put(
+                policy.getName(),
+                new LifecyclePolicy(
+                    TimeseriesLifecycleType.INSTANCE,
+                    policy.getName(),
+                    policy.getPhases(),
+                    metadata,
+                    policy.getDeprecated()
+                )
+            );
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+    }
+
+    public void testAllResourcesPresentAndCurrent() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            componentTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            composableTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            policies.put(policy.getName(), policy);
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertTrue(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+    }
+
+    public void testSomeResourcesMissing() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            if (rarely()) {
+                componentTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+            }
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            if (rarely()) {
+                composableTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+            }
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            if (rarely()) {
+                policies.put(policy.getName(), policy);
+            }
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+    }
+
     private ActionResponse verifyComposableTemplateInstalled(
         AtomicInteger calledTimes,
         ActionType<?> action,
@@ -318,7 +399,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         if (action instanceof PutComponentTemplateAction) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutLifecycleAction) {
+        } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutComposableIndexTemplateAction) {
@@ -329,7 +410,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             assertThat(putRequest.indexTemplate().version(), equalTo((long) ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutIndexTemplateAction) {
+        } else if (action == TransportPutIndexTemplateAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {

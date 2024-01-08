@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -77,9 +78,13 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
         }
         return channel -> {
-            RestStatusToXContentListener<AsyncSearchResponse> listener = new RestStatusToXContentListener<>(channel);
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, listener);
+            cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, new RestRefCountedChunkedToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
+                    return asyncSearchResponse.status();
+                }
+            });
         };
     }
 

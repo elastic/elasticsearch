@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -113,10 +114,6 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
         return this;
     }
 
-    public int getNumBuckets() {
-        return numBuckets;
-    }
-
     public int getShardSize() {
         if (shardSize == -1) {
             return numBuckets * 50;
@@ -134,11 +131,6 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
-    }
-
-    @Override
-    public boolean supportsConcurrentExecution() {
-        return false;
     }
 
     @Override
@@ -241,12 +233,7 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_9_0;
+        return TransportVersions.V_7_9_0;
     }
 }

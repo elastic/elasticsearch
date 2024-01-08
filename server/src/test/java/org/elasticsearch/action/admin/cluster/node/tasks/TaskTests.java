@@ -29,6 +29,7 @@ public class TaskTests extends ESTestCase {
         TaskInfo taskInfo = new TaskInfo(
             new TaskId(nodeId, taskId),
             "test_type",
+            nodeId,
             "test_action",
             "test_description",
             null,

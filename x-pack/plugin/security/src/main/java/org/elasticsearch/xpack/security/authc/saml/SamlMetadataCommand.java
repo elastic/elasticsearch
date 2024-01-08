@@ -364,7 +364,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
         }
     }
 
-    private void validateXml(Terminal terminal, Path xml) throws Exception {
+    private static void validateXml(Terminal terminal, Path xml) throws Exception {
         try (InputStream xmlInput = Files.newInputStream(xml)) {
             SamlUtils.validate(xmlInput, METADATA_SCHEMA);
             terminal.println(Terminal.Verbosity.VERBOSE, "The generated metadata file conforms to the SAML metadata schema");
@@ -379,7 +379,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
         }
     }
 
-    private void printExceptions(Terminal terminal, Throwable throwable) {
+    private static void printExceptions(Terminal terminal, Throwable throwable) {
         terminal.errorPrintln(" - " + throwable.getMessage());
         for (Throwable sup : throwable.getSuppressed()) {
             printExceptions(terminal, sup);
@@ -390,11 +390,11 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
     }
 
     @SuppressForbidden(reason = "CLI tool working from current directory")
-    private Path resolvePath(String name) {
+    private static Path resolvePath(String name) {
         return PathUtils.get(name).normalize();
     }
 
-    private String requireText(Terminal terminal, String prompt) {
+    private static String requireText(Terminal terminal, String prompt) {
         String value = null;
         while (Strings.isNullOrEmpty(value)) {
             value = terminal.readText(prompt);
@@ -402,7 +402,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
         return value;
     }
 
-    private <T> T option(OptionSpec<T> spec, OptionSet options, T defaultValue) {
+    private static <T> T option(OptionSpec<T> spec, OptionSet options, T defaultValue) {
         if (options.has(spec)) {
             return spec.value(options);
         } else {
@@ -428,7 +428,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
     }
 
     // We sort this Set so that it is deterministic for testing
-    private SortedSet<String> sorted(Set<String> strings) {
+    private static SortedSet<String> sorted(Set<String> strings) {
         return new TreeSet<>(strings);
     }
 
@@ -491,15 +491,15 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
         }
     }
 
-    private String optionName(OptionSpec<?> spec) {
+    private static String optionName(OptionSpec<?> spec) {
         return spec.options().get(0);
     }
 
-    private RealmConfig buildRealm(RealmConfig.RealmIdentifier identifier, Environment env, Settings globalSettings) {
+    private static RealmConfig buildRealm(RealmConfig.RealmIdentifier identifier, Environment env, Settings globalSettings) {
         return new RealmConfig(identifier, globalSettings, env, new ThreadContext(globalSettings));
     }
 
-    private boolean isSamlRealm(RealmConfig.RealmIdentifier realmIdentifier) {
+    private static boolean isSamlRealm(RealmConfig.RealmIdentifier realmIdentifier) {
         return SamlRealmSettings.TYPE.equals(realmIdentifier.getType());
     }
 

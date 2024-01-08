@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -63,7 +64,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 );
             }
         } else {
-            expectThrows(RepositoryException.class, responseFuture::actionGet);
+            expectThrows(RepositoryException.class, responseFuture);
         }
 
         disableRepoConsistencyCheck("This test checks an empty repository");
@@ -113,7 +114,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final IndexVersion version = randomVersionBetween(random(), IndexVersion.V_7_5_0, IndexVersion.current());
+            final IndexVersion version = randomVersionBetween(random(), IndexVersions.V_7_5_0, IndexVersion.current());
             initWithSnapshotVersion(repoName, repoPath, version);
         }
 
@@ -136,7 +137,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             final SnapshotInfo snapshotInfo = createSnapshot(repoName, Strings.format("snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
-                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
+                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().get();
                 IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
                 expectedIndexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             }
@@ -337,7 +338,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         boolean useAllRepositoriesRequest
     ) {
         ShardId shardId = new ShardId(new Index(indexName, "__na__"), shard);
-        PlainActionFuture<GetShardSnapshotResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<GetShardSnapshotResponse> future = new PlainActionFuture<>();
         final GetShardSnapshotRequest request;
         if (useAllRepositoriesRequest && randomBoolean()) {
             request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);

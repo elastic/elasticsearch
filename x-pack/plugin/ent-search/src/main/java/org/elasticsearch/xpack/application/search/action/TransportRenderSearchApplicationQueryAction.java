@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
@@ -48,7 +49,13 @@ public class TransportRenderSearchApplicationQueryAction extends HandledTranspor
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(RenderSearchApplicationQueryAction.NAME, transportService, actionFilters, SearchApplicationSearchRequest::new);
+        super(
+            RenderSearchApplicationQueryAction.NAME,
+            transportService,
+            actionFilters,
+            SearchApplicationSearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.systemIndexService = new SearchApplicationIndexService(client, clusterService, namedWriteableRegistry, bigArrays);
         this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry);
     }
@@ -59,10 +66,10 @@ public class TransportRenderSearchApplicationQueryAction extends HandledTranspor
         SearchApplicationSearchRequest request,
         ActionListener<RenderSearchApplicationQueryAction.Response> listener
     ) {
-        systemIndexService.getSearchApplication(request.name(), ActionListener.wrap(searchApplication -> {
+        systemIndexService.getSearchApplication(request.name(), listener.delegateFailureAndWrap((delegate, searchApplication) -> {
             final Map<String, Object> renderedMetadata = templateService.renderTemplate(searchApplication, request.queryParams());
             final SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, renderedMetadata);
-            listener.onResponse(new RenderSearchApplicationQueryAction.Response(request.name(), sourceBuilder));
-        }, listener::onFailure));
+            delegate.onResponse(new RenderSearchApplicationQueryAction.Response(request.name(), sourceBuilder));
+        }));
     }
 }

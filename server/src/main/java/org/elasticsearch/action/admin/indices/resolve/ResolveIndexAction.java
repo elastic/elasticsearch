@@ -390,9 +390,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            this.indices = in.readList(ResolvedIndex::new);
-            this.aliases = in.readList(ResolvedAlias::new);
-            this.dataStreams = in.readList(ResolvedDataStream::new);
+            this.indices = in.readCollectionAsList(ResolvedIndex::new);
+            this.aliases = in.readCollectionAsList(ResolvedAlias::new);
+            this.dataStreams = in.readCollectionAsList(ResolvedDataStream::new);
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -409,9 +409,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(indices);
-            out.writeList(aliases);
-            out.writeList(dataStreams);
+            out.writeCollection(indices);
+            out.writeCollection(aliases);
+            out.writeCollection(dataStreams);
         }
 
         @Override
@@ -454,7 +454,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();

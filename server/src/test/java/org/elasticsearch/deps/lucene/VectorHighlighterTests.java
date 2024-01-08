@@ -27,6 +27,7 @@ import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.elasticsearch.test.ESTestCase;
 
@@ -49,7 +50,7 @@ public class VectorHighlighterTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
         assertThat(topDocs.totalHits.value, equalTo(1L));
@@ -57,13 +58,14 @@ public class VectorHighlighterTests extends ESTestCase {
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(
             highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
-            reader,
+            searcher.getIndexReader(),
             topDocs.scoreDocs[0].doc,
             "content",
             30
         );
         assertThat(fragment, notNullValue());
         assertThat(fragment, equalTo("the big <b>bad</b> dog"));
+        IOUtils.close(reader, indexWriter, dir);
     }
 
     public void testVectorHighlighterPrefixQuery() throws Exception {
@@ -79,8 +81,9 @@ public class VectorHighlighterTests extends ESTestCase {
         document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexReader indexReader = DirectoryReader.open(indexWriter);
+        IndexSearcher searcher = newSearcher(indexReader);
+        IndexReader reader = searcher.getIndexReader();
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
         assertThat(topDocs.totalHits.value, equalTo(1L));
@@ -119,6 +122,7 @@ public class VectorHighlighterTests extends ESTestCase {
             30
         );
         assertThat(fragment, notNullValue());
+        IOUtils.close(indexReader, indexWriter, dir);
     }
 
     public void testVectorHighlighterNoStore() throws Exception {
@@ -135,7 +139,7 @@ public class VectorHighlighterTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
         assertThat(topDocs.totalHits.value, equalTo(1L));
@@ -143,12 +147,13 @@ public class VectorHighlighterTests extends ESTestCase {
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(
             highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
-            reader,
+            searcher.getIndexReader(),
             topDocs.scoreDocs[0].doc,
             "content",
             30
         );
         assertThat(fragment, nullValue());
+        IOUtils.close(reader, indexWriter, dir);
     }
 
     public void testVectorHighlighterNoTermVector() throws Exception {
@@ -161,7 +166,7 @@ public class VectorHighlighterTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
         assertThat(topDocs.totalHits.value, equalTo(1L));
@@ -169,11 +174,12 @@ public class VectorHighlighterTests extends ESTestCase {
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
         String fragment = highlighter.getBestFragment(
             highlighter.getFieldQuery(new TermQuery(new Term("content", "bad"))),
-            reader,
+            searcher.getIndexReader(),
             topDocs.scoreDocs[0].doc,
             "content",
             30
         );
         assertThat(fragment, nullValue());
+        IOUtils.close(reader, indexWriter, dir);
     }
 }

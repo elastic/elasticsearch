@@ -41,6 +41,7 @@ tasks.named("yamlRestTest") {
       'search.aggregation/50_filter/Standard queries get cached',
       'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
       'search.aggregation/70_adjacency_matrix/Terms lookup', // terms lookup by "index" doesn't seem to work correctly
+      'search/350_point_in_time/point-in-time with index filter'
     ].join(',')
 }
 

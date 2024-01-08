@@ -70,6 +70,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final long recoveryId;
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
+    private final long clusterStateVersion;
     private final SnapshotFilesProvider snapshotFilesProvider;
     private volatile MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
@@ -94,16 +95,19 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /**
      * Creates a new recovery target object that represents a recovery to the provided shard.
      *
-     * @param indexShard                        local shard where we want to recover to
-     * @param sourceNode                        source node of the recovery where we recover from
-     * @param snapshotFileDownloadsPermit       a permit that allows to download files from a snapshot,
-     *                                          limiting the concurrent snapshot file downloads per node
-     *                                          preventing the exhaustion of repository resources.
-     * @param listener                          called when recovery is completed/failed
+     * @param indexShard                  local shard where we want to recover to
+     * @param sourceNode                  source node of the recovery where we recover from
+     * @param clusterStateVersion         version of the cluster state that initiated the recovery
+     * @param snapshotFileDownloadsPermit a permit that allows to download files from a snapshot,
+     *                                    limiting the concurrent snapshot file downloads per node
+     *                                    preventing the exhaustion of repository resources.
+     * @param listener                    called when recovery is completed/failed
      */
+    @SuppressWarnings("this-escape")
     public RecoveryTarget(
         IndexShard indexShard,
         DiscoveryNode sourceNode,
+        long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
         @Nullable Releasable snapshotFileDownloadsPermit,
         PeerRecoveryTargetService.RecoveryListener listener
@@ -114,6 +118,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
+        this.clusterStateVersion = clusterStateVersion;
         this.snapshotFilesProvider = snapshotFilesProvider;
         this.snapshotFileDownloadsPermit = snapshotFileDownloadsPermit;
         this.shardId = indexShard.shardId();
@@ -149,7 +154,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // get released after the retry copy is created
         Releasable snapshotFileDownloadsPermitCopy = snapshotFileDownloadsPermit;
         snapshotFileDownloadsPermit = null;
-        return new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, snapshotFileDownloadsPermitCopy, listener);
+        return new RecoveryTarget(
+            indexShard,
+            sourceNode,
+            clusterStateVersion,
+            snapshotFilesProvider,
+            snapshotFileDownloadsPermitCopy,
+            listener
+        );
     }
 
     @Nullable
@@ -172,6 +184,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     public DiscoveryNode sourceNode() {
         return this.sourceNode;
+    }
+
+    public long clusterStateVersion() {
+        return clusterStateVersion;
     }
 
     public RecoveryState state() {

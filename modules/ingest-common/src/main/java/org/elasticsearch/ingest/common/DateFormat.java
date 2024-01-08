@@ -126,6 +126,10 @@ enum DateFormat {
     abstract Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale);
 
     static DateFormat fromString(String format) {
+        // note: the ALL_CAPS format names here (UNIX_MS, etc) are present for historical reasons:
+        // they are the format literals that are supported by the logstash date filter plugin
+        // (see https://www.elastic.co/guide/en/logstash/current/plugins-filters-date.html#plugins-filters-date-match).
+        // don't extend this list with new special keywords (unless logstash has grown the same keyword).
         return switch (format) {
             case "ISO8601" -> Iso8601;
             case "UNIX" -> Unix;

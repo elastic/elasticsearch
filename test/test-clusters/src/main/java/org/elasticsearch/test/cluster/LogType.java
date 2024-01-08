@@ -10,7 +10,8 @@ package org.elasticsearch.test.cluster;
 
 public enum LogType {
     SERVER("%s.log"),
-    SERVER_JSON("%s_server.json");
+    SERVER_JSON("%s_server.json"),
+    AUDIT("%s_audit.json");
 
     private final String filenameFormat;
 

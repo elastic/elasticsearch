@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -57,12 +58,13 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class IndicesStore implements ClusterStateListener, Closeable {
+public final class IndicesStore implements ClusterStateListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesStore.class);
 
@@ -101,7 +103,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         this.threadPool = threadPool;
         transportService.registerRequestHandler(
             ACTION_SHARD_EXISTS,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardActiveRequest::new,
             new ShardActiveRequestHandler()
         );
@@ -252,6 +254,11 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         @Override
         public ShardActiveResponse read(StreamInput in) throws IOException {
             return new ShardActiveResponse(in);
+        }
+
+        @Override
+        public Executor executor(ThreadPool threadPool) {
+            return TransportResponseHandler.TRANSPORT_WORKER;
         }
 
         @Override

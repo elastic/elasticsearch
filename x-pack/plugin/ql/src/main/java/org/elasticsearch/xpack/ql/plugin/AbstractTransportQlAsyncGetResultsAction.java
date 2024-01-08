@@ -37,6 +37,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     private final AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> resultsService;
     private final TransportService transportService;
 
+    @SuppressWarnings("this-escape")
     public AbstractTransportQlAsyncGetResultsAction(
         String actionName,
         TransportService transportService,
@@ -48,7 +49,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
         BigArrays bigArrays,
         Class<? extends AsyncTask> asynkTaskClass
     ) {
-        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new);
+        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.actionName = actionName;
         this.transportService = transportService;
         this.resultsService = createResultsService(
@@ -96,13 +97,13 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     protected void doExecute(Task task, GetAsyncResultRequest request, ActionListener<Response> listener) {
         DiscoveryNode node = resultsService.getNode(request.getId());
         if (node == null || resultsService.isLocalNode(node)) {
-            resultsService.retrieveResult(request, ActionListener.wrap(r -> {
+            resultsService.retrieveResult(request, listener.delegateFailureAndWrap((l, r) -> {
                 if (r.getException() != null) {
-                    listener.onFailure(r.getException());
+                    l.onFailure(r.getException());
                 } else {
-                    listener.onResponse(r.getResponse());
+                    l.onResponse(r.getResponse());
                 }
-            }, listener::onFailure));
+            }));
         } else {
             transportService.sendRequest(
                 node,

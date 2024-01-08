@@ -14,19 +14,24 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
-public class SearchTemplateResponse extends ActionResponse implements StatusToXContentObject {
+public class SearchTemplateResponse extends ActionResponse implements ToXContentObject {
     public static ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
 
     /** Contains the source of the rendered template **/
@@ -34,6 +39,15 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
     /** Contains the search response, if any **/
     private SearchResponse response;
+
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            if (response != null) {
+                response.decRef();
+            }
+        }
+    });
 
     SearchTemplateResponse() {}
 
@@ -74,6 +88,26 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
         out.writeOptionalWriteable(response);
     }
 
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
     public static SearchTemplateResponse fromXContent(XContentParser parser) throws IOException {
         SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
         Map<String, Object> contentAsMap = parser.map();
@@ -85,11 +119,16 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
         } else {
             XContentType contentType = parser.contentType();
             XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
-            XContentParser searchResponseParser = contentType.xContent()
-                .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput());
-
-            SearchResponse searchResponse = SearchResponse.fromXContent(searchResponseParser);
-            searchTemplateResponse.setResponse(searchResponse);
+            try (
+                XContentParser searchResponseParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+                        .withDeprecationHandler(parser.getDeprecationHandler()),
+                    BytesReference.bytes(builder),
+                    contentType
+                )
+            ) {
+                searchTemplateResponse.setResponse(SearchResponse.fromXContent(searchResponseParser));
+            }
         }
         return searchTemplateResponse;
     }
@@ -113,7 +152,6 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
         }
     }
 
-    @Override
     public RestStatus status() {
         if (hasResponse()) {
             return response.status();

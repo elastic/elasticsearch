@@ -1,0 +1,30 @@
+[discrete]
+[[esql-concat]]
+=== `CONCAT`
+
+*Syntax*
+
+[source,esql]
+----
+CONCAT(string1, string2[, ..., stringN])
+----
+
+*Parameters*
+
+`stringX`::
+Strings to concatenate.
+
+*Description*
+
+Concatenates two or more strings.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=docsConcat]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/eval.csv-spec[tag=docsConcat-result]
+|===

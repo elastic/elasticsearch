@@ -13,9 +13,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,7 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHandler {
     public RestQuerySearchApplicationAction(XPackLicenseState licenseState) {
-        super(licenseState);
+        super(licenseState, LicenseUtils.Product.SEARCH_APPLICATION);
     }
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_search";
@@ -52,7 +53,7 @@ public class RestQuerySearchApplicationAction extends EnterpriseSearchBaseRestHa
         }
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
-            cancelClient.execute(QuerySearchApplicationAction.INSTANCE, request, new RestChunkedToXContentListener<>(channel));
+            cancelClient.execute(QuerySearchApplicationAction.INSTANCE, request, new RestRefCountedChunkedToXContentListener<>(channel));
         };
     }
 }

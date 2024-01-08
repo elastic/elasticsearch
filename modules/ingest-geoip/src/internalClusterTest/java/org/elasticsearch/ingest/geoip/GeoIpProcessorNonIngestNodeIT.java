@@ -9,8 +9,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -101,7 +101,7 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
         final IndexRequest indexRequest = new IndexRequest("index");
         indexRequest.setPipeline("geoip");
         indexRequest.source(Collections.singletonMap("ip", "1.1.1.1"));
-        final IndexResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
+        final DocWriteResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         // now the geo-IP database should be loaded on the ingest node
         assertDatabaseLoadStatus(ingestNode, true);

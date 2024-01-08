@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -15,7 +14,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
-import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -23,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -39,8 +36,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptySet;
@@ -60,7 +56,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     private static VotingConfigExclusion otherNode1Exclusion, otherNode2Exclusion;
 
     private TransportService transportService;
-    private FakeReconfigurator reconfigurator;
+    private TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator reconfigurator;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
@@ -90,7 +86,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             null,
             emptySet()
         );
-        reconfigurator = new FakeReconfigurator();
+        reconfigurator = new TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator();
 
         new TransportClearVotingConfigExclusionsAction(
             transportService,
@@ -119,66 +115,59 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         setState(clusterService, builder);
     }
 
-    public void testClearsVotingConfigExclusions() throws InterruptedException {
+    public void testClearsVotingConfigExclusions() {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<ActionResponse.Empty> responseHolder = new SetOnce<>();
 
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             clearVotingConfigExclusionsRequest,
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertNotNull(r);
+                assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
                 countDownLatch.countDown();
             })
         );
-
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertNotNull(responseHolder.get());
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
+        safeAwait(countDownLatch);
     }
 
-    public void testTimesOutIfWaitingForNodesThatAreNotRemoved() throws InterruptedException {
+    public void testTimesOutIfWaitingForNodesThatAreNotRemoved() {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<TransportException> responseHolder = new SetOnce<>();
 
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         clearVotingConfigExclusionsRequest.setTimeout(TimeValue.timeValueMillis(100));
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             clearVotingConfigExclusionsRequest,
             expectError(e -> {
-                responseHolder.set(e);
+                assertThat(
+                    clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+                    containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
+                );
+                final Throwable rootCause = e.getRootCause();
+                assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
+                assertThat(
+                    rootCause.getMessage(),
+                    startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set ?wait_for_removal=false. [")
+                );
                 countDownLatch.countDown();
             })
         );
-
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(
-            clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
-        );
-        final Throwable rootCause = responseHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
-        assertThat(
-            rootCause.getMessage(),
-            startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set ?wait_for_removal=false. [")
-        );
+        safeAwait(countDownLatch);
     }
 
-    public void testSucceedsIfNodesAreRemovedWhileWaiting() throws InterruptedException {
+    public void testSucceedsIfNodesAreRemovedWhileWaiting() {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<ActionResponse.Empty> responseHolder = new SetOnce<>();
 
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             new ClearVotingConfigExclusionsRequest(),
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
                 countDownLatch.countDown();
             })
         );
@@ -187,34 +176,30 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         builder.nodes(DiscoveryNodes.builder(clusterService.state().nodes()).remove(otherNode1).remove(otherNode2));
         setState(clusterService, builder);
 
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
+        safeAwait(countDownLatch);
     }
 
     public void testCannotClearVotingConfigurationWhenItIsDisabled() {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
         reconfigurator.disableUserVotingConfigModifications();
 
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             new ClearVotingConfigExclusionsRequest(),
             expectError(e -> {
-                exceptionHolder.set(e);
+                final Throwable rootCause = e.getRootCause();
+                assertThat(rootCause, instanceOf(IllegalStateException.class));
+                assertThat(rootCause.getMessage(), startsWith("Unable to modify the voting configuration"));
                 countDownLatch.countDown();
             })
         );
-
         safeAwait(countDownLatch);
-        final Throwable rootCause = exceptionHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(IllegalStateException.class));
-        assertThat(rootCause.getMessage(), startsWith("Unable to modify the voting configuration"));
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
-        return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
+        return responseHandler(onResponse, ESTestCase::fail);
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {
@@ -225,7 +210,18 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         Consumer<ActionResponse.Empty> onResponse,
         Consumer<TransportException> onException
     ) {
-        return new TransportResponseHandler<ActionResponse.Empty>() {
+        return new TransportResponseHandler<>() {
+
+            @Override
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
@@ -235,30 +231,6 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             public void handleException(TransportException exp) {
                 onException.accept(exp);
             }
-
-            @Override
-            public ActionResponse.Empty read(StreamInput in) {
-                return ActionResponse.Empty.INSTANCE;
-            }
         };
-    }
-
-    static class FakeReconfigurator extends Reconfigurator {
-        private final AtomicBoolean canModifyVotingConfiguration = new AtomicBoolean(true);
-
-        FakeReconfigurator() {
-            super(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        }
-
-        @Override
-        public void ensureVotingConfigCanBeModified() {
-            if (canModifyVotingConfiguration.get() == false) {
-                throw new IllegalStateException("Unable to modify the voting configuration");
-            }
-        }
-
-        void disableUserVotingConfigModifications() {
-            canModifyVotingConfiguration.set(false);
-        }
     }
 }

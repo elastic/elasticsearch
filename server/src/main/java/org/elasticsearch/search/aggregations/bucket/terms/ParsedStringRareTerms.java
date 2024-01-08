@@ -59,13 +59,6 @@ public class ParsedStringRareTerms extends ParsedRareTerms {
             return null;
         }
 
-        public Number getKeyAsNumber() {
-            if (key != null) {
-                return Double.parseDouble(key.utf8ToString());
-            }
-            return null;
-        }
-
         @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             return builder.field(CommonFields.KEY.getPreferredName(), getKey());

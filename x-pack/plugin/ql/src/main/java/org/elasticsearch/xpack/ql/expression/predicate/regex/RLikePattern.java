@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.common.lucene.RegExp;
+import org.apache.lucene.util.automaton.RegExp;
 
 import java.util.Objects;
 

@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
@@ -60,7 +61,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
         return copyInstance(
             instance,
             new NamedWriteableRegistry(Collections.emptyList()),
-            (out, value) -> value.writeTo(out),
+            StreamOutput::writeWriteable,
             GetSnapshotsResponse::new,
             TransportVersion.current()
         );

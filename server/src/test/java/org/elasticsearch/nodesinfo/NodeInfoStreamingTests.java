@@ -22,6 +22,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -34,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.RemoteClusterServerInfo;
@@ -47,6 +49,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -71,6 +75,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
+        assertThat(nodeInfo.getTransportVersion(), equalTo(readNodeInfo.getTransportVersion()));
+        assertThat(nodeInfo.getIndexVersion(), equalTo(readNodeInfo.getIndexVersion()));
         compareJsonOutput(nodeInfo.getInfo(HttpInfo.class), readNodeInfo.getInfo(HttpInfo.class));
         compareJsonOutput(nodeInfo.getInfo(RemoteClusterServerInfo.class), readNodeInfo.getInfo(RemoteClusterServerInfo.class));
         compareJsonOutput(nodeInfo.getInfo(JvmInfo.class), readNodeInfo.getInfo(JvmInfo.class));
@@ -103,10 +109,13 @@ public class NodeInfoStreamingTests extends ESTestCase {
     }
 
     private static NodeInfo createNodeInfo() {
+        Map<String, Integer> componentVersions = IntStream.range(0, randomInt(5))
+            .boxed()
+            .collect(Collectors.toUnmodifiableMap(i -> randomAlphaOfLength(10), i -> randomInt(Integer.MAX_VALUE)));
         Build build = Build.current();
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()))
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;
@@ -147,40 +156,44 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numPlugins = randomIntBetween(0, 5);
             List<PluginDescriptor> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
+                var isStable = randomBoolean();
+                var hasModuleName = randomBoolean();
                 plugins.add(
                     new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
-                        VersionUtils.randomVersion(random()),
+                        randomAlphaOfLengthBetween(6, 32),
                         "1.8",
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        randomBoolean()
+                        isStable
                     )
                 );
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginDescriptor> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
+                var isStable = randomBoolean();
+                var hasModuleName = randomBoolean();
                 modules.add(
                     new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
-                        VersionUtils.randomVersion(random()),
+                        randomAlphaOfLengthBetween(6, 32),
                         "1.8",
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        randomBoolean()
+                        isStable
                     )
                 );
             }
@@ -226,8 +239,10 @@ public class NodeInfoStreamingTests extends ESTestCase {
             indexingBuffer = ByteSizeValue.ofBytes(random().nextLong() & ((1L << 40) - 1));
         }
         return new NodeInfo(
-            VersionUtils.randomVersion(random()),
+            randomAlphaOfLengthBetween(6, 32),
             TransportVersionUtils.randomVersion(random()),
+            IndexVersionUtils.randomVersion(random()),
+            componentVersions,
             build,
             node,
             settings,

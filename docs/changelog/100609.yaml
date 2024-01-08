@@ -1,0 +1,5 @@
+pr: 100609
+summary: Fix metric gauge creation model
+area: Infra/Core
+type: bug
+issues: []

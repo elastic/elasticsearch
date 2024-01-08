@@ -1,0 +1,36 @@
+[[sparse-vector]]
+=== Sparse vector field type
+++++
+<titleabbrev>Sparse vector</titleabbrev>
+++++
+
+A `sparse_vector` field can index features and weights so that they can later be used to query
+documents in queries with a <<query-dsl-text-expansion-query,`text_expansion`>> query.
+
+`sparse_vector` is the field type that should be used with <<elser-mappings, ELSER mappings>>.
+
+[source,console]
+--------------------------------------------------
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "text.tokens": {
+        "type": "sparse_vector"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+See <<semantic-search-elser, semantic search with ELSER>> for a complete example on adding documents
+ to a `sparse_vector` mapped field using ELSER.
+
+NOTE: `sparse_vector` fields only support single-valued fields and strictly positive
+values. Multi-valued fields and negative values will be rejected.
+
+NOTE: `sparse_vector` fields do not support querying, sorting or aggregating. They may
+only be used within <<query-dsl-text-expansion-query,`text_expansion`>> queries.
+
+NOTE: `sparse_vector` fields only preserve 9 significant bits for the precision, which
+translates to a relative error of about 0.4%.

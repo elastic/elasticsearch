@@ -1,8 +1,9 @@
 ---
 setup:
   - skip:
-      version: " - 8.7.99"
-      reason: position metric introduced in 8.8.0
+      version: " - 8.9.99"
+      reason: "position metric introduced in 8.8.0, synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
   - do:
       indices.create:
         index: locations

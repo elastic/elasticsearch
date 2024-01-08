@@ -9,7 +9,7 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -125,7 +125,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(
             exception.getMessage(),
-            containsString("action [" + IndexAction.NAME + "] is unauthorized for user [" + LOCAL_TEST_USER_NAME + "]")
+            containsString("action [" + TransportIndexAction.NAME + "] is unauthorized for user [" + LOCAL_TEST_USER_NAME + "]")
         );
 
         client().admin().indices().prepareClose("test_index").get();
@@ -172,10 +172,9 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
-            SnapshotsInProgress snapshotsInProgress = clusterAdmin().state(new ClusterStateRequest())
-                .get()
-                .getState()
-                .custom(SnapshotsInProgress.TYPE);
+            SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(
+                clusterAdmin().state(new ClusterStateRequest()).get().getState()
+            );
             assertTrue(snapshotsInProgress.isEmpty());
         });
     }

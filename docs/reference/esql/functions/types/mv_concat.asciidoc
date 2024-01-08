@@ -1,0 +1,8 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | delim | result
+keyword | keyword | keyword
+keyword | text | keyword
+text | keyword | keyword
+text | text | keyword
+|===

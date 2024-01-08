@@ -67,9 +67,9 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     public InternalTopMetrics(StreamInput in) throws IOException {
         super(in);
         sortOrder = SortOrder.readFromStream(in);
-        metricNames = in.readStringList();
+        metricNames = in.readStringCollectionAsList();
         size = in.readVInt();
-        topMetrics = in.readList(TopMetric::new);
+        topMetrics = in.readCollectionAsList(TopMetric::new);
     }
 
     @Override
@@ -77,7 +77,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         sortOrder.writeTo(out);
         out.writeStringCollection(metricNames);
         out.writeVInt(size);
-        out.writeList(topMetrics);
+        out.writeCollection(topMetrics);
     }
 
     @Override
@@ -116,7 +116,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
             return this;
         }
         List<TopMetric> merged = new ArrayList<>(size);
-        PriorityQueue<ReduceState> queue = new PriorityQueue<ReduceState>(aggregations.size()) {
+        PriorityQueue<ReduceState> queue = new PriorityQueue<>(aggregations.size()) {
             @Override
             protected boolean lessThan(ReduceState lhs, ReduceState rhs) {
                 return sortOrder.reverseMul() * lhs.sortValue().compareTo(rhs.sortValue()) < 0;
@@ -268,7 +268,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         TopMetric(StreamInput in) throws IOException {
             sortFormat = in.readNamedWriteable(DocValueFormat.class);
             sortValue = in.readNamedWriteable(SortValue.class);
-            metricValues = in.readList(s -> s.readOptionalWriteable(MetricValue::new));
+            metricValues = in.readCollectionAsList(s -> s.readOptionalWriteable(MetricValue::new));
         }
 
         @Override

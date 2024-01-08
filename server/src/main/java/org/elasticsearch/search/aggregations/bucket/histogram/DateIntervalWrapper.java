@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.core.RestApiVersion.equalTo;
@@ -59,10 +58,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         @Deprecated
         LEGACY_DATE_HISTO(null);
 
-        public static IntervalTypeEnum fromString(String name) {
-            return valueOf(name.trim().toUpperCase(Locale.ROOT));
-        }
-
         public static IntervalTypeEnum fromStream(StreamInput in) throws IOException {
             return in.readEnum(IntervalTypeEnum.class);
         }
@@ -70,10 +65,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this);
-        }
-
-        public String value() {
-            return name().toLowerCase(Locale.ROOT);
         }
 
         public boolean isValid() {
@@ -88,7 +79,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             return preferredName;
         }
 
-        private String preferredName;
+        private final String preferredName;
 
         IntervalTypeEnum(String preferredName) {
             this.preferredName = preferredName;

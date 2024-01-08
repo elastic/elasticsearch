@@ -109,7 +109,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.collections = in.readList(AnalyticsCollection::new);
+            this.collections = in.readCollectionAsList(AnalyticsCollection::new);
         }
 
         public Response(List<AnalyticsCollection> collections) {
@@ -134,7 +134,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(collections);
+            out.writeCollection(collections);
         }
 
         public List<AnalyticsCollection> getAnalyticsCollections() {

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexCompatibility;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -159,33 +160,46 @@ public class SysColumns extends Command {
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
             session.indexResolver()
-                .resolveAsSeparateMappings(indexPattern, regex, includeFrozen, emptyMap(), ActionListener.wrap(esIndices -> {
-                    List<List<?>> rows = new ArrayList<>();
-                    for (EsIndex esIndex : esIndices) {
-                        IndexCompatibility.compatible(esIndex, version);
-                        fillInRows(tableCat, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
-                    }
-                    listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
-                }, listener::onFailure));
+                .resolveAsSeparateMappings(
+                    indexPattern,
+                    regex,
+                    includeFrozen,
+                    emptyMap(),
+                    listener.delegateFailureAndWrap((delegate, esIndices) -> {
+                        List<List<?>> rows = new ArrayList<>();
+                        for (EsIndex esIndex : esIndices) {
+                            IndexCompatibility.compatible(esIndex, version);
+                            fillInRows(tableCat, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
+                        }
+                        delegate.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
+                    })
+                );
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(indexPattern, includeFrozen, emptyMap(), ActionListener.wrap(r -> {
-                List<List<?>> rows = new ArrayList<>();
-                // populate the data only when a target is found
-                if (r.isValid()) {
-                    fillInRows(
-                        tableCat,
-                        indexName,
-                        IndexCompatibility.compatible(r, version).get().mapping(),
-                        null,
-                        rows,
-                        columnMatcher,
-                        mode
-                    );
-                }
-                listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
-            }, listener::onFailure));
+            session.indexResolver()
+                .resolveAsMergedMapping(
+                    indexPattern,
+                    IndexResolver.ALL_FIELDS,
+                    includeFrozen,
+                    emptyMap(),
+                    listener.delegateFailureAndWrap((delegate, r) -> {
+                        List<List<?>> rows = new ArrayList<>();
+                        // populate the data only when a target is found
+                        if (r.isValid()) {
+                            fillInRows(
+                                tableCat,
+                                indexName,
+                                IndexCompatibility.compatible(r, version).get().mapping(),
+                                null,
+                                rows,
+                                columnMatcher,
+                                mode
+                            );
+                        }
+                        delegate.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
+                    })
+                );
         }
     }
 

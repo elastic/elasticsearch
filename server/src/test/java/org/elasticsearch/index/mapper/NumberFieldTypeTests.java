@@ -573,7 +573,6 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         dir.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74057")
     public void testIndexSortIntRange() throws Exception {
         doTestIndexSortRangeQueries(NumberType.INTEGER, random()::nextInt);
     }
@@ -813,7 +812,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             null
-        ).build(MapperBuilderContext.root(false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -826,7 +825,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             null
-        ).nullValue(2.71f).build(MapperBuilderContext.root(false)).fieldType();
+        ).nullValue(2.71f).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
@@ -840,7 +839,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             null
-        ).build(MapperBuilderContext.root(false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

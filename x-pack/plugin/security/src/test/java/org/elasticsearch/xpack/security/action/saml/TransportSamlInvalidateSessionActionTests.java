@@ -12,25 +12,30 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +45,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -123,7 +129,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private List<SearchRequest> searchRequests;
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
-    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> new SearchHit[0];
+    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> SearchHits.EMPTY;
 
     @Before
     public void setup() throws Exception {
@@ -161,7 +167,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                if (IndexAction.NAME.equals(action.name())) {
+                if (TransportIndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
@@ -169,61 +175,77 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     listener.onResponse((Response) response);
                 } else if (BulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));
-                    bulkRequests.add((BulkRequest) request);
-                    final BulkResponse response = new BulkResponse(new BulkItemResponse[0], 1);
+                    BulkRequest bulkRequest = (BulkRequest) request;
+                    bulkRequests.add(bulkRequest);
+                    BulkItemResponse[] bulkItemResponses = new BulkItemResponse[bulkRequest.requests().size()];
+                    for (int i = 0; i < bulkItemResponses.length; i++) {
+                        UpdateResponse updateResponse = mock(UpdateResponse.class);
+                        DocWriteResponse.Result docWriteResponse = randomFrom(
+                            DocWriteResponse.Result.UPDATED,
+                            DocWriteResponse.Result.NOOP
+                        );
+                        when(updateResponse.getResult()).thenReturn(docWriteResponse);
+                        GetResult getResult = mock(GetResult.class);
+                        when(getResult.getId()).thenReturn(bulkRequest.requests().get(i).id());
+                        when(updateResponse.getGetResult()).thenReturn(getResult);
+                        bulkItemResponses[i] = BulkItemResponse.success(i, DocWriteRequest.OpType.UPDATE, updateResponse);
+                    }
+                    BulkResponse response = new BulkResponse(bulkItemResponses, 1);
                     listener.onResponse((Response) response);
-                } else if (SearchAction.NAME.equals(action.name())) {
+                } else if (TransportSearchAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchRequest.class));
                     SearchRequest searchRequest = (SearchRequest) request;
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
-                    final SearchResponse response = new SearchResponse(
-                        new SearchResponseSections(
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
                             new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
                             null,
                             null,
                             false,
                             false,
                             null,
-                            1
-                        ),
-                        "_scrollId1",
-                        1,
-                        1,
-                        0,
-                        1,
-                        null,
-                        null
+                            1,
+                            "_scrollId1",
+                            1,
+                            1,
+                            0,
+                            1,
+                            null,
+                            null
+                        )
                     );
-                    listener.onResponse((Response) response);
-                } else if (SearchScrollAction.NAME.equals(action.name())) {
+                } else if (TransportSearchScrollAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
-                    final SearchHit[] hits = new SearchHit[0];
-                    final SearchResponse response = new SearchResponse(
-                        new SearchResponseSections(
-                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            SearchHits.EMPTY_WITH_TOTAL_HITS,
                             null,
                             null,
                             false,
                             false,
                             null,
-                            1
-                        ),
-                        "_scrollId1",
-                        1,
-                        1,
-                        0,
-                        1,
-                        null,
-                        null
+                            1,
+                            "_scrollId1",
+                            1,
+                            1,
+                            0,
+                            1,
+                            null,
+                            null
+                        )
                     );
-                    listener.onResponse((Response) response);
-                } else if (ClearScrollAction.NAME.equals(action.name())) {
+                } else if (TransportClearScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(ClearScrollRequest.class));
                     ClearScrollRequest scrollRequest = (ClearScrollRequest) request;
                     assertEquals("_scrollId1", scrollRequest.getScrollIds().get(0));
                     ClearScrollResponse response = new ClearScrollResponse(true, 1);
                     listener.onResponse((Response) response);
+                } else if (RefreshAction.NAME.equals(action.name())) {
+                    assertThat(request, instanceOf(RefreshRequest.class));
+                    listener.onResponse((Response) mock(RefreshResponse.class));
                 } else {
                     super.doExecute(action, request, listener);
                 }
@@ -239,12 +261,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
         when(securityIndex.getCreationTime()).thenReturn(Clock.systemUTC().instant());
         when(securityIndex.aliasName()).thenReturn(".security");
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
@@ -339,7 +362,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .filter(r -> r.id().startsWith("token"))
             .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
             .collect(Collectors.toList())
-            .toArray(new SearchHit[0]);
+            .toArray(SearchHits.EMPTY);
         assertThat(searchHits.length, equalTo(4));
         searchFunction = req1 -> {
             searchFunction = findTokenByRefreshToken(searchHits);
@@ -355,7 +378,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         action.doExecute(mock(Task.class), request, future);
         final SamlInvalidateSessionResponse response = future.get();
         assertThat(response, notNullValue());
-        assertThat(response.getCount(), equalTo(2));
+        assertThat(response.getCount(), equalTo(4));
         assertThat(response.getRealmName(), equalTo(samlRealm.name()));
         assertThat(response.getRedirectUrl(), notNullValue());
         assertThat(response.getRedirectUrl(), startsWith(SamlRealmTestHelper.IDP_LOGOUT_URL));
@@ -440,7 +463,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     return new SearchHit[] { hit };
                 }
             }
-            return new SearchHit[0];
+            return SearchHits.EMPTY;
         };
     }
 

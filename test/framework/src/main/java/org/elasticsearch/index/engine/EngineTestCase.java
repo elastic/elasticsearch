@@ -1173,11 +1173,7 @@ public abstract class EngineTestCase extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startGun);
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < ops.size()) {
                     try {
@@ -1641,12 +1637,12 @@ public abstract class EngineTestCase extends ESTestCase {
                 && executionException.getCause() instanceof IOException ioException) {
                 throw ioException;
             } else {
-                throw new AssertionError("unexpected", e);
+                fail(e);
             }
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 }

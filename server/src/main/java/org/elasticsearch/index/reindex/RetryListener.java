@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -60,6 +61,6 @@ class RetryListener extends DelegatingActionListener<ScrollableHitSource.Respons
     }
 
     private void schedule(Runnable runnable, TimeValue delay) {
-        threadPool.schedule(runnable, delay, ThreadPool.Names.SAME);
+        threadPool.schedule(runnable, delay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 }

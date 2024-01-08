@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle.State;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.MockAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -96,11 +98,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         nodeId = randomAlphaOfLength(10);
         ExecutorService executorService = mock(ExecutorService.class);
         clusterService = mock(ClusterService.class);
-        masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         now = randomNonNegativeLong();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
 
@@ -592,18 +593,16 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                         .masterNodeId(nodeId)
                         .add(masterNode)
                         .add(
-                            DiscoveryNode.createLocal(
-                                NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-                                new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-                                "regular_node"
-                            )
+                            DiscoveryNodeUtils.builder("regular_node")
+                                .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9301))
+                                .build()
                         )
                         .add(
-                            DiscoveryNode.createLocal(
-                                NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-                                new TransportAddress(TransportAddress.META_ADDRESS, 9302),
-                                "shutdown_node"
-                            )
+                            DiscoveryNodeUtils.builder("shutdown_node")
+                                .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9302))
+                                .build()
                         )
                         .build()
                 )

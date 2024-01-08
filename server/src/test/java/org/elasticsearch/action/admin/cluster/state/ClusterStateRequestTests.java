@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,17 +38,14 @@ public class ClusterStateRequestTests extends ESTestCase {
 
             TransportVersion testVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersion.MINIMUM_COMPATIBLE,
+                TransportVersions.MINIMUM_COMPATIBLE,
                 TransportVersion.current()
             );
-            // TODO: change version to V_6_6_0 after backporting:
-            if (testVersion.onOrAfter(TransportVersion.V_7_0_0)) {
-                if (randomBoolean()) {
-                    clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
-                }
-                if (randomBoolean()) {
-                    clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
-                }
+            if (randomBoolean()) {
+                clusterStateRequest.waitForMetadataVersion(randomLongBetween(1, Long.MAX_VALUE));
+            }
+            if (randomBoolean()) {
+                clusterStateRequest.waitForTimeout(new TimeValue(randomNonNegativeLong()));
             }
 
             BytesStreamOutput output = new BytesStreamOutput();

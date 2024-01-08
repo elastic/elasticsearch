@@ -1,0 +1,38 @@
+{
+    "properties" : {
+        "emp_no" : {
+            "type" : "integer"
+        },
+        "first_name" : {
+            "type" : "keyword"
+        },
+        "gender" : {
+            "type" : "text"
+        },
+        "languages" : {
+            "type" : "byte"
+        },
+        "last_name" : {
+            "type" : "keyword"
+        },
+        "salary" : {
+            "type" : "integer"
+        },
+        "_meta_field": {
+            "type" : "keyword"
+        },
+        "job": {
+            "type": "text",
+            "fields": {
+                "raw": {
+                  "type": "keyword"
+                }
+            }
+        },
+        "long_noidx": {
+          "type": "long",
+          "index": false,
+          "doc_values": false
+        }
+    }
+}

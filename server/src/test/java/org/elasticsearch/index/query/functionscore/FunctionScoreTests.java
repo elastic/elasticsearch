@@ -697,7 +697,7 @@ public class FunctionScoreTests extends ESTestCase {
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY);
         for (org.apache.lucene.search.ScoreMode scoreMode : org.apache.lucene.search.ScoreMode.values()) {
             Weight weight = searcher.createWeight(fsq, scoreMode, 1f);
-            Scorer scorer = weight.scorer(reader.leaves().get(0));
+            Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }
     }
@@ -934,7 +934,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testWithInvalidScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         FunctionScoreQuery query1 = new FunctionScoreQuery(
             new TermQuery(new Term(FIELD, "out")),
             new ConstantScoreFunction(Float.NaN),
@@ -956,7 +956,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function throws an exception on negative scores
@@ -976,7 +976,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnLnNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function using modifier ln throws an exception on negative scores
@@ -994,7 +994,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnLogNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function using modifier log throws an exception on negative scores

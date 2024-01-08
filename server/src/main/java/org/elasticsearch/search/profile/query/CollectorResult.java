@@ -56,7 +56,7 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
      * Read from a stream.
      */
     public CollectorResult(StreamInput in) throws IOException {
-        super(in.readString(), in.readString(), in.readLong(), in.readList(CollectorResult::new));
+        super(in.readString(), in.readString(), in.readLong(), in.readCollectionAsList(CollectorResult::new));
     }
 
     @Override
@@ -64,7 +64,7 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
         out.writeString(getName());
         out.writeString(getReason());
         out.writeLong(getTime());
-        out.writeList(getChildrenResults());
+        out.writeCollection(getChildrenResults());
     }
 
     /**

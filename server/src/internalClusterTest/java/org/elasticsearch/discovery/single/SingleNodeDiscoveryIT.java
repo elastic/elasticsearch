@@ -74,22 +74,21 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 return null;
             }
         };
-        try (
-            InternalTestCluster other = new InternalTestCluster(
-                randomLong(),
-                createTempDir(),
-                false,
-                false,
-                1,
-                1,
-                internalCluster().getClusterName(),
-                configurationSource,
-                0,
-                "other",
-                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                Function.identity()
-            )
-        ) {
+        final InternalTestCluster other = new InternalTestCluster(
+            randomLong(),
+            createTempDir(),
+            false,
+            false,
+            1,
+            1,
+            internalCluster().getClusterName(),
+            configurationSource,
+            0,
+            "other",
+            Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+            Function.identity()
+        );
+        try {
             other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             final ClusterState second = other.getInstance(ClusterService.class).state();
@@ -97,6 +96,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             assertThat(second.nodes().getSize(), equalTo(1));
             assertThat(first.nodes().getMasterNodeId(), not(equalTo(second.nodes().getMasterNodeId())));
             assertThat(first.metadata().clusterUUID(), not(equalTo(second.metadata().clusterUUID())));
+        } finally {
+            other.close();
         }
     }
 
@@ -140,27 +141,27 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 return null;
             }
         };
-        try (
-            InternalTestCluster other = new InternalTestCluster(
-                randomLong(),
-                createTempDir(),
-                false,
-                false,
-                1,
-                1,
-                internalCluster().getClusterName(),
-                configurationSource,
-                0,
-                "other",
-                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                Function.identity()
-            );
-            var ignored = mockAppender.capturing(JoinHelper.class)
-        ) {
+        final InternalTestCluster other = new InternalTestCluster(
+            randomLong(),
+            createTempDir(),
+            false,
+            false,
+            1,
+            1,
+            internalCluster().getClusterName(),
+            configurationSource,
+            0,
+            "other",
+            Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+            Function.identity()
+        );
+        try (var ignored = mockAppender.capturing(JoinHelper.class)) {
             other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
             assertBusy(mockAppender::assertAllExpectationsMatched);
+        } finally {
+            other.close();
         }
     }
 

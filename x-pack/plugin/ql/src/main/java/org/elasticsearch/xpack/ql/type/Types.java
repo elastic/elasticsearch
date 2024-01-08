@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -52,8 +53,9 @@ public abstract class Types {
             if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
                 return KEYWORD;
             }
+            TimeSeriesParams.MetricType metricType = (TimeSeriesParams.MetricType) content.get(TimeSeriesParams.TIME_SERIES_METRIC_PARAM);
             try {
-                return typeRegistry.fromEs(typeName);
+                return typeRegistry.fromEs(typeName, metricType);
             } catch (IllegalArgumentException ex) {
                 return UNSUPPORTED;
             }

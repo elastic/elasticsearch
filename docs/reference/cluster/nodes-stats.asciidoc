@@ -121,6 +121,7 @@ using metrics.
     * `store`
     * `translog`
     * `warmer`
+    * `dense_vector`
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
@@ -682,12 +683,11 @@ Number of query cache misses.
 
 `cache_size`::
 (integer)
-Size, in bytes, of the query cache.
+Current number of cached queries.
 
 `cache_count`::
 (integer)
-Count of queries
-in the query cache.
+Total number of all queries that have been cached.
 
 `evictions`::
 (integer)
@@ -1004,6 +1004,18 @@ Estimated heap overhead of mappings on this node, which allows for 1kiB of heap 
 Estimated heap overhead, in bytes, of mappings on this node, which allows for 1kiB of heap for every mapped field.
 =======
 
+`dense_vector`::
+(object)
+Contains statistics about dense_vector across all shards assigned to the node.
++
+.Properties of `dense_vector`
+[%collapsible%open]
+=======
+`value_count`::
+(integer)
+Total number of dense vector indexed across all shards assigned
+to the node.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]

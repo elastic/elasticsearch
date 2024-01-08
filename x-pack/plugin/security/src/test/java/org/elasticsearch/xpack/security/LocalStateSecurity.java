@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -36,7 +37,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 
-public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
+public class LocalStateSecurity extends LocalStateCompositeXPackPlugin implements ReloadablePlugin {
 
     public static class SecurityTransportXPackUsageAction extends TransportXPackUsageAction {
         @Inject
@@ -74,6 +75,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         }
     }
 
+    @SuppressWarnings("this-escape")
     public LocalStateSecurity(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateSecurity thisVar = this;
@@ -126,7 +128,18 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         return SecurityTransportXPackInfoAction.class;
     }
 
-    List<Plugin> plugins() {
+    public List<Plugin> plugins() {
         return plugins;
+    }
+
+    @Override
+    public void reload(Settings settings) throws Exception {
+        plugins.stream().filter(p -> p instanceof ReloadablePlugin).forEach(p -> {
+            try {
+                ((ReloadablePlugin) p).reload(settings);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }

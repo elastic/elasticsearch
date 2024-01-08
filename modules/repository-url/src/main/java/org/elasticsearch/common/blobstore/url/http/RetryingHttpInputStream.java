@@ -33,7 +33,7 @@ class RetryingHttpInputStream extends InputStream {
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
     public static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
 
-    private final Logger logger = LogManager.getLogger(RetryingHttpInputStream.class);
+    private static final Logger logger = LogManager.getLogger(RetryingHttpInputStream.class);
 
     private final String blobName;
     private final URI blobURI;

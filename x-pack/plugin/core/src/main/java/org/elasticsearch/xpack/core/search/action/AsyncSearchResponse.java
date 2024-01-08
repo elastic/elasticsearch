@@ -10,24 +10,27 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * A response of an async search request.
  */
-public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject, AsyncResponse<AsyncSearchResponse> {
+public class AsyncSearchResponse extends ActionResponse implements ChunkedToXContentObject, AsyncResponse<AsyncSearchResponse> {
     @Nullable
     private final String id;
     @Nullable
@@ -183,7 +186,6 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         return new AsyncSearchResponse(id, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTime);
     }
 
-    @Override
     public RestStatus status() {
         if (searchResponse == null || isPartial) {
             // shard failures are not considered fatal for partial results so
@@ -196,31 +198,36 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (id != null) {
-            builder.field("id", id);
-        }
-        builder.field("is_partial", isPartial);
-        builder.field("is_running", isRunning);
-        builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-        builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
-
-        if (searchResponse != null) {
-            if (isRunning == false) {
-                TimeValue took = searchResponse.getTook();
-                builder.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis());
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(ChunkedToXContentHelper.singleChunk((builder, p) -> {
+            builder.startObject();
+            if (id != null) {
+                builder.field("id", id);
             }
-            builder.field("response");
-            ChunkedToXContent.wrapAsToXContent(searchResponse).toXContent(builder, params);
-        }
-        if (error != null) {
-            builder.startObject("error");
-            ElasticsearchException.generateThrowableXContent(builder, params, error);
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
+            builder.field("is_partial", isPartial);
+            builder.field("is_running", isRunning);
+            builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
+            builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            if (searchResponse != null) {
+                if (isRunning == false) {
+                    TimeValue took = searchResponse.getTook();
+                    builder.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis());
+                }
+                builder.field("response");
+            }
+            return builder;
+        }),
+            searchResponse == null ? Collections.emptyIterator() : searchResponse.toXContentChunked(params),
+            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                if (error != null) {
+                    builder.startObject("error");
+                    ElasticsearchException.generateThrowableXContent(builder, params, error);
+                    builder.endObject();
+                }
+                builder.endObject();
+                return builder;
+            })
+        );
     }
 
     @Override

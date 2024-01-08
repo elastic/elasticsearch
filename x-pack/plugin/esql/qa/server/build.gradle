@@ -1,0 +1,11 @@
+apply plugin: 'elasticsearch.java'
+
+description = 'Integration tests for ESQL'
+
+dependencies {
+  api project(":test:framework")
+
+  // Common utilities from QL
+  api project(xpackModule('ql:test-fixtures'))
+  api project(xpackModule('esql:qa:testFixtures'))
+}

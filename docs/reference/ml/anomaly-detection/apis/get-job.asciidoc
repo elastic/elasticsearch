@@ -209,7 +209,12 @@ value.
 (string) Reserved for future use, currently set to `anomaly_detector`.
 
 `job_version`::
-(string) The version of {es} that existed on the node when the job was created.
+(string) The {ml} configuration version number at which the the job was created.
+
+NOTE: From {es} 8.10.0,  a new version number is used to
+track the configuration and state changes in the {ml} plugin. This new
+version number is decoupled from the product version and will increment
+independently. The `job_version` value represents the new version number.
 
 `model_snapshot_id`::
 (string)

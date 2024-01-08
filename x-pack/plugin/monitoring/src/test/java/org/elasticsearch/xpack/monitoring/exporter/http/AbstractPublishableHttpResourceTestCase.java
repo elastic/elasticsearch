@@ -30,8 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockPublishResultActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
@@ -443,7 +444,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final Set<Integer> statusCodes = Sets.union(exists, doesNotExist);
         final Map<String, String> parametersWithIgnore = new HashMap<>(parameters);
 
-        parametersWithIgnore.putIfAbsent("ignore", statusCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
+        parametersWithIgnore.putIfAbsent(IGNORE_RESPONSE_CODES_PARAM, statusCodes.stream().map(Object::toString).collect(joining(",")));
 
         return parametersWithIgnore;
     }
@@ -451,7 +452,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     protected Map<String, String> deleteParameters(final Map<String, String> parameters) {
         final Map<String, String> parametersWithIgnore = new HashMap<>(parameters);
 
-        parametersWithIgnore.putIfAbsent("ignore", "404");
+        parametersWithIgnore.putIfAbsent(IGNORE_RESPONSE_CODES_PARAM, Integer.toString(RestStatus.NOT_FOUND.getStatus()));
 
         return parametersWithIgnore;
     }

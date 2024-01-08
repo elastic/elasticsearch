@@ -20,6 +20,7 @@ public class PlainIterator<T> implements Iterable<T>, Countable {
     // that although nextOrNull might be called from different threads, it can never happen concurrently.
     private volatile int index;
 
+    @SuppressWarnings("this-escape")
     public PlainIterator(List<T> elements) {
         this.elements = elements;
         reset();

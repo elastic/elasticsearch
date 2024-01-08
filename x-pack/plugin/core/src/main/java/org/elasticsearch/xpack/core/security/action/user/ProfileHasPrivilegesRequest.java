@@ -56,7 +56,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
 
     public ProfileHasPrivilegesRequest(StreamInput in) throws IOException {
         super(in);
-        this.uids = in.readStringList();
+        this.uids = in.readStringCollectionAsList();
         this.privilegesToCheck = PrivilegesToCheck.readFrom(in);
     }
 

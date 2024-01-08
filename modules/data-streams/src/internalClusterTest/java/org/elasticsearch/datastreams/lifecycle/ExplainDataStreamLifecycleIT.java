@@ -49,6 +49,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -59,10 +60,6 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class);
-    }
-
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @Override
@@ -163,6 +160,38 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             assertThat(conditions.get(RolloverConditions.MAX_DOCS_FIELD.getPreferredName()).value(), is(1L));
             assertThat(conditions.get(RolloverConditions.MIN_DOCS_FIELD.getPreferredName()).value(), is(1L));
         }
+
+        {
+            // Let's also explain using the data stream name
+            ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
+                new String[] { dataStreamName }
+            );
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                explainIndicesRequest
+            ).actionGet();
+            assertThat(response.getIndices().size(), is(2));
+            for (ExplainIndexDataStreamLifecycle explainIndex : response.getIndices()) {
+                assertThat(explainIndex.isManagedByLifecycle(), is(true));
+                assertThat(explainIndex.getIndexCreationDate(), notNullValue());
+                assertThat(explainIndex.getLifecycle(), notNullValue());
+                assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
+
+                if (explainIndex.getIndex().equals(DataStream.getDefaultBackingIndexName(dataStreamName, 1))) {
+                    // first generation index was rolled over
+                    assertThat(explainIndex.getIndex(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
+                    assertThat(explainIndex.getRolloverDate(), notNullValue());
+                    assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), notNullValue());
+                    assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), notNullValue());
+                } else {
+                    // the write index has not been rolled over yet
+                    assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
+                    assertThat(explainIndex.getIndex(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+                    assertThat(explainIndex.getRolloverDate(), nullValue());
+                    assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
+                }
+            }
+        }
     }
 
     public void testExplainLifecycleForIndicesWithErrors() throws Exception {
@@ -220,7 +249,9 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 // index has not been rolled over yet
                 assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
 
-                assertThat(explainIndex.getError(), containsString("maximum normal shards open"));
+                assertThat(explainIndex.getError(), notNullValue());
+                assertThat(explainIndex.getError().error(), containsString("maximum normal shards open"));
+                assertThat(explainIndex.getError().retryCount(), greaterThanOrEqualTo(1));
             }
         });
 
@@ -250,7 +281,14 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainDataStreamLifecycleForUnmanagedIndices() throws Exception {
         String dataStreamName = "metrics-foo";
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, null);
+        putComposableIndexTemplate(
+            "id1",
+            null,
+            List.of("metrics-foo*"),
+            null,
+            null,
+            DataStreamLifecycle.newBuilder().enabled(false).build()
+        );
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
@@ -313,16 +351,12 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

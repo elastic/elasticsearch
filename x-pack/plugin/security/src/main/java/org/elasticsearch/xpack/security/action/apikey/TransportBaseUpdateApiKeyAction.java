@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -34,7 +35,7 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
         final Writeable.Reader<Request> requestReader,
         final SecurityContext context
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = context;
     }
 
@@ -56,7 +57,8 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
 
     abstract void doExecuteUpdate(Task task, Request request, Authentication authentication, ActionListener<Response> listener);
 
-    protected UpdateApiKeyResponse toSingleResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
+    protected static UpdateApiKeyResponse toSingleResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response)
+        throws Exception {
         if (response.getTotalResultCount() != 1) {
             throw new IllegalStateException(
                 "single result required for single API key update but result count was [" + response.getTotalResultCount() + "]"
@@ -83,7 +85,7 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
         }
     }
 
-    private void throwIllegalStateExceptionOnIdMismatch(final String requestId, final String responseId) {
+    private static void throwIllegalStateExceptionOnIdMismatch(final String requestId, final String responseId) {
         final String message = "response ID [" + responseId + "] does not match request ID [" + requestId + "] for single API key update";
         assert false : message;
         throw new IllegalStateException(message);

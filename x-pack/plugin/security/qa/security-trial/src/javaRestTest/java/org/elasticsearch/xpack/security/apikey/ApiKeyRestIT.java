@@ -15,14 +15,15 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -437,6 +439,23 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestAuthenticationWithApiKey(apiKeyExpectingNoop.name, apiKeyExpectingNoop.id, apiKeyExpectingNoop.encoded);
     }
 
+    public void testBulkUpdateExpirationTimeApiKey() throws IOException {
+        final EncodedApiKey apiKey1 = createApiKey("my-api-key-name", Map.of());
+        final EncodedApiKey apiKey2 = createApiKey("my-other-api-key-name", Map.of());
+        final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        final TimeValue expiration = ApiKeyTests.randomFutureExpirationTime();
+        bulkUpdateApiKeyRequest.setJsonEntity(
+            XContentTestUtils.convertToXContent(Map.of("ids", List.of(apiKey1.id, apiKey2.id), "expiration", expiration), XContentType.JSON)
+                .utf8ToString()
+        );
+        final Response bulkUpdateApiKeyResponse = performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest);
+        assertOK(bulkUpdateApiKeyResponse);
+        final Map<String, Object> response = responseAsMap(bulkUpdateApiKeyResponse);
+        assertEquals(List.of(apiKey1.id(), apiKey2.id()), response.get("updated"));
+        assertNull(response.get("errors"));
+        assertEquals(List.of(), response.get("noops"));
+    }
+
     public void testGrantTargetCanUpdateApiKey() throws IOException {
         final var request = new Request("POST", "_security/api_key/grant");
         request.setOptions(
@@ -597,8 +616,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testRemoteIndicesSupportForApiKeys() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
         createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
         final String remoteIndicesSection = """
@@ -687,8 +704,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCreateCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -821,8 +836,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
         setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
         createRestApiKeyRequest.setJsonEntity("{\"name\":\"rest-key\"}");
@@ -852,8 +865,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyDoesNotAllowEmptyAccess() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         assertBadCreateCrossClusterApiKeyRequest("""
             {"name": "my-key"}""", "Required [access]");
 
@@ -877,8 +888,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyDoesNotAllowDlsFlsForReplication() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         assertBadCreateCrossClusterApiKeyRequest("""
             {
               "name": "key",
@@ -909,8 +918,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyRequiresName() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         assertBadCreateCrossClusterApiKeyRequest("""
             {
               "access": {
@@ -920,7 +927,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testUpdateCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -937,7 +943,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
         final String apiKeyId = createResponse.evaluate("id");
 
-        // Update both access and metadata
+        // Update access, metadata and expiration
         final Request updateRequest1 = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
         updateRequest1.setJsonEntity("""
             {
@@ -954,7 +960,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   }
                 ]
               },
-              "metadata": { "tag": "shared", "points": 0 }
+              "metadata": { "tag": "shared", "points": 0 },
+              "expiration": "30d"
             }""");
         setUserForRequest(updateRequest1, MANAGE_SECURITY_USER, END_USER_PASSWORD);
         final ObjectPath updateResponse1 = assertOKAndCreateObjectPath(client().performRequest(updateRequest1));
@@ -980,6 +987,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse1.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptor1)))
         );
+        assertThat(fetchResponse1.evaluate("api_keys.0.expiration"), notNullValue());
         assertThat(fetchResponse1.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
             {
               "search": [
@@ -1094,7 +1102,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testUpdateFailureCases() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -1189,8 +1196,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyAccessInResponseCanBeUsedAsInputForUpdate() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity(Strings.format("""
             {
@@ -1482,6 +1487,40 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName)));
     }
 
+    private static Map<String, Object> getRandomUpdateApiKeyRequestBody(
+        final Map<String, Object> oldMetadata,
+        boolean updateExpiration,
+        boolean updateMetadata
+    ) {
+        return getRandomUpdateApiKeyRequestBody(oldMetadata, updateExpiration, updateMetadata, List.of());
+    }
+
+    private static Map<String, Object> getRandomUpdateApiKeyRequestBody(
+        final Map<String, Object> oldMetadata,
+        boolean updateExpiration,
+        boolean updateMetadata,
+        List<String> ids
+    ) {
+        Map<String, Object> updateRequestBody = new HashMap<>();
+
+        if (updateMetadata) {
+            updateRequestBody.put("metadata", Map.of("not", "returned (changed)", "foo", "bar"));
+        } else if (oldMetadata != null) {
+            updateRequestBody.put("metadata", oldMetadata);
+        }
+
+        if (updateExpiration) {
+            updateRequestBody.put("expiration", ApiKeyTests.randomFutureExpirationTime());
+        }
+
+        if (ids.isEmpty() == false) {
+            updateRequestBody.put("ids", ids);
+        }
+
+        return updateRequestBody;
+    }
+
+    @SuppressWarnings({ "unchecked" })
     private void doTestUpdateApiKey(
         final String apiKeyName,
         final String apiKeyId,
@@ -1489,19 +1528,17 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Map<String, Object> oldMetadata
     ) throws IOException {
         final var updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
-        final boolean updated = randomBoolean();
-        final Map<String, Object> expectedApiKeyMetadata = updated ? Map.of("not", "returned (changed)", "foo", "bar") : oldMetadata;
-        final Map<String, Object> updateApiKeyRequestBody = expectedApiKeyMetadata == null
-            ? Map.of()
-            : Map.of("metadata", expectedApiKeyMetadata);
-        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
+        final boolean updateExpiration = randomBoolean();
+        final boolean updateMetadata = randomBoolean();
+        final Map<String, Object> updateRequestBody = getRandomUpdateApiKeyRequestBody(oldMetadata, updateExpiration, updateMetadata);
+        updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateRequestBody, XContentType.JSON).utf8ToString());
 
         final Response updateApiKeyResponse = performRequestUsingRandomAuthMethod(updateApiKeyRequest);
 
         assertOK(updateApiKeyResponse);
         final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
-        assertEquals(updated, updateApiKeyResponseMap.get("updated"));
-        expectMetadata(apiKeyId, expectedApiKeyMetadata == null ? Map.of() : expectedApiKeyMetadata);
+        assertEquals(updateMetadata || updateExpiration, updateApiKeyResponseMap.get("updated"));
+        expectMetadata(apiKeyId, (Map<String, Object>) updateRequestBody.get("metadata"));
         // validate authentication still works after update
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
@@ -1514,28 +1551,29 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Map<String, Object> oldMetadata
     ) throws IOException {
         final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
-        final boolean updated = randomBoolean();
-        final Map<String, Object> expectedApiKeyMetadata = updated ? Map.of("not", "returned (changed)", "foo", "bar") : oldMetadata;
-        final Map<String, Object> bulkUpdateApiKeyRequestBody = expectedApiKeyMetadata == null
-            ? Map.of("ids", List.of(apiKeyId))
-            : Map.of("ids", List.of(apiKeyId), "metadata", expectedApiKeyMetadata);
-        bulkUpdateApiKeyRequest.setJsonEntity(
-            XContentTestUtils.convertToXContent(bulkUpdateApiKeyRequestBody, XContentType.JSON).utf8ToString()
+        boolean updateMetadata = randomBoolean();
+        boolean updateExpiration = randomBoolean();
+        Map<String, Object> updateRequestBody = getRandomUpdateApiKeyRequestBody(
+            oldMetadata,
+            updateExpiration,
+            updateMetadata,
+            List.of(apiKeyId)
         );
+        bulkUpdateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateRequestBody, XContentType.JSON).utf8ToString());
 
         final Response bulkUpdateApiKeyResponse = performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest);
 
         assertOK(bulkUpdateApiKeyResponse);
         final Map<String, Object> bulkUpdateApiKeyResponseMap = responseAsMap(bulkUpdateApiKeyResponse);
         assertThat(bulkUpdateApiKeyResponseMap, not(hasKey("errors")));
-        if (updated) {
+        if (updateMetadata || updateExpiration) {
             assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("noops"), empty());
             assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("updated"), contains(apiKeyId));
         } else {
             assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("updated"), empty());
             assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("noops"), contains(apiKeyId));
         }
-        expectMetadata(apiKeyId, expectedApiKeyMetadata == null ? Map.of() : expectedApiKeyMetadata);
+        expectMetadata(apiKeyId, (Map<String, Object>) updateRequestBody.get("metadata"));
         // validate authentication still works after update
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
@@ -1621,7 +1659,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
-    @SuppressWarnings({ "unchecked" })
     private void expectMetadata(final String apiKeyId, final Map<String, Object> expectedMetadata) throws IOException {
         final var request = new Request("GET", "_security/api_key/");
         request.addParameter("id", apiKeyId);
@@ -1630,7 +1667,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         try (XContentParser parser = responseAsParser(response)) {
             final var apiKeyResponse = GetApiKeyResponse.fromXContent(parser);
             assertThat(apiKeyResponse.getApiKeyInfos().length, equalTo(1));
-            assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata));
+            // ApiKey metadata is set to empty Map if null
+            assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata == null ? Map.of() : expectedMetadata));
         }
     }
 

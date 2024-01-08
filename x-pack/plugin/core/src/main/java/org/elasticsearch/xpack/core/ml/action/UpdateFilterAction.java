@@ -128,8 +128,8 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
             super.writeTo(out);
             out.writeString(filterId);
             out.writeOptionalString(description);
-            out.writeStringArray(addItems.toArray(new String[addItems.size()]));
-            out.writeStringArray(removeItems.toArray(new String[removeItems.size()]));
+            out.writeStringCollection(addItems);
+            out.writeStringCollection(removeItems);
         }
 
         @Override

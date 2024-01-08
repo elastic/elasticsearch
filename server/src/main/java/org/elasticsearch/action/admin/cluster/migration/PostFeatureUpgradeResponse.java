@@ -59,7 +59,7 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
     public PostFeatureUpgradeResponse(StreamInput in) throws IOException {
         super(in);
         this.accepted = in.readBoolean();
-        this.features = in.readImmutableList(Feature::new);
+        this.features = in.readCollectionAsImmutableList(Feature::new);
         this.reason = in.readOptionalString();
         this.elasticsearchException = in.readOptionalWriteable(ElasticsearchException::new);
     }
@@ -91,7 +91,7 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(this.accepted);
-        out.writeList(this.features);
+        out.writeCollection(this.features);
         out.writeOptionalString(this.reason);
         out.writeOptionalWriteable(this.elasticsearchException);
     }

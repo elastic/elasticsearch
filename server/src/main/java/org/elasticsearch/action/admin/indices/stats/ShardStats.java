@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +28,7 @@ import java.util.Objects;
 
 public class ShardStats implements Writeable, ToXContentFragment {
 
-    private static final TransportVersion DEDUPLICATE_SHARD_PATH_VERSION = TransportVersion.V_8_4_0;
+    private static final TransportVersion DEDUPLICATE_SHARD_PATH_VERSION = TransportVersions.V_8_4_0;
 
     private final ShardRouting shardRouting;
     private final CommonStats commonStats;
@@ -60,7 +61,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             isSearchIdle = in.readBoolean();
             searchIdleTime = in.readVLong();
         } else {
@@ -214,7 +215,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeBoolean(isSearchIdle);
             out.writeVLong(searchIdleTime);
         }

@@ -22,6 +22,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -54,11 +55,12 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             mapperRegistry,
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            null
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
     }
 
-    private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
+    private static void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         switch (operation.operationType()) {
             case INDEX -> engine.index((Engine.Index) operation);
             case DELETE -> engine.delete((Engine.Delete) operation);
@@ -88,7 +90,14 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing(), Map.of()),
+                    new SourceToParse(
+                        index.id(),
+                        index.source(),
+                        XContentHelper.xContentType(index.source()),
+                        index.routing(),
+                        Map.of(),
+                        false
+                    ),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

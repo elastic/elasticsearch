@@ -125,6 +125,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         assertEquals(0L, parseLowerRangeTerm(0L, true).longValue());
         assertEquals(0L, parseLowerRangeTerm("0", true).longValue());
         assertEquals(0L, parseLowerRangeTerm("0.0", true).longValue());
+        assertEquals(1L, parseLowerRangeTerm("0", false).longValue());
         assertEquals(1L, parseLowerRangeTerm("0.5", true).longValue());
         assertEquals(9223372036854775807L, parseLowerRangeTerm(9223372036854775806L, false).longValue());
         assertEquals(9223372036854775807L, parseLowerRangeTerm(9223372036854775807L, true).longValue());
@@ -167,7 +168,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new UnsignedLongFieldMapper.Builder("field", false, null).build(MapperBuilderContext.root(false))
+        MappedFieldType mapper = new UnsignedLongFieldMapper.Builder("field", false, null).build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(0L), fetchSourceValue(mapper, 0L));
         assertEquals(List.of(9223372036854775807L), fetchSourceValue(mapper, 9223372036854775807L));
@@ -175,7 +176,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(), fetchSourceValue(mapper, ""));
 
         MappedFieldType nullValueMapper = new UnsignedLongFieldMapper.Builder("field", false, null).nullValue("18446744073709551615")
-            .build(MapperBuilderContext.root(false))
+            .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
     }

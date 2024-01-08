@@ -35,7 +35,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -48,7 +48,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -61,7 +61,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               name:
@@ -147,7 +147,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "can_write_1", "_id": "3"}}'
             - '{"name": "doc3"}'
@@ -157,7 +156,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "can_write_1", "_id": "5"}}'
             - '{"name": "doc5"}'
@@ -167,7 +165,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "can_write_1", "_id": "7"}}'
             - '{"name": "doc7"}'
@@ -175,6 +172,10 @@ teardown:
             - '{"name": "doc8"}'
             - '{"index": {"_index": "can_write_3", "_id": "9"}}'
             - '{"name": "doc9"}'
+
+  - do: # superuser
+      indices.refresh:
+        index: write_index_*
 
   - do: # superuser
       search:
@@ -194,7 +195,6 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        refresh: true
         id: "7"
         index: can_read_1
         body: >
@@ -206,7 +206,6 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       create:
-        refresh: true
         id: "8"
         index: can_read_2
         body: >
@@ -217,7 +216,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "can_read_1", "_id": "9"}}'
             - '{"name": "doc9"}'
@@ -232,7 +230,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "can_read_1", "_id": "11"}}'
             - '{"name": "doc11"}'
@@ -245,6 +242,10 @@ teardown:
   - match: { items.1.index.error.type: "security_exception" }
 
   - do: # superuser
+      indices.refresh:
+        index: read_index
+
+  - do: # superuser
       search:
         rest_total_hits_as_int: true
         index: read_index
@@ -255,7 +256,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "can_read_1", "_id": "13"}}'
             - '{"name": "doc13"}'
@@ -267,6 +267,10 @@ teardown:
   - match: { items.1.index.status: 201 }
 
   - do: # superuser
+      indices.refresh:
+        index: write_index_1
+
+  - do: # superuser
       search:
         rest_total_hits_as_int: true
         index: write_index_1
@@ -276,7 +280,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "can_read_1", "_id": "15"}}'
             - '{"name": "doc15"}'
@@ -296,6 +299,10 @@ teardown:
   - match: { items.2.index.error.type: "security_exception" }
   - match: { items.3.index.status: 201 }
   - match: { items.4.index.status: 201 }
+
+  - do: # superuser
+      indices.refresh:
+        index: write_index_*
 
   - do: # superuser
       search:
@@ -336,7 +343,6 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
-        refresh: true
         body:
             - '{"index": {"_index": "can_read_1", "_id": "20"}}'
             - '{"name": "doc20"}'
@@ -362,6 +368,10 @@ teardown:
   - match: { items.4.index.status: 201 }
   - match: { items.5.update.status: 200 }
   - match: { items.6.delete.status: 200 }
+
+  - do: # superuser
+      indices.refresh:
+        index: write_index_*
 
   - do: # superuser
       search:

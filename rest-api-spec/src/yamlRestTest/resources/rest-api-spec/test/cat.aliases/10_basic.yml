@@ -496,3 +496,16 @@
                 test_alias \s+ test_index\n
                 my_alias \s+ test_index\n
             $/
+
+---
+"Deprecated local parameter":
+  - skip:
+      version: "- 8.11.99"
+      features: ["warnings"]
+      reason: verifying deprecation warnings from 8.12.0 onwards
+
+  - do:
+      cat.aliases:
+        local: true
+      warnings:
+        - "the [?local=true] query parameter to cat-aliases requests has no effect and will be removed in a future version"

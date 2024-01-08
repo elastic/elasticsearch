@@ -1,6 +1,0 @@
-pr: 96956
-summary: Error message for misconfigured TSDB index
-area: TSDB
-type: bug
-issues:
- - 96445

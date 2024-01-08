@@ -537,7 +537,7 @@ public class BulkByScrollTask extends CancellableTask {
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
             throttledUntil = in.readTimeValue();
-            sliceStatuses = in.readList(stream -> stream.readOptionalWriteable(StatusOrException::new));
+            sliceStatuses = in.readCollectionAsList(stream -> stream.readOptionalWriteable(StatusOrException::new));
         }
 
         @Override

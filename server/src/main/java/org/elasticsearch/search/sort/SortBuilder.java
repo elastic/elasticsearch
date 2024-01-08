@@ -278,4 +278,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
     public String toString() {
         return Strings.toString(this, true, true);
     }
+
+    public boolean supportsParallelCollection() {
+        return false;
+    }
 }

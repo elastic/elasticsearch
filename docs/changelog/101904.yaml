@@ -1,0 +1,5 @@
+pr: 101904
+summary: Allow granting API keys with JWT as the access_token
+area: Security
+type: feature
+issues: []

@@ -8,10 +8,11 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -26,6 +27,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -34,6 +37,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -46,7 +50,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        assertXContent(createClusterRerouteResponse(createClusterState()), new ToXContent.MapParams(Map.of("metric", "none")), 2, """
+        assertXContent(createClusterRerouteResponse(createClusterState()), new ToXContent.MapParams(Map.of("metric", "none")), """
             {
               "acknowledged": true
             }""");
@@ -57,7 +61,6 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         assertXContent(
             createClusterRerouteResponse(clusterState),
             new ToXContent.MapParams(Map.of("explain", "true", "metric", "none")),
-            2,
             Strings.format("""
                 {
                   "acknowledged": true,
@@ -87,7 +90,6 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         assertXContent(
             createClusterRerouteResponse(clusterState),
             ToXContent.EMPTY_PARAMS,
-            35,
             Strings.format(
                 """
                     {
@@ -126,10 +128,22 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "max_index_version": %s
                           }
                         },
-                        "transport_versions": [
+                        "nodes_versions": [
                           {
                             "node_id": "node0",
-                            "transport_version": "8000099"
+                            "transport_version": "8000099",
+                            "mappings_versions": {
+                              ".system-index": {
+                                "version": 1,
+                                "hash": 0
+                              }
+                            }
+                          }
+                        ],
+                        "nodes_features": [
+                          {
+                            "node_id": "node0",
+                            "features": []
                           }
                         ],
                         "metadata": {
@@ -197,9 +211,9 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 clusterState.stateUUID(),
                 clusterState.getNodes().get("node0").getEphemeralId(),
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
-                Version.CURRENT.id
+                IndexVersion.current()
             ),
             """
                 The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
@@ -211,7 +225,6 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         assertXContent(
             createClusterRerouteResponse(createClusterState()),
             new ToXContent.MapParams(Map.of("metric", "metadata", "settings_filter", "index.number*,index.version.created")),
-            19,
             """
                 {
                   "acknowledged" : true,
@@ -274,7 +287,6 @@ public class ClusterRerouteResponseTests extends ESTestCase {
     private void assertXContent(
         ClusterRerouteResponse response,
         ToXContent.Params params,
-        int expectedChunks,
         String expectedBody,
         String... criticalDeprecationWarnings
     ) {
@@ -286,8 +298,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, params);
             assertEquals(XContentHelper.stripWhitespace(expectedBody), XContentHelper.stripWhitespace(Strings.toString(builder)));
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
+
+        final var expectedChunks = Objects.equals(params.param("metric"), "none")
+            ? 2
+            : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
 
         AbstractChunkedSerializingTestCase.assertChunkCount(response, params, ignored -> expectedChunks);
         assertCriticalWarnings(criticalDeprecationWarnings);
@@ -320,7 +336,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
-            .putTransportVersion(node0.getId(), TransportVersion.V_8_0_0)
+            .putCompatibilityVersions(
+                node0.getId(),
+                TransportVersions.V_8_0_0,
+                Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+            )
             .metadata(
                 Metadata.builder()
                     .put(
@@ -328,7 +348,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             .settings(
                                 indexSettings(1, 0).put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), true)
                                     .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 10)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .build()
                             )
                             .build(),

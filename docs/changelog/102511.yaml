@@ -1,0 +1,5 @@
+pr: 102511
+summary: Trigger parent circuit breaker when building scorers in filters aggregation
+area: Aggregations
+type: bug
+issues: []

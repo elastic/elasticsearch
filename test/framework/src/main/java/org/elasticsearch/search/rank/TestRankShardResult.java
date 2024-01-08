@@ -9,6 +9,7 @@
 package org.elasticsearch.search.rank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,7 +34,7 @@ public class TestRankShardResult implements RankShardResult {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_8_0;
+        return TransportVersions.V_8_8_0;
     }
 
     @Override

@@ -16,7 +16,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TotalHitCountCollector;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -29,23 +28,20 @@ class PartialHitCountCollector extends TotalHitCountCollector {
     private final HitsThresholdChecker hitsThresholdChecker;
     private boolean earlyTerminated;
 
-    PartialHitCountCollector(int totalHitsThreshold) {
-        this(new HitsThresholdChecker(totalHitsThreshold));
-        assert totalHitsThreshold != Integer.MAX_VALUE : "use TotalHitCountCollector for exact total hits tracking";
-    }
-
     PartialHitCountCollector(HitsThresholdChecker hitsThresholdChecker) {
         this.hitsThresholdChecker = hitsThresholdChecker;
     }
 
     @Override
     public ScoreMode scoreMode() {
-        // Does not need scores like TotalHitCountCollector (COMPLETE_NO_SCORES), but not exhaustive as it early terminates.
-        return ScoreMode.TOP_DOCS;
+        return hitsThresholdChecker.totalHitsThreshold == Integer.MAX_VALUE ? super.scoreMode() : ScoreMode.TOP_DOCS;
     }
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+        if (hitsThresholdChecker.totalHitsThreshold == Integer.MAX_VALUE) {
+            return super.getLeafCollector(context);
+        }
         earlyTerminateIfNeeded();
         return new FilterLeafCollector(super.getLeafCollector(context)) {
             @Override
@@ -68,12 +64,11 @@ class PartialHitCountCollector extends TotalHitCountCollector {
         return earlyTerminated;
     }
 
-    private static class HitsThresholdChecker {
+    static class HitsThresholdChecker {
         private final int totalHitsThreshold;
         private final AtomicInteger numCollected = new AtomicInteger();
 
         HitsThresholdChecker(int totalHitsThreshold) {
-            assert totalHitsThreshold != Integer.MAX_VALUE : "use TotalHitCountCollector for exact total hits tracking";
             this.totalHitsThreshold = totalHitsThreshold;
         }
 
@@ -83,41 +78,6 @@ class PartialHitCountCollector extends TotalHitCountCollector {
 
         boolean isThresholdReached() {
             return numCollected.getAcquire() >= totalHitsThreshold;
-        }
-    }
-
-    static class CollectorManager implements org.apache.lucene.search.CollectorManager<PartialHitCountCollector, Void> {
-        private final HitsThresholdChecker hitsThresholdChecker;
-        private boolean earlyTerminated;
-        private int totalHits;
-
-        CollectorManager(int totalHitsThreshold) {
-            this.hitsThresholdChecker = new HitsThresholdChecker(totalHitsThreshold);
-        }
-
-        @Override
-        public PartialHitCountCollector newCollector() {
-            return new PartialHitCountCollector(hitsThresholdChecker);
-        }
-
-        @Override
-        public Void reduce(Collection<PartialHitCountCollector> collectors) throws IOException {
-            assert totalHits == 0;
-            for (PartialHitCountCollector collector : collectors) {
-                this.totalHits += collector.getTotalHits();
-                if (collector.hasEarlyTerminated()) {
-                    earlyTerminated = true;
-                }
-            }
-            return null;
-        }
-
-        public boolean hasEarlyTerminated() {
-            return earlyTerminated;
-        }
-
-        public int getTotalHits() {
-            return totalHits;
         }
     }
 }

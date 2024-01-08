@@ -1,0 +1,6 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+str | result
+keyword | keyword
+text | text
+|===

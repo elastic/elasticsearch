@@ -1,0 +1,20 @@
+[discrete]
+[[esql-rtrim]]
+=== `RTRIM`
+[.text-center]
+image::esql/functions/signature/rtrim.svg[Embedded,opts=inline]
+
+Removes trailing whitespaces from strings.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=rtrim]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=rtrim-result]
+|===
+
+Supported types:
+
+include::types/rtrim.asciidoc[]

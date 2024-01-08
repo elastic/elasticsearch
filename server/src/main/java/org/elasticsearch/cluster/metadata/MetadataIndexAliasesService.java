@@ -54,22 +54,20 @@ public class MetadataIndexAliasesService {
 
     private final IndicesService indicesService;
 
-    private final MetadataDeleteIndexService deleteIndexService;
-
     private final NamedXContentRegistry xContentRegistry;
 
     private final ClusterStateTaskExecutor<ApplyAliasesTask> executor;
     private final MasterServiceTaskQueue<ApplyAliasesTask> taskQueue;
+    private final ClusterService clusterService;
 
     @Inject
     public MetadataIndexAliasesService(
         ClusterService clusterService,
         IndicesService indicesService,
-        MetadataDeleteIndexService deleteIndexService,
         NamedXContentRegistry xContentRegistry
     ) {
+        this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.deleteIndexService = deleteIndexService;
         this.xContentRegistry = xContentRegistry;
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
@@ -110,7 +108,7 @@ public class MetadataIndexAliasesService {
             }
             // Remove the indexes if there are any to remove
             if (changed) {
-                currentState = deleteIndexService.deleteIndices(currentState, indicesToDelete);
+                currentState = MetadataDeleteIndexService.deleteIndices(currentState, indicesToDelete, clusterService.getSettings());
             }
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             // Run the remaining alias actions

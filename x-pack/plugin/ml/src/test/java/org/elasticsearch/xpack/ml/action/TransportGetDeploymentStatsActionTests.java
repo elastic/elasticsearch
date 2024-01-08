@@ -158,7 +158,18 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
     private static TrainedModelAssignment createAssignment(String modelId) {
         return TrainedModelAssignment.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(modelId, modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024), Priority.NORMAL)
+            new StartTrainedModelDeploymentAction.TaskParams(
+                modelId,
+                modelId,
+                1024,
+                1,
+                1,
+                1,
+                ByteSizeValue.ofBytes(1024),
+                Priority.NORMAL,
+                0L,
+                0L
+            )
         ).build();
     }
 }

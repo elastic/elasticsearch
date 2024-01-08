@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -47,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
@@ -56,6 +55,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,15 +69,12 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithSta
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
-
-    private final Logger logger = LogManager.getLogger(NodeVersionAllocationDeciderTests.class);
 
     public void testDoNotAllocateFromPrimary() {
         AllocationService strategy = createAllocationService(
@@ -144,7 +141,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3", VersionUtils.getPreviousVersion())))
+            .nodes(
+                DiscoveryNodes.builder(clusterState.nodes())
+                    .add(newNode("node3", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+            )
             .build();
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
@@ -216,9 +216,15 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             } else {
                 for (int j = nodes.size(); j < numNodes; j++) {
                     if (frequently()) {
-                        nodes.add(newNode("node" + (nodeIdx++), randomBoolean() ? VersionUtils.getPreviousVersion() : Version.CURRENT));
+                        if (randomBoolean()) {
+                            nodes.add(
+                                newNode("node" + (nodeIdx++), VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion())
+                            );
+                        } else {
+                            nodes.add(newNode("node" + (nodeIdx++), Version.CURRENT, IndexVersion.current()));
+                        }
                     } else {
-                        nodes.add(newNode("node" + (nodeIdx++), randomVersion(random())));
+                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
                     }
                 }
             }
@@ -264,9 +270,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion()))
-                    .add(newNode("old2", VersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old2", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
             )
             .build();
         clusterState = stabilize(clusterState, service);
@@ -274,8 +280,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
                     .add(newNode("new0"))
             )
             .build();
@@ -284,7 +290,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState)
             .nodes(
-                DiscoveryNodes.builder().add(newNode("node0", VersionUtils.getPreviousVersion())).add(newNode("new1")).add(newNode("new0"))
+                DiscoveryNodes.builder()
+                    .add(newNode("node0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("new1"))
+                    .add(newNode("new0"))
             )
             .build();
 
@@ -312,11 +321,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
             .build();
         final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
             .build();
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();
@@ -417,11 +426,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
             .build();
         final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
             .build();
 
         final Snapshot snapshot = new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID()));
@@ -557,8 +566,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        RoutingNode newNode = RoutingNodesHelper.routingNode("newNode", newNode("newNode", Version.CURRENT));
-        RoutingNode oldNode = RoutingNodesHelper.routingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousVersion()));
+        RoutingNode newNode = RoutingNodesHelper.routingNode("newNode", newNode("newNode", Version.CURRENT, IndexVersion.current()));
+        RoutingNode oldNode = RoutingNodesHelper.routingNode(
+            "oldNode",
+            newNode("oldNode", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion())
+        );
 
         final ClusterName clusterName = ClusterName.DEFAULT;
         ClusterState clusterState = ClusterState.builder(clusterName)

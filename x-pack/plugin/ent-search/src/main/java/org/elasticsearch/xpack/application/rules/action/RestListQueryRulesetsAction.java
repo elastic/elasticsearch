@@ -15,6 +15,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.List;
@@ -24,7 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestListQueryRulesetsAction extends EnterpriseSearchBaseRestHandler {
     public RestListQueryRulesetsAction(XPackLicenseState licenseState) {
-        super(licenseState);
+        super(licenseState, LicenseUtils.Product.QUERY_RULES);
     }
 
     @Override

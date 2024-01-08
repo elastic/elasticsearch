@@ -110,15 +110,10 @@ public class TestRestrictedIndices {
                         ".fleet-actions-results",
                         "fleet actions results",
                         SystemDataStreamDescriptor.Type.EXTERNAL,
-                        new ComposableIndexTemplate(
-                            List.of(".fleet-actions-results"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        ),
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".fleet-actions-results"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
                         Map.of(),
                         List.of("fleet", "kibana"),
                         null
@@ -266,6 +261,7 @@ public class TestRestrictedIndices {
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 0)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

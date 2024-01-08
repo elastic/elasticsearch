@@ -155,7 +155,7 @@ public class RolloverIT extends ESIntegTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareRolloverIndex("alias").dryRun(randomBoolean()).get()
+            indicesAdmin().prepareRolloverIndex("alias").dryRun(randomBoolean())
         );
         assertThat(exception.getMessage(), equalTo("rollover target [alias] does not point to a write index"));
     }
@@ -525,7 +525,7 @@ public class RolloverIT extends ESIntegTestCase {
 
     public void testRolloverMaxPrimaryShardDocs() throws Exception {
         assertAcked(
-            prepareCreate("test-1").setSettings(Settings.builder().put("index.number_of_shards", 1)).addAlias(new Alias("test_alias")).get()
+            prepareCreate("test-1").setSettings(Settings.builder().put("index.number_of_shards", 1)).addAlias(new Alias("test_alias"))
         );
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
@@ -590,7 +590,7 @@ public class RolloverIT extends ESIntegTestCase {
         ensureYellow("logs-write");
         final IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareRolloverIndex("logs-write").get()
+            indicesAdmin().prepareRolloverIndex("logs-write")
         );
         assertThat(
             error.getMessage(),
@@ -777,7 +777,7 @@ public class RolloverIT extends ESIntegTestCase {
         });
 
         // We should *NOT* have a third index, it should have rolled over *exactly* once
-        expectThrows(Exception.class, () -> indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000003").get());
+        expectThrows(Exception.class, indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000003"));
     }
 
     public void testRolloverConcurrently() throws Exception {
@@ -794,7 +794,9 @@ public class RolloverIT extends ESIntegTestCase {
             null,
             null
         );
-        putTemplateRequest.indexTemplate(new ComposableIndexTemplate(List.of("test-*"), template, null, 100L, null, null));
+        putTemplateRequest.indexTemplate(
+            ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).template(template).priority(100L).build()
+        );
         assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet());
 
         final CyclicBarrier barrier = new CyclicBarrier(numOfThreads);

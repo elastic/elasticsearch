@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -43,6 +42,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -63,6 +63,8 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -518,7 +520,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) mappings.get("_meta");
         assertThat(meta.keySet(), hasItem("version"));
-        assertThat(meta.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(meta.get("version"), equalTo(MlIndexAndAlias.BWC_MAPPINGS_VERSION));
+        assertThat(meta.get("managed_index_mappings_version"), equalTo(AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
@@ -763,21 +766,21 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         indexModelSnapshot(
             new ModelSnapshot.Builder(jobId).setSnapshotId("snap_2")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
-                .setMinVersion(Version.V_7_4_0)
+                .setMinVersion(MlConfigVersion.V_7_4_0)
                 .setQuantiles(new Quantiles(jobId, Date.from(Instant.ofEpochMilli(10)), randomAlphaOfLength(20)))
                 .build()
         );
         indexModelSnapshot(
             new ModelSnapshot.Builder(jobId).setSnapshotId("snap_1")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(11)))
-                .setMinVersion(Version.V_7_2_0)
+                .setMinVersion(MlConfigVersion.V_7_2_0)
                 .setQuantiles(new Quantiles(jobId, Date.from(Instant.ofEpochMilli(11)), randomAlphaOfLength(20)))
                 .build()
         );
         indexModelSnapshot(
             new ModelSnapshot.Builder(jobId).setSnapshotId("other_snap")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(12)))
-                .setMinVersion(Version.V_7_3_0)
+                .setMinVersion(MlConfigVersion.V_7_3_0)
                 .setQuantiles(new Quantiles(jobId, Date.from(Instant.ofEpochMilli(12)), randomAlphaOfLength(20)))
                 .build()
         );
@@ -785,13 +788,12 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         indexModelSnapshot(
             new ModelSnapshot.Builder("other_job").setSnapshotId("other_snap")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
-                .setMinVersion(Version.CURRENT)
+                .setMinVersion(MlConfigVersion.CURRENT)
                 .setQuantiles(new Quantiles("other_job", Date.from(Instant.ofEpochMilli(10)), randomAlphaOfLength(20)))
                 .build()
         );
         // Add a snapshot WITHOUT a min version.
-        client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"))
-            .setId(ModelSnapshot.documentId("other_job", "11"))
+        prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job")).setId(ModelSnapshot.documentId("other_job", "11"))
             .setSource("""
                 {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
@@ -832,11 +834,11 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         future = new PlainActionFuture<>();
         jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
-        assertThat(snapshots.get(0).getSnapshotId(), equalTo("11"));
-        assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
-        assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
-        assertThat(snapshots.get(3).getSnapshotId(), equalTo("snap_2"));
-        assertThat(snapshots.get(4).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(0).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(1).getSnapshotId(), equalTo("11"));
+        assertThat(snapshots.get(2).getSnapshotId(), equalTo("snap_1"));
+        assertThat(snapshots.get(3).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(4).getSnapshotId(), equalTo("snap_2"));
 
         // assert that quantiles are not loaded
         assertNull(snapshots.get(0).getQuantiles());
@@ -845,6 +847,16 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(3).getQuantiles());
         assertNull(snapshots.get(4).getQuantiles());
 
+        // test get single snapshot
+        PlainActionFuture<Result<ModelSnapshot>> singleFuture = new PlainActionFuture<>();
+        jobProvider.getModelSnapshot(jobId, "snap_1", true, singleFuture::onResponse, singleFuture::onFailure);
+        ModelSnapshot withQuantiles = singleFuture.actionGet().result;
+        assertThat(withQuantiles.getQuantiles().getTimestamp().getTime(), equalTo(11L));
+
+        singleFuture = new PlainActionFuture<>();
+        jobProvider.getModelSnapshot(jobId, "snap_2", false, singleFuture::onResponse, singleFuture::onFailure);
+        ModelSnapshot withoutQuantiles = singleFuture.actionGet().result;
+        assertNull(withoutQuantiles.getQuantiles());
     }
 
     public void testGetAutodetectParams() throws Exception {
@@ -1038,7 +1050,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        BulkResponse response = bulkRequest.execute().actionGet();
+        BulkResponse response = bulkRequest.get();
         if (response.hasFailures()) {
             throw new IllegalStateException(Strings.toString(response));
         }
@@ -1063,7 +1075,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        bulkRequest.execute().actionGet();
+        bulkRequest.get();
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
@@ -1113,6 +1125,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        bulkRequest.execute().actionGet();
+        bulkRequest.get();
     }
 }

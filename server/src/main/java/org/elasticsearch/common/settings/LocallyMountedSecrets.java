@@ -65,7 +65,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  *              }
  *         }
  */
-public class LocallyMountedSecrets implements SecureSettings {
+public final class LocallyMountedSecrets implements SecureSettings {
 
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
@@ -264,7 +264,7 @@ public class LocallyMountedSecrets implements SecureSettings {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert out.getTransportVersion() == TransportVersion.current();
-            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
+            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }
     }

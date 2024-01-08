@@ -11,6 +11,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,12 +40,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 /**
  * Performs the get operation.
  */
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 
+    public static final ActionType<GetResponse> TYPE = new ActionType<>("indices:data/read/get", GetResponse::new);
     private static final Logger logger = LogManager.getLogger(TransportGetAction.class);
 
     private final IndicesService indicesService;
@@ -62,14 +66,14 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         NodeClient client
     ) {
         super(
-            GetAction.NAME,
+            TYPE.name(),
             threadPool,
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
             GetRequest::new,
-            ThreadPool.Names.GET
+            threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
@@ -155,12 +159,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected String getExecutor(GetRequest request, ShardId shardId) {
+    protected Executor getExecutor(GetRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
         if (clusterState.metadata().getIndexSafe(shardId.getIndex()).isSystem()) {
-            return executorSelector.executorForGet(shardId.getIndexName());
+            return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
-            return ThreadPool.Names.SEARCH_THROTTLED;
+            return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
         } else {
             return super.getExecutor(request, shardId);
         }
@@ -168,7 +172,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     private void asyncGet(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
         if (request.refresh() && request.realtime() == false) {
-            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
+            getExecutor(request, shardId).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
                 indexShard.externalRefresh("refresh_flag_get", l.map(r -> shardOperation(request, shardId)));
             }));
@@ -212,13 +216,15 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                             ActionRunnable.supply(l, () -> shardOperation(request, shardId)).run();
                         } else {
                             assert r.segmentGeneration() > -1L;
-                            indexShard.waitForSegmentGeneration(
+                            assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
+                            indexShard.waitForPrimaryTermAndGeneration(
+                                r.primaryTerm(),
                                 r.segmentGeneration(),
                                 listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
                             );
                         }
                     }
-                }), TransportGetFromTranslogAction.Response::new, threadPool.executor(getExecutor(request, shardId)))
+                }), TransportGetFromTranslogAction.Response::new, getExecutor(request, shardId))
             );
         } else {
             // A non-real-time get with no explicit refresh requested.

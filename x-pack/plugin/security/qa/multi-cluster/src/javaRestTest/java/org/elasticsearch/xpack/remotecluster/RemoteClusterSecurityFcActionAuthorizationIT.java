@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.remotecluster;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -69,7 +68,6 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     @ClassRule
     public static ElasticsearchCluster testCluster = ElasticsearchCluster.local()
         .name("test-cluster")
-        .feature(FeatureFlag.NEW_RCS_MODE)
         .module("analysis-common")
         .module("x-pack-ccr")
         .setting("xpack.license.self_generated.type", "trial")
@@ -146,7 +144,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 threadPool,
                 "my_remote_cluster",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                threadPool.generic()
             );
 
             // Creating a restore session fails if index is not accessible
@@ -288,7 +286,10 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
 
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.Request.INSTANCE).actionGet()
+                () -> remoteClusterClient.execute(
+                    RemoteClusterNodesAction.TYPE,
+                    RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES
+                ).actionGet()
             );
             assertThat(
                 e.getMessage(),
@@ -343,7 +344,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 "node",
                 threadPool,
                 (String) crossClusterApiKeyMap.get("encoded"),
-                Map.of(FieldCapabilitiesAction.NAME, crossClusterAccessSubjectInfo)
+                Map.of(TransportFieldCapabilitiesAction.NAME, crossClusterAccessSubjectInfo)
             )
         ) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -359,7 +360,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             // 1. Not accessible because API key does not grant the access
             final ElasticsearchSecurityException e1 = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(FieldCapabilitiesAction.INSTANCE, request).actionGet()
+                () -> remoteClusterClient.execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet()
             );
             assertThat(
                 e1.getMessage(),
@@ -386,7 +387,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 }""");
             assertOK(performRequestWithAdminUser(adminClient(), updateApiKeyRequest));
             final FieldCapabilitiesResponse fieldCapabilitiesResponse = remoteClusterClient.execute(
-                FieldCapabilitiesAction.INSTANCE,
+                TransportFieldCapabilitiesAction.TYPE,
                 request
             ).actionGet();
             assertThat(fieldCapabilitiesResponse.getIndices(), arrayContaining("index"));
@@ -406,7 +407,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertOK(performRequestWithAdminUser(adminClient(), updateApiKeyRequest));
             final ElasticsearchSecurityException e2 = expectThrows(
                 ElasticsearchSecurityException.class,
-                () -> remoteClusterClient.execute(FieldCapabilitiesAction.INSTANCE, request).actionGet()
+                () -> remoteClusterClient.execute(TransportFieldCapabilitiesAction.TYPE, request).actionGet()
             );
             assertThat(
                 e2.getMessage(),

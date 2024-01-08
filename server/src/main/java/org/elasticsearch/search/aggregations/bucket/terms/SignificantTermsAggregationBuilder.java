@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
@@ -136,6 +138,11 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.KEYWORD;
     }
@@ -178,14 +185,6 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
         return bucketCountThresholds;
-    }
-
-    public SignificantTermsAggregationBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (bucketCountThresholds == null) {
-            throw new IllegalArgumentException("[bucketCountThresholds] must not be null: [" + name + "]");
-        }
-        this.bucketCountThresholds = bucketCountThresholds;
-        return this;
     }
 
     /**
@@ -250,23 +249,12 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return this;
     }
 
-    /**
-     * Expert: gets an execution hint to the aggregation.
-     */
-    public String executionHint() {
-        return executionHint;
-    }
-
     public SignificantTermsAggregationBuilder backgroundFilter(QueryBuilder backgroundFilter) {
         if (backgroundFilter == null) {
             throw new IllegalArgumentException("[backgroundFilter] must not be null: [" + name + "]");
         }
         this.backgroundFilter = backgroundFilter;
         return this;
-    }
-
-    public QueryBuilder backgroundFilter() {
-        return backgroundFilter;
     }
 
     /**
@@ -374,12 +362,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_3_0;
+        return TransportVersions.V_7_3_0;
     }
 }

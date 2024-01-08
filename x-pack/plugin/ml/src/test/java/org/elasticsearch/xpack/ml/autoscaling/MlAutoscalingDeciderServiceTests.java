@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
@@ -101,7 +102,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     private static final long TEST_JOB_SIZE = ByteSizeValue.ofMb(200).getBytes();
 
     private NodeLoadDetector nodeLoadDetector;
-    private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper;
     private ClusterService clusterService;
     private Settings settings;
     private TimeMachine timeSupplier;
@@ -121,7 +122,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         when(nodeLoadDetector.detectNodeLoad(any(), any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
             NodeLoad.builder("any").setUseMemory(true).incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes()).build()
         );
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeRealAvailabilityZoneMapper = mock(NodeRealAvailabilityZoneMapper.class);
         clusterService = mock(ClusterService.class);
         settings = Settings.EMPTY;
         timeSupplier = new TimeMachine();
@@ -130,8 +131,9 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             Set.of(
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.ALLOCATED_PROCESSORS_SCALE,
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING
             )
         );
@@ -277,7 +279,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     }
 
     private MlAutoscalingDeciderService buildService() {
-        return new MlAutoscalingDeciderService(nodeLoadDetector, settings, nodeAvailabilityZoneMapper, clusterService, timeSupplier);
+        return new MlAutoscalingDeciderService(nodeLoadDetector, settings, nodeRealAvailabilityZoneMapper, clusterService, timeSupplier);
     }
 
     static class DeciderContext implements AutoscalingDeciderContext {

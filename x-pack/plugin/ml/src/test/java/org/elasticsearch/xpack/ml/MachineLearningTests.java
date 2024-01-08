@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
@@ -218,9 +221,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testAnomalyDetectionOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, hasItem(instanceOf(RestGetJobsAction.class)));
@@ -239,9 +241,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testDataFrameAnalyticsOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
@@ -260,9 +261,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testNlpOnly() throws IOException {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings)) {
-            MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true));
-            machineLearning.loadExtensions(loader);
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true, false));
+        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
@@ -281,24 +281,29 @@ public class MachineLearningTests extends ESTestCase {
 
     public static class MlTestExtension implements MachineLearningExtension {
 
+        public static final String[] ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS = {};
+
         private final boolean useIlm;
         private final boolean includeNodeInfo;
         private final boolean isAnomalyDetectionEnabled;
         private final boolean isDataFrameAnalyticsEnabled;
         private final boolean isNlpEnabled;
+        private final boolean isLearningToRankEnabled;
 
         MlTestExtension(
             boolean useIlm,
             boolean includeNodeInfo,
             boolean isAnomalyDetectionEnabled,
             boolean isDataFrameAnalyticsEnabled,
-            boolean isNlpEnabled
+            boolean isNlpEnabled,
+            boolean isLearningToRankEnabled
         ) {
             this.useIlm = useIlm;
             this.includeNodeInfo = includeNodeInfo;
             this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
             this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
             this.isNlpEnabled = isNlpEnabled;
+            this.isLearningToRankEnabled = isLearningToRankEnabled;
         }
 
         @Override
@@ -324,6 +329,21 @@ public class MachineLearningTests extends ESTestCase {
         @Override
         public boolean isNlpEnabled() {
             return isNlpEnabled;
+        }
+
+        @Override
+        public boolean isLearningToRankEnabled() {
+            return isLearningToRankEnabled;
+        }
+
+        @Override
+        public String[] getAnalyticsDestIndexAllowedSettings() {
+            return ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
+        }
+
+        @Override
+        public AbstractNodeAvailabilityZoneMapper getNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
+            return new NodeRealAvailabilityZoneMapper(settings, clusterSettings);
         }
     }
 
@@ -362,6 +382,12 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public static MachineLearning createTrialLicensedMachineLearning(Settings settings) {
-        return new TrialLicensedMachineLearning(settings);
+        return createTrialLicensedMachineLearning(settings, null);
+    }
+
+    public static MachineLearning createTrialLicensedMachineLearning(Settings settings, MlTestExtensionLoader loader) {
+        MachineLearning mlPlugin = new TrialLicensedMachineLearning(settings);
+        mlPlugin.loadExtensions(loader);
+        return mlPlugin;
     }
 }

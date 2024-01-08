@@ -64,6 +64,7 @@ public class JiraService extends NotificationService<JiraAccount> {
 
     private final HttpClient httpClient;
 
+    @SuppressWarnings("this-escape")
     public JiraService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super("jira", settings, clusterSettings, JiraService.getDynamicSettings(), JiraService.getSecureSettings());
         this.httpClient = httpClient;

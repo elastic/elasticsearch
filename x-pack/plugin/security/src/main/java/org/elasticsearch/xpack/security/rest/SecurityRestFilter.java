@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.FilterRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,20 +25,16 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
-import java.util.List;
-
 import static org.elasticsearch.core.Strings.format;
 
-public class SecurityRestFilter implements RestHandler {
+public class SecurityRestFilter extends FilterRestHandler implements RestHandler {
 
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
-    private final RestHandler restHandler;
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
     private final ThreadContext threadContext;
-    private final WorkflowService workflowService;
     private final OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
 
     public SecurityRestFilter(
@@ -45,29 +42,18 @@ public class SecurityRestFilter implements RestHandler {
         ThreadContext threadContext,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
-        WorkflowService workflowService,
         RestHandler restHandler,
         OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService
     ) {
+        super(restHandler);
         this.enabled = enabled;
         this.threadContext = threadContext;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
-        this.workflowService = workflowService;
-        this.restHandler = restHandler;
         // can be null if security is not enabled
         this.operatorPrivilegesService = operatorPrivilegesService == null
             ? OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE
             : operatorPrivilegesService;
-    }
-
-    @Override
-    public boolean allowSystemIndexAccessByDefault() {
-        return restHandler.allowSystemIndexAccessByDefault();
-    }
-
-    public RestHandler getConcreteRestHandler() {
-        return restHandler.getConcreteRestHandler();
     }
 
     @Override
@@ -94,7 +80,8 @@ public class SecurityRestFilter implements RestHandler {
             if (secondaryAuthentication != null) {
                 logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
             }
-            workflowService.resolveWorkflowAndStoreInThreadContext(restHandler, threadContext);
+            WorkflowService.resolveWorkflowAndStoreInThreadContext(getConcreteRestHandler(), threadContext);
+
             doHandleRequest(request, channel, client);
         }, e -> handleException(request, channel, e)));
     }
@@ -102,9 +89,9 @@ public class SecurityRestFilter implements RestHandler {
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         threadContext.sanitizeHeaders();
         // operator privileges can short circuit to return a non-successful response
-        if (operatorPrivilegesService.checkRest(restHandler, request, channel, threadContext)) {
+        if (operatorPrivilegesService.checkRest(getConcreteRestHandler(), request, channel, threadContext)) {
             try {
-                restHandler.handleRequest(request, channel, client);
+                getDelegate().handleRequest(request, channel, client);
             } catch (Exception e) {
                 logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
                 throw e;
@@ -123,40 +110,16 @@ public class SecurityRestFilter implements RestHandler {
         }
     }
 
-    @Override
-    public boolean canTripCircuitBreaker() {
-        return restHandler.canTripCircuitBreaker();
-    }
-
-    @Override
-    public boolean supportsContentStream() {
-        return restHandler.supportsContentStream();
-    }
-
-    @Override
-    public boolean allowsUnsafeBuffers() {
-        return restHandler.allowsUnsafeBuffers();
-    }
-
-    @Override
-    public List<Route> routes() {
-        return restHandler.routes();
-    }
-
     // for testing
     OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
         return operatorPrivilegesService;
     }
 
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) {
-        if (restHandler instanceof RestRequestFilter) {
-            return ((RestRequestFilter) restHandler).getFilteredRequest(restRequest);
+        if (getConcreteRestHandler() instanceof RestRequestFilter rrf) {
+            return rrf.getFilteredRequest(restRequest);
         }
         return restRequest;
     }
 
-    @Override
-    public boolean mediaTypesValid(RestRequest request) {
-        return restHandler.mediaTypesValid(request);
-    }
 }

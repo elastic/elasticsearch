@@ -104,7 +104,7 @@ public class InternalStringStats extends InternalAggregation {
         out.writeVLong(totalLength);
         out.writeVInt(minLength);
         out.writeVInt(maxLength);
-        out.writeMap(charOccurrences, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(charOccurrences, StreamOutput::writeLong);
     }
 
     public String getWriteableName() {
@@ -214,7 +214,7 @@ public class InternalStringStats extends InternalAggregation {
             minLength = Math.min(minLength, stats.getMinLength());
             maxLength = Math.max(maxLength, stats.getMaxLength());
             totalLength += stats.totalLength;
-            stats.charOccurrences.forEach((k, v) -> occurs.merge(k, v, (oldValue, newValue) -> oldValue + newValue));
+            stats.charOccurrences.forEach((k, v) -> occurs.merge(k, v, Long::sum));
         }
 
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, occurs, showDistribution, format, getMetadata());

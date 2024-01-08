@@ -11,11 +11,13 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.util.List;
 
@@ -24,7 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestPutAnalyticsCollectionAction(XPackLicenseState licenseState) {
-        super(licenseState);
+        super(licenseState, LicenseUtils.Product.BEHAVIORAL_ANALYTICS);
     }
 
     @Override
@@ -44,7 +46,7 @@ public class RestPutAnalyticsCollectionAction extends EnterpriseSearchBaseRestHa
         return channel -> client.execute(
             PutAnalyticsCollectionAction.INSTANCE,
             request,
-            new RestStatusToXContentListener<>(channel, _r -> location)
+            new RestToXContentListener<>(channel, r -> RestStatus.CREATED, _r -> location)
         );
     }
 }

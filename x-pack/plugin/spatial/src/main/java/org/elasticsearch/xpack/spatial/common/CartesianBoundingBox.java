@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.common;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.BoundingBox;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +27,10 @@ public class CartesianBoundingBox extends BoundingBox<CartesianPoint> {
 
     public CartesianBoundingBox(CartesianPoint topLeft, CartesianPoint bottomRight) {
         super(topLeft, bottomRight);
+    }
+
+    public CartesianBoundingBox(StreamInput input) throws IOException {
+        super(new CartesianPoint(input.readDouble(), input.readDouble()), new CartesianPoint(input.readDouble(), input.readDouble()));
     }
 
     @Override
@@ -47,4 +54,13 @@ public class CartesianBoundingBox extends BoundingBox<CartesianPoint> {
         out.writeDouble(bottomRight.getY());
     }
 
+    @Override
+    public final String getWriteableName() {
+        return "CartesianBoundingBox";
+    }
+
+    @Override
+    public final TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.GENERIC_NAMED_WRITABLE_ADDED;
+    }
 }

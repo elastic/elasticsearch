@@ -1,0 +1,5 @@
+pr: 101346
+summary: Report full stack trace for non-state file settings transforms
+area: Infra/Settings
+type: bug
+issues: []

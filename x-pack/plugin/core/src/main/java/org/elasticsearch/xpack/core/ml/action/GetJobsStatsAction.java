@@ -78,7 +78,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
-            expandedJobsIds = in.readStringList();
+            expandedJobsIds = in.readStringCollectionAsList();
             allowNoMatch = in.readBoolean();
         }
 

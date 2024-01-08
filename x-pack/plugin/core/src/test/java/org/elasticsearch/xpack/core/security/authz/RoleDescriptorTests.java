@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
@@ -496,7 +496,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
         final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
@@ -516,12 +516,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
-        );
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_17_0,
+            TransportVersions.V_7_17_0,
             versionBeforeRemoteIndices
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -563,7 +561,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeWorkflowsRestriction = TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_17_0,
+            TransportVersions.V_7_17_0,
             versionBeforeWorkflowsRestriction
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -614,7 +612,6 @@ public class RoleDescriptorTests extends ESTestCase {
                 "test_role_with_restriction",
                 XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
                 randomBoolean(),
-                randomBoolean(),
                 false
             )
         );
@@ -636,7 +633,6 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor role = RoleDescriptor.parse(
             "test_role_with_restriction",
             XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
-            randomBoolean(),
             randomBoolean(),
             true
         );
@@ -805,33 +801,6 @@ public class RoleDescriptorTests extends ESTestCase {
             TestMatchers.throwableWithMessage(
                 containsString("failed to parse remote indices privileges for role [test]. missing required [clusters] field")
             )
-        );
-    }
-
-    public void testParseRemoteIndicesPrivilegesFailsWhenUntrustedRemoteClusterEnabledFlagIsFalse() {
-        final String json = """
-            {
-              "remote_indices": [
-                {
-                  "names": [ "idx1", "idx2" ],
-                  "privileges": [ "all" ],
-                  "clusters": ["rmt"]
-                }
-              ]
-            }""";
-        final ElasticsearchParseException epe = expectThrows(
-            ElasticsearchParseException.class,
-            () -> RoleDescriptor.parse(
-                "test",
-                XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
-                false,
-                false,
-                false
-            )
-        );
-        assertThat(
-            epe,
-            TestMatchers.throwableWithMessage(containsString("failed to parse role [test]. unexpected field [remote_indices]"))
         );
     }
 

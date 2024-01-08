@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
@@ -41,10 +42,12 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
     private static final PolicyValidator NO_VALIDATION = policy -> {};
 
     public void testWriteBlock() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             NO_VALIDATION,
@@ -65,10 +68,12 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
     }
 
     public void testNoWriteBlock() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             NO_VALIDATION,

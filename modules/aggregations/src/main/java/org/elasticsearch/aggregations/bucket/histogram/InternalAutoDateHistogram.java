@@ -8,7 +8,7 @@
 package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -224,9 +224,9 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         super(in);
         bucketInfo = new BucketInfo(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        buckets = in.readList(stream -> new Bucket(stream, format));
+        buckets = in.readCollectionAsList(stream -> new Bucket(stream, format));
         this.targetBuckets = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             bucketInnerInterval = in.readVLong();
         } else {
             bucketInnerInterval = 1; // Calculated on merge.
@@ -237,9 +237,9 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     protected void doWriteTo(StreamOutput out) throws IOException {
         bucketInfo.writeTo(out);
         out.writeNamedWriteable(format);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         out.writeVInt(targetBuckets);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             out.writeVLong(bucketInnerInterval);
         }
     }
@@ -422,30 +422,14 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 
-    private static class BucketReduceResult {
-        final List<Bucket> buckets;
-        final int roundingIdx;
-        final long innerInterval;
-        final Rounding.Prepared preparedRounding;
-        final long min;
-        final long max;
-
-        BucketReduceResult(
-            List<Bucket> buckets,
-            int roundingIdx,
-            long innerInterval,
-            Rounding.Prepared preparedRounding,
-            long min,
-            long max
-        ) {
-            this.buckets = buckets;
-            this.roundingIdx = roundingIdx;
-            this.innerInterval = innerInterval;
-            this.preparedRounding = preparedRounding;
-            this.min = min;
-            this.max = max;
-        }
-    }
+    private record BucketReduceResult(
+        List<Bucket> buckets,
+        int roundingIdx,
+        long innerInterval,
+        Rounding.Prepared preparedRounding,
+        long min,
+        long max
+    ) {}
 
     private BucketReduceResult addEmptyBuckets(BucketReduceResult current, AggregationReduceContext reduceContext) {
         List<Bucket> list = current.buckets;

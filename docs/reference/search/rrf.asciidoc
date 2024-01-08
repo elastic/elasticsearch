@@ -1,7 +1,7 @@
 [[rrf]]
 === Reciprocal rank fusion
 
-preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will apply best effort to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
 is a method for combining multiple result sets with different relevance
@@ -51,7 +51,7 @@ equal to `1`. Defaults to `60`.
 `window_size`::
 (Optional, integer) This value determines the size of the individual result sets per
 query. A higher value will improve result relevance at the cost of performance. The final
-ranked result set is pruned down to the search request's <<search-size-param, size>.
+ranked result set is pruned down to the search request's <<search-size-param, size>>.
 `window_size` must be greater than or equal to `size` and greater than or equal to `1`.
 Defaults to `100`.
 

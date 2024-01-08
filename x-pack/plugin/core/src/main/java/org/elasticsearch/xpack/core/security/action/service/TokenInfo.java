@@ -36,7 +36,7 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
 
     public TokenInfo(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.nodeNames = in.readOptionalStringList();
+        this.nodeNames = in.readOptionalStringCollectionAsList();
     }
 
     public String getName() {

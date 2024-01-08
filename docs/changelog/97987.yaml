@@ -1,6 +1,0 @@
-pr: 97987
-summary: '`UnmappedFieldFetcher` should ignore nested fields'
-area: Search
-type: bug
-issues:
- - 97684

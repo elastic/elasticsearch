@@ -19,6 +19,7 @@ import java.nio.file.Path;
 public abstract class AbstractBootstrapCheckTestCase extends ESTestCase {
     protected final BootstrapContext emptyContext;
 
+    @SuppressWarnings("this-escape")
     public AbstractBootstrapCheckTestCase() {
         emptyContext = createTestContext(Settings.EMPTY, Metadata.EMPTY_METADATA);
     }

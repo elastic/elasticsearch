@@ -31,7 +31,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static final class Request extends AcknowledgedRequest<Request> {
 
         public static final ParseField FORCE = new ParseField("force");
         public static final ParseField TIMEOUT = new ParseField("timeout");

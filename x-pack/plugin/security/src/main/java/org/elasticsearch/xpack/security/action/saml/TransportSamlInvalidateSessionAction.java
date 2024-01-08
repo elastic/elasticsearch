@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -55,7 +56,13 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
         TokenService tokenService,
         Realms realms
     ) {
-        super(SamlInvalidateSessionAction.NAME, transportService, actionFilters, SamlInvalidateSessionRequest::new);
+        super(
+            SamlInvalidateSessionAction.NAME,
+            transportService,
+            actionFilters,
+            SamlInvalidateSessionRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.tokenService = tokenService;
         this.realms = realms;
     }
@@ -95,7 +102,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
         }
     }
 
-    private String buildLogoutResponseUrl(SamlRealm realm, SamlLogoutRequestHandler.Result result) {
+    private static String buildLogoutResponseUrl(SamlRealm realm, SamlLogoutRequestHandler.Result result) {
         final LogoutResponse response = realm.buildLogoutResponse(result.getRequestId());
         return new SamlRedirect(response, realm.getSigningConfiguration()).getRedirectUrl(result.getRelayState());
     }
@@ -109,26 +116,27 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
             return;
         }
 
-        tokenService.findActiveTokensForRealm(realm.name(), containsMetadata(tokenMetadata), ActionListener.wrap(tokens -> {
-            LOGGER.debug("Found [{}] token pairs to invalidate for SAML metadata [{}]", tokens.size(), tokenMetadata);
-            if (tokens.isEmpty()) {
-                listener.onResponse(0);
-            } else {
-                tokenService.invalidateAllTokens(tokens, ActionListener.wrap(tokensInvalidationResult -> {
-                    if (LOGGER.isInfoEnabled() && tokensInvalidationResult.getErrors().isEmpty() == false) {
-                        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                            tokensInvalidationResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                            LOGGER.info("Failed to invalidate some SAML access or refresh tokens {}", Strings.toString(builder));
-                        }
+        tokenService.invalidateActiveTokens(
+            realm.name(),
+            null,
+            containsMetadata((tokenMetadata)),
+            ActionListener.wrap(tokensInvalidationResult -> {
+                if (LOGGER.isInfoEnabled() && tokensInvalidationResult.getErrors().isEmpty() == false) {
+                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                        tokensInvalidationResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                        LOGGER.info("Failed to invalidate some SAML access or refresh tokens {}", Strings.toString(builder));
                     }
-                    // return only the total of active tokens for users of the realm, i.e. not the number of actually invalidated tokens
-                    listener.onResponse(tokens.size());
-                }, listener::onFailure));
-            }
-        }, listener::onFailure));
+                }
+                // return only the total of active tokens for users of the realm, i.e. not the number of actually invalidated tokens
+                int totalTokensFound = tokensInvalidationResult.getInvalidatedTokens().size() + tokensInvalidationResult
+                    .getPreviouslyInvalidatedTokens()
+                    .size() + tokensInvalidationResult.getErrors().size();
+                listener.onResponse(totalTokensFound);
+            }, listener::onFailure)
+        );
     }
 
-    private Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {
+    private static Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {
         return source -> {
             @SuppressWarnings("unchecked")
             Map<String, Object> actualMetadata = (Map<String, Object>) source.get("metadata");

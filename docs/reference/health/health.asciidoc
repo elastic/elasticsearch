@@ -413,7 +413,7 @@ watermark threshold>>.
 
 `unhealthy_policies`::
     (map) A detailed view on the policies that are considered unhealthy due to having
-    several consecutive unssuccesful invocations.
+    several consecutive unsuccessful invocations.
     The `count` key represents the number of unhealthy policies (int).
     The `invocations_since_last_success` key will report a map where the unhealthy policy
     name is the key and it's corresponding number of failed invocations is the value.

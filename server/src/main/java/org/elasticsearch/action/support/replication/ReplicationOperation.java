@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -293,7 +294,8 @@ public class ReplicationOperation<
             threadPool,
             initialRetryBackoffBound,
             retryTimeout,
-            replicationListener
+            replicationListener,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -428,7 +430,8 @@ public class ReplicationOperation<
             return null;  // not waiting for any shards
         }
         final IndexShardRoutingTable shardRoutingTable = primary.getReplicationGroup().getRoutingTable();
-        if (waitForActiveShards.enoughShardsActive(shardRoutingTable)) {
+        ActiveShardCount.EnoughShards enoughShardsActive = waitForActiveShards.enoughShardsActive(shardRoutingTable);
+        if (enoughShardsActive.enoughShards()) {
             return null;
         } else {
             final String resolvedShards = waitForActiveShards == ActiveShardCount.ALL
@@ -439,7 +442,7 @@ public class ReplicationOperation<
                     + "request [{}]",
                 shardId,
                 waitForActiveShards,
-                shardRoutingTable.activeShards().size(),
+                enoughShardsActive.currentActiveShards(),
                 resolvedShards,
                 opType,
                 request
@@ -447,7 +450,7 @@ public class ReplicationOperation<
             return "Not enough active copies to meet shard count of ["
                 + waitForActiveShards
                 + "] (have "
-                + shardRoutingTable.activeShards().size()
+                + enoughShardsActive.currentActiveShards()
                 + ", needed "
                 + resolvedShards
                 + ").";
@@ -659,7 +662,7 @@ public class ReplicationOperation<
 
     }
 
-    public static class RetryOnPrimaryException extends ElasticsearchException {
+    public static final class RetryOnPrimaryException extends ElasticsearchException {
         public RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
         }

@@ -144,6 +144,9 @@ setup:
 
 ---
 "Test flamegraph":
+  - skip:
+      version: all
+      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/104038
   - do:
       profiling.flamegraph:
         body: >

@@ -681,7 +681,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         options.addHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN);
         getFeed.setOptions(options);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getFeed));
-
         assertThat(e.getMessage(), containsString("[indices:data/read/field_caps] is unauthorized for user [ml_admin]"));
     }
 
@@ -722,7 +721,12 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         options.addHeader("es-secondary-authorization", BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS);
         getFeed.setOptions(options);
         // Should not fail as secondary auth has permissions.
-        client().performRequest(getFeed);
+        var response = client().performRequest(getFeed);
+        assertXProductResponseHeader(response);
+    }
+
+    private void assertXProductResponseHeader(Response response) {
+        assertEquals("Elasticsearch", response.getHeader("X-elastic-product"));
     }
 
     public void testLookbackOnlyGivenAggregationsWithHistogram() throws Exception {
@@ -1518,6 +1522,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         public void execute() throws Exception {
             Response jobResponse = createJob(jobId, airlineVariant);
+            assertXProductResponseHeader(jobResponse);
             assertThat(jobResponse.getStatusLine().getStatusCode(), equalTo(200));
             String datafeedId = "datafeed-" + jobId;
             new DatafeedBuilder(datafeedId, jobId, dataIndex).setScriptedFields(scriptedFields).build();
@@ -1529,6 +1534,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             Response jobStatsResponse = client().performRequest(
                 new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
             );
+            assertXProductResponseHeader(jobStatsResponse);
             String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
             if (shouldSucceedInput) {
                 assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
@@ -1556,12 +1562,14 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         options.addHeader("Authorization", authHeader);
         request.setOptions(options);
         Response startDatafeedResponse = client().performRequest(request);
+        assertXProductResponseHeader(startDatafeedResponse);
         assertThat(EntityUtils.toString(startDatafeedResponse.getEntity()), containsString("\"started\":true"));
         assertBusy(() -> {
             try {
                 Response datafeedStatsResponse = client().performRequest(
                     new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
                 );
+                assertXProductResponseHeader(datafeedStatsResponse);
                 assertThat(EntityUtils.toString(datafeedStatsResponse.getEntity()), containsString("\"state\":\"stopped\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -1575,6 +1583,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 Response jobStatsResponse = client().performRequest(
                     new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
                 );
+                assertXProductResponseHeader(jobStatsResponse);
                 assertThat(EntityUtils.toString(jobStatsResponse.getEntity()), containsString("\"state\":\"closed\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);

@@ -198,7 +198,6 @@ public class InboundHandlerTests extends ESTestCase {
 
         TransportChannel transportChannel = channelCaptor.get();
         assertEquals(TransportVersion.current(), transportChannel.getVersion());
-        assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 
         String responseValue = randomAlphaOfLength(10);

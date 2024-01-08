@@ -589,30 +589,33 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             null,
             SearchResponse.Clusters.EMPTY
         );
+        try {
+            client.lastSearch.get().listener.onResponse(searchResponse);
 
-        client.lastSearch.get().listener.onResponse(searchResponse);
+            assertEquals(0, capturedDelay.get().seconds());
+            capturedCommand.get().run();
 
-        assertEquals(0, capturedDelay.get().seconds());
-        capturedCommand.get().run();
+            // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
+            assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
-        // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
-        assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
+            // Now we can simulate a response and check the delay that we used for the task
+            if (randomBoolean()) {
+                client.lastScroll.get().listener.onResponse(searchResponse);
+                assertEquals(99, capturedDelay.get().seconds());
+            } else {
+                // Let's rethrottle between the starting the scroll and getting the response
+                worker.rethrottle(10f);
+                client.lastScroll.get().listener.onResponse(searchResponse);
+                // The delay uses the new throttle
+                assertEquals(9, capturedDelay.get().seconds());
+            }
 
-        // Now we can simulate a response and check the delay that we used for the task
-        if (randomBoolean()) {
-            client.lastScroll.get().listener.onResponse(searchResponse);
-            assertEquals(99, capturedDelay.get().seconds());
-        } else {
-            // Let's rethrottle between the starting the scroll and getting the response
-            worker.rethrottle(10f);
-            client.lastScroll.get().listener.onResponse(searchResponse);
-            // The delay uses the new throttle
-            assertEquals(9, capturedDelay.get().seconds());
+            // Running the command ought to increment the delay counter on the task.
+            capturedCommand.get().run();
+            assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
+        } finally {
+            searchResponse.decRef();
         }
-
-        // Running the command ought to increment the delay counter on the task.
-        capturedCommand.get().run();
-        assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
     }
 
     /**

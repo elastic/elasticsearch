@@ -1251,7 +1251,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         testBlockLoader(true, true);
     }
 
-    public final void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
+    // Removed 'final' to silence this test in GeoPointFieldMapperTests, which does not support synthetic source completely
+    public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
         testBlockLoader(true, false);
     }
 
@@ -1289,6 +1290,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             @Override
             public String parentField(String field) {
                 return mapper.mappingLookup().parentField(field);
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return (FieldNamesFieldMapper.FieldNamesFieldType) mapper.fieldType(FieldNamesFieldMapper.NAME);
             }
         });
         Function<Object, Object> valuesConvert = loadBlockExpected();

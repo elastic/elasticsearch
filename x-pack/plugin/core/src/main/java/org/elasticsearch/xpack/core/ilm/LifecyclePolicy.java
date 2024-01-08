@@ -109,7 +109,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         type = in.readNamedWriteable(LifecycleType.class);
         name = in.readString();
         phases = in.readImmutableMap(Phase::new);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
             this.deprecated = in.readOptionalBoolean();
         } else {

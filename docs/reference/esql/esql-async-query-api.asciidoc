@@ -87,6 +87,6 @@ is still running, {es} cancels it.
 
 [source,console]
 ----
-DELETE /_query/async/delete/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
+DELETE /_query/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
 ----
 // TEST[skip: no access to search ID]

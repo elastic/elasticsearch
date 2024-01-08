@@ -10,8 +10,8 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -530,7 +530,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // Creating a pipeline should work
         PlainActionFuture<AcknowledgedResponse> putPipelineListener = new PlainActionFuture<>();
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(
                 "test_infer_license_pipeline",
                 new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
@@ -578,7 +578,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // Creating a new pipeline with an inference processor should work
         putPipelineListener = new PlainActionFuture<>();
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(
                 "test_infer_license_pipeline_again",
                 new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
@@ -612,7 +612,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         // test that license restricted apis do now work
         PlainActionFuture<AcknowledgedResponse> putPipelineListenerNewLicense = new PlainActionFuture<>();
         client().execute(
-            PutPipelineAction.INSTANCE,
+            PutPipelineTransportAction.TYPE,
             new PutPipelineRequest(
                 "test_infer_license_pipeline",
                 new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),

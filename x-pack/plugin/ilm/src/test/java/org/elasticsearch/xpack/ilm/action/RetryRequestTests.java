@@ -5,20 +5,19 @@
  * 2.0.
  *
  */
-package org.elasticsearch.xpack.core.ilm.action;
+package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ilm.action.RetryAction.Request;
 
 import java.util.Arrays;
 
-public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class RetryRequestTests extends AbstractWireSerializingTestCase<TransportRetryAction.Request> {
 
     @Override
-    protected Request createTestInstance() {
-        Request request = new Request();
+    protected TransportRetryAction.Request createTestInstance() {
+        TransportRetryAction.Request request = new TransportRetryAction.Request();
         if (randomBoolean()) {
             request.indices(generateRandomStringArray(20, 20, false));
         }
@@ -39,12 +38,12 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Writeable.Reader<TransportRetryAction.Request> instanceReader() {
+        return TransportRetryAction.Request::new;
     }
 
     @Override
-    protected Request mutateInstance(Request instance) {
+    protected TransportRetryAction.Request mutateInstance(TransportRetryAction.Request instance) {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
@@ -67,7 +66,7 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> 
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        Request newRequest = new Request();
+        TransportRetryAction.Request newRequest = new TransportRetryAction.Request();
         newRequest.indices(indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;

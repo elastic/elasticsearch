@@ -1,0 +1,12 @@
+pr: 104091
+summary: "[ESQL] Remove is_nan, is_finite, and `is_infinite`"
+area: ES|QL
+type: breaking
+issues: []
+breaking:
+  title: "[ESQL] Remove is_nan, is_finite, and `is_infinite`"
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

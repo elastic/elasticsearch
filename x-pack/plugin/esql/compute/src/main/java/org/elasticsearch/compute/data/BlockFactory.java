@@ -79,7 +79,7 @@ public class BlockFactory {
     /**
      * Adjust the circuit breaker with the given delta, if the delta is negative, the breaker will
      * be adjusted without tripping.
-     * @throws CircuitBreakingException if the breaker was put above its limit; should always be caught.
+     * @throws CircuitBreakingException if the breaker was put above its limit
      */
     void adjustBreaker(final long delta) throws CircuitBreakingException {
         // checking breaker means potentially tripping, but it doesn't

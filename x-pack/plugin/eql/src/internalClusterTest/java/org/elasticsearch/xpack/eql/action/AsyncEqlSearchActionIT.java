@@ -32,10 +32,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -157,7 +157,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
         AcknowledgedResponse deleteResponse = client().execute(
-            DeleteAsyncResultAction.INSTANCE,
+            TransportDeleteAsyncResultAction.TYPE,
             new DeleteAsyncResultRequest(response.id())
         ).actionGet();
         assertThat(deleteResponse.isAcknowledged(), equalTo(true));
@@ -254,13 +254,13 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         logger.trace("Block is established");
 
         ActionFuture<AcknowledgedResponse> deleteResponse = client().execute(
-            DeleteAsyncResultAction.INSTANCE,
+            TransportDeleteAsyncResultAction.TYPE,
             new DeleteAsyncResultRequest(response.id())
         );
         disableBlocks(plugins);
         assertThat(deleteResponse.actionGet().isAcknowledged(), equalTo(true));
 
-        deleteResponse = client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id()));
+        deleteResponse = client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(response.id()));
         assertFutureThrows(deleteResponse, ResourceNotFoundException.class);
     }
 
@@ -297,7 +297,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 assertThat(storedResponse, equalTo(response));
 
                 AcknowledgedResponse deleteResponse = client().execute(
-                    DeleteAsyncResultAction.INSTANCE,
+                    TransportDeleteAsyncResultAction.TYPE,
                     new DeleteAsyncResultRequest(response.id())
                 ).actionGet();
                 assertThat(deleteResponse.isAcknowledged(), equalTo(true));

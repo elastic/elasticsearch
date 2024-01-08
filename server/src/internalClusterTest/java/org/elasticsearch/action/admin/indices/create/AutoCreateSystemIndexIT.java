@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -220,8 +220,8 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             .build();
         assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
             )
         );
 
@@ -244,8 +244,8 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
             )
         );
     }
@@ -267,8 +267,8 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
             )
         );
     }

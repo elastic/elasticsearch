@@ -77,4 +77,9 @@ public class Equals extends org.elasticsearch.xpack.ql.expression.predicate.oper
     static boolean processBools(boolean lhs, boolean rhs) {
         return lhs == rhs;
     }
+
+    @Evaluator(extraName = "Geometries")
+    static boolean processGeometries(BytesRef lhs, BytesRef rhs) {
+        return lhs.equals(rhs);
+    }
 }

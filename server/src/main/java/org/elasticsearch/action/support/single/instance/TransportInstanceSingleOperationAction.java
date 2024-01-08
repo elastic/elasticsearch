@@ -57,6 +57,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
     final String shardActionName;
 
+    @SuppressWarnings("this-escape")
     protected TransportInstanceSingleOperationAction(
         String actionName,
         ThreadPool threadPool,

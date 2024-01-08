@@ -18,7 +18,7 @@ import java.nio.file.Path;
 import java.util.function.Function;
 
 /**
- * The in-memory cache for the geoip data. There should only be 1 instance of this class..
+ * The in-memory cache for the geoip data. There should only be 1 instance of this class.
  * This cache differs from the maxmind's {@link NodeCache} such that this cache stores the deserialized Json objects to avoid the
  * cost of deserialization for each lookup (cached or not). This comes at slight expense of higher memory usage, but significant
  * reduction of CPU usage.

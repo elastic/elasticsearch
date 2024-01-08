@@ -1,0 +1,11 @@
+pr: 104087
+summary: Deprecate machine learning on Intel macOS
+area: Machine Learning
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate machine learning on Intel macOS
+  area: Machine Learning
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

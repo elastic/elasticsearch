@@ -98,6 +98,8 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -170,13 +172,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         };
         setDurability(shard, Translog.Durability.REQUEST);
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
         setDurability(shard, Translog.Durability.ASYNC);
         indexDoc("test", "2", "{}", XContentType.JSON, null);
-        assertTrue(needsSync.test(translog));
+        assertThat(needsSync, trueWith(translog));
         setDurability(shard, Translog.Durability.REQUEST);
         client().prepareDelete("test", "1").get();
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
         client().prepareDelete("test", "2").get();
@@ -191,7 +193,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             );
             indexRequestBuilder.request().decRef();
         }
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
         try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
@@ -204,7 +206,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             indexRequestBuilder.request().decRef();
         }
         setDurability(shard, Translog.Durability.REQUEST);
-        assertTrue(needsSync.test(translog));
+        assertThat(needsSync, trueWith(translog));
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {

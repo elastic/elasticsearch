@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
@@ -130,8 +131,8 @@ public class EsqlDataTypeConverter {
         return DataTypeConverter.commonType(left, right);
     }
 
-    public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws QlIllegalArgumentException,
-        ArithmeticException {
+    public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws InvalidArgumentException,
+        ArithmeticException, ParsingException {
         return switch (qualifier) {
             case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
             case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));

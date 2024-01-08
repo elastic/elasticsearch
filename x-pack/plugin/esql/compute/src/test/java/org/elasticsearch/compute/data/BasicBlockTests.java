@@ -445,11 +445,11 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testBytesRefBlockOnGeoPoints() {
-        testBytesRefBlock(() -> GEO.pointAsWKB(randomGeoPoint()), false, GEO::wkbAsPoint);
+        testBytesRefBlock(() -> GEO.pointAsWKB(randomGeoPoint()), false, GEO::wkbAsString);
     }
 
     public void testBytesRefBlockOnCartesianPoints() {
-        testBytesRefBlock(() -> CARTESIAN.pointAsWKB(randomCartesianPoint()), false, CARTESIAN::wkbAsPoint);
+        testBytesRefBlock(() -> CARTESIAN.pointAsWKB(randomCartesianPoint()), false, CARTESIAN::wkbAsString);
     }
 
     public void testBytesRefBlockBuilderWithNulls() {

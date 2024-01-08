@@ -104,7 +104,7 @@
       },
       "require_data_stream": {
         "type": "boolean",
-        "description": "When true, requires destination to have a parent data stream. Default is false"
+        "description": "When true, requires the destination to be a data stream (existing or to-be-created). Default is false"
       }
     },
     "body":{

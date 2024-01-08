@@ -27,11 +27,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -66,7 +64,10 @@ public class AggregatorBenchmark {
     private static final int OP_COUNT = 1024;
     private static final int GROUPS = 5;
 
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
+    private static final BlockFactory blockFactory = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop"),
+        BigArrays.NON_RECYCLING_INSTANCE  // TODO real big arrays?
+    );
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";
@@ -116,8 +117,7 @@ public class AggregatorBenchmark {
     @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES })
     public String blockType;
 
-    private static Operator operator(String grouping, String op, String dataType) {
-        DriverContext driverContext = driverContext();
+    private static Operator operator(DriverContext driverContext, String grouping, String op, String dataType) {
         if (grouping.equals("none")) {
             return new AggregationOperator(
                 List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE).apply(driverContext)),
@@ -154,25 +154,25 @@ public class AggregatorBenchmark {
 
     private static AggregatorFunctionSupplier supplier(String op, String dataType, int dataChannel) {
         return switch (op) {
-            case COUNT -> CountAggregatorFunction.supplier(BIG_ARRAYS, List.of(dataChannel));
+            case COUNT -> CountAggregatorFunction.supplier(List.of(dataChannel));
             case COUNT_DISTINCT -> switch (dataType) {
-                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);
-                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel), 3000);
+                case LONGS -> new CountDistinctLongAggregatorFunctionSupplier(List.of(dataChannel), 3000);
+                case DOUBLES -> new CountDistinctDoubleAggregatorFunctionSupplier(List.of(dataChannel), 3000);
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case MAX -> switch (dataType) {
-                case LONGS -> new MaxLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new MaxDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new MaxLongAggregatorFunctionSupplier(List.of(dataChannel));
+                case DOUBLES -> new MaxDoubleAggregatorFunctionSupplier(List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case MIN -> switch (dataType) {
-                case LONGS -> new MinLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new MinDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new MinLongAggregatorFunctionSupplier(List.of(dataChannel));
+                case DOUBLES -> new MinDoubleAggregatorFunctionSupplier(List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             case SUM -> switch (dataType) {
-                case LONGS -> new SumLongAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
-                case DOUBLES -> new SumDoubleAggregatorFunctionSupplier(BIG_ARRAYS, List.of(dataChannel));
+                case LONGS -> new SumLongAggregatorFunctionSupplier(List.of(dataChannel));
+                case DOUBLES -> new SumDoubleAggregatorFunctionSupplier(List.of(dataChannel));
                 default -> throw new IllegalArgumentException("unsupported data type [" + dataType + "]");
             };
             default -> throw new IllegalArgumentException("unsupported op [" + op + "]");
@@ -432,8 +432,8 @@ public class AggregatorBenchmark {
         }
     }
 
-    private static Page page(String grouping, String blockType) {
-        Block dataBlock = dataBlock(blockType);
+    private static Page page(BlockFactory blockFactory, String grouping, String blockType) {
+        Block dataBlock = dataBlock(blockFactory, blockType);
         if (grouping.equals("none")) {
             return new Page(dataBlock);
         }
@@ -441,15 +441,15 @@ public class AggregatorBenchmark {
         return new Page(Stream.concat(blocks.stream(), Stream.of(dataBlock)).toArray(Block[]::new));
     }
 
-    private static Block dataBlock(String blockType) {
+    private static Block dataBlock(BlockFactory blockFactory, String blockType) {
         return switch (blockType) {
-            case VECTOR_LONGS -> new LongArrayVector(LongStream.range(0, BLOCK_LENGTH).toArray(), BLOCK_LENGTH).asBlock();
-            case VECTOR_DOUBLES -> new DoubleArrayVector(
+            case VECTOR_LONGS -> blockFactory.newLongArrayVector(LongStream.range(0, BLOCK_LENGTH).toArray(), BLOCK_LENGTH).asBlock();
+            case VECTOR_DOUBLES -> blockFactory.newDoubleArrayVector(
                 LongStream.range(0, BLOCK_LENGTH).mapToDouble(l -> Long.valueOf(l).doubleValue()).toArray(),
                 BLOCK_LENGTH
             ).asBlock();
             case MULTIVALUED_LONGS -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 builder.beginPositionEntry();
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i);
@@ -462,7 +462,7 @@ public class AggregatorBenchmark {
                 yield builder.build();
             }
             case HALF_NULL_LONGS -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i);
                     builder.appendNull();
@@ -470,7 +470,7 @@ public class AggregatorBenchmark {
                 yield builder.build();
             }
             case HALF_NULL_DOUBLES -> {
-                var builder = DoubleBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendDouble(i);
                     builder.appendNull();
@@ -502,7 +502,7 @@ public class AggregatorBenchmark {
         };
         return switch (grouping) {
             case LONGS -> {
-                var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
                         builder.appendLong(i % GROUPS);
@@ -511,7 +511,7 @@ public class AggregatorBenchmark {
                 yield builder.build();
             }
             case INTS -> {
-                var builder = IntBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
                         builder.appendInt(i % GROUPS);
@@ -520,7 +520,7 @@ public class AggregatorBenchmark {
                 yield builder.build();
             }
             case DOUBLES -> {
-                var builder = DoubleBlock.newBlockBuilder(BLOCK_LENGTH);
+                var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
                         builder.appendDouble(i % GROUPS);
@@ -529,7 +529,7 @@ public class AggregatorBenchmark {
                 yield builder.build();
             }
             case BOOLEANS -> {
-                BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(BLOCK_LENGTH);
+                BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
                         builder.appendBoolean(i % 2 == 1);
@@ -538,7 +538,7 @@ public class AggregatorBenchmark {
                 yield builder.build();
             }
             case BYTES_REFS -> {
-                BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(BLOCK_LENGTH);
+                BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     for (int v = 0; v < valuesPerGroup; v++) {
                         builder.appendBytesRef(bytesGroup(i % GROUPS));
@@ -574,8 +574,9 @@ public class AggregatorBenchmark {
             default -> throw new IllegalArgumentException();
         };
 
-        Operator operator = operator(grouping, op, dataType);
-        Page page = page(grouping, blockType);
+        DriverContext driverContext = driverContext();
+        Operator operator = operator(driverContext, grouping, op, dataType);
+        Page page = page(driverContext.blockFactory(), grouping, blockType);
         for (int i = 0; i < opCount; i++) {
             operator.addInput(page);
         }
@@ -584,9 +585,6 @@ public class AggregatorBenchmark {
     }
 
     static DriverContext driverContext() {
-        return new DriverContext(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE)
-        );
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 }

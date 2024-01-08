@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -142,10 +142,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 throw e;
             }
         }
-        var deleteComposableIndexTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
-        assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteComposableIndexTemplateRequest).actionGet());
-        var deleteComponentTemplateRequest = new DeleteComponentTemplateAction.Request("*");
-        assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, deleteComponentTemplateRequest).actionGet());
+        var deleteComposableIndexTemplateRequest = new TransportDeleteComposableIndexTemplateAction.Request("*");
+        assertAcked(client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, deleteComposableIndexTemplateRequest).actionGet());
+        var deleteComponentTemplateRequest = new TransportDeleteComponentTemplateAction.Request("*");
+        assertAcked(client().execute(TransportDeleteComponentTemplateAction.TYPE, deleteComponentTemplateRequest).actionGet());
         assertAcked(indicesAdmin().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get());
         Metadata metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         assertThat(
@@ -421,7 +421,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             logger.info(
                 "ensureGreen timed out, cluster state:\n{}\n{}",
                 clusterAdmin().prepareState().get().getState(),
-                clusterAdmin().preparePendingClusterTasks().get()
+                ESIntegTestCase.getClusterPendingTasks(client())
             );
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }

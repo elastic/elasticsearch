@@ -28,7 +28,6 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -130,7 +129,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private List<SearchRequest> searchRequests;
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
-    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> new SearchHit[0];
+    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> SearchHits.EMPTY;
 
     @Before
     public void setup() throws Exception {
@@ -201,15 +200,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     ActionListener.respondAndRelease(
                         listener,
                         (Response) new SearchResponse(
-                            new SearchResponseSections(
-                                new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                                null,
-                                null,
-                                false,
-                                false,
-                                null,
-                                1
-                            ),
+                            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            1,
                             "_scrollId1",
                             1,
                             1,
@@ -221,19 +218,16 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     );
                 } else if (TransportSearchScrollAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
-                    final SearchHit[] hits = new SearchHit[0];
                     ActionListener.respondAndRelease(
                         listener,
                         (Response) new SearchResponse(
-                            new SearchResponseSections(
-                                new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                                null,
-                                null,
-                                false,
-                                false,
-                                null,
-                                1
-                            ),
+                            SearchHits.EMPTY_WITH_TOTAL_HITS,
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            1,
                             "_scrollId1",
                             1,
                             1,
@@ -368,7 +362,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .filter(r -> r.id().startsWith("token"))
             .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
             .collect(Collectors.toList())
-            .toArray(new SearchHit[0]);
+            .toArray(SearchHits.EMPTY);
         assertThat(searchHits.length, equalTo(4));
         searchFunction = req1 -> {
             searchFunction = findTokenByRefreshToken(searchHits);
@@ -469,7 +463,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     return new SearchHit[] { hit };
                 }
             }
-            return new SearchHit[0];
+            return SearchHits.EMPTY;
         };
     }
 

@@ -50,7 +50,12 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
     ) {
         apiKeyService.updateApiKeys(
             authentication,
-            new BaseBulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata()) {
+            new BaseBulkUpdateApiKeyRequest(
+                List.of(request.getId()),
+                request.getRoleDescriptors(),
+                request.getMetadata(),
+                request.getExpiration()
+            ) {
                 @Override
                 public ApiKey.Type getType() {
                     return ApiKey.Type.CROSS_CLUSTER;

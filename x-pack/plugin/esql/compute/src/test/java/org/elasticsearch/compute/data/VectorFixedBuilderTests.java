@@ -116,10 +116,10 @@ public class VectorFixedBuilderTests extends ESTestCase {
     private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory) {
         return switch (elementType) {
             case NULL, BYTES_REF, DOC, UNKNOWN -> throw new UnsupportedOperationException();
-            case BOOLEAN -> BooleanVector.newVectorFixedBuilder(size, blockFactory);
-            case DOUBLE -> DoubleVector.newVectorFixedBuilder(size, blockFactory);
-            case INT -> IntVector.newVectorFixedBuilder(size, blockFactory);
-            case LONG -> LongVector.newVectorFixedBuilder(size, blockFactory);
+            case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
+            case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
+            case INT -> blockFactory.newIntVectorFixedBuilder(size);
+            case LONG -> blockFactory.newLongVectorFixedBuilder(size);
         };
     }
 

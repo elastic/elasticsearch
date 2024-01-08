@@ -10,7 +10,9 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -207,9 +209,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> force allocation of stale copy to node that does not have shard copy");
         Throwable iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareReroute()
-                .add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true))
-                .get()
+            clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true))
         );
         assertThat(iae.getMessage(), equalTo("No data for shard [0] of index [test] found on any node"));
 
@@ -248,10 +248,10 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
         logger.info("--> explicitly promote old primary shard");
         final String idxName = "test";
-        Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = indicesAdmin().prepareShardStores(idxName)
-            .get()
-            .getStoreStatuses()
-            .get(idxName);
+        Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().execute(
+            TransportIndicesShardStoresAction.TYPE,
+            new IndicesShardStoresRequest(idxName)
+        ).get().getStoreStatuses().get(idxName);
         ClusterRerouteRequestBuilder rerouteBuilder = clusterAdmin().prepareReroute();
         for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses.entrySet()) {
             int shardId = shardStoreStatuses.getKey();
@@ -333,7 +333,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final int shardId = 0;
         final List<String> nodeNames = new ArrayList<>(Arrays.asList(internalCluster().getNodeNames()));
         nodeNames.remove(master);
-        indicesAdmin().prepareShardStores(idxName)
+        client().execute(TransportIndicesShardStoresAction.TYPE, new IndicesShardStoresRequest(idxName))
             .get()
             .getStoreStatuses()
             .get(idxName)
@@ -343,9 +343,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String nodeWithoutData = nodeNames.get(0);
         Throwable iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareReroute()
-                .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
-                .get()
+            clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
         );
         assertThat(
             iae.getMessage(),
@@ -363,9 +361,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final int shardId = 0;
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareReroute()
-                .add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
-                .get()
+            clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, shardId, nodeWithoutData, true))
         );
         assertThat(iae.getMessage(), equalTo("[allocate_stale_primary] primary [" + idxName + "][" + shardId + "] is already assigned"));
     }
@@ -376,7 +372,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String idxName = "test";
         IndexNotFoundException ex = expectThrows(
             IndexNotFoundException.class,
-            () -> clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, 0, dataNode, true)).get()
+            clusterAdmin().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(idxName, 0, dataNode, true))
         );
         assertThat(ex.getIndex().getName(), equalTo(idxName));
     }

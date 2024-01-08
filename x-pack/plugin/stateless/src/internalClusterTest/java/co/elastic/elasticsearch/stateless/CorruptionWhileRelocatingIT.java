@@ -160,11 +160,6 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
                     public String getProfileName() {
                         return channel.getProfileName();
                     }
-
-                    @Override
-                    public String getChannelType() {
-                        return channel.getChannelType();
-                    }
                 }, task)
             );
 
@@ -253,11 +248,6 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
                     @Override
                     public String getProfileName() {
                         return channel.getProfileName();
-                    }
-
-                    @Override
-                    public String getChannelType() {
-                        return channel.getChannelType();
                     }
                 }, task)
             );

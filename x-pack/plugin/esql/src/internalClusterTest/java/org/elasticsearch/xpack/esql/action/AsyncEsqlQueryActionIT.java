@@ -164,9 +164,9 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
         scriptPermits.release(numberOfDocs());
 
-        var request = new EsqlQueryRequestBuilder(client()).query("from test | stats sum(pause_me)")
+        var request = EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
+            .query("from test | stats sum(pause_me)")
             .pragmas(queryPragmas())
-            .async(true)
             .waitForCompletionTimeout(TimeValue.timeValueSeconds(60))
             .keepOnCompletion(keepOnCompletion)
             .keepAlive(randomKeepAlive());
@@ -218,11 +218,11 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
         scriptPermits.release(between(1, 5));
         var pragmas = queryPragmas();
-        return new EsqlQueryRequestBuilder(client()).query("from test | stats sum(pause_me)")
+        return EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
+            .query("from test | stats sum(pause_me)")
             .pragmas(pragmas)
-            .async(true)
             // deliberately small timeout, to frequently trigger incomplete response
-            .waitForCompletionTimeout(TimeValue.timeValueNanos(1))
+            .waitForCompletionTimeout(TimeValue.timeValueNanos(randomIntBetween(1, 20)))
             .keepOnCompletion(randomBoolean())
             .keepAlive(randomKeepAlive())
             .execute()

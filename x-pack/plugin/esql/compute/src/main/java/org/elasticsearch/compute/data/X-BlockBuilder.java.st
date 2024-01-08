@@ -261,7 +261,7 @@ $if(BytesRef)$
              * still technically be open, meaning the calling code should close it
              * which will return all used memory to the breaker.
              */
-            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes, false);
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes);
             Releasables.closeExpectNoException(values);
         } else {
             if (isDense() && singleValued()) {
@@ -277,7 +277,7 @@ $if(BytesRef)$
              * still technically be open, meaning the calling code should close it
              * which will return all used memory to the breaker.
              */
-            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed(), false);
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed());
         }
         return theBlock;
     }
@@ -311,7 +311,7 @@ $else$
         * still technically be open, meaning the calling code should close it
         * which will return all used memory to the breaker.
         */
-        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed(), false);
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
         return theBlock;
     }
 $endif$

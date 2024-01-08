@@ -38,12 +38,10 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
             .addField("single", "a")
             .addField("array", Arrays.asList("b", "c"))
             .build();
-        try {
-            String json = searchHitToString(extractedFields, hit);
-            assertThat(json, equalTo("{\"time\":1000,\"single\":\"a\",\"array\":[\"b\",\"c\"]}"));
-        } finally {
-            hit.decRef();
-        }
+
+        String json = searchHitToString(extractedFields, hit);
+
+        assertThat(json, equalTo("{\"time\":1000,\"single\":\"a\",\"array\":[\"b\",\"c\"]}"));
     }
 
     public void testProcessGivenMultipleHits() throws IOException {
@@ -65,16 +63,12 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
             .addField("single", "a2")
             .addField("array", Arrays.asList("b2", "c2"))
             .build();
-        try {
-            String json = searchHitToString(extractedFields, hit1, hit2);
 
-            assertThat(json, equalTo("""
-                {"time":1000,"single":"a1","array":["b1","c1"]} \
-                {"time":2000,"single":"a2","array":["b2","c2"]}"""));
-        } finally {
-            hit1.decRef();
-            hit2.decRef();
-        }
+        String json = searchHitToString(extractedFields, hit1, hit2);
+
+        assertThat(json, equalTo("""
+            {"time":1000,"single":"a1","array":["b1","c1"]} \
+            {"time":2000,"single":"a2","array":["b2","c2"]}"""));
     }
 
     private String searchHitToString(ExtractedFields fields, SearchHit... searchHits) throws IOException {

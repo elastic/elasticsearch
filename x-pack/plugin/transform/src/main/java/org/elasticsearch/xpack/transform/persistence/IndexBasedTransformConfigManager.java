@@ -390,7 +390,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     resultListener.onResponse(TransformCheckpoint.EMPTY);
                     return;
                 }
-                BytesReference source = searchResponse.getHits().getAt(0).getSourceRef();
+                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
                 parseCheckpointsLenientlyFromSource(source, transformId, resultListener);
             }, resultListener::onFailure)
         );
@@ -426,9 +426,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     checkpointAndVersionListener.onResponse(null);
                     return;
                 }
-                SearchHit hit = searchResponse.getHits().getAt(0);
+                SearchHit hit = searchResponse.getHits().getHits()[0];
+                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
                 parseCheckpointsLenientlyFromSource(
-                    hit.getSourceRef(),
+                    source,
                     transformId,
                     ActionListener.wrap(
                         parsedCheckpoint -> checkpointAndVersionListener.onResponse(
@@ -470,7 +471,8 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     );
                     return;
                 }
-                parseTransformLenientlyFromSource(searchResponse.getHits().getAt(0).getSourceRef(), transformId, resultListener);
+                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+                parseTransformLenientlyFromSource(source, transformId, resultListener);
             }, resultListener::onFailure)
         );
     }
@@ -500,7 +502,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 );
                 return;
             }
-            SearchHit hit = searchResponse.getHits().getAt(0);
+            SearchHit hit = searchResponse.getHits().getHits()[0];
             BytesReference source = hit.getSourceRef();
             parseTransformLenientlyFromSource(
                 source,
@@ -774,7 +776,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     }
                     return;
                 }
-                SearchHit searchHit = searchResponse.getHits().getAt(0);
+                SearchHit searchHit = searchResponse.getHits().getHits()[0];
                 try (XContentParser parser = createParser(searchHit)) {
                     resultListener.onResponse(
                         Tuple.tuple(TransformStoredDoc.fromXContent(parser), SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit))

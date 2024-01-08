@@ -40,16 +40,17 @@ import java.util.concurrent.Executor;
  * private void exampleAsyncMethod(String request, List&lt;Long> items, ActionListener&lt;Boolean> finalListener) {
  *     SubscribableListener
  *
- *         // Step 1: Start the chain by running the first step
+ *         // Step 1: Start the chain and run the first step by creating a SubscribableListener using newForked().
  *         .&lt;String>newForked(l -> firstAsyncStep(request, l))
  *
- *         // Step 2: Run a second step when the first step completes; if the first step fails then the exception falls through to the end
- *         // without executing the intervening steps.
+ *         // Step 2: Run a second step when the first step completes using andThen(); if the first step fails then the exception falls
+ *         // through to the end without executing the intervening steps.
  *         .&lt;Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
  *
- *         // Step 3: Run another step when the second step completes; again this only runs if the first two steps succeed.
+ *         // Step 3: Run another step when the second step completes with another andThen() call; again this only runs if the first two
+ *         // steps succeed.
  *         .&lt;Boolean>andThen((l, secondStepResult) -> {
- *             // Steps can fan out to multiple subsidiary actions using utilities like RefCountingListener
+ *             // Steps can fan out to multiple subsidiary actions using utilities like RefCountingListener.
  *             final var result = new AtomicBoolean();
  *             try (var listeners = new RefCountingListener(l.map(v -> result.get()))) {
  *                 for (final var item : items) {
@@ -63,7 +64,7 @@ import java.util.concurrent.Executor;
  *             }
  *         })
  *
- *         // Step 4: Complete the outer listener with the result of the previous step, or an exception if the chain failed
+ *         // Step 4: Complete the outer listener with the result of the previous step, or an exception if the chain failed.
  *         .addListener(finalListener);
  * }
  * </pre>

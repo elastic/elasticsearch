@@ -44,7 +44,7 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "integer")
+    @FunctionInfo(returnType = "integer", description = "Converts an input value to an integer value.")
     public ToInteger(
         Source source,
         @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field

@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -26,7 +28,21 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 
 public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator {
 
-    public Count(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = "long",
+        description = "The average of a numeric field.",
+        isAggregation = true
+    )
+    public Count(
+        Source source,
+        @Param(
+            optional = true
+            name = "field",
+            type = { "keyword" },
+            description = "Column or literal for which to count the number of values.",
+            canBeWildcard = true
+        ) Expression field
+    ) {
         super(source, field);
     }
 

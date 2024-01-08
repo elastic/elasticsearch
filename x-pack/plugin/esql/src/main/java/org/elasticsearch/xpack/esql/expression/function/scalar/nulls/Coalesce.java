@@ -16,6 +16,8 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -41,7 +43,57 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Coalesce extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
-    public Coalesce(Source source, Expression first, List<Expression> rest) {
+    @FunctionInfo(
+        returnType = {
+            "boolean",
+            "date",
+            "keyword",
+            "text",
+            "double",
+            "long",
+            "unsigned_long",
+            "integer",
+            "geo_point",
+            "cartesian_point",
+            "version" },
+        description = "Returns the first of its arguments that is not null."
+    )
+    public Coalesce(
+        Source source,
+        @Param(
+            name = "expression",
+            type = {
+                "boolean",
+                "date",
+                "keyword",
+                "text",
+                "double",
+                "long",
+                "unsigned_long",
+                "integer",
+                "geo_point",
+                "cartesian_point",
+                "version" },
+            description = "Expression to evaluate"
+        ) Expression first,
+        @Param(
+            optional = true,
+            name = "expressionX",
+            type = {
+                "boolean",
+                "date",
+                "keyword",
+                "text",
+                "double",
+                "long",
+                "unsigned_long",
+                "integer",
+                "geo_point",
+                "cartesian_point",
+                "version" },
+            description = "Other expression to evaluate"
+        ) List<Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 

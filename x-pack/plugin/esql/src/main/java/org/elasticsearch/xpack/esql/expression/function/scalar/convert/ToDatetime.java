@@ -40,7 +40,7 @@ public class ToDatetime extends AbstractConvertFunction {
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
     );
 
-    @FunctionInfo(returnType = "date")
+    @FunctionInfo(returnType = "date", description = "Converts an input value to a date value.")
     public ToDatetime(
         Source source,
         @Param(name = "v", type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field

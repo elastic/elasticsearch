@@ -56,7 +56,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "keyword")
+    @FunctionInfo(returnType = "keyword", description = "Converts a field into a string.")
     public ToString(
         Source source,
         @Param(

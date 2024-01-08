@@ -37,6 +37,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Least extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
+    @FunctionInfo(
+        returnType = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" },
+        description = "Returns the minimum value from many columns."
+    )
     public Least(
         Source source,
         @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,

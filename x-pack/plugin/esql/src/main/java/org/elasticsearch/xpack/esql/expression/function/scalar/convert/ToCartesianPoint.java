@@ -36,7 +36,7 @@ public class ToCartesianPoint extends AbstractConvertFunction {
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "cartesian_point")
+    @FunctionInfo(returnType = "cartesian_point", description = "Converts an input value to a point value.")
     public ToCartesianPoint(
         Source source,
         @Param(name = "v", type = { "cartesian_point", "long", "unsigned_long", "keyword", "text" }) Expression field

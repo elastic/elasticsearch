@@ -1186,14 +1186,17 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String fieldName) {
+        if (nullLoaderExpected(mapper, fieldName)) {
+            return null;
+        }
         return v -> ((BytesRef) v).utf8ToString();
     }
 
     protected boolean nullLoaderExpected(MapperService mapper, String fieldName) {
         MappedFieldType type = mapper.fieldType(fieldName);
         if (type instanceof TextFieldType t) {
-            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegate() || t.isStored()) {
+            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegateForQuerying() || t.isStored()) {
                 return false;
             }
             String parentField = mapper.mappingLookup().parentField(fieldName);

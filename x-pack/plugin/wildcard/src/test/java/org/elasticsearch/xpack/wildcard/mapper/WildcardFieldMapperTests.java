@@ -55,16 +55,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.NestedLookup;
-import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -1217,7 +1208,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
         return v -> ((BytesRef) v).utf8ToString();
     }
 

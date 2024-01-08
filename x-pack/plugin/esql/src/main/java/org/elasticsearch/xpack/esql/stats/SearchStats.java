@@ -130,7 +130,7 @@ public class SearchStats {
                 if (context.getSearchExecutionContext().isFieldMapped(field)) {
                     MappedFieldType type = context.getSearchExecutionContext().getFieldType(field);
                     if (type instanceof TextFieldMapper.TextFieldType t) {
-                        if (t.canUseSyntheticSourceDelegate() == false) {
+                        if (t.canUseSyntheticSourceDelegateForQuerying() == false) {
                             stat.hasIdenticalDelegate = false;
                             break;
                         }

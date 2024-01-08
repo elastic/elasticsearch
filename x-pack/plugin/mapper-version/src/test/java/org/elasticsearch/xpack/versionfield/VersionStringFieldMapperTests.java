@@ -15,12 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -188,7 +183,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
+    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
         return v -> new Version((BytesRef) v).toString();
     }
 

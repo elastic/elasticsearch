@@ -24,6 +24,19 @@ import java.util.function.Function;
  * reduction of CPU usage.
  */
 final class GeoIpCache {
+
+    /**
+     * Internal-only sentinel object for recording that a result from the geoip database was null (i.e. there was no result). By caching
+     * this no-result we can distinguish between something not being in the cache because we haven't searched for that data yet, versus
+     * something not being in the cache because the data doesn't exist in the database.
+     */
+    private static final AbstractResponse NO_RESULT = new AbstractResponse() {
+        @Override
+        public String toString() {
+            return "AbstractResponse[NO_RESULT]";
+        }
+    };
+
     private final Cache<CacheKey, AbstractResponse> cache;
 
     // package private for testing
@@ -44,13 +57,23 @@ final class GeoIpCache {
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         AbstractResponse response = cache.get(cacheKey);
+
+        // populate the cache for this key, if necessary
         if (response == null) {
             response = retrieveFunction.apply(ip);
-            if (response != null) {
-                cache.put(cacheKey, response);
+            // if the response from the database was null, then use the no-result sentinel value
+            if (response == null) {
+                response = NO_RESULT;
             }
+            // store the result or no-result in the cache
+            cache.put(cacheKey, response);
         }
-        return (T) response;
+
+        if (response == NO_RESULT) {
+            return null; // the no-result sentinel is an internal detail, don't expose it
+        } else {
+            return (T) response;
+        }
     }
 
     // only useful for testing

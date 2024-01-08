@@ -29,10 +29,12 @@ import java.util.NoSuchElementException;
 
 public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
 
+    @SuppressWarnings("this-escape")
     private final RefCounted refs = LeakTracker.wrap(
         AbstractRefCounted.of(() -> Releasables.wrap(Iterators.map(getNodes().iterator(), n -> n::decRef)).close())
     );
 
+    @SuppressWarnings("this-escape")
     public NodesHotThreadsResponse(ClusterName clusterName, List<NodeHotThreads> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
         for (NodeHotThreads nodeHotThreads : getNodes()) {

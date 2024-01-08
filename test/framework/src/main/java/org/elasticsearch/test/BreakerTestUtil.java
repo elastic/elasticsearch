@@ -18,7 +18,7 @@ public class BreakerTestUtil {
     private static final Logger logger = LogManager.getLogger(BreakerTestUtil.class);
 
     /**
-     * Performs a binary search between 0 and {@code tooBigToBreak} bytes for the lowest memory size
+     * Performs a binary search between 0 and {@code tooBigToBreak} bytes for the largest memory size
      * that'll cause the closure parameter to throw a {@link CircuitBreakingException}.
      */
     public static <E extends Exception> ByteSizeValue findBreakerLimit(ByteSizeValue tooBigToBreak, CheckedConsumer<ByteSizeValue, E> c)

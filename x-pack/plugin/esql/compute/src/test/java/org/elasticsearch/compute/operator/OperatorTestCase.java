@@ -83,7 +83,13 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     }
 
     /**
-     * Run {@link #simple} with a circuit breaker NOCOMMIT
+     * Run {@link #simple} with a circuit breaker many times, making sure all blocks
+     * are properly released. In particular, we perform a binary search to find the
+     * largest amount of memory that'll throw a {@link CircuitBreakingException} with
+     * starting bounds of {@code 0b} and {@link #enoughMemoryForSimple}. Then we pick
+     * a random amount of memory between {@code 0b} and the maximum and run that,
+     * asserting both that this throws a {@link CircuitBreakingException} and releases
+     * all pages.
      */
     public final void testSimpleCircuitBreaking() {
         ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();

@@ -10,7 +10,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "1"
-        body:  >
+        body: >
           {
             "processors": [
               {
@@ -38,12 +38,13 @@ teardown:
         index: test
         id: "1"
   - match: { _source.message: "test" }
+
 ---
 "Test Rename Processor with template snippets":
   - do:
       ingest.put_pipeline:
         id: "1"
-        body:  >
+        body: >
           {
             "processors": [
               {
@@ -70,12 +71,13 @@ teardown:
         index: test
         id: "1"
   - match: { _source.event.original: "test" }
+
 ---
 "Test Rename Processor with template snippets and override":
   - do:
       ingest.put_pipeline:
         id: "1"
-        body:  >
+        body: >
           {
             "processors": [
               {

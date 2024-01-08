@@ -70,6 +70,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         String executorName,
         ActionListener<BulkResponse> listener,
         Set<String> autoCreateIndices,
+        Set<String> dataStreamsToRollover,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {

@@ -54,7 +54,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
             SimilarityScript.CONTEXT,
             Collections.emptyMap()
         );
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory::newInstance, true);
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory, true);
         try (Directory dir = new ByteBuffersDirectory()) {
             IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
@@ -103,7 +103,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
             SimilarityScript.CONTEXT,
             Collections.emptyMap()
         );
-        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory::newInstance, "foobaz", factory::newInstance, true);
+        ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory, "foobaz", factory, true);
         try (Directory dir = new ByteBuffersDirectory()) {
             IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 

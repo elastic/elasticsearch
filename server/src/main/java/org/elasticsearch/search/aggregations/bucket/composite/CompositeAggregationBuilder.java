@@ -108,7 +108,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         }
         this.size = in.readVInt();
         if (in.readBoolean()) {
-            this.after = in.readMap();
+            this.after = in.readGenericMap();
         }
     }
 

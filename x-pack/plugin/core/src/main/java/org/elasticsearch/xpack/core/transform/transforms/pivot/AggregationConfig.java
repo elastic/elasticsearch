@@ -63,7 +63,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
     }
 
     public AggregationConfig(final StreamInput in) throws IOException {
-        source = in.readMap();
+        source = in.readGenericMap();
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
     }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -53,8 +54,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -94,11 +93,8 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR));
-        assertThat(sourceExchanger.refCount(), equalTo(1));
         ExchangeSource source = sourceExchanger.createExchangeSource();
-        assertThat(sourceExchanger.refCount(), equalTo(2));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
-        assertThat(sourceExchanger.refCount(), equalTo(3));
         SubscribableListener<Void> waitForReading = source.waitForReading();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
@@ -136,13 +132,7 @@ public class ExchangeServiceTests extends ESTestCase {
         sink2.finish();
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());
-        assertBusy(() -> assertThat(sourceExchanger.refCount(), equalTo(2)));
         source.finish();
-        assertThat(sourceExchanger.refCount(), equalTo(1));
-        CountDownLatch latch = new CountDownLatch(1);
-        sourceExchanger.addCompletionListener(ActionListener.releasing(latch::countDown));
-        sourceExchanger.decRef();
-        assertTrue(latch.await(1, TimeUnit.SECONDS));
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {
             page.releaseBlocks();
@@ -376,7 +366,8 @@ public class ExchangeServiceTests extends ESTestCase {
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
             var sourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
-            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, node1.getLocalNode()), randomIntBetween(1, 5));
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
             final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
             final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
             runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink);
@@ -428,8 +419,9 @@ public class ExchangeServiceTests extends ESTestCase {
             String exchangeId = "exchange";
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
             var sourceHandler = new ExchangeSourceHandler(randomIntBetween(1, 128), threadPool.executor(ESQL_TEST_EXECUTOR));
-            var sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
-            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, node1.getLocalNode()), randomIntBetween(1, 5));
+            ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
+            Transport.Connection connection = node0.getConnection(node1.getLocalDiscoNode());
+            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
             Exception err = expectThrows(
                 Exception.class,
                 () -> runConcurrentTest(maxSeqNo, maxSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink)
@@ -473,11 +465,6 @@ public class ExchangeServiceTests extends ESTestCase {
         @Override
         public String getProfileName() {
             return in.getProfileName();
-        }
-
-        @Override
-        public String getChannelType() {
-            return in.getChannelType();
         }
 
         @Override

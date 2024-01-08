@@ -99,7 +99,6 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                 new PutDatafeedAction.Request(jobCreated.getResponse().getDatafeedConfig().get()),
                 // Use newer state from cluster service as the job creation may have created shared indexes
                 clusterService.state(),
-                licenseState,
                 securityContext,
                 threadPool,
                 ActionListener.wrap(createdDatafeed -> {

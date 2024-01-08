@@ -17,8 +17,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -48,7 +46,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getModelAliases;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
@@ -66,7 +63,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
 
     private static final Logger logger = LogManager.getLogger(TransportStopTrainedModelDeploymentAction.class);
 
-    private final Client client;
     private final IngestService ingestService;
     private final TrainedModelAssignmentClusterService trainedModelAssignmentClusterService;
     private final InferenceAuditor auditor;
@@ -76,7 +72,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Client client,
         IngestService ingestService,
         TrainedModelAssignmentClusterService trainedModelAssignmentClusterService,
         InferenceAuditor auditor
@@ -91,7 +86,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             StopTrainedModelDeploymentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.ingestService = ingestService;
         this.trainedModelAssignmentClusterService = trainedModelAssignmentClusterService;
         this.auditor = Objects.requireNonNull(auditor);

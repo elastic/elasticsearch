@@ -130,6 +130,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
 
     private volatile DocumentMapper mapper;
+    private volatile long mappingVersion;
 
     public MapperService(
         ClusterService clusterService,
@@ -298,6 +299,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 previousMapper = this.mapper;
                 assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
+                this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
             String op = previousMapper != null ? "updated" : "added";
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
@@ -588,6 +590,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public DocumentMapper documentMapper() {
         return mapper;
+    }
+
+    public long mappingVersion() {
+        return mappingVersion;
     }
 
     /**

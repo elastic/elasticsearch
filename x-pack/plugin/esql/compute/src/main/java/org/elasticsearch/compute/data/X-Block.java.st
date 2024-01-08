@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$else$
 $endif$
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -104,11 +103,11 @@ $endif$
                     final int valueCount = getValueCount(pos);
                     out.writeVInt(valueCount);
                     for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-    $if(BytesRef)$
+$if(BytesRef)$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-    $else$
+$else$
                         out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
-    $endif$
+$endif$
                     }
                 }
             }
@@ -201,24 +200,6 @@ $endif$
             }
         }
         return result;
-    }
-
-    /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#new$Type$BlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.new$Type$BlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstant$Type$BlockWith}
-     */
-    @Deprecated
-    static $Type$Block newConstantBlockWith($type$ value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstant$Type$BlockWith(value, positions);
     }
 
     /**

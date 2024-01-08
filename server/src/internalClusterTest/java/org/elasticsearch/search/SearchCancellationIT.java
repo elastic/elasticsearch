@@ -237,6 +237,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
         // are limited to 1
@@ -249,11 +250,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         Thread searchThread = new Thread(() -> {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
                     .setAllowPartialSearchResults(false)
                     .setSize(1000)
-                    .get()
             );
             assertThat(e.getMessage(), containsString("Partial shards failure"));
         });

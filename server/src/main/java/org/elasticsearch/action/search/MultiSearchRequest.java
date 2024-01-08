@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -246,6 +247,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     )
                 ) {
                     Map<String, Object> source = parser.map();
+                    if (parser.nextToken() != null) {
+                        throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                    }
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;
@@ -312,6 +316,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 )
             ) {
                 consumer.accept(searchRequest, parser);
+                if (parser.nextToken() != null) {
+                    throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                }
             }
             // move pointers
             from = nextMarker + 1;

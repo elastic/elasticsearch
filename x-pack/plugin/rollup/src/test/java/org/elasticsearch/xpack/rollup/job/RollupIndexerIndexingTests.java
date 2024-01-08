@@ -865,23 +865,25 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            SearchResponse response = new SearchResponse(
-                null,
-                new Aggregations(Collections.singletonList(result)),
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                null
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(
+                    null,
+                    new Aggregations(Collections.singletonList(result)),
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    null
+                )
             );
-            listener.onResponse(response);
         }
 
         @Override

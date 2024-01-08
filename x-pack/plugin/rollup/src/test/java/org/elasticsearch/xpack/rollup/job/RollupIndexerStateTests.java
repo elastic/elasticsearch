@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -15,7 +14,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -105,23 +103,25 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponse response = new SearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                0,
-                new ShardSearchFailure[0],
-                null
+            ActionListener.respondAndRelease(
+                nextPhase,
+                new SearchResponse(
+                    SearchHits.EMPTY_WITH_TOTAL_HITS,
+                    aggs,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null,
+                    1,
+                    1,
+                    0,
+                    0,
+                    new ShardSearchFailure[0],
+                    null
+                )
             );
-            nextPhase.onResponse(response);
         }
 
         @Override
@@ -480,7 +480,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     ActionListener.respondAndRelease(
                         nextPhase,
                         new SearchResponse(
-                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                            SearchHits.EMPTY_WITH_TOTAL_HITS,
                             aggs,
                             null,
                             false,
@@ -697,7 +697,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             return new SearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,
                 false,
@@ -827,7 +827,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             return new SearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,
                 false,
@@ -1006,7 +1006,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             return new SearchResponse(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
                 aggs,
                 null,
                 false,

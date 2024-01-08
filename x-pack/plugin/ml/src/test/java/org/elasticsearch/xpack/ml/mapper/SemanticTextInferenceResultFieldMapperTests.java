@@ -216,6 +216,8 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 )
             );
         }
+
+        // TODO: Check for missing subfields in sparse_embedding object
     }
 
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {

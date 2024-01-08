@@ -61,7 +61,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
 
     @Override
     protected boolean isSupportedOn(IndexVersion version) {
-        return version.onOrAfter(IndexVersions.SEMANTIC_TEXT_FIELD_ADDED);
+        return version.onOrAfter(IndexVersions.ES_VERSION_8_13); // TODO: Switch to ES_VERSION_8_14 when available
     }
 
     @Override

@@ -12,6 +12,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -47,7 +49,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     public Round(
         Source source, 
         @Param(name = "value", type = { "integer", "long", "double", "unsigned_long" }, description = "The numeric value to round") Expression field,
-        @Param(name = "decimals", type = { "integer" }, description = "The number of decimal places to round to. Defaults to 0.") Expression decimals
+        @Param(optional = true, name = "decimals", type = { "integer" }, description = "The number of decimal places to round to. Defaults to 0.") Expression decimals
     ) {
         super(source, decimals != null ? Arrays.asList(field, decimals) : Arrays.asList(field));
         this.field = field;

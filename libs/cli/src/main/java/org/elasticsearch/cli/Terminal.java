@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.cli.internal.JsonPrintWriter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -35,17 +36,8 @@ import java.util.Locale;
  * the verbosity of the message.
 */
 public abstract class Terminal {
-
-    // Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses
-    private static final PrintWriter ERROR_WRITER = newErrorWriter();
-
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
-
-    @SuppressForbidden(reason = "Writer for System.err")
-    private static PrintWriter newErrorWriter() {
-        return new PrintWriter(System.err, true);
-    }
 
     /** Defines the available verbosity levels of messages to be printed. */
     public enum Verbosity {
@@ -279,8 +271,14 @@ public abstract class Terminal {
         private static final int JDK_VERSION_WITH_IS_TERMINAL = 22;
         private static final Console CONSOLE = detectTerminal();
 
+        @SuppressForbidden(reason = "Writer for System.err")
         ConsoleTerminal() {
-            super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER);
+            // Writer to standard error is not supplied by the {@link Console} API, so we create it here.
+            this(new PrintWriter(System.err, true));
+        }
+
+        private ConsoleTerminal(PrintWriter errWriter) {
+            super(CONSOLE.reader(), CONSOLE.writer(), errWriter);
         }
 
         static boolean isSupported() {
@@ -315,7 +313,10 @@ public abstract class Terminal {
         }
     }
 
-    /** visible for testing */
+    /**
+     * System terminal used if console is not available. Other than {@link ConsoleTerminal} this emits JSON.
+     * Visible for testing
+     */
     @SuppressForbidden(reason = "Access streams for construction")
     static class SystemTerminal extends Terminal {
         SystemTerminal() {
@@ -324,8 +325,8 @@ public abstract class Terminal {
                 // at the end of each character based read, so that switching to using getInputStream() returns binary data
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
-                new PrintWriter(System.out, true),
-                ERROR_WRITER
+                new JsonPrintWriter(System.out, true),
+                new JsonPrintWriter(System.err, true)
             );
         }
 

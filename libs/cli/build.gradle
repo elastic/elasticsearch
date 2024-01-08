@@ -10,6 +10,7 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   api 'net.sf.jopt-simple:jopt-simple:5.0.2'
+  api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
   api project(':libs:elasticsearch-core')
 
   testImplementation(project(":test:framework")) {

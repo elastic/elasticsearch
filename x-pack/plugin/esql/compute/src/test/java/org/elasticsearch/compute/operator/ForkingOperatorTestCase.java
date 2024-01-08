@@ -65,10 +65,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
-                List.of(
-                    simpleWithMode(AggregatorMode.INITIAL).get(driverContext),
-                    simpleWithMode(AggregatorMode.FINAL).get(driverContext)
-                ),
+                List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext), simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
                 new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )

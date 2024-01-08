@@ -36,7 +36,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
@@ -246,7 +245,7 @@ public class ReloadRemoteClusterCredentialsIT extends SecuritySingleNodeTestCase
                     capturedHeaders.add(Map.copyOf(threadPool.getThreadContext().getHeaders()));
                     channel.sendResponse(
                         new SearchResponse(
-                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                             InternalAggregations.EMPTY,
                             null,
                             false,

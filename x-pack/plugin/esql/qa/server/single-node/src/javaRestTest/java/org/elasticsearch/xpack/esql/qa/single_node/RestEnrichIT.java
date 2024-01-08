@@ -23,4 +23,8 @@ public class RestEnrichIT extends RestEnrichTestCase {
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
+
+    public RestEnrichIT(Mode mode) {
+        super(mode);
+    }
 }

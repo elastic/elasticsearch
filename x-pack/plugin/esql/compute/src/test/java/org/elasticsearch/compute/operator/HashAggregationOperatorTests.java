@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -55,9 +53,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
             List.of(
-                // TODO remove the null BigArrays we pass - it's part of the context
-                new SumLongAggregatorFunctionSupplier(null, sumChannels).groupingAggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(null, maxChannels).groupingAggregatorFactory(mode)
+                new SumLongAggregatorFunctionSupplier(sumChannels).groupingAggregatorFactory(mode),
+                new MaxLongAggregatorFunctionSupplier(maxChannels).groupingAggregatorFactory(mode)
             ),
             randomPageSize()
         );

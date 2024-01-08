@@ -147,7 +147,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                         );
                     final SearchResponse meta = new SearchResponse(
                         // remove actual hits
-                        new SearchHits(SearchHits.EMPTY, searchResponse.getHits().getTotalHits(), searchResponse.getHits().getMaxScore()),
+                        SearchHits.empty(searchResponse.getHits().getTotalHits(), searchResponse.getHits().getMaxScore()),
                         aggsWithoutGridAndBounds,
                         searchResponse.getSuggest(),
                         searchResponse.isTimedOut(),

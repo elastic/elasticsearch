@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -70,7 +69,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregates,
                 mode,
                 sourceLayout,
-                context.bigArrays(),
                 false, // non-grouping
                 s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
             );
@@ -139,7 +137,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregates,
                 mode,
                 sourceLayout,
-                context.bigArrays(),
                 true, // grouping
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
             );
@@ -223,7 +220,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         List<? extends NamedExpression> aggregates,
         AggregateExec.Mode mode,
         Layout layout,
-        BigArrays bigArrays,
         boolean grouping,
         Consumer<AggFunctionSupplierContext> consumer
     ) {
@@ -282,7 +278,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         assert inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
                     }
                     if (aggregateFunction instanceof ToAggregator agg) {
-                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));
+                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(inputChannels), aggMode));
                     } else {
                         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
                     }

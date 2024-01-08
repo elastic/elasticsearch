@@ -108,6 +108,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         when(ctx.getSearchExecutionContext().getForField(any(), any())).thenAnswer(inv -> {
             MappedFieldType ft = inv.getArgument(0);
             IndexFieldData.Builder builder = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"));
+            // This breaker is for fielddata from text fields. We don't test it so it won't break not test not to use a breaker here.
             return builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         when(ctx.getSearchExecutionContext().nestedScope()).thenReturn(new NestedScope());
@@ -176,7 +177,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     private void testSimple(DriverContext ctx, int size, int limit) {
-        LuceneSourceOperator.Factory factory = simple(ctx.bigArrays(), DataPartitioning.SHARD, size, limit);
+        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();

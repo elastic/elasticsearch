@@ -415,7 +415,7 @@ ROW a=["foo", "zoo", "bar"]
 // end::mv_concat-result[]
 ;
 
-mvFirst
+mvFirst#[skip:-8.12.99, reason:Added in 8.13.0]
 // tag::mv_first[]
 ROW a="foo;bar;baz"
 | EVAL first_a = MV_FIRST(SPLIT(a, ";"))
@@ -428,7 +428,7 @@ foo;bar;baz | "foo"
 // end::mv_first-result[]
 ;
 
-mvLast
+mvLast#[skip:-8.12.99, reason:Added in 8.13.0]
 // tag::mv_last[]
 ROW a="foo;bar;baz"
 | EVAL last_a = MV_LAST(SPLIT(a, ";"))

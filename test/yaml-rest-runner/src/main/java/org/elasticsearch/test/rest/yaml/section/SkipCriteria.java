@@ -59,9 +59,9 @@ public class SkipCriteria {
 
     static Predicate<ClientYamlTestExecutionContext> fromClusterFeatures(
         Set<String> requiredClusterFeatures,
-        Set<String> skipClusterFeatures
+        Set<String> forbiddenClusterFeatures
     ) {
-        return context -> skipClusterFeatures.stream().anyMatch(context::clusterHasFeature)
+        return context -> forbiddenClusterFeatures.stream().anyMatch(context::clusterHasFeature)
             || requiredClusterFeatures.stream().allMatch(context::clusterHasFeature) == false;
     }
 }

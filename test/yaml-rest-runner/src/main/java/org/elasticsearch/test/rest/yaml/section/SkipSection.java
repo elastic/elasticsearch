@@ -33,20 +33,20 @@ public class SkipSection {
     static class SkipSectionBuilder {
         String version = null;
         String reason = null;
-        List<String> yamlRunnerFeatures = new ArrayList<>();
+        List<String> requiredYamlRunnerFeatures = new ArrayList<>();
         List<String> operatingSystems = new ArrayList<>();
 
-        Set<String> skipClusterFeatures = new HashSet<>();
+        Set<String> forbiddenClusterFeatures = new HashSet<>();
         Set<String> requiredClusterFeatures = new HashSet<>();
 
-        enum XPackRequested {
+        enum XPackRequired {
             NOT_SPECIFIED,
             YES,
             NO,
             MISMATCHED
         }
 
-        XPackRequested xpackRequested = XPackRequested.NOT_SPECIFIED;
+        XPackRequired xpackRequired = XPackRequired.NOT_SPECIFIED;
 
         public SkipSectionBuilder skipVersion(String version) {
             this.version = version;
@@ -58,35 +58,35 @@ public class SkipSection {
             return this;
         }
 
-        public SkipSectionBuilder withYamlRunnerFeature(String featureName) {
-            this.yamlRunnerFeatures.add(featureName);
+        public SkipSectionBuilder skipIfYamlRunnerFeatureAbsent(String featureName) {
+            requiredYamlRunnerFeatures.add(featureName);
             return this;
         }
 
-        public SkipSectionBuilder withXPack() {
-            if (xpackRequested == XPackRequested.NO) {
-                xpackRequested = XPackRequested.MISMATCHED;
+        public SkipSectionBuilder skipIfXPackAbsent() {
+            if (xpackRequired == XPackRequired.NO) {
+                xpackRequired = XPackRequired.MISMATCHED;
             } else {
-                xpackRequested = XPackRequested.YES;
+                xpackRequired = XPackRequired.YES;
             }
             return this;
         }
 
-        public SkipSectionBuilder skipXPack() {
-            if (xpackRequested == XPackRequested.YES) {
-                xpackRequested = XPackRequested.MISMATCHED;
+        public SkipSectionBuilder skipIfXPackPresent() {
+            if (xpackRequired == XPackRequired.YES) {
+                xpackRequired = XPackRequired.MISMATCHED;
             } else {
-                xpackRequested = XPackRequested.NO;
+                xpackRequired = XPackRequired.NO;
             }
             return this;
         }
 
-        public SkipSectionBuilder skipClusterFeature(String featureName) {
-            skipClusterFeatures.add(featureName);
+        public SkipSectionBuilder skipIfClusterFeaturesPresent(String featureName) {
+            forbiddenClusterFeatures.add(featureName);
             return this;
         }
 
-        public SkipSectionBuilder withClusterFeature(String featureName) {
+        public SkipSectionBuilder skipIfClusterFeaturesAbsent(String featureName) {
             requiredClusterFeatures.add(featureName);
             return this;
         }
@@ -98,11 +98,11 @@ public class SkipSection {
 
         void validate(XContentLocation contentLocation) {
             if ((Strings.hasLength(version) == false)
-                && yamlRunnerFeatures.isEmpty()
+                && requiredYamlRunnerFeatures.isEmpty()
                 && operatingSystems.isEmpty()
-                && xpackRequested == XPackRequested.NOT_SPECIFIED
+                && xpackRequired == XPackRequired.NOT_SPECIFIED
                 && requiredClusterFeatures.isEmpty()
-                && skipClusterFeatures.isEmpty()) {
+                && forbiddenClusterFeatures.isEmpty()) {
                 throw new ParsingException(
                     contentLocation,
                     "at least one criteria (version, cluster features, runner features, os) is mandatory within a skip section"
@@ -115,13 +115,13 @@ public class SkipSection {
                 throw new ParsingException(contentLocation, "reason is mandatory within skip version section");
             }
             // make feature "skip_os" mandatory if os is given, this is a temporary solution until language client tests know about os
-            if (operatingSystems.isEmpty() == false && yamlRunnerFeatures.contains("skip_os") == false) {
+            if (operatingSystems.isEmpty() == false && requiredYamlRunnerFeatures.contains("skip_os") == false) {
                 throw new ParsingException(contentLocation, "if os is specified, feature skip_os must be set");
             }
-            if (xpackRequested == XPackRequested.MISMATCHED) {
+            if (xpackRequired == XPackRequired.MISMATCHED) {
                 throw new ParsingException(contentLocation, "either `xpack` or `no_xpack` can be present, not both");
             }
-            if (skipClusterFeatures.stream().anyMatch(x -> requiredClusterFeatures.contains(x))) {
+            if (forbiddenClusterFeatures.stream().anyMatch(x -> requiredClusterFeatures.contains(x))) {
                 throw new ParsingException(
                     contentLocation,
                     "skip on a cluster feature can be when it is either present or missing, not both"
@@ -134,12 +134,12 @@ public class SkipSection {
 
             // Check if the test runner supports all YAML framework features (see {@link Features}). If not, default to always skip this
             // section.
-            if (Features.areAllSupported(yamlRunnerFeatures) == false) {
+            if (Features.areAllSupported(requiredYamlRunnerFeatures) == false) {
                 skipCriteriaList = List.of(SkipCriteria.SKIP_ALWAYS);
             } else {
                 skipCriteriaList = new ArrayList<>();
-                if (xpackRequested == XPackRequested.YES || xpackRequested == XPackRequested.NO) {
-                    skipCriteriaList.add(SkipCriteria.fromClusterModules(xpackRequested == XPackRequested.YES));
+                if (xpackRequired == XPackRequired.YES || xpackRequired == XPackRequired.NO) {
+                    skipCriteriaList.add(SkipCriteria.fromClusterModules(xpackRequired == XPackRequired.YES));
                 }
                 if (Strings.hasLength(version)) {
                     skipCriteriaList.add(SkipCriteria.fromVersionRange(version));
@@ -147,11 +147,11 @@ public class SkipSection {
                 if (operatingSystems.isEmpty() == false) {
                     skipCriteriaList.add(SkipCriteria.fromOsList(operatingSystems));
                 }
-                if (requiredClusterFeatures.isEmpty() == false || skipClusterFeatures.isEmpty() == false) {
-                    skipCriteriaList.add(SkipCriteria.fromClusterFeatures(requiredClusterFeatures, skipClusterFeatures));
+                if (requiredClusterFeatures.isEmpty() == false || forbiddenClusterFeatures.isEmpty() == false) {
+                    skipCriteriaList.add(SkipCriteria.fromClusterFeatures(requiredClusterFeatures, forbiddenClusterFeatures));
                 }
             }
-            return new SkipSection(skipCriteriaList, yamlRunnerFeatures, reason);
+            return new SkipSection(skipCriteriaList, requiredYamlRunnerFeatures, reason);
         }
     }
 
@@ -179,11 +179,11 @@ public class SkipSection {
         // or if it does *not* have xpack installed (`no_xpack`). These are not test runner features, so now that we have
         // "modular" skip criteria let's separate them. Eventually, these should move to their own skip section.
         if (feature.equals("xpack")) {
-            builder.withXPack();
+            builder.skipIfXPackAbsent();
         } else if (feature.equals("no_xpack")) {
-            builder.skipXPack();
+            builder.skipIfXPackPresent();
         } else {
-            builder.withYamlRunnerFeature(feature);
+            builder.skipIfYamlRunnerFeatureAbsent(feature);
         }
     }
 
@@ -216,9 +216,9 @@ public class SkipSection {
                 } else if ("os".equals(currentFieldName)) {
                     builder.skipOs(parser.text());
                 } else if ("cluster_has_features".equals(currentFieldName)) {
-                    builder.skipClusterFeature(parser.text());
+                    builder.skipIfClusterFeaturesPresent(parser.text());
                 } else if ("cluster_lacks_features".equals(currentFieldName)) {
-                    builder.withClusterFeature(parser.text());
+                    builder.skipIfClusterFeaturesAbsent(parser.text());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -236,11 +236,11 @@ public class SkipSection {
                     }
                 } else if ("cluster_has_features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        builder.skipClusterFeature(parser.text());
+                        builder.skipIfClusterFeaturesPresent(parser.text());
                     }
                 } else if ("cluster_lacks_features".equals(currentFieldName)) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        builder.withClusterFeature(parser.text());
+                        builder.skipIfClusterFeaturesAbsent(parser.text());
                     }
                 }
             }

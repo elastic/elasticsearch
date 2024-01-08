@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -232,8 +233,9 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(masterInfoService);
 
+        DiskUsage usage = masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId);
         assertThat(
-            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),
+                usage.totalBytes(),
             equalTo(totalSpace)
         );
 
@@ -309,8 +311,9 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             ClusterInfoService.class
         );
         ClusterInfoServiceUtils.refresh(masterInfoService);
+        DiskUsage usage = masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(coldNodeId);
         assertThat(
-            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(coldNodeId).getTotalBytes(),
+                usage.totalBytes(),
             equalTo(totalSpace)
         );
 

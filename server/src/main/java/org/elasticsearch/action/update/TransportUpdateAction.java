@@ -221,7 +221,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             update.setGetResult(null);
                         }
                         update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
+                        ActionListener.respondAndRelease(listener, update);
                     }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
                 );
             }
@@ -254,7 +254,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             )
                         );
                         update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
+                        ActionListener.respondAndRelease(listener, update);
                     }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
                 );
             }
@@ -285,7 +285,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             )
                         );
                         update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
+                        ActionListener.respondAndRelease(listener, update);
                     }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
                 );
             }
@@ -298,7 +298,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         shard.noopUpdate();
                     }
                 }
-                listener.onResponse(update);
+                ActionListener.respondAndRelease(listener, update);
             }
             default -> throw new IllegalStateException("Illegal result " + result.getResponseResult());
         }

@@ -1,5 +1,5 @@
 pr: 104076
 summary: "[7.x] Bump protobuf version"
-area: HDFS
+area: Snapshot/Restore
 type: upgrade
 issues: []

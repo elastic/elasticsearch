@@ -521,12 +521,12 @@ public class SubscribableListenerTests extends ESTestCase {
         }
     }
 
-    public void testAndThenCompleteWithSuccess() throws Exception {
+    public void testAndThenMapSuccess() throws Exception {
         final var initialListener = new SubscribableListener<>();
         final var result = new AtomicReference<>();
 
         final var oResult = new Object();
-        final var chainedListener = initialListener.andThenCompleteWith(o -> {
+        final var chainedListener = initialListener.andThenMap(o -> {
             result.set(o);
             return oResult;
         });
@@ -539,11 +539,11 @@ public class SubscribableListenerTests extends ESTestCase {
         assertSame(oResult, chainedListener.rawResult());
     }
 
-    public void testAndThenCompleteWithThrowException() {
+    public void testAndThenMapThrowException() {
         final var initialListener = new SubscribableListener<>();
         final var result = new AtomicReference<>();
 
-        final var chainedListener = initialListener.andThenCompleteWith(o -> {
+        final var chainedListener = initialListener.andThenMap(o -> {
             result.set(o);
             throw new ElasticsearchException("simulated exception in fn");
         });
@@ -555,10 +555,10 @@ public class SubscribableListenerTests extends ESTestCase {
         assertComplete(chainedListener, "simulated exception in fn");
     }
 
-    public void testAndThenCompleteWithFailure() {
+    public void testAndThenMapFailure() {
         final var initialListener = new SubscribableListener<>();
 
-        final var chainedListener = initialListener.andThenCompleteWith(o -> fail(null, "should not be called"));
+        final var chainedListener = initialListener.andThenMap(o -> fail(null, "should not be called"));
         assertFalse(chainedListener.isDone());
 
         initialListener.onFailure(new ElasticsearchException("simulated"));

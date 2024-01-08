@@ -163,7 +163,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
                     IndexSearcher.getDefaultSimilarity(),
                     IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(),
-                    open::close
+                    open
                 ),
                 mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class),
                 wrapper

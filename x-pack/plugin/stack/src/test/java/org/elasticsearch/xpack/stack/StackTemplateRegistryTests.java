@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -199,7 +199,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return new StackTemplateRegistryTests.TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -226,7 +226,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -257,7 +257,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -297,7 +297,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             if (action instanceof PutComponentTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action == ILMActions.PUT) {
@@ -389,10 +389,11 @@ public class StackTemplateRegistryTests extends ESTestCase {
             } else if (action == ILMActions.PUT) {
                 // Ignore such
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 calledTimes.incrementAndGet();
-                assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-                PutComposableIndexTemplateAction.Request putComposableTemplateRequest = (PutComposableIndexTemplateAction.Request) request;
+                assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+                TransportPutComposableIndexTemplateAction.Request putComposableTemplateRequest =
+                    (TransportPutComposableIndexTemplateAction.Request) request;
                 assertThat(putComposableTemplateRequest.name(), equalTo("syslog"));
                 ComposableIndexTemplate composableIndexTemplate = putComposableTemplateRequest.indexTemplate();
                 assertThat(composableIndexTemplate.composedOf(), hasSize(2));
@@ -434,7 +435,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -589,7 +590,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof PutComposableIndexTemplateAction) {
+        } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {

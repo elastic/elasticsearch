@@ -182,9 +182,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
             return sb.append("]").toString();
         } else if (value instanceof SpatialPoint point) {
-            // TODO: This knowledge should be in GeoPoint or at least that package
             // Alternatively we could just change GeoPoint.toString() to use WKT, but that has other side-effects
-            return "POINT (" + point.getX() + " " + point.getY() + ")";
+            return point.toWKT();
         } else {
             return value.toString();
         }

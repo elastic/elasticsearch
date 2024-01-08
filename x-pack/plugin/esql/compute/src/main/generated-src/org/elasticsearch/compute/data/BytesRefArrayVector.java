@@ -90,7 +90,7 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     public void closeInternal() {
         // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
         // of this class.
-        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());
         Releasables.closeExpectNoException(values);
     }
 }

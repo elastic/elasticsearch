@@ -190,6 +190,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             }
         };
         Set<String> autoCreateIndices = Set.of(); // unused
+        Set<String> dataStreamsToRollover = Set.of(); // unused
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated = Map.of(); // unused
         long startTime = 0;
         bulkAction.createMissingIndicesAndIndexData(
@@ -198,6 +199,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             randomAlphaOfLength(10),
             listener,
             autoCreateIndices,
+            dataStreamsToRollover,
             indicesThatCannotBeCreated,
             startTime
         );

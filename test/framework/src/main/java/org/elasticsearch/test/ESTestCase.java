@@ -1198,7 +1198,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
      */
     public static SpatialPoint randomGeoPoint() {
-        return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
+        double lat = randomDoubleBetween(-90, 90, true);
+        double lon = randomDoubleBetween(-180, 180, true);
+        return new GeoPoint(lat, lon);
     }
 
     /**

@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -78,7 +79,7 @@ public class JsonPrintWriterTests extends ESTestCase {
     }
 
     private void assertWritten(String expected) {
-        assertEquals(expected, outputStream.toString());
+        assertEquals(expected, outputStream.toString(StandardCharsets.UTF_8));
         outputStream.reset();
     }
 

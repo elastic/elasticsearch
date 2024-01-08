@@ -10,6 +10,8 @@ package org.elasticsearch.cli.internal;
 
 import co.elastic.logging.EcsJsonSerializer;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.time.Clock;
@@ -29,6 +31,7 @@ public class JsonPrintWriter extends PrintWriter {
         this(out, autoFlush, Clock.systemUTC());
     }
 
+    @SuppressForbidden(reason = "Override PrintWriter to emit Json")
     protected JsonPrintWriter(OutputStream out, boolean autoFlush, Clock clock) {
         super(out, autoFlush);
         this.clock = clock;

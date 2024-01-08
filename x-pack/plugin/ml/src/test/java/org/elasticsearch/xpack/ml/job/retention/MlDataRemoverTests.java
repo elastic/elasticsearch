@@ -18,29 +18,14 @@ public class MlDataRemoverTests extends ESTestCase {
         MlDataRemover remover = (requestsPerSecond, listener, isTimedOutSupplier) -> {};
 
         SearchHitBuilder hitBuilder = new SearchHitBuilder(0);
-        var hit = hitBuilder.build();
-        try {
-            assertNull(remover.stringFieldValueOrNull(hit, "missing"));
-        } finally {
-            hit.decRef();
-        }
+        assertNull(remover.stringFieldValueOrNull(hitBuilder.build(), "missing"));
 
         hitBuilder = new SearchHitBuilder(0);
         hitBuilder.addField("not_a_string", Collections.singletonList(new Date()));
-        var hit2 = hitBuilder.build();
-        try {
-            assertNull(remover.stringFieldValueOrNull(hit2, "not_a_string"));
-        } finally {
-            hit2.decRef();
-        }
+        assertNull(remover.stringFieldValueOrNull(hitBuilder.build(), "not_a_string"));
 
         hitBuilder = new SearchHitBuilder(0);
         hitBuilder.addField("string_field", Collections.singletonList("actual_string_value"));
-        var hit3 = hitBuilder.build();
-        try {
-            assertEquals("actual_string_value", remover.stringFieldValueOrNull(hit3, "string_field"));
-        } finally {
-            hit3.decRef();
-        }
+        assertEquals("actual_string_value", remover.stringFieldValueOrNull(hitBuilder.build(), "string_field"));
     }
 }

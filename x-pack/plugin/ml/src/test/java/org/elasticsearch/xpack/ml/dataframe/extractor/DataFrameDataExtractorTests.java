@@ -652,7 +652,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             searchHitBuilder.setLongSortValue(searchHitCounter++);
             hits.add(searchHitBuilder.build());
         }
-        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
+        SearchHits searchHits = new SearchHits(hits.toArray(SearchHits.EMPTY), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

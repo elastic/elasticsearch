@@ -167,24 +167,6 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     }
 
     /**
-     * Returns a builder.
-     * @deprecated use {@link BlockFactory#newBooleanBlockBuilder}
-     */
-    @Deprecated
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newBooleanBlockBuilder(estimatedSize);
-    }
-
-    /**
-     * Returns a constant block.
-     * @deprecated use {@link BlockFactory#newConstantBooleanBlockWith}
-     */
-    @Deprecated
-    static BooleanBlock newConstantBlockWith(boolean value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantBooleanBlockWith(value, positions);
-    }
-
-    /**
      * Builder for {@link BooleanBlock}
      */
     sealed interface Builder extends Block.Builder, BlockLoader.BooleanBuilder permits BooleanBlockBuilder {

@@ -225,11 +225,11 @@ public final class BlockUtils {
     private static Block constantBlock(BlockFactory blockFactory, ElementType type, Object val, int size) {
         return switch (type) {
             case NULL -> blockFactory.newConstantNullBlock(size);
-            case LONG -> LongBlock.newConstantBlockWith((long) val, size, blockFactory);
-            case INT -> IntBlock.newConstantBlockWith((int) val, size, blockFactory);
-            case BYTES_REF -> BytesRefBlock.newConstantBlockWith(toBytesRef(val), size, blockFactory);
-            case DOUBLE -> DoubleBlock.newConstantBlockWith((double) val, size, blockFactory);
-            case BOOLEAN -> BooleanBlock.newConstantBlockWith((boolean) val, size, blockFactory);
+            case LONG -> blockFactory.newConstantLongBlockWith((long) val, size);
+            case INT -> blockFactory.newConstantIntBlockWith((int) val, size);
+            case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
+            case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
+            case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }

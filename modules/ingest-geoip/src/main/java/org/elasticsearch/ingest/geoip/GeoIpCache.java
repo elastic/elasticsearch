@@ -30,7 +30,8 @@ final class GeoIpCache {
      * this no-result we can distinguish between something not being in the cache because we haven't searched for that data yet, versus
      * something not being in the cache because the data doesn't exist in the database.
      */
-    private static final AbstractResponse NO_RESULT = new AbstractResponse() {
+    // visible for testing
+    static final AbstractResponse NO_RESULT = new AbstractResponse() {
         @Override
         public String toString() {
             return "AbstractResponse[NO_RESULT]";

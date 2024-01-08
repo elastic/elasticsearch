@@ -396,6 +396,26 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} such that if this listener is completed successfully with result
+     * {@code R} then {@code consumer} is applied to argument {@code R}, and {@code L} is completed with {@code null} when {@code
+     * consumer} returns. If this listener is completed exceptionally, or {@code consumer} throws an exception, then {@code L} is
+     * completed with that exception.
+     * <p>
+     * This is essentially a shorthand for a call to {@link #andThen} with a {@code nextStep} argument that is fully synchronous.
+     * <p>
+     * The threading of the {@code consumer} invocation is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code consumer} is invoked on the thread calling {@link #andThenConsume} and in its thread context, but if
+     * this listener is incomplete then {@code consumer} is invoked on the thread, and in the thread context, on which this listener is
+     * completed.
+     */
+    public SubscribableListener<Void> andThenConsume(CheckedConsumer<T, Exception> consumer) {
+        return newForked(l -> addListener(l.map(r -> {
+            consumer.accept(r);
+            return null;
+        })));
+    }
+
+    /**
      * Adds a timeout to this listener, such that if the timeout elapses before the listener is completed then it will be completed with an
      * {@link ElasticsearchTimeoutException}.
      * <p>

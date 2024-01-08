@@ -508,7 +508,7 @@ public class SubscribableListenerTests extends ESTestCase {
         assertTrue(isComplete.get());
     }
 
-    private static void assertComplete(SubscribableListener<Object> listener, @Nullable String expectedFailureMessage) {
+    private static <T> void assertComplete(SubscribableListener<T> listener, @Nullable String expectedFailureMessage) {
         assertTrue(listener.isDone());
         if (expectedFailureMessage == null) {
             try {
@@ -559,6 +559,46 @@ public class SubscribableListenerTests extends ESTestCase {
         final var initialListener = new SubscribableListener<>();
 
         final var chainedListener = initialListener.andThenMap(o -> fail(null, "should not be called"));
+        assertFalse(chainedListener.isDone());
+
+        initialListener.onFailure(new ElasticsearchException("simulated"));
+        assertComplete(chainedListener, "simulated");
+    }
+
+    public void testAndThenConsumeSuccess() throws Exception {
+        final var initialListener = new SubscribableListener<>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThenConsume(result::set);
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertTrue(chainedListener.isDone());
+        assertNull(chainedListener.rawResult());
+    }
+
+    public void testAndThenConsumeThrowException() {
+        final var initialListener = new SubscribableListener<>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThenConsume(o -> {
+            result.set(o);
+            throw new ElasticsearchException("simulated exception in fn");
+        });
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertComplete(chainedListener, "simulated exception in fn");
+    }
+
+    public void testAndThenConsumeFailure() {
+        final var initialListener = new SubscribableListener<>();
+
+        final var chainedListener = initialListener.andThenConsume(o -> fail(null, "should not be called"));
         assertFalse(chainedListener.isDone());
 
         initialListener.onFailure(new ElasticsearchException("simulated"));

@@ -22,9 +22,16 @@ public class ESDiversifyingChildrenFloatKnnVectorQueryTests extends AbstractESDi
         Query childFilter,
         int k,
         BitSetProducer parentBitSet,
-        int numChildrenPerParent
+        boolean scoreAllMatchingChildren
     ) {
-        return new ESDiversifyingChildrenFloatKnnVectorQuery(fieldName, queryVector, childFilter, k, parentBitSet, numChildrenPerParent);
+        return new ESDiversifyingChildrenFloatKnnVectorQuery(
+            fieldName,
+            queryVector,
+            childFilter,
+            k,
+            parentBitSet,
+            scoreAllMatchingChildren
+        );
     }
 
     @Override

@@ -247,6 +247,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.NestedKnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -1129,6 +1130,9 @@ public class SearchModule {
 
         registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");
+        }));
+        registerQuery(new QuerySpec<>(NestedKnnScoreDocQueryBuilder.NAME, NestedKnnScoreDocQueryBuilder::new, parser -> {
+            throw new IllegalArgumentException("[nested_knn_score_doc] queries cannot be provided directly");
         }));
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);

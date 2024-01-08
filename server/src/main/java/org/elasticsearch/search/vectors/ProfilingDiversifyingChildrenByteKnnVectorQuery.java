@@ -22,9 +22,9 @@ public class ProfilingDiversifyingChildrenByteKnnVectorQuery extends ESDiversify
         Query childFilter,
         int k,
         BitSetProducer parentsFilter,
-        int numChildrenPerParent
+        boolean matchAllChildren
     ) {
-        super(field, query, childFilter, k, parentsFilter, numChildrenPerParent);
+        super(field, query, childFilter, k, parentsFilter, matchAllChildren);
     }
 
     @Override

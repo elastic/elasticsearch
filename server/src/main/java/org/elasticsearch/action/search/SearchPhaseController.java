@@ -161,7 +161,7 @@ public final class SearchPhaseController {
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
-            //TODO how do we merge via diversified top-k parents?
+            // TODO how do we merge via diversified top-k parents?
             TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }

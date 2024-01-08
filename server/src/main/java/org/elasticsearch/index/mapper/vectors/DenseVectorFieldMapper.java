@@ -1111,7 +1111,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             filter,
                             numCands,
                             nestedVectorSearchParams.parentFilter,
-                            nestedVectorSearchParams.innerHitBuilder == null ? 1 : nestedVectorSearchParams.innerHitBuilder.getSize()
+                            nestedVectorSearchParams.innerHitBuilder == null
+                                ? false
+                                : nestedVectorSearchParams.innerHitBuilder.getSize() > 1
                         )
                         : new ProfilingKnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
@@ -1122,7 +1124,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         filter,
                         numCands,
                         nestedVectorSearchParams.parentFilter,
-                        nestedVectorSearchParams.innerHitBuilder == null ? 1 : nestedVectorSearchParams.innerHitBuilder.getSize()
+                        nestedVectorSearchParams.innerHitBuilder == null ? false : nestedVectorSearchParams.innerHitBuilder.getSize() > 1
                     )
                     : new ProfilingKnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
@@ -1145,7 +1147,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return dims;
         }
 
-        ElementType getElementType() {
+        public ElementType getElementType() {
             return elementType;
         }
     }

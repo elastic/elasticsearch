@@ -27,12 +27,14 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.CheckJoinIndex;
 import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -54,7 +56,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
         Query childFilter,
         int k,
         BitSetProducer parentBitSet,
-        int numChildrenPerParent
+        boolean scoreAllMatchingChildren
     );
 
     abstract Field getKnnVectorField(String name, float[] vector);
@@ -66,9 +68,10 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
         return parentsFilter;
     }
 
-    Document makeParent() {
+    Document makeParent(int[] children) {
         Document parent = new Document();
         parent.add(newStringField("docType", "_parent", Field.Store.NO));
+        parent.add(newStringField("id", Arrays.toString(children), Field.Store.YES));
         return parent;
     }
 
@@ -88,7 +91,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
                 // may not
                 // verify we handle it gracefully
                 BitSetProducer parentFilter = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
-                Query query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter, randomIntBetween(1, 10));
+                Query query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter, randomBoolean());
                 TopDocs topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value);
                 assertEquals(0, topDocs.scoreDocs.length);
@@ -118,7 +121,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
                 // may not
                 // verify we handle it gracefully
                 BitSetProducer parentFilter = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
-                Query query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter, randomIntBetween(1, 10));
+                Query query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter, randomBoolean());
                 TopDocs topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value);
                 assertEquals(0, topDocs.scoreDocs.length);
@@ -134,7 +137,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
             IndexSearcher searcher = newSearcher(reader);
             Query filter = new TermQuery(new Term("other", "value"));
             BitSetProducer parentFilter = parentFilter(reader);
-            Query kvq = getParentJoinKnnQuery("field", new float[] { 1, 2 }, filter, 2, parentFilter, randomIntBetween(1, 10));
+            Query kvq = getParentJoinKnnQuery("field", new float[] { 1, 2 }, filter, 2, parentFilter, randomBoolean());
             TopDocs topDocs = searcher.search(kvq, 3);
             assertEquals(0, topDocs.totalHits.value);
         }
@@ -150,7 +153,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
                     doc.add(newStringField("id", Integer.toString(j), Field.Store.YES));
                     toAdd.add(doc);
                 }
-                toAdd.add(makeParent());
+                toAdd.add(makeParent(new int[] { 1, 2, 3, 4, 5 }));
                 w.addDocuments(toAdd);
 
                 toAdd = new ArrayList<>();
@@ -160,7 +163,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
                     doc.add(newStringField("id", Integer.toString(j), Field.Store.YES));
                     toAdd.add(doc);
                 }
-                toAdd.add(makeParent());
+                toAdd.add(makeParent(new int[] { 7, 8, 9, 10, 11 }));
                 w.addDocuments(toAdd);
                 w.forceMerge(1);
             }
@@ -168,13 +171,13 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
                 assertEquals(1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
-                Query query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter, 1);
+                Query query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter, false);
                 assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" });
 
-                query = getParentJoinKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter, 1);
+                query = getParentJoinKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter, false);
                 assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" });
 
-                query = getParentJoinKnnQuery("field", new float[] { 6, 6 }, new MatchAllDocsQuery(), 1, parentFilter, 1);
+                query = getParentJoinKnnQuery("field", new float[] { 6, 6 }, new MatchAllDocsQuery(), 1, parentFilter, false);
                 assertScorerResults(searcher, query, new float[] { 1f / 3f }, new String[] { "5" });
             }
         }
@@ -195,7 +198,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
                         toAdd.add(noVecDoc);
                     }
                 }
-                toAdd.add(makeParent());
+                toAdd.add(makeParent(new int[] { 1, 2, 3, 4, 5 }));
                 w.addDocuments(toAdd);
 
                 toAdd = new ArrayList<>();
@@ -210,7 +213,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
                         toAdd.add(noVecDoc);
                     }
                 }
-                toAdd.add(makeParent());
+                toAdd.add(makeParent(new int[] { 7, 8, 9, 10, 11 }));
                 w.addDocuments(toAdd);
                 w.forceMerge(1);
             }
@@ -218,18 +221,31 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
                 assertEquals(1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
-                Query query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter, 2);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f, 1f / 51f, 1f / 73f }, new String[] { "1", "2", "7", "8" });
+                Query query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter, true);
 
-                query = getParentJoinKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter, 2);
+                // Since we match all children docs, we should have 10 scores
                 assertScorerResults(
                     searcher,
                     query,
-                    new float[] { 1f / 9f, 1f / 3f, 1f / 3f, 1f / 9f },
-                    new String[] { "4", "5", "7", "8" }
+                    new float[] { 1f / 3f, 1f, 1f / 3f, 1f / 9f, 1f / 19f, 1f / 51f, 1f / 73f, 1f / 99f, 0.007751938f, 0.006134969f },
+                    new String[] { "1", "2", "3", "4", "5", "7", "8", "9", "10", "11" }
                 );
-                query = getParentJoinKnnQuery("field", new float[] { 6, 6 }, new MatchAllDocsQuery(), 1, parentFilter, 2);
-                assertScorerResults(searcher, query, new float[] { 1f / 9f, 1f / 3f }, new String[] { "4", "5" });
+
+                // We should match the two nearest parent docs by the nearest child
+                query = new ToParentBlockJoinQuery(query, parentFilter, org.apache.lucene.search.join.ScoreMode.Max);
+                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "[1, 2, 3, 4, 5]", "[7, 8, 9, 10, 11]" });
+
+                // We only match 1 nearest parent, and consequently only get those children scores
+                query = getParentJoinKnnQuery("field", new float[] { 2, 2 }, new MatchAllDocsQuery(), 1, parentFilter, true);
+                assertScorerResults(
+                    searcher,
+                    query,
+                    new float[] { 1f / 3f, 1f, 1f / 3f, 1f / 9f, 1f / 19f },
+                    new String[] { "1", "2", "3", "4", "5" }
+                );
+
+                query = new ToParentBlockJoinQuery(query, parentFilter, org.apache.lucene.search.join.ScoreMode.Max);
+                assertScorerResults(searcher, query, new float[] { 1f }, new String[] { "[1, 2, 3, 4, 5]" });
             }
         }
     }
@@ -247,7 +263,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
             doc.add(getKnnVectorField(field, contents[i]));
             doc.add(newStringField("id", Integer.toString(i), Field.Store.YES));
             toAdd.add(doc);
-            toAdd.add(makeParent());
+            toAdd.add(makeParent(new int[] { i }));
             writer.addDocuments(toAdd);
         }
         // Add some documents without a vector
@@ -256,7 +272,7 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
             Document doc = new Document();
             doc.add(new StringField("other", "value", Field.Store.NO));
             toAdd.add(doc);
-            toAdd.add(makeParent());
+            toAdd.add(makeParent(new int[] { i }));
             writer.addDocuments(toAdd);
         }
         writer.close();
@@ -275,7 +291,6 @@ abstract class AbstractESDiversifyingChildrenKnnVectorQueryTestCase extends ESTe
         Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
         // prior to advancing, score is undefined
         assertEquals(-1, scorer.docID());
-        expectThrows(ArrayIndexOutOfBoundsException.class, scorer::score);
         DocIdSetIterator it = scorer.iterator();
         for (int i = 0; i < scores.length; i++) {
             int docId = it.nextDoc();

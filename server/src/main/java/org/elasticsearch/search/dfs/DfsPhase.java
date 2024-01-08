@@ -18,11 +18,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -45,7 +41,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -196,19 +191,8 @@ public class DfsPhase {
         for (int i = 0; i < knnSearch.size(); i++) {
             String knnField = knnVectorQueryBuilders.get(i).getFieldName();
             String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-            searchExecutionContext.nestedScope().nextLevelInnerHits(knnSearch.get(i).innerHit());
-            int numChildrenPerParent = Optional.ofNullable(knnSearch.get(i).innerHit()).map(InnerHitBuilder::getSize).orElse(1);
-            Query knnQuery = null;
-            try {
-                knnQuery = Rewriteable.rewrite(knnVectorQueryBuilders.get(i), searchExecutionContext, true).toQuery(searchExecutionContext);
-            } catch (QueryShardException | ParsingException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new QueryShardException(searchExecutionContext, "failed to create query: {}", e, e.getMessage());
-            } finally {
-                searchExecutionContext.nestedScope().previousLevelInnerHits();
-            }
-            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k() * numChildrenPerParent, context.getProfilers(), context.searcher(), knnNestedPath));
+            Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
+            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
         }
         context.dfsResult().knnResults(knnResults);
     }

@@ -22,7 +22,7 @@ public class ESDiversifyingChildrenByteKnnVectorQueryTests extends AbstractESDiv
         Query childFilter,
         int k,
         BitSetProducer parentBitSet,
-        int numChildrenPerParent
+        boolean scoreAllMatchingChildren
     ) {
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             fieldName,
@@ -30,7 +30,7 @@ public class ESDiversifyingChildrenByteKnnVectorQueryTests extends AbstractESDiv
             childFilter,
             k,
             parentBitSet,
-            numChildrenPerParent
+            scoreAllMatchingChildren
         );
     }
 

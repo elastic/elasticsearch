@@ -1,0 +1,5 @@
+pr: 104106
+summary: "[7.x] Bump commons codec version"
+area: Security
+type: upgrade
+issues: []

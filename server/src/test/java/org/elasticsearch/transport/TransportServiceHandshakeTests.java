@@ -439,11 +439,6 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                     }
 
                     @Override
-                    public String getChannelType() {
-                        return channel.getChannelType();
-                    }
-
-                    @Override
                     public void sendResponse(TransportResponse response) throws IOException {
                         assertThat(response, instanceOf(TransportService.HandshakeResponse.class));
                         if (modifyBuildHash) {

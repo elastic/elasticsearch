@@ -158,6 +158,7 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
             );
             assertThat(onlyErrorsResponse, notNullValue());
             assertThat(onlyErrorsResponse.getPolicyName(), is("random-policy"));
+            assertThat(onlyErrorsResponse.getStep(), is(ErrorStep.NAME));
         }
 
         {

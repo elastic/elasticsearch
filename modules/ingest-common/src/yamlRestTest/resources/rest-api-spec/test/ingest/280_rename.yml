@@ -73,7 +73,7 @@ teardown:
   - match: { _source.message: "test" }
 
 ---
-"Test Rename Processor with template snippets and override":
+"Test Rename Processor with override":
   - do:
       ingest.put_pipeline:
         id: "1"

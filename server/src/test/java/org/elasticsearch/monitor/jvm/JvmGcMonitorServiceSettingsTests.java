@@ -55,7 +55,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "failed to parse [monitor.jvm.gc.collector." + collector + ".warn] " + "with value [" + timeValue + "] as a time value"
+                    "failed to parse setting [monitor.jvm.gc.collector." + collector + ".warn] " + "with value [" + timeValue + "] as a time value"
                 )
             );
         }, true, null);
@@ -63,7 +63,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
 
     public void testNegativeOneSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
-        final String timeValue = "-1" + randomFrom("", "d", "h", "m", "s", "ms", "nanos");
+        final String timeValue = "-1" + randomFrom("", "d", "h", "m", "s", "ms", "us", "micros", "ns", "nanos");
         Settings settings = Settings.builder().put("monitor.jvm.gc.collector." + collector + ".warn", timeValue).build();
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));

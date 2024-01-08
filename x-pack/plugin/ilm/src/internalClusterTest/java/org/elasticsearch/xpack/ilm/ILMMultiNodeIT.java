@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -97,7 +98,9 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             TransportPutComposableIndexTemplateAction.TYPE,
             new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
-        prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09");
+        indexRequestBuilder.get();
+        indexRequestBuilder.request().decRef();
 
         assertBusy(() -> {
             ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))

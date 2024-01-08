@@ -172,10 +172,10 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "test-idx";
         createIndex(indexName);
-        prepareIndex(indexName).setSource("foo", "bar").get();
+        indexDoc(indexName, null, "foo", "bar");
         assertSuccessful(startFullSnapshot(repo, "snapshot-1"));
 
-        prepareIndex(indexName).setSource("foo", "baz").get();
+        indexDoc(indexName, null, "foo", "baz");
         assertSuccessful(startFullSnapshot(repo, "snapshot-2"));
 
         logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
@@ -341,6 +341,9 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             builders[i] = prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
         flushAndRefresh();
         assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")), 1);
 

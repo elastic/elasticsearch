@@ -369,9 +369,9 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate(index + "2").setSettings(indexSettings(1, 1)).setWaitForActiveShards(0).get();
 
         ensureGreen();
-        prepareIndex(index).setSource("foo", "bar").get();
-        prepareIndex(index + "2").setSource("foo", "bar").get();
-        prepareIndex(index + "2").setSource("foo", "bar").get();
+        indexDoc(index, null, "foo", "bar");
+        indexDoc(index + "2", null, "foo", "bar");
+        indexDoc(index + "2", null, "foo", "bar");
         refresh(index, index + "2");
 
         DataTiersFeatureSetUsage usage = getUsage();

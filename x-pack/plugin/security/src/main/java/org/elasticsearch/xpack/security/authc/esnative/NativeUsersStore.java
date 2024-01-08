@@ -421,40 +421,48 @@ public class NativeUsersStore {
     private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() != null;
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setId(getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
-                    .setSource(
-                        Fields.USERNAME.getPreferredName(),
-                        putUserRequest.username(),
-                        Fields.PASSWORD.getPreferredName(),
-                        String.valueOf(putUserRequest.passwordHash()),
-                        Fields.ROLES.getPreferredName(),
-                        putUserRequest.roles(),
-                        Fields.FULL_NAME.getPreferredName(),
-                        putUserRequest.fullName(),
-                        Fields.EMAIL.getPreferredName(),
-                        putUserRequest.email(),
-                        Fields.METADATA.getPreferredName(),
-                        putUserRequest.metadata(),
-                        Fields.ENABLED.getPreferredName(),
-                        putUserRequest.enabled(),
-                        Fields.TYPE.getPreferredName(),
-                        USER_DOC_TYPE
-                    )
-                    .setRefreshPolicy(putUserRequest.getRefreshPolicy())
-                    .request(),
-                listener.<DocWriteResponse>delegateFailure(
-                    (l, updateResponse) -> clearRealmCache(
-                        putUserRequest.username(),
-                        l,
-                        updateResponse.getResult() == DocWriteResponse.Result.CREATED
-                    )
-                ),
-                client::index
-            );
+            IndexRequestBuilder indexRequestBuilder = client.prepareIndex(SECURITY_MAIN_ALIAS);
+            try {
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    indexRequestBuilder.setId(getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
+                        .setSource(
+                            Fields.USERNAME.getPreferredName(),
+                            putUserRequest.username(),
+                            Fields.PASSWORD.getPreferredName(),
+                            String.valueOf(putUserRequest.passwordHash()),
+                            Fields.ROLES.getPreferredName(),
+                            putUserRequest.roles(),
+                            Fields.FULL_NAME.getPreferredName(),
+                            putUserRequest.fullName(),
+                            Fields.EMAIL.getPreferredName(),
+                            putUserRequest.email(),
+                            Fields.METADATA.getPreferredName(),
+                            putUserRequest.metadata(),
+                            Fields.ENABLED.getPreferredName(),
+                            putUserRequest.enabled(),
+                            Fields.TYPE.getPreferredName(),
+                            USER_DOC_TYPE
+                        )
+                        .setRefreshPolicy(putUserRequest.getRefreshPolicy())
+                        .request(),
+                    ActionListener.runAfter(
+                        listener.<DocWriteResponse>delegateFailure(
+                            (l, updateResponse) -> clearRealmCache(
+                                putUserRequest.username(),
+                                l,
+                                updateResponse.getResult() == DocWriteResponse.Result.CREATED
+                            )
+                        ),
+                        () -> indexRequestBuilder.request().decRef()
+                    ),
+                    client::index
+                );
+            } catch (Exception e) {
+                indexRequestBuilder.request().decRef();
+                throw e;
+            }
         });
     }
 

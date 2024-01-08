@@ -177,6 +177,9 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         // a case where they are the same (using sync flush), index Random does all this goodness
         // already
         indexRandom(true, builders);
+        for (IndexRequestBuilder builder : builders) {
+            builder.request().decRef();
+        }
     }
 
     private String findNodeWithPrimaryShard(String indexName, int shard) {

@@ -261,20 +261,23 @@ public class SamlServiceProviderIndex implements Closeable {
             // Due to the lack of "alias templates" (at the current time), we cannot write to the alias if it doesn't exist yet
             // - that would cause the alias to be created as a concrete index, which is not what we want.
             // So, until we know that the alias exists we have to write to the expected index name instead.
-            final IndexRequest request = new IndexRequest(aliasExists ? ALIAS_NAME : INDEX_NAME).opType(opType)
-                .source(xContentBuilder)
-                .id(document.docId)
-                .setRefreshPolicy(refreshPolicy);
-            client.index(request, listener.delegateFailureAndWrap((l, response) -> {
-                logger.debug(
-                    "Wrote service provider [{}][{}] as document [{}] ({})",
-                    document.name,
-                    document.entityId,
-                    response.getId(),
-                    response.getResult()
-                );
-                l.onResponse(response);
-            }));
+            final IndexRequest request = new IndexRequest(aliasExists ? ALIAS_NAME : INDEX_NAME).opType(opType);
+            try {
+                request.source(xContentBuilder).id(document.docId).setRefreshPolicy(refreshPolicy);
+                client.index(request, ActionListener.runAfter(listener.delegateFailureAndWrap((l, response) -> {
+                    logger.debug(
+                        "Wrote service provider [{}][{}] as document [{}] ({})",
+                        document.name,
+                        document.entityId,
+                        response.getId(),
+                        response.getResult()
+                    );
+                    l.onResponse(response);
+                }), request::decRef));
+            } catch (Exception e) {
+                request.decRef();
+                throw e;
+            }
         } catch (IOException e) {
             listener.onFailure(e);
         }

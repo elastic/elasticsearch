@@ -120,7 +120,6 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
 
                     @Override
                     protected void doRun() {
-                        Thread.yield();
                         assertTrue(request.hasReferences());
                         if (randomBoolean()) {
                             chain.proceed(task, action, request, listener);
@@ -161,7 +160,6 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             request.mustIncRef();
             threadPool.generic().execute(ActionRunnable.supply(ActionListener.runBefore(listener, request::decRef), () -> {
-                Thread.yield();
                 assert request.hasReferences();
                 return new Response();
             }));

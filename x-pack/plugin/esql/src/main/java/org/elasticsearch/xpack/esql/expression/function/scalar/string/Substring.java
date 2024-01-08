@@ -35,7 +35,13 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
 
     private final Expression str, start, length;
 
-    public Substring(Source source, Expression str, Expression start, Expression length) {
+    @FunctionInfo(returnType = "keyword", description = "Returns a substring of a string, specified by a start position and an optional length")
+    public Substring(
+        Source source, 
+        @Param(name = "str", type = { "text", "keyword" }) Expression str,
+        @Param(name = "start", type = { "text", "keyword" }) Expression start,
+        @Param(name = "length", type = { "integer" }) Expression length
+    ) {
         super(source, length == null ? Arrays.asList(str, start) : Arrays.asList(str, start, length));
         this.str = str;
         this.start = start;

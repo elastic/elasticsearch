@@ -27,9 +27,7 @@ abstract class AbstractAuthenticatorTests extends ESTestCase {
     ) {
         List<Measurement> successMetrics = telemetryPlugin.getLongCounterMeasurement(metricType.successMetricInfo().name());
         assertThat(successMetrics.size(), equalTo(1));
-        // verify that we always record a single authentication
         assertThat(successMetrics.get(0).getLong(), equalTo(1L));
-        // and that all attributes are present
         assertThat(successMetrics.get(0).attributes(), equalTo(attributes));
     }
 

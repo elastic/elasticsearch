@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script.expression;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
@@ -78,7 +80,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testBasic() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "foo", 4);
         assertResponse(buildRequest("doc['foo'] + 1"), rsp -> {
             assertEquals(1, rsp.getHits().getTotalHits().value);
             assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
@@ -88,7 +90,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testFunction() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "foo", 4);
         assertNoFailuresAndResponse(buildRequest("doc['foo'] + abs(1)"), rsp -> {
             assertEquals(1, rsp.getHits().getTotalHits().value);
             assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
@@ -99,7 +101,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
 
-        prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "foo", 4);
         assertResponse(buildRequest("doc['foo'].value + 1"), rsp -> {
             assertEquals(1, rsp.getHits().getTotalHits().value);
             assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
@@ -109,7 +111,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testScore() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("text", "hello goodbye"),
             prepareIndex("test").setId("2").setSource("text", "hello hello hello goodbye"),
@@ -141,7 +143,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testDateMethods() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping("date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("id", 1, "date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
             prepareIndex("test").setId("2").setSource("id", 2, "date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z")
@@ -175,7 +177,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testDateObjectMethods() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping("date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("id", 1, "date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
             prepareIndex("test").setId("2").setSource("id", 2, "date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z")
@@ -228,7 +230,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         doc3.put("double0", new Double[] { 5.0d, 1.0d, 1.5d, -1.5d });
         doc3.put("double1", 4.0d);
 
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource(doc1),
             prepareIndex("test").setId("2").setSource(doc2),
@@ -313,7 +315,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testInvalidDateMethodCall() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping("double", "type=double"));
         ensureGreen("test");
-        indexRandom(true, prepareIndex("test").setId("1").setSource("double", "178000000.0"));
+        indexRandomAndDecRefRequests(true, prepareIndex("test").setId("1").setSource("double", "178000000.0"));
         try {
             buildRequest("doc['double'].getYear()").get();
             fail();
@@ -334,7 +336,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testSparseField() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").setMapping("x", "type=long", "y", "type=long"));
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("id", 1, "x", 4),
             prepareIndex("test").setId("2").setSource("id", 2, "y", 2)
@@ -350,7 +352,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testMissingField() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        prepareIndex("test").setId("1").setSource("x", 4).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "x", 4);
         try {
             buildRequest("doc['bogus']").get();
             fail("Expected missing field to cause failure");
@@ -367,7 +369,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testParams() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("id", 1, "x", 10),
             prepareIndex("test").setId("2").setSource("id", 2, "x", 3),
@@ -385,7 +387,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     }
 
     public void testCompileFailure() {
-        prepareIndex("test").setId("1").setSource("x", 1).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "x", 1);
         try {
             buildRequest("garbage%@#%@").get();
             fail("Expected expression compilation failure");
@@ -396,7 +398,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     }
 
     public void testNonNumericParam() {
-        prepareIndex("test").setId("1").setSource("x", 1).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "x", 1);
         try {
             buildRequest("a", "a", "astring").get();
             fail("Expected string parameter to cause failure");
@@ -411,7 +413,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     }
 
     public void testNonNumericField() {
-        prepareIndex("test").setId("1").setSource("text", "this is not a number").setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "text", "this is not a number");
         try {
             buildRequest("doc['text.keyword']").get();
             fail("Expected text field to cause execution failure");
@@ -426,7 +428,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     }
 
     public void testInvalidGlobalVariable() {
-        prepareIndex("test").setId("1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "foo", 5);
         try {
             buildRequest("bogus").get();
             fail("Expected bogus variable to cause execution failure");
@@ -441,7 +443,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     }
 
     public void testDocWithoutField() {
-        prepareIndex("test").setId("1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "foo", 5);
         try {
             buildRequest("doc").get();
             fail("Expected doc variable without field to cause execution failure");
@@ -456,7 +458,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     }
 
     public void testInvalidFieldMember() {
-        prepareIndex("test").setId("1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
+        indexDocImmediate("test", "1", "foo", 5);
         try {
             buildRequest("doc['foo'].bogus").get();
             fail("Expected bogus field member to cause execution failure");
@@ -474,7 +476,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         // i.e. _value for aggregations
         createIndex("test");
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("x", 5, "y", 1.2),
             prepareIndex("test").setId("2").setSource("x", 10, "y", 1.4),
@@ -521,7 +523,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         // i.e. expression script for term aggregations, which is not allowed
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("text", "type=keyword").get());
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("text", "hello"),
             prepareIndex("test").setId("2").setSource("text", "goodbye"),
@@ -556,7 +558,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         try {
             createIndex("test_index");
             ensureGreen("test_index");
-            indexRandom(true, prepareIndex("test_index").setId("1").setSource("text_field", "text"));
+            indexRandomAndDecRefRequests(true, prepareIndex("test_index").setId("1").setSource("text_field", "text"));
             UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
             urb.setId("1");
             urb.setScript(new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "0", Collections.emptyMap()));
@@ -574,7 +576,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testPipelineAggregationScript() throws Exception {
         createIndex("agg_index");
         ensureGreen("agg_index");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("agg_index").setId("1").setSource("one", 1.0, "two", 2.0, "three", 3.0, "four", 4.0),
             prepareIndex("agg_index").setId("2").setSource("one", 2.0, "two", 2.0, "three", 3.0, "four", 4.0),
@@ -640,17 +642,17 @@ public class MoreExpressionIT extends ESIntegTestCase {
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
-        prepareIndex("test").setId("1")
-            .setSource(
-                jsonBuilder().startObject()
-                    .field("name", "test")
-                    .startObject("location")
-                    .field("lat", 61.5240)
-                    .field("lon", 105.3188)
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        index(
+            "test",
+            "1",
+            jsonBuilder().startObject()
+                .field("name", "test")
+                .startObject("location")
+                .field("lat", 61.5240)
+                .field("lon", 105.3188)
+                .endObject()
+                .endObject()
+        );
         refresh();
         // access .lat
         assertNoFailuresAndResponse(buildRequest("doc['location'].lat"), rsp -> {
@@ -684,7 +686,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("id", 1, "price", 1.0, "vip", true),
             prepareIndex("test").setId("2").setSource("id", 2, "price", 2.0, "vip", false),
@@ -717,7 +719,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
     public void testFilterScript() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        indexRandom(
+        indexRandomAndDecRefRequests(
             true,
             prepareIndex("test").setId("1").setSource("id", 1, "foo", 1.0),
             prepareIndex("test").setId("2").setSource("id", 2, "foo", 0.0)
@@ -729,5 +731,24 @@ public class MoreExpressionIT extends ESIntegTestCase {
             assertEquals(1, rsp.getHits().getTotalHits().value);
             assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
         });
+    }
+
+    private void indexRandomAndDecRefRequests(boolean forceRefresh, IndexRequestBuilder... builders) throws InterruptedException {
+        try {
+            indexRandom(forceRefresh, builders);
+        } finally {
+            for (IndexRequestBuilder builder : builders) {
+                builder.request().decRef();
+            }
+        }
+    }
+
+    private DocWriteResponse indexDocImmediate(String index, String id, Object... source) {
+        IndexRequestBuilder indexRequestBuilder = prepareIndex(index);
+        try {
+            return indexRequestBuilder.setId(id).setSource(source).setRefreshPolicy(IMMEDIATE).get();
+        } finally {
+            indexRequestBuilder.request().decRef();
+        }
     }
 }

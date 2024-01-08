@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
@@ -101,11 +99,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             logger.info("testing with {} against a limit of {}", testWithSize, limit);
             Exception e = expectThrows(
                 CircuitBreakingException.class,
-                () -> runWithLimit(
-                    simple,
-                    CannedSourceOperator.deepCopyOf(input),
-                    testWithSize
-                )
+                () -> runWithLimit(simple, CannedSourceOperator.deepCopyOf(input), testWithSize)
             );
             assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
         } finally {

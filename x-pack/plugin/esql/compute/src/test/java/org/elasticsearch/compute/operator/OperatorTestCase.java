@@ -87,7 +87,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     /**
      * Run {@link #simple} with a circuit breaker NOCOMMIT
      */
-    @Repeat(iterations = 100)
     public final void testSimpleCircuitBreaking() {
         ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
         Operator.OperatorFactory simple = simple();
@@ -98,12 +97,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 memoryLimitForSimple,
                 l -> runWithLimit(simple, CannedSourceOperator.deepCopyOf(input), l)
             );
+            ByteSizeValue testWithSize = ByteSizeValue.ofBytes(randomLongBetween(0, limit.getBytes()));
+            logger.info("testing with {} against a limit of {}", testWithSize, limit);
             Exception e = expectThrows(
                 CircuitBreakingException.class,
                 () -> runWithLimit(
                     simple,
                     CannedSourceOperator.deepCopyOf(input),
-                    ByteSizeValue.ofBytes(randomLongBetween(0, limit.getBytes()))
+                    testWithSize
                 )
             );
             assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));

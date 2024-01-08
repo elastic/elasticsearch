@@ -30,11 +30,9 @@ public class HashAggregationOperator implements Operator {
 
     public record GroupSpec(int channel, ElementType elementType) {}
 
-    public record HashAggregationOperatorFactory(
-        List<GroupSpec> groups,
-        List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize
-    ) implements OperatorFactory {
+    public record HashAggregationOperatorFactory(List<GroupSpec> groups, List<GroupingAggregator.Factory> aggregators, int maxPageSize)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(

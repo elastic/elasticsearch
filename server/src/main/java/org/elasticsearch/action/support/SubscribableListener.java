@@ -388,10 +388,10 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * This is essentially a shorthand for a call to {@link #andThen} with a {@code nextStep} argument that is fully synchronous.
      * <p>
      * The threading of the {@code fn} invocation is the same as for listeners added with {@link #addListener}: if this listener is
-     * already complete then {@code fn} is invoked on the thread calling {@link #andThenMap} and in its thread context, but if this
+     * already complete then {@code fn} is invoked on the thread calling {@link #andThenApply} and in its thread context, but if this
      * listener is incomplete then {@code fn} is invoked on the thread, and in the thread context, on which this listener is completed.
      */
-    public <U> SubscribableListener<U> andThenMap(CheckedFunction<T, U, Exception> fn) {
+    public <U> SubscribableListener<U> andThenApply(CheckedFunction<T, U, Exception> fn) {
         return newForked(l -> addListener(l.map(fn)));
     }
 
@@ -404,11 +404,11 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * This is essentially a shorthand for a call to {@link #andThen} with a {@code nextStep} argument that is fully synchronous.
      * <p>
      * The threading of the {@code consumer} invocation is the same as for listeners added with {@link #addListener}: if this listener is
-     * already complete then {@code consumer} is invoked on the thread calling {@link #andThenConsume} and in its thread context, but if
+     * already complete then {@code consumer} is invoked on the thread calling {@link #andThenAccept} and in its thread context, but if
      * this listener is incomplete then {@code consumer} is invoked on the thread, and in the thread context, on which this listener is
      * completed.
      */
-    public SubscribableListener<Void> andThenConsume(CheckedConsumer<T, Exception> consumer) {
+    public SubscribableListener<Void> andThenAccept(CheckedConsumer<T, Exception> consumer) {
         return newForked(l -> addListener(l.map(r -> {
             consumer.accept(r);
             return null;

@@ -565,7 +565,7 @@ public class RecoverySourceHandler {
                     // but we must still create a retention lease
                     .<RetentionLease>newForked(leaseListener -> createRetentionLease(startingSeqNo, leaseListener))
                     // and then compute the result of sending no files
-                    .andThenMap(ignored -> {
+                    .andThenApply(ignored -> {
                         final TimeValue took = stopWatch.totalTime();
                         logger.trace("recovery [phase1]: took [{}]", took);
                         return new SendFileResult(
@@ -749,7 +749,7 @@ public class RecoverySourceHandler {
                     cleanFiles(store, recoverySourceMetadata, () -> translogOps, lastKnownGlobalCheckpoint, finalRecoveryPlanListener);
                 })
                 // compute the result
-                .andThenMap(ignored -> {
+                .andThenApply(ignored -> {
                     final TimeValue took = stopWatch.totalTime();
                     logger.trace("recovery [phase1]: took [{}]", took);
                     return new SendFileResult(

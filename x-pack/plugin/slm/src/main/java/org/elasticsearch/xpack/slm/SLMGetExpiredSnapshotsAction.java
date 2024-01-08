@@ -134,7 +134,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
                                 )
 
                                 // Compute snapshots to delete for each (relevant) policy
-                                .andThenConsume(snapshotDetailsByPolicy -> {
+                                .andThenAccept(snapshotDetailsByPolicy -> {
                                     resultsBuilder.addResult(
                                         repositoryName,
                                         getSnapshotsToDelete(repositoryName, request.policies(), snapshotDetailsByPolicy)

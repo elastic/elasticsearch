@@ -183,7 +183,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 (l, rd) -> SLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(EsExecutors.DIRECT_EXECUTOR_SERVICE, repository, rd, l)
             )
 
-            .andThenConsume(snapshotDetailsByPolicy -> {
+            .andThenAccept(snapshotDetailsByPolicy -> {
                 snapshotDetailsByPolicy.flatMap((policyId, snapshotsMap) -> snapshotsMap.entrySet().stream().map(entry -> {
                     assertThat(policyId, oneOf(policyNames));
                     assertEquals(policyId, entry.getValue().getSlmPolicy());

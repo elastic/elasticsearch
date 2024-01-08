@@ -14,7 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -35,7 +35,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
     private final ClusterService clusterService;
     private final AsyncTaskIndexService<Response> store;
     private final boolean updateInitialResultsInStore;
-    private final TriConsumer<Task, ActionListener<Response>, TimeValue> addCompletionListener;
+    private final TriFunction<Task, ActionListener<Response>, TimeValue, Boolean> addCompletionListener;
 
     /**
      * Creates async results service
@@ -51,7 +51,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
         AsyncTaskIndexService<Response> store,
         boolean updateInitialResultsInStore,
         Class<? extends Task> asyncTaskClass,
-        TriConsumer<Task, ActionListener<Response>, TimeValue> addCompletionListener,
+        TriFunction<Task, ActionListener<Response>, TimeValue, Boolean> addCompletionListener,
         TaskManager taskManager,
         ClusterService clusterService
     ) {
@@ -129,11 +129,16 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             if (expirationTimeMillis != -1) {
                 task.setExpirationTime(expirationTimeMillis);
             }
-            addCompletionListener.apply(
+            boolean added = addCompletionListener.apply(
                 task,
                 listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)),
                 request.getWaitForCompletionTimeout()
             );
+            if (added == false) {
+                // the task must have completed, since we cannot add a completion listener
+                assert store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass) == null;
+                getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
+            }
         } catch (Exception exc) {
             listener.onFailure(exc);
         }

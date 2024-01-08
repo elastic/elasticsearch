@@ -987,13 +987,13 @@ public class ApiKeyService {
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 builder.map(rdMap);
                 try (
-                    XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(
-                            XContentParserConfiguration.EMPTY.withDeprecationHandler(
-                                new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
-                            ),
-                            BytesReference.bytes(builder).streamInput()
-                        )
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY.withDeprecationHandler(
+                            new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
+                        ),
+                        BytesReference.bytes(builder),
+                        XContentType.JSON
+                    )
                 ) {
                     return RoleDescriptor.parse(name, parser, false);
                 }

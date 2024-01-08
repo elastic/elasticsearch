@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -615,7 +615,7 @@ public class DestinationIndexTests extends ESTestCase {
         ArgumentCaptor<FieldCapabilitiesRequest> fieldCapabilitiesRequestCaptor = ArgumentCaptor.forClass(FieldCapabilitiesRequest.class);
 
         doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE)).when(client)
-            .execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
+            .execute(eq(TransportPutMappingAction.TYPE), putMappingRequestCaptor.capture(), any());
 
         FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], new HashMap<>() {
             {
@@ -638,7 +638,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         verify(client, atLeastOnce()).threadPool();
         verify(client, atMost(1)).execute(eq(TransportFieldCapabilitiesAction.TYPE), any(), any());
-        verify(client).execute(eq(PutMappingAction.INSTANCE), any(), any());
+        verify(client).execute(eq(TransportPutMappingAction.TYPE), any(), any());
         verifyNoMoreInteractions(client);
 
         PutMappingRequest putMappingRequest = putMappingRequestCaptor.getValue();

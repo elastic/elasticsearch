@@ -441,7 +441,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 positionLength = 1;
             }
             type = in.readOptionalString();
-            attributes = in.readMap();
+            attributes = in.readGenericMap();
         }
 
         public String getTerm() {

@@ -25,6 +25,9 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
@@ -345,7 +348,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // Step 1: collect all the indices in the request
         final Map<String, Boolean> indices = bulkRequest.requests.stream()
             // delete requests should not attempt to create the index (if the index does not
-            // exists), unless an external versioning is used
+            // exist), unless an external versioning is used
             .filter(
                 request -> request.opType() != DocWriteRequest.OpType.DELETE
                     || request.versionType() == VersionType.EXTERNAL
@@ -366,20 +369,28 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
+        // Step 3: Collect all the data streams that need to be rolled over before writing
+        Set<String> dataStreamsToBeRolledOver = indices.keySet().stream().filter(target -> {
+            DataStream dataStream = state.metadata().dataStreams().get(target);
+            return dataStream != null && dataStream.rolloverOnWrite();
+        }).collect(Collectors.toSet());
+
+        // Step 4: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
         createMissingIndicesAndIndexData(
             task,
             bulkRequest,
             executorName,
             listener,
             autoCreateIndices,
+            dataStreamsToBeRolledOver,
             indicesThatCannotBeCreated,
             startTime
         );
     }
 
     /*
-     * This method is responsible for creating any missing indices and indexing the data in the BulkRequest
+     * This method is responsible for creating any missing indices, rolling over a data stream when needed and then
+     *  indexing the data in the BulkRequest
      */
     protected void createMissingIndicesAndIndexData(
         Task task,
@@ -387,12 +398,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         String executorName,
         ActionListener<BulkResponse> listener,
         Set<String> autoCreateIndices,
+        Set<String> dataStreamsToBeRolledOver,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
-        if (autoCreateIndices.isEmpty()) {
+        if (autoCreateIndices.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
             return;
         }
@@ -417,15 +429,47 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
-                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                    bulkRequest.requests.set(i, null);
-                                }
-                            }
+                            failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
                         }
                     }
                 }, refs.acquire()));
+            }
+            for (String dataStream : dataStreamsToBeRolledOver) {
+                rolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+
+                    @Override
+                    public void onResponse(RolloverResponse result) {
+                        // A successful response has rolled_over false when in the following cases:
+                        // - A request had the parameter lazy or dry_run enabled
+                        // - A request had conditions that were not met
+                        // Since none of the above apply, getting a response with rolled_over false is considered a bug
+                        // that should be caught here and inform the developer.
+                        assert result.isRolledOver()
+                            : "An successful unconditional rollover should always result in a rolled over data stream";
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        failRequestsWhenPrerequisiteActionFailed(dataStream, bulkRequest, responses, e);
+                    }
+                }, refs.acquire()));
+            }
+        }
+    }
+
+    /**
+     * Fails all requests involving this index or data stream because the prerequisite action failed too.
+     */
+    private static void failRequestsWhenPrerequisiteActionFailed(
+        String target,
+        BulkRequest bulkRequest,
+        AtomicArray<BulkItemResponse> responses,
+        Exception error
+    ) {
+        for (int i = 0; i < bulkRequest.requests.size(); i++) {
+            DocWriteRequest<?> request = bulkRequest.requests.get(i);
+            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, target, error)) {
+                bulkRequest.requests.set(i, null);
             }
         }
     }
@@ -526,6 +570,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
+    }
+
+    void rolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
+        RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
+        rolloverRequest.masterNodeTimeout(timeout);
+        client.execute(RolloverAction.INSTANCE, rolloverRequest, listener);
     }
 
     private static boolean setResponseFailureIfIndexMatches(

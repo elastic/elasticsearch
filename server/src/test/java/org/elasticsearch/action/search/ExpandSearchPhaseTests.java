@@ -232,7 +232,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 )
             );
 
-        SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchHits hits = SearchHits.empty(new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
             @Override
             public void run() {
@@ -274,7 +274,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             .preference("foobar")
             .routing("baz");
 
-        SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchHits hits = SearchHits.empty(new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, hits, () -> new SearchPhase("test") {
             @Override
             public void run() {

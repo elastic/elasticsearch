@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -103,9 +102,16 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     public void testTooLongConstantDelimiter() {
         String delimiter = randomAlphaOfLength(2);
         DriverContext driverContext = driverContext();
-        InvalidArgumentException e = expectThrows(InvalidArgumentException.class, () -> evaluator(
-            new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(delimiter), DataTypes.KEYWORD))
-        ).get(driverContext));
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new Split(
+                    Source.EMPTY,
+                    field("str", DataTypes.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(delimiter), DataTypes.KEYWORD)
+                )
+            ).get(driverContext)
+        );
         assertThat(e.getMessage(), equalTo("delimiter must be single byte for now"));
     }
 }

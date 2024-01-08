@@ -133,10 +133,7 @@ public class ExpressionTests extends ESTestCase {
         );
 
         var number = "1" + IntStream.range(0, 309).mapToObj(ignored -> "0").collect(Collectors.joining());
-        assertParsingException(
-            () -> parse("row foo == " + number),
-            "line 1:13: Number [" + number + "] is too large"
-        );
+        assertParsingException(() -> parse("row foo == " + number), "line 1:13: Number [" + number + "] is too large");
     }
 
     public void testBooleanLiteralsCondition() {

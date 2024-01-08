@@ -73,9 +73,17 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
     public void testInvalidChrono() {
         String chrono = randomAlphaOfLength(10);
         DriverContext driverContext = driverContext();
-        InvalidArgumentException e = expectThrows(InvalidArgumentException.class, () -> evaluator(
-            new DateExtract(Source.EMPTY, new Literal(Source.EMPTY, new BytesRef(chrono), DataTypes.KEYWORD), field("str", DataTypes.DATETIME), null)
-        ).get(driverContext));
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new DateExtract(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, new BytesRef(chrono), DataTypes.KEYWORD),
+                    field("str", DataTypes.DATETIME),
+                    null
+                )
+            ).get(driverContext)
+        );
         assertThat(e.getMessage(), equalTo("invalid date field for []: " + chrono));
     }
 

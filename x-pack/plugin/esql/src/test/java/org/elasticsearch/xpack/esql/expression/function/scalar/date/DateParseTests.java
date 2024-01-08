@@ -67,9 +67,16 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
     public void testInvalidPattern() {
         String pattern = randomAlphaOfLength(10);
         DriverContext driverContext = driverContext();
-        InvalidArgumentException e = expectThrows(InvalidArgumentException.class, () -> evaluator(
-            new DateParse(Source.EMPTY, new Literal(Source.EMPTY, new BytesRef(pattern), DataTypes.KEYWORD), field("str", DataTypes.KEYWORD))
-        ).get(driverContext));
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> evaluator(
+                new DateParse(
+                    Source.EMPTY,
+                    new Literal(Source.EMPTY, new BytesRef(pattern), DataTypes.KEYWORD),
+                    field("str", DataTypes.KEYWORD)
+                )
+            ).get(driverContext)
+        );
         assertThat(e.getMessage(), startsWith("invalid date pattern for []: Invalid format: [" + pattern + "]"));
     }
 

@@ -558,7 +558,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
-                    searchHits.add(new SearchHit(scoreDoc.doc, ""));
+                    searchHits.add(SearchHit.unpooled(scoreDoc.doc, ""));
                     if (scoreDoc.score > maxScore) {
                         maxScore = scoreDoc.score;
                     }
@@ -570,7 +570,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
                             ScoreDoc doc = option.getDoc();
                             if (doc.shardIndex == shardIndex) {
-                                searchHits.add(new SearchHit(doc.doc, ""));
+                                searchHits.add(SearchHit.unpooled(doc.doc, ""));
                                 if (doc.score > maxScore) {
                                     maxScore = doc.score;
                                 }
@@ -583,12 +583,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
             ProfileResult profileResult = profile && searchHits.size() > 0
                 ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), randomNonNegativeLong(), List.of())
                 : null;
-            var sHits = new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore);
-            try {
-                fetchSearchResult.shardResult(sHits, profileResult);
-            } finally {
-                sHits.decRef();
-            }
+            fetchSearchResult.shardResult(
+                SearchHits.unpooled(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore),
+                profileResult
+            );
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;

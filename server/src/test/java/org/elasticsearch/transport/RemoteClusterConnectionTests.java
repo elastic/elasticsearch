@@ -147,36 +147,31 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                     SearchHits searchHits;
                     if ("null_target".equals(request.preference())) {
-                        searchHits = new SearchHits(
-                            new SearchHit[] { new SearchHit(0) },
+                        searchHits = SearchHits.unpooled(
+                            new SearchHit[] { SearchHit.unpooled(0) },
                             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                             1F
                         );
                     } else {
                         searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    try {
-                        channel.sendResponse(
-                            new SearchResponse(
-                                searchHits,
-                                InternalAggregations.EMPTY,
-                                null,
-                                false,
-                                null,
-                                null,
-                                1,
-                                null,
-                                1,
-                                1,
-                                0,
-                                100,
-                                ShardSearchFailure.EMPTY_ARRAY,
-                                SearchResponse.Clusters.EMPTY
-                            )
-                        );
-                    } finally {
-                        searchHits.decRef();
-                    }
+                    SearchResponse searchResponse = new SearchResponse(
+                        searchHits,
+                        InternalAggregations.EMPTY,
+                        null,
+                        false,
+                        null,
+                        null,
+                        1,
+                        null,
+                        1,
+                        1,
+                        0,
+                        100,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
+                    );
+                    channel.sendResponse(searchResponse);
                 }
             );
             newService.registerRequestHandler(

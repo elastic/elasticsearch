@@ -78,16 +78,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 FetchSearchResult fetchResult = new FetchSearchResult();
                 try {
                     fetchResult.setSearchShardTarget(queryResult.getSearchShardTarget());
-                    SearchHits hits = new SearchHits(
-                        new SearchHit[] { new SearchHit(42) },
+                    SearchHits hits = SearchHits.unpooled(
+                        new SearchHit[] { SearchHit.unpooled(42) },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                         1.0F
                     );
-                    try {
-                        fetchResult.shardResult(hits, fetchProfile(profiled));
-                    } finally {
-                        hits.decRef();
-                    }
+                    fetchResult.shardResult(hits, fetchProfile(profiled));
                     QueryFetchSearchResult fetchSearchResult = QueryFetchSearchResult.of(queryResult, fetchResult);
                     try {
                         fetchSearchResult.setShardIndex(0);
@@ -213,25 +209,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         SearchHits hits;
                         if (request.contextId().equals(ctx2)) {
                             fetchResult.setSearchShardTarget(shard2Target);
-                            hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(84) },
+                            hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
                         } else {
                             assertEquals(ctx1, request.contextId());
                             fetchResult.setSearchShardTarget(shard1Target);
-                            hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(42) },
+                            hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(42) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 1.0F
                             );
                         }
-                        try {
-                            fetchResult.shardResult(hits, fetchProfile(profiled));
-                        } finally {
-                            hits.decRef();
-                        }
+                        fetchResult.shardResult(hits, fetchProfile(profiled));
                         listener.onResponse(fetchResult);
                     } finally {
                         fetchResult.decRef();
@@ -335,16 +327,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         FetchSearchResult fetchResult = new FetchSearchResult();
                         try {
                             fetchResult.setSearchShardTarget(shard1Target);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(84) },
+                            SearchHits hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
-                            try {
-                                fetchResult.shardResult(hits, fetchProfile(profiled));
-                            } finally {
-                                hits.decRef();
-                            }
+                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(fetchResult);
                         } finally {
                             fetchResult.decRef();
@@ -451,16 +439,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         FetchSearchResult fetchResult = new FetchSearchResult();
                         try {
                             fetchResult.setSearchShardTarget(shardTargets[(int) request.contextId().getId()]);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit((int) (request.contextId().getId() + 1)) },
+                            SearchHits hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled((int) (request.contextId().getId() + 1)) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 100F
                             );
-                            try {
-                                fetchResult.shardResult(hits, fetchProfile(profiled));
-                            } finally {
-                                hits.decRef();
-                            }
+                            fetchResult.shardResult(hits, fetchProfile(profiled));
                             listener.onResponse(fetchResult);
                         } finally {
                             fetchResult.decRef();
@@ -594,22 +578,21 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         SearchHits hits;
                         if (request.contextId().getId() == 321) {
                             fetchResult.setSearchShardTarget(shard2Target);
-                            hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(84) },
+                            hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
                         } else {
                             fetchResult.setSearchShardTarget(shard1Target);
                             assertEquals(request, 123);
-                            hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(42) },
+                            hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(42) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 1.0F
                             );
                         }
                         fetchResult.shardResult(hits, fetchProfile(profiled));
-                        hits.decRef();
                         listener.onResponse(fetchResult);
                     } finally {
                         fetchResult.decRef();
@@ -706,16 +689,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     try {
                         if (request.contextId().getId() == 321) {
                             fetchResult.setSearchShardTarget(shard1Target);
-                            SearchHits hits = new SearchHits(
-                                new SearchHit[] { new SearchHit(84) },
+                            SearchHits hits = SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
                             );
-                            try {
-                                fetchResult.shardResult(hits, fetchProfile(profiled));
-                            } finally {
-                                hits.decRef();
-                            }
+                            fetchResult.shardResult(hits, fetchProfile(profiled));
                         } else {
                             fail("requestID 123 should not be fetched but was");
                         }

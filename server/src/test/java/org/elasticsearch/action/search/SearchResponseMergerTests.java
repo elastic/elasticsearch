@@ -394,7 +394,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     i,
                     Collections.emptyMap()
                 );
-                SearchHit hit = new SearchHit(docId);
+                SearchHit hit = SearchHit.unpooled(docId);
                 ShardId shardId = new ShardId(
                     randomAlphaOfLengthBetween(5, 10),
                     randomAlphaOfLength(10),
@@ -403,7 +403,6 @@ public class SearchResponseMergerTests extends ESTestCase {
                 String clusterAlias = randomBoolean() ? "" : randomAlphaOfLengthBetween(5, 10);
                 hit.shard(new SearchShardTarget("node", shardId, clusterAlias));
                 option.setHit(hit);
-                hit.decRef();
                 options.addOption(option);
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
@@ -481,7 +480,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1F,
                     Collections.emptyMap()
                 );
-                SearchHit searchHit = new SearchHit(docId);
+                SearchHit searchHit = SearchHit.unpooled(docId);
                 searchHit.shard(
                     new SearchShardTarget(
                         "node",
@@ -490,7 +489,6 @@ public class SearchResponseMergerTests extends ESTestCase {
                     )
                 );
                 option.setHit(searchHit);
-                searchHit.decRef();
                 options.addOption(option);
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);

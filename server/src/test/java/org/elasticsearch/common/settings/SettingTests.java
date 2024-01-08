@@ -802,6 +802,16 @@ public class SettingTests extends ESTestCase {
         }
     }
 
+    public void testPrefixKeySettingFallback() {
+        Setting<Boolean> setting = Setting.prefixKeySetting("foo.",
+            Setting.prefixKeySetting("bar.", (key) -> Setting.boolSetting(key, false, Property.NodeScope)),
+            (key) -> Setting.boolSetting(key, false, Property.NodeScope)
+        );
+
+        assertTrue(setting.match("foo.bar"));
+        assertTrue(setting.match("bar.bar"));
+    }
+
     public void testAffixKeySetting() {
         Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());

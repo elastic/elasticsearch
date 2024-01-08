@@ -876,6 +876,19 @@ public class Setting<T> implements ToXContentObject {
             this.dependencies = Set.of(dependencies);
         }
 
+        public AffixSetting(
+            AffixKey key,
+            Setting<T> fallback,
+            Setting<T> delegate,
+            BiFunction<String, String, Setting<T>> delegateFactory,
+            AffixSettingDependency... dependencies
+        ) {
+            super(key, fallback, delegate.defaultValue, delegate.parser, v -> {}, delegate.properties.toArray(new Property[0]));
+            this.key = key;
+            this.delegateFactory = delegateFactory;
+            this.dependencies = Set.of(dependencies);
+        }
+
         boolean isGroupSetting() {
             return true;
         }
@@ -2056,6 +2069,12 @@ public class Setting<T> implements ToXContentObject {
         return affixKeySetting(new AffixKey(prefix), delegateFactoryWithNamespace);
     }
 
+    public static <T> AffixSetting<T> prefixKeySetting(String prefix, Setting<T> fallback, Function<String, Setting<T>> delegateFactory) {
+        BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
+        Setting<T> delegate = delegateFactoryWithNamespace.apply("_na_", "_na_");
+        return new AffixSetting<>(new AffixKey(prefix), fallback, delegate, delegateFactoryWithNamespace);
+    }
+
     /**
      * This setting type allows to validate settings that have the same type and a common prefix and suffix. For instance
      * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support updaters
@@ -2164,7 +2183,8 @@ public class Setting<T> implements ToXContentObject {
 
         private final String keyString;
 
-        AffixKey(String prefix) {
+        // TODO(stu): clean this up so it doesn't have to be exposed
+        public AffixKey(String prefix) {
             this(prefix, null);
         }
 

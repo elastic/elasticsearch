@@ -126,19 +126,22 @@ public class APMAgentSettings {
     );
 
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
-        APM_SETTING_PREFIX + "agent.",
-        (qualifiedKey) -> {
-            final String[] parts = qualifiedKey.split("\\.");
-            final String key = parts[parts.length - 1];
-            final String defaultValue = APM_AGENT_DEFAULT_SETTINGS.getOrDefault(key, "");
-            return new Setting<>(qualifiedKey, defaultValue, (value) -> {
-                if (PROHIBITED_AGENT_KEYS.contains(key)) {
-                    throw new IllegalArgumentException("Explicitly configuring [" + qualifiedKey + "] is prohibited");
-                }
-                return value;
-            }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);
-        }
+        "telemetry.agent.",
+        Setting.prefixKeySetting(APM_SETTING_PREFIX + "agent.", APMAgentSettings::parseString),
+        APMAgentSettings::parseString
     );
+
+    private static Setting<String> parseString(String qualifiedKey) {
+        final String[] parts = qualifiedKey.split("\\.");
+        final String key = parts[parts.length - 1];
+        final String defaultValue = APM_AGENT_DEFAULT_SETTINGS.getOrDefault(key, "");
+        return new Setting<>(qualifiedKey, defaultValue, (value) -> {
+            if (PROHIBITED_AGENT_KEYS.contains(key)) {
+                throw new IllegalArgumentException("Explicitly configuring [" + qualifiedKey + "] is prohibited");
+            }
+            return value;
+        }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);
+    }
 
     public static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         APM_SETTING_PREFIX + "names.include",

@@ -6,6 +6,11 @@ experimental[]
 
 Creates a model to perform an {infer} task.
 
+IMPORTANT: The {infer} service the following APIs provide enable you to use 
+certain services, such as ELSER or OpenAI, in your cluster. This is not the 
+same feature that you can use on an ML node with custom {ml} models. If you want 
+to train and use your own model, use the <<ml-df-trained-models-apis>>.
+
 
 [discrete]
 [[put-inference-api-request]]
@@ -26,6 +31,10 @@ Creates a model to perform an {infer} task.
 
 The create {infer} API enables you to create and configure an {infer} model to
 perform a specific {infer} task.
+
+The following services are available through the {infer} API:
+* ELSER
+* OpenAI
 
 
 [discrete]
@@ -52,8 +61,8 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `elser`,
-* `openai`.
+* `elser`: specify the `sparse_embedding` task type to use the ELSER service.
+* `openai`: specify the `text_embedding` task type to use the OpenAI service.
 
 `service_settings`::
 (Required, object)

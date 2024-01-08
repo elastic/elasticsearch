@@ -123,6 +123,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -483,10 +485,10 @@ public class SecurityTests extends ESTestCase {
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, permissionsMap);
         securityContext.putIndicesAccessControl(indicesAccessControl);
 
-        assertTrue(fieldFilter.apply("index_granted").test("field_granted"));
-        assertFalse(fieldFilter.apply("index_granted").test(randomAlphaOfLengthBetween(3, 10)));
+        assertThat(fieldFilter.apply("index_granted"), trueWith("field_granted"));
+        assertThat(fieldFilter.apply("index_granted"), falseWith(randomAlphaOfLengthBetween(3, 10)));
         assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
-        assertTrue(fieldFilter.apply("index_granted_all_permissions").test(randomAlphaOfLengthBetween(3, 10)));
+        assertThat(fieldFilter.apply("index_granted_all_permissions"), trueWith(randomAlphaOfLengthBetween(3, 10)));
         assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
     }
 

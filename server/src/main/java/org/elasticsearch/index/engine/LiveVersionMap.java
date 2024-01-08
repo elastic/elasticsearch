@@ -476,17 +476,26 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     /**
+     * Returns how much RAM is used by refresh. This is the RAM usage of the current and old version maps, and the RAM usage of the
+     * archive, if any.
+     */
+    long ramBytesUsedForRefresh() {
+        return maps.ramBytesUsed() + archive.getMemoryBytesUsed();
+    }
+
+    /**
      * Returns how much RAM could be reclaimed from the version map.
      * <p>
      * In stateful, this is the RAM usage of the current version map, and could be reclaimed by refreshing. It doesn't include tombstones
      * since they don't get cleared on refresh, nor the old version map that is being reclaimed.
      * <p>
-     * In stateless, this is the RAM usage of current and old version map plus the RAM usage fo the archive, and to reclaim all three
-     * components we need to refresh AND flush since when using an archive, a refresh just moves the entries from the current to old
-     * and from old to archive, so effectively refresh doesn't free up any memory.
+     * In stateless, this is the RAM usage of current and old version map plus the RAM usage of the parts of the archive that require a
+     * new unpromotable refresh. To reclaim all three components we need to refresh AND flush.
      */
     long reclaimableRamBytes() {
-        return maps.ramBytesUsed() + archive.getReclaimableMemoryBytes();
+        return archive == LiveVersionMapArchive.NOOP_ARCHIVE
+            ? maps.current.ramBytesUsed.get()
+            : maps.ramBytesUsed() + archive.getReclaimableMemoryBytes();
     }
 
     /**
@@ -497,12 +506,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     /**
-     * Returns how much RAM is current being freed up by refreshing. This is the RAM usage of the previous version map that needs to stay
-     * around until operations are safely recorded in the Lucene index. Note that when using an archive, a refresh just moves the
-     * entries from the current to old and from old to archive, so effectively refresh doesn't free up any memory.
+     * Returns how much RAM is current being freed up by refreshing. In Stateful, this is the RAM usage of the previous version map that
+     * needs to stay around until operations are safely recorded in the Lucene index. In Stateless, this is the RAM usage of a fraction
+     * of the Archive entries that are kept around until an ongoing unpromotable refresh is finished.
      */
     long getRefreshingBytes() {
-        return archive == LiveVersionMapArchive.NOOP_ARCHIVE ? maps.old.ramBytesUsed.get() : archive.getRefreshingBytes();
+        return archive == LiveVersionMapArchive.NOOP_ARCHIVE ? maps.old.ramBytesUsed.get() : archive.getRefreshingMemoryBytes();
     }
 
     /**

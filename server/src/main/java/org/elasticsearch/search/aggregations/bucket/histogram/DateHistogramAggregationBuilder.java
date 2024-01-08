@@ -14,7 +14,6 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -433,7 +432,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             if (tz != null
                 && ZoneId.of("UTC").equals(tz) == false
                 && field().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                && context.getIndexSettings().getIndexMetadata().getIndexMode() == IndexMode.TIME_SERIES
                 && context.getMappingLookup() != null) {
                 Mapper mapper = context.getMappingLookup().getMapper(field());
                 if (mapper != null && mapper instanceof DateFieldMapper timestampMapper) {

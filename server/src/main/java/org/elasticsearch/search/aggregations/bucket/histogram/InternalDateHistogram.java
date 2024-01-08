@@ -246,7 +246,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         offset = in.readLong();
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        downsampledResultsOffset = in.readBoolean();
+        downsampledResultsOffset = in.readBoolean();  // FIXME - add transport version
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, keyed, format));
     }
 

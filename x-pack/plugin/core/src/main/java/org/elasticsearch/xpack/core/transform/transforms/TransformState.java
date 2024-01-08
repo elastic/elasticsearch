@@ -134,7 +134,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             position = in.readOptionalWriteable(TransformIndexerPosition::new);
         } else {
-            Map<String, Object> pos = in.readMap();
+            Map<String, Object> pos = in.readGenericMap();
             position = new TransformIndexerPosition(pos, null);
         }
         checkpoint = in.readLong();

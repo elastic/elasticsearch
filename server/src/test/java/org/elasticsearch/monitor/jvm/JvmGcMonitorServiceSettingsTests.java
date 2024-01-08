@@ -55,12 +55,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "failed to parse setting [monitor.jvm.gc.collector."
-                        + collector
-                        + ".warn] "
-                        + "with value ["
-                        + timeValue
-                        + "] as a time value"
+                    "failed to parse [monitor.jvm.gc.collector." + collector + ".warn] " + "with value [" + timeValue + "] as a time value"
                 )
             );
         }, true, null);

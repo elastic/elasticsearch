@@ -244,7 +244,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             IllegalArgumentException.class,
             () -> new MockController(Settings.builder().put("indices.memory.min_index_buffer_size", "-6mb").build())
         );
-        assertEquals("failed to parse setting [indices.memory.min_index_buffer_size] with value [-6mb] as a size in bytes", e.getMessage());
+        assertEquals("failed to parse [indices.memory.min_index_buffer_size] with value [-6mb] as a size in bytes", e.getMessage());
 
     }
 
@@ -254,8 +254,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             () -> new MockController(Settings.builder().put("indices.memory.interval", "-42s").build())
         );
         assertEquals(
-            "failed to parse setting [indices.memory.interval] with value "
-                + "[-42s] as a time value: negative durations are not supported",
+            "failed to parse [indices.memory.interval] with value " + "[-42s] as a time value: negative durations are not supported",
             e.getMessage()
         );
 
@@ -267,7 +266,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             () -> new MockController(Settings.builder().put("indices.memory.shard_inactive_time", "-42s").build())
         );
         assertEquals(
-            "failed to parse setting [indices.memory.shard_inactive_time] with value "
+            "failed to parse [indices.memory.shard_inactive_time] with value "
                 + "[-42s] as a time value: negative durations are not supported",
             e.getMessage()
         );
@@ -279,7 +278,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             IllegalArgumentException.class,
             () -> new MockController(Settings.builder().put("indices.memory.max_index_buffer_size", "-6mb").build())
         );
-        assertEquals("failed to parse setting [indices.memory.max_index_buffer_size] with value [-6mb] as a size in bytes", e.getMessage());
+        assertEquals("failed to parse [indices.memory.max_index_buffer_size] with value [-6mb] as a size in bytes", e.getMessage());
 
     }
 

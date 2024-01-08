@@ -11,7 +11,6 @@ package org.elasticsearch.xcontent.provider.yaml;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
 import org.elasticsearch.xcontent.XContent;

@@ -28,6 +28,9 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 // TODO: fill in blanks in javadoc
 /**
@@ -91,6 +94,8 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
     public static final String SPARSE_VECTOR_SUBFIELD_NAME = "sparse_embedding";
     public static final String TEXT_SUBFIELD_NAME = "text";
     public static final TypeParser PARSER = new FixedTypeParser(c -> new SemanticTextInferenceResultFieldMapper());
+
+    private static final Set<String> REQUIRED_SUBFIELDS = Set.of(SPARSE_VECTOR_SUBFIELD_NAME, TEXT_SUBFIELD_NAME);
 
     // TODO: Need to query this as a nested field type?
     static class SemanticTextInferenceFieldType extends MappedFieldType {
@@ -180,6 +185,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
                     throw new DocumentParsingException(parser.getTokenLocation(), "Expected a START_OBJECT, got " + parser.currentToken());
                 }
 
+                Set<String> visitedSubfields = new HashSet<>();
                 for (token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                     if (token != XContentParser.Token.FIELD_NAME) {
                         throw new DocumentParsingException(
@@ -189,6 +195,8 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
                     }
 
                     String currentName = parser.currentName();
+                    visitedSubfields.add(currentName);
+
                     context.path().add(currentName);
                     try {
                         // TODO: Test how this code handles extra/missing fields
@@ -201,6 +209,13 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
                     } finally {
                         context.path().remove();
                     }
+                }
+
+                if (visitedSubfields.equals(REQUIRED_SUBFIELDS) == false) {
+                    Set<String> missingSubfields = REQUIRED_SUBFIELDS.stream()
+                        .filter(s -> visitedSubfields.contains(s) == false)
+                        .collect(Collectors.toSet());
+                    throw new DocumentParsingException(parser.getTokenLocation(), "Missing required subfields: " + missingSubfields);
                 }
             }
         } finally {

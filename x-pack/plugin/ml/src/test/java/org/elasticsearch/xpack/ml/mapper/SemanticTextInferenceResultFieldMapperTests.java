@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
@@ -34,6 +35,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperTestCase {
     private record SemanticTextInferenceResults(String fieldName, SparseEmbeddingResults sparseEmbeddingResults, List<String> text) {
@@ -138,6 +141,94 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         });
     }
 
+    public void testMissingSubfields() throws IOException {
+        final String fieldName = randomAlphaOfLengthBetween(5, 15);
+
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> {
+            addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8));
+        }));
+
+        {
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
+                DocumentParsingException.class,
+                () -> documentMapper.parse(
+                    source(
+                        b -> addSemanticTextInferenceResults(
+                            b,
+                            List.of(
+                                generateSemanticTextinferenceResults(fieldName, List.of("a b"))
+                            ),
+                            false,
+                            true
+                        )
+                    )
+                ));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Missing required subfields: [" +
+                        SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME +
+                        "]"
+                )
+            );
+        }
+
+        {
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
+                DocumentParsingException.class,
+                () -> documentMapper.parse(
+                    source(
+                        b -> addSemanticTextInferenceResults(
+                            b,
+                            List.of(
+                                generateSemanticTextinferenceResults(fieldName, List.of("a b"))
+                            ),
+                            true,
+                            false
+                        )
+                    )
+                ));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Missing required subfields: [" +
+                        SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME +
+                        "]"
+                )
+            );
+        }
+
+        {
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
+                DocumentParsingException.class,
+                () -> documentMapper.parse(
+                    source(
+                        b -> addSemanticTextInferenceResults(
+                            b,
+                            List.of(
+                                generateSemanticTextinferenceResults(fieldName, List.of("a b"))
+                            ),
+                            false,
+                            false
+                        )
+                    )
+                ));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Missing required subfields: [" +
+                        SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME +
+                        ", " +
+                        SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME +
+                        "]"
+                )
+            );
+        }
+    }
+
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {
         mappingBuilder.startObject(fieldName);
         mappingBuilder.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
@@ -163,6 +254,15 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         XContentBuilder sourceBuilder,
         List<SemanticTextInferenceResults> semanticTextInferenceResults
     ) throws IOException {
+        addSemanticTextInferenceResults(sourceBuilder, semanticTextInferenceResults, true, true);
+    }
+
+    private static void addSemanticTextInferenceResults(
+        XContentBuilder sourceBuilder,
+        List<SemanticTextInferenceResults> semanticTextInferenceResults,
+        boolean includeSparseVectorSubfield,
+        boolean includeTextSubfield
+    ) throws IOException {
 
         Map<String, List<Map<String, Object>>> inferenceResultsMap = new HashMap<>();
         for (SemanticTextInferenceResults semanticTextInferenceResult : semanticTextInferenceResults) {
@@ -176,15 +276,22 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 SparseEmbeddingResults.Embedding embedding = embeddingsIterator.next();
                 String text = textIterator.next();
 
-                parsedInferenceResults.add(
-                    Map.of(
-                        // TODO: OK to omit is_truncated?
+                Map<String, Object> subfieldMap = new HashMap<>();
+                if (includeSparseVectorSubfield) {
+                    // TODO: OK to omit is_truncated?
+                    subfieldMap.put(
                         SemanticTextInferenceResultFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME,
-                        embedding.asMap().get(SparseEmbeddingResults.Embedding.EMBEDDING),
+                        embedding.asMap().get(SparseEmbeddingResults.Embedding.EMBEDDING)
+                    );
+                }
+                if (includeTextSubfield) {
+                    subfieldMap.put(
                         SemanticTextInferenceResultFieldMapper.TEXT_SUBFIELD_NAME,
                         text
-                    )
-                );
+                    );
+                }
+
+                parsedInferenceResults.add(subfieldMap);
             }
 
             inferenceResultsMap.put(semanticTextInferenceResult.fieldName(), parsedInferenceResults);

@@ -200,7 +200,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected ByteSizeValue memoryLimitForSimple() {
+    protected ByteSizeValue enoughMemoryForSimple() {
         assumeFalse("doesn't throw in tests but probably should", true);
         return ByteSizeValue.ofBytes(1);
     }

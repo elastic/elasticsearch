@@ -411,6 +411,26 @@ public class SubscribableListenerTests extends ESTestCase {
         assertFalse(chainedListener.isDone());
     }
 
+    public void testAndThenThrowException() {
+        final var initialListener = new SubscribableListener<>();
+        final var forked = new AtomicReference<ActionListener<Object>>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThen((l, o) -> {
+            forked.set(l);
+            result.set(o);
+            throw new ElasticsearchException("simulated");
+        });
+        assertNull(forked.get());
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertSame(chainedListener, forked.get());
+        assertComplete(chainedListener, "simulated");
+    }
+
     public void testAndThenFailure() {
         final var initialListener = new SubscribableListener<>();
 
@@ -490,7 +510,7 @@ public class SubscribableListenerTests extends ESTestCase {
         assertTrue(isComplete.get());
     }
 
-    private static void assertComplete(SubscribableListener<Object> listener, @Nullable String expectedFailureMessage) {
+    private static <T> void assertComplete(SubscribableListener<T> listener, @Nullable String expectedFailureMessage) {
         assertTrue(listener.isDone());
         if (expectedFailureMessage == null) {
             try {
@@ -503,6 +523,90 @@ public class SubscribableListenerTests extends ESTestCase {
         }
     }
 
+    public void testAndThenApplySuccess() throws Exception {
+        final var initialListener = new SubscribableListener<>();
+        final var result = new AtomicReference<>();
+
+        final var oResult = new Object();
+        final var chainedListener = initialListener.andThenApply(o -> {
+            result.set(o);
+            return oResult;
+        });
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertTrue(chainedListener.isDone());
+        assertSame(oResult, chainedListener.rawResult());
+    }
+
+    public void testAndThenApplyThrowException() {
+        final var initialListener = new SubscribableListener<>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThenApply(o -> {
+            result.set(o);
+            throw new ElasticsearchException("simulated exception in fn");
+        });
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertComplete(chainedListener, "simulated exception in fn");
+    }
+
+    public void testAndThenApplyFailure() {
+        final var initialListener = new SubscribableListener<>();
+
+        final var chainedListener = initialListener.andThenApply(o -> fail(null, "should not be called"));
+        assertFalse(chainedListener.isDone());
+
+        initialListener.onFailure(new ElasticsearchException("simulated"));
+        assertComplete(chainedListener, "simulated");
+    }
+
+    public void testAndThenAcceptSuccess() throws Exception {
+        final var initialListener = new SubscribableListener<>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThenAccept(result::set);
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertTrue(chainedListener.isDone());
+        assertNull(chainedListener.rawResult());
+    }
+
+    public void testAndThenAcceptThrowException() {
+        final var initialListener = new SubscribableListener<>();
+        final var result = new AtomicReference<>();
+
+        final var chainedListener = initialListener.andThenAccept(o -> {
+            result.set(o);
+            throw new ElasticsearchException("simulated exception in fn");
+        });
+        assertNull(result.get());
+
+        final var o1 = new Object();
+        initialListener.onResponse(o1);
+        assertSame(o1, result.get());
+        assertComplete(chainedListener, "simulated exception in fn");
+    }
+
+    public void testAndThenAcceptFailure() {
+        final var initialListener = new SubscribableListener<>();
+
+        final var chainedListener = initialListener.andThenAccept(o -> fail(null, "should not be called"));
+        assertFalse(chainedListener.isDone());
+
+        initialListener.onFailure(new ElasticsearchException("simulated"));
+        assertComplete(chainedListener, "simulated");
+    }
+
     public void testJavaDocExample() {
         safeAwait(SubscribableListener.<Boolean>newForked(l -> exampleAsyncMethod(randomIdentifier(), List.of(), l)));
     }
@@ -510,36 +614,55 @@ public class SubscribableListenerTests extends ESTestCase {
     private void exampleAsyncMethod(String request, List<Long> items, ActionListener<Boolean> finalListener) {
         SubscribableListener
 
-            // Step 1: Start the chain and run the first step by creating a SubscribableListener using newForked().
+            // Start the chain and run the first step by creating a SubscribableListener using newForked():
             .<String>newForked(l -> firstAsyncStep(request, l))
 
-            // Step 2: Run a second step when the first step completes using andThen(); if the first step fails then the exception falls
-            // through to the end without executing the intervening steps.
+            // Run a second step when the first step completes using andThen(); if the first step fails then the exception falls through to
+            // the end without executing the intervening steps.
             .<Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
 
-            // Step 3: Run another step when the second step completes with another andThen() call; again this only runs if the first two
-            // steps succeed.
+            // Run another step when the second step completes with another andThen() call; as above this only runs if the first two steps
+            // succeed.
             .<Boolean>andThen((l, secondStepResult) -> {
-                // Steps can fan out to multiple subsidiary actions using utilities like RefCountingListener.
+                if (condition) {
+                    // Steps are exception-safe: an exception thrown here will be passed to the listener rather than escaping to the
+                    // caller.
+                    throw new IOException("failure");
+                }
+
+                // Steps can fan out to multiple subsidiary async actions using utilities like RefCountingListener.
                 final var result = new AtomicBoolean();
                 try (var listeners = new RefCountingListener(l.map(v -> result.get()))) {
                     for (final var item : items) {
                         thirdAsyncStep(secondStepResult, item, listeners.acquire());
                     }
-
-                    if (condition) {
-                        // Steps are exception-safe: an exception thrown here will be passed to the listener rather than escaping to the
-                        // caller.
-                        throw new IOException("failure");
-                    }
                 }
             })
 
-            // Step 4: Complete the outer listener with the result of the previous step, or an exception if the chain failed.
+            // Synchronous (non-forking) steps which do not return a result can be expressed using andThenAccept() with a consumer:
+            .andThenAccept(thirdStepResult -> {
+                if (condition) {
+                    // andThenAccept() is also exception-safe
+                    throw new ElasticsearchException("some other problem");
+                }
+                consumeThirdStepResult(thirdStepResult);
+            })
+
+            // Synchronous (non-forking) steps which do return a result can be expressed using andThenApply() with a function:
+            .andThenApply(voidFromStep4 -> {
+                if (condition) {
+                    // andThenApply() is also exception-safe
+                    throw new IllegalArgumentException("failure");
+                }
+                return computeFifthStepResult();
+            })
+
+            // To complete the chain, add the outer listener which will be completed with the result of the previous step if all steps were
+            // successful, or the exception if any step failed.
             .addListener(finalListener);
     }
 
-    private static boolean condition = false;
+    private static final boolean condition = false;
 
     private static void firstAsyncStep(@SuppressWarnings("unused") String request, ActionListener<String> listener) {
         listener.onResponse(null);
@@ -559,5 +682,11 @@ public class SubscribableListenerTests extends ESTestCase {
         ActionListener<Void> listener
     ) {
         listener.onResponse(null);
+    }
+
+    private static void consumeThirdStepResult(@SuppressWarnings("unused") boolean flag) {}
+
+    private static boolean computeFifthStepResult() {
+        return false;
     }
 }

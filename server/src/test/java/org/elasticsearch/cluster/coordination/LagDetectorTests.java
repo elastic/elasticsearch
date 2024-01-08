@@ -266,7 +266,7 @@ public class LagDetectorTests extends ESTestCase {
                     + node.descriptionWithoutAttributes()
                     + "] lagging at version [1] despite commit of cluster state version [2]",
                 ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING,
-                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody)::run
+                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody, () -> {})::run
             ).utf8ToString()
         );
     }

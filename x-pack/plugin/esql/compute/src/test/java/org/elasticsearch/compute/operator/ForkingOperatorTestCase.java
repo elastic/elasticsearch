@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockTestUtils;
@@ -177,7 +176,6 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public final void testManyInitialManyPartialFinalRunnerThrowing() throws Exception {
         DriverContext driverContext = driverContext();
-        BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 

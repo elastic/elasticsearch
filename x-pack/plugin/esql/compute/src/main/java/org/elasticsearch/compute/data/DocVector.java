@@ -62,7 +62,7 @@ public final class DocVector extends AbstractVector implements Vector {
                 "invalid position count [" + shards.getPositionCount() + " != " + docs.getPositionCount() + "]"
             );
         }
-        blockFactory().adjustBreaker(BASE_RAM_BYTES_USED, true);
+        blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
     }
 
     public IntVector shards() {
@@ -130,7 +130,7 @@ public final class DocVector extends AbstractVector implements Vector {
 
         boolean success = false;
         long estimatedSize = sizeOfSegmentDocMap();
-        blockFactory().adjustBreaker(estimatedSize, true);
+        blockFactory().adjustBreaker(estimatedSize);
         int[] forwards = null;
         int[] backwards = null;
         try {
@@ -176,7 +176,7 @@ public final class DocVector extends AbstractVector implements Vector {
             shardSegmentDocMapBackwards = backwards;
         } finally {
             if (success == false) {
-                blockFactory().adjustBreaker(-estimatedSize, true);
+                blockFactory().adjustBreaker(-estimatedSize);
             }
         }
     }
@@ -264,10 +264,7 @@ public final class DocVector extends AbstractVector implements Vector {
     @Override
     public void closeInternal() {
         Releasables.closeExpectNoException(
-            () -> blockFactory().adjustBreaker(
-                -BASE_RAM_BYTES_USED - (shardSegmentDocMapForwards == null ? 0 : sizeOfSegmentDocMap()),
-                true
-            ),
+            () -> blockFactory().adjustBreaker(-BASE_RAM_BYTES_USED - (shardSegmentDocMapForwards == null ? 0 : sizeOfSegmentDocMap())),
             shards,
             segments,
             docs

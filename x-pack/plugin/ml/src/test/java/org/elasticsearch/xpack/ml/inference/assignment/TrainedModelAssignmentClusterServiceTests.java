@@ -44,6 +44,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -57,9 +58,12 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.autoscaling.NodeFakeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -111,7 +115,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
     private Client client;
     private static MockAppender appender;
-    private static Logger testLogger1 = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
+    private static final Logger testLogger1 = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
     @Before
     public void setupObjects() throws IllegalAccessException {
@@ -120,7 +124,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             Settings.EMPTY,
             Sets.newHashSet(
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                 MachineLearning.MAX_LAZY_ML_NODES,
                 MachineLearning.MAX_ML_NODE_SIZE,
@@ -199,7 +203,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     public void testClusterChanged_GivenNodesAdded_ThenLogMlNodeHeterogeneityCalled() {
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeAvailabilityZoneMapper = randomFrom(mock(NodeRealAvailabilityZoneMapper.class), mock(NodeFakeAvailabilityZoneMapper.class));
         TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
         doNothing().when(serviceSpy).logMlNodeHeterogeneity();
         doReturn(false).when(serviceSpy).eventStateHasGlobalBlockStateNotRecoveredBlock(any());
@@ -221,7 +225,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     public void testStopPlatformSpecificModelsInHeterogeneousClusters_GivenMultipleMlNodeArchitectures_ThenCallSetToStopping() {
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeAvailabilityZoneMapper = randomFrom(mock(NodeRealAvailabilityZoneMapper.class), mock(NodeFakeAvailabilityZoneMapper.class));
         TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
 
         Set<String> architecturesSet = new HashSet<>(randomList(2, 5, () -> randomAlphaOfLength(10)));
@@ -435,7 +439,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
@@ -476,8 +483,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
-
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
             .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
@@ -504,7 +513,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 8))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
@@ -533,6 +545,43 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             )
         );
         latch.await();
+    }
+
+    public void testHaveMlNodesChanged_ReturnsFalseWhenPreviouslyShuttingDownNode_IsMarkedAsReturning_ButIsNotAPresentNode() {
+        String model1 = "model-1";
+        String shuttingDownNode = "ml-shutting-down-node";
+        String mlNode1 = "ml-node-with-room";
+
+        ClusterState stateWithShuttingDownNodeAndMlNode1 = createClusterState(
+            List.of(shuttingDownNode, mlNode1),
+            Metadata.builder()
+                .putCustom(
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata.Builder.empty()
+                        .addNewAssignment(
+                            model1,
+                            TrainedModelAssignment.Builder.empty(newParams(model1, 100))
+                                .addRoutingEntry(mlNode1, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                        )
+                        .build()
+                )
+                .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(shuttingDownNode))
+                .build()
+        );
+
+        ClusterState stateWithMlNode1 = ClusterState.builder(stateWithShuttingDownNodeAndMlNode1)
+            .nodes(DiscoveryNodes.builder(stateWithShuttingDownNodeAndMlNode1.nodes()).remove(shuttingDownNode).build())
+            .metadata(
+                Metadata.builder(stateWithShuttingDownNodeAndMlNode1.metadata())
+                    .putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY)
+                    .build()
+            )
+            .build();
+
+        var shutdownEvent = new ClusterChangedEvent("test", stateWithMlNode1, stateWithShuttingDownNodeAndMlNode1);
+        var metadata = TrainedModelAssignmentMetadata.fromState(shutdownEvent.state());
+
+        assertFalse(TrainedModelAssignmentClusterService.haveMlNodesChanged(shutdownEvent, metadata));
     }
 
     public void testHaveMlNodesChanged_ReturnsTrueWhenNodeShutsDownAndWasRoutedTo() {

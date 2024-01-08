@@ -47,11 +47,8 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
 
     @Override
     @SuppressWarnings("unchecked")
-    void assertFieldValues(TextExpansionResults createdInstance, IngestDocument document, String resultsField) {
-        var ingestedTokens = (Map<String, Object>) document.getFieldValue(
-            resultsField + '.' + createdInstance.getResultsField(),
-            Map.class
-        );
+    void assertFieldValues(TextExpansionResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        var ingestedTokens = (Map<String, Object>) document.getFieldValue(parentField + resultsField, Map.class);
         var tokenMap = createdInstance.getWeightedTokens()
             .stream()
             .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));

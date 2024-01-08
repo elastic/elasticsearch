@@ -208,4 +208,9 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         BytesRef upperBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(upper)));
         return new IpScriptFieldRangeQuery(script, leafFactory(context), name(), lowerBytes, upperBytes);
     }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()));
+    }
 }

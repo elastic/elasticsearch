@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -383,7 +384,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         );
         builder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
-            new DataFrameAnalyticsTaskState(analyticsState, builder.getLastAllocationId(), null)
+            new DataFrameAnalyticsTaskState(analyticsState, builder.getLastAllocationId(), null, Instant.now())
         );
         PersistentTasksCustomMetadata tasks = builder.build();
 

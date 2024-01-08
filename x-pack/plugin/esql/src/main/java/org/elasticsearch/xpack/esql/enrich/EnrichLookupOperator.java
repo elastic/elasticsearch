@@ -56,6 +56,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         public Operator get(DriverContext driverContext) {
             return new EnrichLookupOperator(
                 sessionId,
+                driverContext,
                 parentTask,
                 maxOutstandingRequests,
                 inputChannel,
@@ -70,6 +71,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
 
     public EnrichLookupOperator(
         String sessionId,
+        DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
         int inputChannel,
@@ -79,7 +81,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         String matchField,
         List<NamedExpression> enrichFields
     ) {
-        super(maxOutstandingRequests);
+        super(driverContext, maxOutstandingRequests);
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
@@ -106,7 +108,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
     }
 
     @Override
-    public void close() {
+    protected void doClose() {
         // TODO: Maybe create a sub-task as the parent task of all the lookup tasks
         // then cancel it when this operator terminates early (e.g., have enough result).
     }

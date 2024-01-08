@@ -14,29 +14,23 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Vector implementation that stores an array of BytesRef values.
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
-public final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
+final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class);
 
     private final BytesRefArray values;
 
-    private final BytesRefBlock block;
-
-    public BytesRefArrayVector(BytesRefArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
+    BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
     public BytesRefBlock asBlock() {
-        return block;
+        return new BytesRefVectorBlock(this);
     }
 
     @Override
@@ -56,7 +50,13 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public BytesRefVector filter(int... positions) {
-        return new FilterBytesRefVector(this, positions);
+        final var scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendBytesRef(values.get(pos, scratch));
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated(BytesRefArray values) {
@@ -87,8 +87,10 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     }
 
     @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
+        // of this class.
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());
         Releasables.closeExpectNoException(values);
     }
 }

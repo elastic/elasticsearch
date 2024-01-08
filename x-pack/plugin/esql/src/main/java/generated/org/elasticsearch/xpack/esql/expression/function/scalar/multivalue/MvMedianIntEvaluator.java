@@ -17,11 +17,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
  * This class is generated. Do not edit it.
  */
 public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  private final DriverContext driverContext;
-
   public MvMedianIntEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
-    super(field);
-    this.driverContext = driverContext;
+    super(driverContext, field);
   }
 
   @Override
@@ -33,14 +30,13 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block.Ref evalNullable(Block.Ref ref) {
-    if (ref.block().mvSortedAscending()) {
-      return evalAscendingNullable(ref);
+  public Block evalNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
+      return evalAscendingNullable(fieldVal);
     }
-    try (ref) {
-      IntBlock v = (IntBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       MvMedian.Ints work = new MvMedian.Ints();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -57,7 +53,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
         int result = MvMedian.finish(work);
         builder.appendInt(result);
       }
-      return Block.Ref.floating(builder.build());
+      return builder.build();
     }
   }
 
@@ -65,14 +61,13 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block.Ref evalNotNullable(Block.Ref ref) {
-    if (ref.block().mvSortedAscending()) {
-      return evalAscendingNotNullable(ref);
+  public Block evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
+      return evalAscendingNotNullable(fieldVal);
     }
-    try (ref) {
-      IntBlock v = (IntBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       MvMedian.Ints work = new MvMedian.Ints();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -85,18 +80,17 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
         int result = MvMedian.finish(work);
         builder.appendInt(result);
       }
-      return Block.Ref.floating(builder.build().asBlock());
+      return builder.build().asBlock();
     }
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Block.Ref evalAscendingNullable(Block.Ref ref) {
-    try (ref) {
-      IntBlock v = (IntBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+  private Block evalAscendingNullable(Block fieldVal) {
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       MvMedian.Ints work = new MvMedian.Ints();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -108,18 +102,17 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
         int result = MvMedian.ascending(v, first, valueCount);
         builder.appendInt(result);
       }
-      return Block.Ref.floating(builder.build());
+      return builder.build();
     }
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Block.Ref evalAscendingNotNullable(Block.Ref ref) {
-    try (ref) {
-      IntBlock v = (IntBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
+  private Block evalAscendingNotNullable(Block fieldVal) {
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       MvMedian.Ints work = new MvMedian.Ints();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -127,7 +120,25 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
         int result = MvMedian.ascending(v, first, valueCount);
         builder.appendInt(result);
       }
-      return Block.Ref.floating(builder.build().asBlock());
+      return builder.build().asBlock();
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMedianIntEvaluator get(DriverContext context) {
+      return new MvMedianIntEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMedian[field=" + field + "]";
     }
   }
 }

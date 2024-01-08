@@ -41,32 +41,36 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9"
                     ),
-                    List.of(3, 3, 3, 3, 3, 3, 3, 3, 3)
+                    List.of(3, 3, 3, 3, 3, 3, 3, 3, 3),
+                    0.3d,
+                    2.7d,
+                    1
                 )
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of("2buqP1GpF-TXYmL4USW8gA", 1),
+            Map.of("2buqP1GpF-TXYmL4USW8gA", new TraceEvent("2buqP1GpF-TXYmL4USW8gA", 1L)),
             9,
-            1.0d
+            1.0d,
+            1
         );
         GetFlamegraphResponse response = TransportGetFlamegraphAction.buildFlamegraph(stacktraces);
         assertNotNull(response);
         assertEquals(10, response.getSize());
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(List.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1), response.getCountInclusive());
-        assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 1), response.getCountExclusive());
+        assertEquals(List.of(1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L), response.getCountInclusive());
+        assertEquals(List.of(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 1L), response.getCountExclusive());
         assertEquals(
             List.of(
-                Map.of("fr28zxcZ2UDasxYuu6dV-w12784352", 1),
-                Map.of("fr28zxcZ2UDasxYuu6dV-w19334053", 2),
-                Map.of("fr28zxcZ2UDasxYuu6dV-w19336161", 3),
-                Map.of("fr28zxcZ2UDasxYuu6dV-w18795859", 4),
-                Map.of("fr28zxcZ2UDasxYuu6dV-w18622708", 5),
-                Map.of("fr28zxcZ2UDasxYuu6dV-w18619213", 6),
-                Map.of("fr28zxcZ2UDasxYuu6dV-w12989721", 7),
-                Map.of("fr28zxcZ2UDasxYuu6dV-w13658842", 8),
-                Map.of("fr28zxcZ2UDasxYuu6dV-w16339645", 9),
+                Map.of("174640828", 1),
+                Map.of("181190529", 2),
+                Map.of("181192637", 3),
+                Map.of("180652335", 4),
+                Map.of("180479184", 5),
+                Map.of("180475689", 6),
+                Map.of("174846197", 7),
+                Map.of("175515318", 8),
+                Map.of("178196121", 9),
                 Map.of()
             ),
             response.getEdges()
@@ -111,16 +115,20 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), response.getFunctionOffsets());
         assertEquals(List.of("", "", "", "", "", "", "", "", "", ""), response.getSourceFileNames());
         assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), response.getSourceLines());
+        assertEquals(1L, response.getSelfCPU());
+        assertEquals(10L, response.getTotalCPU());
+        assertEquals(1L, response.getTotalSamples());
+
     }
 
     public void testCreateEmptyFlamegraphWithRootNode() {
-        GetStackTracesResponse stacktraces = new GetStackTracesResponse(Map.of(), Map.of(), Map.of(), Map.of(), 0, 1.0d);
+        GetStackTracesResponse stacktraces = new GetStackTracesResponse(Map.of(), Map.of(), Map.of(), Map.of(), 0, 1.0d, 0);
         GetFlamegraphResponse response = TransportGetFlamegraphAction.buildFlamegraph(stacktraces);
         assertNotNull(response);
         assertEquals(1, response.getSize());
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(List.of(0), response.getCountInclusive());
-        assertEquals(List.of(0), response.getCountExclusive());
+        assertEquals(List.of(0L), response.getCountInclusive());
+        assertEquals(List.of(0L), response.getCountExclusive());
         assertEquals(List.of(Map.of()), response.getEdges());
         assertEquals(List.of(""), response.getFileIds());
         assertEquals(List.of(0), response.getFrameTypes());
@@ -131,5 +139,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(List.of(0), response.getFunctionOffsets());
         assertEquals(List.of(""), response.getSourceFileNames());
         assertEquals(List.of(0), response.getSourceLines());
+        assertEquals(0L, response.getSelfCPU());
+        assertEquals(0L, response.getTotalCPU());
+        assertEquals(0L, response.getTotalSamples());
     }
 }

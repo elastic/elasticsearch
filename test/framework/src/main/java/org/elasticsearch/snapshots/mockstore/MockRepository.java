@@ -36,6 +36,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -82,7 +83,8 @@ public class MockRepository extends FsRepository {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 "mock",
@@ -169,6 +171,8 @@ public class MockRepository extends FsRepository {
     private volatile boolean blockAndFailOnReadIndexFile;
 
     private volatile boolean blocked = false;
+
+    private volatile boolean failOnDeleteContainer = false;
 
     public MockRepository(
         RepositoryMetadata metadata,
@@ -350,6 +354,13 @@ public class MockRepository extends FsRepository {
      */
     public void setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked() {
         blockOnceOnReadSnapshotInfo.set(true);
+    }
+
+    /**
+     * Sets the fail-on-delete-container flag, which if {@code true} throws an exception when deleting a {@link BlobContainer}.
+     */
+    public void setFailOnDeleteContainer(boolean failOnDeleteContainer) {
+        this.failOnDeleteContainer = failOnDeleteContainer;
     }
 
     public boolean blocked() {
@@ -550,6 +561,9 @@ public class MockRepository extends FsRepository {
 
             @Override
             public DeleteResult delete(OperationPurpose purpose) throws IOException {
+                if (failOnDeleteContainer) {
+                    throw new IOException("simulated delete-container failure");
+                }
                 DeleteResult deleteResult = DeleteResult.ZERO;
                 for (BlobContainer child : children(purpose).values()) {
                     deleteResult = deleteResult.add(child.delete(purpose));

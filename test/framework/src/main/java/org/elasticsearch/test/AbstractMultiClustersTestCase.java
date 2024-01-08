@@ -10,8 +10,8 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.network.NetworkModule;
@@ -211,7 +211,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
                 .actionGet()
                 .getInfos()
                 .stream()
@@ -239,7 +239,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(clusters.values());
+            IOUtils.close(CloseableTestClusterWrapper.wrap(clusters.values()));
         }
     }
 

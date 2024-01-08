@@ -1,6 +1,0 @@
-pr: 99868
-summary: Fix fields API for `geo_point` fields inside other arrays
-area: Search
-type: bug
-issues:
- - 99781

@@ -40,11 +40,10 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * between(source, left, right[, greedy=false])
  * Extracts a substring from source that’s between left and right substrings
  */
-public class Between extends CaseInsensitiveScalarFunction implements OptionalArgument {
+public final class Between extends CaseInsensitiveScalarFunction implements OptionalArgument {
 
     private final Expression input, left, right, greedy;
 
-    @SuppressWarnings("this-escape")
     public Between(Source source, Expression input, Expression left, Expression right, Expression greedy, boolean caseInsensitive) {
         super(source, Arrays.asList(input, left, right, defaultGreedy(greedy)), caseInsensitive);
         this.input = input;
@@ -135,7 +134,7 @@ public class Between extends CaseInsensitiveScalarFunction implements OptionalAr
         return asScriptFrom(inputScript, leftScript, rightScript, greedyScript);
     }
 
-    protected ScriptTemplate asScriptFrom(
+    private ScriptTemplate asScriptFrom(
         ScriptTemplate inputScript,
         ScriptTemplate leftScript,
         ScriptTemplate rightScript,

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class ExchangeResponse extends TransportResponse implements Releasable {
-    private final RefCounted counted = AbstractRefCounted.of(this::close);
+    private final RefCounted counted = AbstractRefCounted.of(this::closeInternal);
     private final Page page;
     private final boolean finished;
     private boolean pageTaken;
@@ -30,7 +30,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
         this.finished = finished;
     }
 
-    public ExchangeResponse(StreamInput in) throws IOException {
+    public ExchangeResponse(BlockStreamInput in) throws IOException {
         super(in);
         this.page = in.readOptionalWriteable(Page::new);
         this.finished = in.readBoolean();
@@ -98,6 +98,10 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     @Override
     public void close() {
+        counted.decRef();
+    }
+
+    private void closeInternal() {
         if (pageTaken == false && page != null) {
             page.releaseBlocks();
         }

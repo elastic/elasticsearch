@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -37,11 +38,10 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
         super(NAME, ScheduleNowTransformAction.Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
 
         private final String id;
 
-        @SuppressWarnings("this-escape")
         public Request(String id, TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.setTimeout(ExceptionsHelper.requireNonNull(timeout, TransformField.TIMEOUT.getPreferredName()));
@@ -94,6 +94,15 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
 
             // the base class does not implement equals, therefore we need to check timeout ourselves
             return this.id.equals(other.id) && getTimeout().equals(other.getTimeout());
+        }
+
+        @Override
+        public boolean match(Task task) {
+            if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
+                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+                return taskId.equals(this.id);
+            }
+            return false;
         }
     }
 

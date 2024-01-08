@@ -64,6 +64,10 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     @Override
     public boolean get(long index, int len, BytesRef ref) {
         assert index + len <= size();
+        if (len == 0) {
+            ref.length = 0;
+            return false;
+        }
         int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         if (indexInPage + len <= pageSize()) {

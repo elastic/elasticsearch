@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -30,22 +31,18 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
     implements
         ToXContentFragment {
 
-    public NodesReloadSecureSettingsResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public NodesReloadSecureSettingsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodesReloadSecureSettingsResponse.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(NodeResponse::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesReloadSecureSettingsResponse.NodeResponse> nodes) throws IOException {
-        out.writeCollection(nodes);
+        TransportAction.localOnly();
     }
 
     @Override

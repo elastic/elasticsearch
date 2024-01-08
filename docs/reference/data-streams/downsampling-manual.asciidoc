@@ -17,7 +17,7 @@ DELETE _ingest/pipeline/my-timestamp-pipeline
 The recommended way to downsample a time series data stream (TSDS) is
 <<downsampling-ilm,through index lifecycle management (ILM)>>. However, if
 you're not using ILM, you can downsample a TSDS manually. This guide shows you
-how, using typical Kubernetes cluster monitoring data. 
+how, using typical Kubernetes cluster monitoring data.
 
 To test out manual downsampling, follow these steps:
 
@@ -32,13 +32,13 @@ To test out manual downsampling, follow these steps:
 ==== Prerequisites
 
 * Refer to the <<tsds-prereqs,TSDS prerequisites>>.
-* It is not possible to downsample a data stream directly, nor 
+* It is not possible to downsample a data stream directly, nor
 multiple indices at once. It's only possible to downsample one time series index
 (TSDS backing index).
 * In order to downsample an index, it needs to be read-only. For a TSDS write
 index, this means it needs to be rolled over and made read-only first.
 * Downsampling uses UTC timestamps.
-* Downsampling needs at least one metric field to exist in the time series 
+* Downsampling needs at least one metric field to exist in the time series
 index.
 
 [discrete]
@@ -51,8 +51,8 @@ First, you'll create a TSDS. For simplicity, in the time series mapping all
 be used. The `time_series_metric` values determine the kind of statistical
 representations that are used during downsampling.
 
-The index template includes a set of static 
-<<time-series-dimension,time series dimensions>>: `host`, `namespace`, 
+The index template includes a set of static
+<<time-series-dimension,time series dimensions>>: `host`, `namespace`,
 `node`, and `pod`. The time series dimensions are not changed by the
 downsampling process.
 
@@ -372,6 +372,7 @@ This returns:
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "rollover_on_write": false,
       "time_series": {
         "temporal_ranges": [
           {
@@ -388,6 +389,7 @@ This returns:
 // TESTRESPONSE[s/"ltOJGmqgTVm4T-Buoe7Acg"/$body.data_streams.0.indices.0.index_uuid/]
 // TESTRESPONSE[s/"2023-07-26T09:26:42.000Z"/$body.data_streams.0.time_series.temporal_ranges.0.start/]
 // TESTRESPONSE[s/"2023-07-26T13:26:42.000Z"/$body.data_streams.0.time_series.temporal_ranges.0.end/]
+// TESTRESPONSE[s/"replicated": false/"replicated": false,"failure_indices":[],"failure_store":false/]
 <1> The backing index for this data stream.
 
 Before a backing index can be downsampled, the TSDS needs to be rolled over and

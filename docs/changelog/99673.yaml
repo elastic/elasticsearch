@@ -1,5 +1,0 @@
-pr: 99673
-summary: Adding retry logic for start model deployment API
-area: Machine Learning
-type: bug
-issues: [ ]

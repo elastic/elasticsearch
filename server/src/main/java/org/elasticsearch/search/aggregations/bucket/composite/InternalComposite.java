@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -100,15 +99,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             formats.add(in.readNamedWriteable(DocValueFormat.class));
         }
         this.reverseMuls = in.readIntArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
-        } else {
-            this.missingOrders = new MissingOrder[reverseMuls.length];
-            Arrays.fill(missingOrders, MissingOrder.DEFAULT);
-        }
+        this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
         this.buckets = in.readCollectionAsList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
-        this.earlyTerminated = in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0) ? in.readBoolean() : false;
+        this.earlyTerminated = in.readBoolean();
     }
 
     @Override
@@ -119,14 +113,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             out.writeNamedWriteable(format);
         }
         out.writeIntArray(reverseMuls);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            out.writeArray(missingOrders);
-        }
+        out.writeArray(missingOrders);
         out.writeCollection(buckets);
         out.writeOptionalWriteable(afterKey);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            out.writeBoolean(earlyTerminated);
-        }
+        out.writeBoolean(earlyTerminated);
     }
 
     @Override
@@ -628,10 +618,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            return new AbstractSet<Entry<String, Object>>() {
+            return new AbstractSet<>() {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
-                    return new Iterator<Entry<String, Object>>() {
+                    return new Iterator<>() {
                         int pos = 0;
 
                         @Override

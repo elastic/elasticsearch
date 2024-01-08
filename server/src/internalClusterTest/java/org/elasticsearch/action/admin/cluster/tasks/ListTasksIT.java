@@ -56,7 +56,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
 
         ActionRequestValidationException ex = expectThrows(
             ActionRequestValidationException.class,
-            () -> clusterAdmin().prepareListTasks().setDescriptions("*").get()
+            clusterAdmin().prepareListTasks().setDescriptions("*")
         );
         assertThat(ex.getMessage(), containsString("matching on descriptions is not available when [detailed] is false"));
 
@@ -67,7 +67,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         final var threadContext = threadPool.getThreadContext();
 
         final var barrier = new CyclicBarrier(2);
-        getInstanceFromNode(PluginsService.class).filterPlugins(TestPlugin.class).get(0).barrier = barrier;
+        getInstanceFromNode(PluginsService.class).filterPlugins(TestPlugin.class).findFirst().get().barrier = barrier;
 
         final var testActionFuture = new PlainActionFuture<ActionResponse.Empty>();
         client().execute(TEST_ACTION, new TestRequest(), testActionFuture.map(r -> {
@@ -132,13 +132,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         var maxThreads = threadPool.info(executor).getMax();
         var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            threadPool.executor(executor).execute(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            threadPool.executor(executor).execute(() -> safeAwait(barrier));
         }
         barrier.await(10, TimeUnit.SECONDS);
     }
@@ -148,10 +142,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         return List.of(TestPlugin.class);
     }
 
-    private static final ActionType<ActionResponse.Empty> TEST_ACTION = new ActionType<>(
-        TestTransportAction.NAME,
-        in -> ActionResponse.Empty.INSTANCE
-    );
+    private static final ActionType<ActionResponse.Empty> TEST_ACTION = ActionType.emptyResponse(TestTransportAction.NAME);
 
     public static class TestPlugin extends Plugin implements ActionPlugin {
         volatile CyclicBarrier barrier;
@@ -187,7 +178,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
             ThreadPool threadPool
         ) {
             super(NAME, transportService, actionFilters, in -> new TestRequest(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            testPlugin = pluginsService.filterPlugins(TestPlugin.class).get(0);
+            testPlugin = pluginsService.filterPlugins(TestPlugin.class).findFirst().get();
             this.threadPool = threadPool;
         }
 

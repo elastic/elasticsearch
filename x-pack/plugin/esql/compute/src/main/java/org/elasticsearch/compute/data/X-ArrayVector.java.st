@@ -21,9 +21,12 @@ $endif$
 
 /**
  * Vector implementation that stores an array of $type$ values.
+$if(BytesRef)$
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
+$endif$
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
+final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
 
@@ -34,21 +37,14 @@ $else$
     private final $type$[] values;
 $endif$
 
-    private final $Type$Block block;
-
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
+    $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return block;
+        return new $Type$VectorBlock(this);
     }
 
 $if(BytesRef)$
@@ -76,7 +72,19 @@ $endif$
 
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Filter$Type$Vector(this, positions);
+    $if(BytesRef)$
+        final var scratch = new BytesRef();
+    $endif$
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(positions.length)) {
+            for (int pos : positions) {
+            $if(BytesRef)$
+                builder.append$Type$(values.get(pos, scratch));
+            $else$
+                builder.append$Type$(values[pos]);
+            $endif$
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
@@ -112,8 +120,10 @@ $endif$
 
 $if(BytesRef)$
     @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
+        // of this class.
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());
         Releasables.closeExpectNoException(values);
     }
 $endif$

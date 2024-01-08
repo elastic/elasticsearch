@@ -118,21 +118,13 @@ public class PostWriteRefresh {
             return;
         }
 
-        engineOrNull.addFlushListener(location, ActionListener.wrap(new ActionListener<>() {
-            @Override
-            public void onResponse(Long generation) {
-                try (
-                    ThreadContext.StoredContext ignore = transportService.getThreadPool()
-                        .getThreadContext()
-                        .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
-                ) {
-                    sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
+        engineOrNull.addFlushListener(location, listener.delegateFailureAndWrap((l, generation) -> {
+            try (
+                ThreadContext.StoredContext ignore = transportService.getThreadPool()
+                    .getThreadContext()
+                    .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
+            ) {
+                sendUnpromotableRequests(indexShard, generation, forced, l, postWriteRefreshTimeout);
             }
         }));
     }
@@ -146,6 +138,7 @@ public class PostWriteRefresh {
     ) {
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
+            indexShard.getOperationPrimaryTerm(),
             generation,
             true
         );

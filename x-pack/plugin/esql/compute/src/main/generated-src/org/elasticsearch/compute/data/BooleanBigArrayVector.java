@@ -12,30 +12,24 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Vector implementation that defers to an enclosed BooleanArray.
+ * Vector implementation that defers to an enclosed {@link BitArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class BooleanBigArrayVector extends AbstractVector implements BooleanVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanBigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final BitArray values;
-
-    private final BooleanBlock block;
-
-    public BooleanBigArrayVector(BitArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
 
     public BooleanBigArrayVector(BitArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
     public BooleanBlock asBlock() {
-        return block;
+        return new BooleanVectorBlock(this);
     }
 
     @Override
@@ -60,11 +54,20 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
 
     @Override
     public BooleanVector filter(int... positions) {
-        return new FilterBooleanVector(this, positions);
+        var blockFactory = blockFactory();
+        final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
+        for (int i = 0; i < positions.length; i++) {
+            if (values.get(positions[i])) {
+                filtered.set(i);
+            }
+        }
+        return new BooleanBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override
-    public void close() {
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BitArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.datastreams;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -20,7 +19,8 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99764")
+import static org.elasticsearch.test.cluster.FeatureFlag.FAILURE_STORE_ENABLED;
+
 public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DataStreamsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
@@ -45,6 +45,7 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
+            .feature(FAILURE_STORE_ENABLED)
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password");

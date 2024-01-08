@@ -53,7 +53,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore
     ) {
         super(
-            ExplainDataStreamLifecycleAction.NAME,
+            ExplainDataStreamLifecycleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,

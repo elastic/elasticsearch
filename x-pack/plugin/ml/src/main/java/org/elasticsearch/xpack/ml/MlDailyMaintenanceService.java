@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -234,16 +234,15 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     private void triggerDeleteExpiredDataTask(ActionListener<AcknowledgedResponse> finalListener) {
-        ActionListener<DeleteExpiredDataAction.Response> deleteExpiredDataActionListener = ActionListener.wrap(
-            deleteExpiredDataResponse -> {
+        ActionListener<DeleteExpiredDataAction.Response> deleteExpiredDataActionListener = finalListener.delegateFailureAndWrap(
+            (l, deleteExpiredDataResponse) -> {
                 if (deleteExpiredDataResponse.isDeleted()) {
                     logger.info("Successfully completed [ML] maintenance task: triggerDeleteExpiredDataTask");
                 } else {
                     logger.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
                 }
-                finalListener.onResponse(AcknowledgedResponse.TRUE);
-            },
-            finalListener::onFailure
+                l.onResponse(AcknowledgedResponse.TRUE);
+            }
         );
 
         executeAsyncWithOrigin(
@@ -259,8 +258,8 @@ public class MlDailyMaintenanceService implements Releasable {
     public void triggerDeleteJobsInStateDeletingWithoutDeletionTask(ActionListener<AcknowledgedResponse> finalListener) {
         SetOnce<Set<String>> jobsInStateDeletingHolder = new SetOnce<>();
 
-        ActionListener<List<Tuple<DeleteJobAction.Request, AcknowledgedResponse>>> deleteJobsActionListener = ActionListener.wrap(
-            deleteJobsResponses -> {
+        ActionListener<List<Tuple<DeleteJobAction.Request, AcknowledgedResponse>>> deleteJobsActionListener = finalListener
+            .delegateFailureAndWrap((delegate, deleteJobsResponses) -> {
                 List<String> jobIds = deleteJobsResponses.stream()
                     .filter(t -> t.v2().isAcknowledged() == false)
                     .map(Tuple::v1)
@@ -271,10 +270,8 @@ public class MlDailyMaintenanceService implements Releasable {
                 } else {
                     logger.info("The following ML jobs could not be deleted: [" + String.join(",", jobIds) + "]");
                 }
-                finalListener.onResponse(AcknowledgedResponse.TRUE);
-            },
-            finalListener::onFailure
-        );
+                delegate.onResponse(AcknowledgedResponse.TRUE);
+            });
 
         ActionListener<ListTasksResponse> listTasksActionListener = ActionListener.wrap(listTasksResponse -> {
             Set<String> jobsInStateDeleting = jobsInStateDeletingHolder.get();
@@ -302,7 +299,7 @@ public class MlDailyMaintenanceService implements Releasable {
                         ML_ORIGIN,
                         DeleteJobAction.INSTANCE,
                         request,
-                        ActionListener.wrap(response -> listener.onResponse(Tuple.tuple(request, response)), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, response) -> l.onResponse(Tuple.tuple(request, response)))
                     )
                 );
             }
@@ -324,7 +321,7 @@ public class MlDailyMaintenanceService implements Releasable {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                ListTasksAction.INSTANCE,
+                TransportListTasksAction.TYPE,
                 new ListTasksRequest().setActions(DeleteJobAction.NAME),
                 listTasksActionListener
             );

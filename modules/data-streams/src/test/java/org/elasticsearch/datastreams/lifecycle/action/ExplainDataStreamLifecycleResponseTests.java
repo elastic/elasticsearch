@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondit
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -103,7 +104,21 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
                 assertThat(explainIndexMap.get("lifecycle"), is(Map.of("enabled", true))); // empty lifecycle
-                assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
+                if (explainIndex.getError() != null) {
+                    Map<String, Object> errorObject = (Map<String, Object>) explainIndexMap.get("error");
+                    assertThat(errorObject.get(ErrorEntry.MESSAGE_FIELD.getPreferredName()), is(explainIndex.getError().error()));
+                    assertThat(
+                        errorObject.get(ErrorEntry.FIRST_OCCURRENCE_MILLIS_FIELD.getPreferredName()),
+                        is(explainIndex.getError().firstOccurrenceTimestamp())
+                    );
+                    assertThat(
+                        errorObject.get(ErrorEntry.LAST_RECORDED_MILLIS_FIELD.getPreferredName()),
+                        is(explainIndex.getError().recordedTimestamp())
+                    );
+                    assertThat(errorObject.get(ErrorEntry.RETRY_COUNT_FIELD.getPreferredName()), is(explainIndex.getError().retryCount()));
+                } else {
+                    assertThat(explainIndexMap.get("error"), is(nullValue()));
+                }
             }
         }
 
@@ -155,7 +170,21 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 } else {
                     assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
-                assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
+                if (explainIndex.getError() != null) {
+                    Map<String, Object> errorObject = (Map<String, Object>) explainIndexMap.get("error");
+                    assertThat(errorObject.get(ErrorEntry.MESSAGE_FIELD.getPreferredName()), is(explainIndex.getError().error()));
+                    assertThat(
+                        errorObject.get(ErrorEntry.FIRST_OCCURRENCE_MILLIS_FIELD.getPreferredName()),
+                        is(explainIndex.getError().firstOccurrenceTimestamp())
+                    );
+                    assertThat(
+                        errorObject.get(ErrorEntry.LAST_RECORDED_MILLIS_FIELD.getPreferredName()),
+                        is(explainIndex.getError().recordedTimestamp())
+                    );
+                    assertThat(errorObject.get(ErrorEntry.RETRY_COUNT_FIELD.getPreferredName()), is(explainIndex.getError().retryCount()));
+                } else {
+                    assertThat(explainIndexMap.get("error"), is(nullValue()));
+                }
 
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) ((Map<String, Object>) explainIndexMap.get("lifecycle")).get(
                     "rollover"
@@ -166,14 +195,22 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         }
         {
             // Make sure generation_date is not present if it is null (which it is for a write index):
+            String index = randomAlphaOfLengthBetween(10, 30);
             ExplainIndexDataStreamLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataStreamLifecycle(
-                randomAlphaOfLengthBetween(10, 30),
+                index,
                 true,
                 now,
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 null,
                 lifecycle,
-                randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+                randomBoolean()
+                    ? new ErrorEntry(
+                        System.currentTimeMillis(),
+                        new NullPointerException("bad times").getMessage(),
+                        System.currentTimeMillis(),
+                        randomIntBetween(0, 30)
+                    )
+                    : null
             );
             Response response = new Response(List.of(explainIndexWithNullGenerationDate), null);
 
@@ -216,14 +253,22 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         long now,
         @Nullable DataStreamLifecycle lifecycle
     ) {
+        String index = randomAlphaOfLengthBetween(10, 30);
         return new ExplainIndexDataStreamLifecycle(
-            randomAlphaOfLengthBetween(10, 30),
+            index,
             true,
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
             randomBoolean() ? TimeValue.timeValueMillis(now) : null,
             lifecycle,
-            randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+            randomBoolean()
+                ? new ErrorEntry(
+                    System.currentTimeMillis(),
+                    new NullPointerException("bad times").getMessage(),
+                    System.currentTimeMillis(),
+                    randomIntBetween(0, 30)
+                )
+                : null
         );
     }
 

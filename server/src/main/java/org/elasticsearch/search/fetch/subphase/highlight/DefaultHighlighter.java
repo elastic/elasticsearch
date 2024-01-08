@@ -32,7 +32,6 @@ import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -120,7 +119,7 @@ public class DefaultHighlighter implements Highlighter {
             fieldContext.context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
             queryMaxAnalyzedOffset
         );
-        PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
+        PassageFormatter passageFormatter = getPassageFormatter(fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.context, fieldContext.fieldType);
         BreakIterator breakIterator;
@@ -161,7 +160,7 @@ public class DefaultHighlighter implements Highlighter {
         );
     }
 
-    protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchHighlightContext.Field field, Encoder encoder) {
+    protected PassageFormatter getPassageFormatter(SearchHighlightContext.Field field, Encoder encoder) {
         return new CustomPassageFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0], encoder);
     }
 

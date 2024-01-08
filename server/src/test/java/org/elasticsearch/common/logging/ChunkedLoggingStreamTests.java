@@ -137,7 +137,7 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
             Loggers.addAppender(captureLogger, appender);
             runnable.run();
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         } finally {
             Loggers.removeAppender(captureLogger, appender);
             appender.stop();
@@ -177,7 +177,7 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
             Streams.copy(gzipInputStream, bytesStreamOutput);
             return bytesStreamOutput.bytes();
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            return fail(e);
         }
     }
 

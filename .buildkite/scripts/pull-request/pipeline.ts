@@ -116,9 +116,15 @@ export const generatePipelines = (
     .filter((x) => x);
 
   if (!changedFiles?.length) {
-    const mergeBase = execSync(`git merge-base ${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`, { cwd: PROJECT_ROOT })
+    console.log("Doing git fetch and getting merge-base");
+    const mergeBase = execSync(
+      `git fetch origin ${process.env["GITHUB_PR_TARGET_BRANCH"]}; git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`,
+      { cwd: PROJECT_ROOT }
+    )
       .toString()
       .trim();
+
+    console.log(`Merge base: ${mergeBase}`);
 
     const changedFilesOutput = execSync(`git diff --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
 
@@ -126,6 +132,9 @@ export const generatePipelines = (
       .split("\n")
       .map((x) => x.trim())
       .filter((x) => x);
+
+    console.log("Changed files (first 50):");
+    console.log(changedFiles.slice(0, 50).join("\n"));
   }
 
   let filters: ((pipeline: EsPipeline) => boolean)[] = [
@@ -135,8 +144,12 @@ export const generatePipelines = (
     (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
   ];
 
-  // When triggering via comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc
-  if (process.env["GITHUB_PR_TRIGGER_COMMENT"]) {
+  // When triggering via the "run elasticsearch-ci/step-name" comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc
+  // However, if we're using the overall CI trigger "[buildkite] test this [please]", we should use the regular filters above
+  if (
+    process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
+    !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(/^\s*(buildkite\s*)?test\s+this(\s+please)?/i)
+  ) {
     filters = [triggerCommentCheck];
   }
 
@@ -151,9 +164,9 @@ export const generatePipelines = (
   pipelines.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 
   const finalPipelines = pipelines.map((pipeline) => {
-    const finalPipeline = { ...pipeline };
-    delete finalPipeline.config;
-    delete finalPipeline.name;
+    const finalPipeline = { name: pipeline.name, pipeline: { ...pipeline } };
+    delete finalPipeline.pipeline.config;
+    delete finalPipeline.pipeline.name;
 
     return finalPipeline;
   });

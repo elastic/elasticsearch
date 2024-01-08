@@ -82,7 +82,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
             return error;
         }
 
-        private ActionRequestValidationException checkConfigIdIsValid(
+        private static ActionRequestValidationException checkConfigIdIsValid(
             DataFrameAnalyticsConfig analyticsConfig,
             ActionRequestValidationException error
         ) {
@@ -106,7 +106,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
             return error;
         }
 
-        private ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
+        private static ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
             DataFrameAnalyticsConfig analyticsConfig,
             ActionRequestValidationException error
         ) {

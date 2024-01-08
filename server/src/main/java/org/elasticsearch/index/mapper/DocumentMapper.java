@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.util.List;
 
@@ -52,7 +53,7 @@ public class DocumentMapper {
     boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
         return sourceMapper().isSynthetic()
             && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
-            && version.onOrBefore(IndexVersion.V_8_10_0);
+            && version.onOrBefore(IndexVersions.V_8_10_0);
     }
 
     public Mapping mapping() {

@@ -20,6 +20,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,7 +83,7 @@ class S3RetryingInputStream extends InputStream {
     private void openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + currentOffset <= end
                     : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
@@ -165,6 +166,12 @@ class S3RetryingInputStream extends InputStream {
     }
 
     private void reopenStreamOrFail(IOException e) throws IOException {
+        if (purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
+            logger.warn(() -> format("""
+                failed reading [%s/%s] at offset [%s]""", blobStore.bucket(), blobKey, start + currentOffset), e);
+            throw e;
+        }
+
         final int maxAttempts = blobStore.getMaxRetries() + 1;
 
         final long meaningfulProgressSize = Math.max(1L, blobStore.bufferSizeInBytes() / 100L);

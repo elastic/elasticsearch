@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
@@ -116,6 +117,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+
+    private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
     /**
      * A static factory method to construct a new search source.
@@ -253,15 +256,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
         trackTotalHitsUpTo = in.readOptionalInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
-            }
-            pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
+        if (in.readBoolean()) {
+            fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            runtimeMappings = in.readMap();
-        }
+        pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
+        runtimeMappings = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
@@ -330,22 +329,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeCollection(fetchFields);
-            }
-            out.writeOptionalWriteable(pointInTimeBuilder);
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeCollection(fetchFields);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            out.writeGenericMap(runtimeMappings);
-        } else {
-            if (false == runtimeMappings.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Versions before 7110099 don't support [runtime_mappings] and search was sent to [" + out.getTransportVersion() + "]"
-                );
-            }
-        }
+        out.writeOptionalWriteable(pointInTimeBuilder);
+        out.writeGenericMap(runtimeMappings);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
                 if (knnSearch.size() > 1) {
@@ -1351,6 +1340,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (RANK_SUPPORTED == false) {
+                        throwUnknownKey(parser, token, currentFieldName);
+                    }
                     if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -1419,7 +1411,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                             sorts = new ArrayList<>(SortBuilder.fromXContent(parser));
                         } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             rescoreBuilders = new ArrayList<>();
-                            rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser));
+                            rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
                             searchUsage.trackSectionUsage(RESCORE_FIELD.getPreferredName());
                         } else if (EXT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             extBuilders = new ArrayList<>();
@@ -1506,7 +1498,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     rescoreBuilders = new ArrayList<>();
                     while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser));
+                        rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
                     }
                     searchUsage.trackSectionUsage(RESCORE_FIELD.getPreferredName());
                 } else if (STATS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1555,6 +1547,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (SUB_SEARCHES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (RANK_SUPPORTED == false) {
+                        throwUnknownKey(parser, token, currentFieldName);
+                    }
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(
                             "cannot specify field [" + currentFieldName + "] and field [" + QUERY_FIELD.getPreferredName() + "]"
@@ -1572,18 +1567,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                     searchUsage.trackSectionUsage(SUB_SEARCHES_FIELD.getPreferredName());
                 } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                        parser.getTokenLocation()
-                    );
+                    throwUnknownKey(parser, token, currentFieldName);
                 }
             } else {
-                throw new ParsingException(
-                    parser.getTokenLocation(),
-                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                    parser.getTokenLocation()
-                );
+                throwUnknownKey(parser, token, currentFieldName);
             }
         }
         if (checkTrailingTokens) {
@@ -1594,6 +1581,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         searchUsageConsumer.accept(searchUsage);
         return this;
+    }
+
+    private static void throwUnknownKey(XContentParser parser, XContentParser.Token token, String currentFieldName)
+        throws ParsingException {
+        throw new ParsingException(
+            parser.getTokenLocation(),
+            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+            parser.getTokenLocation()
+        );
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
@@ -2094,15 +2090,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
     }
 
-    public boolean supportsParallelCollection() {
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinality) {
         if (profile) return false;
 
         if (sorts != null) {
+            // the implicit sorting is by _score, which supports parallel collection
             for (SortBuilder<?> sortBuilder : sorts) {
                 if (sortBuilder.supportsParallelCollection() == false) return false;
             }
         }
 
-        return collapse == null && (aggregations == null || aggregations.supportsParallelCollection());
+        return collapse == null && (aggregations == null || aggregations.supportsParallelCollection(fieldCardinality));
     }
 }

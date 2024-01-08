@@ -53,6 +53,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -138,17 +139,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             return new DirectoryStream<>() {
                 @Override
                 public Iterator<Path> iterator() {
-                    return new Iterator<>() {
-                        @Override
-                        public boolean hasNext() {
-                            return false;
-                        }
-
-                        @Override
-                        public Path next() {
-                            return null;
-                        }
-                    };
+                    return Collections.emptyIterator();
                 }
 
                 @Override
@@ -192,6 +183,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, name);
         final Path resolvedPath = path.resolve(name);
         try {
             return Files.newInputStream(resolvedPath);
@@ -202,6 +194,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
         if (position > 0L) {
             channel.position(position);
@@ -219,6 +212,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final Path file = path.resolve(blobName);
         try {
             writeToPath(inputStream, file, blobSize);
@@ -234,6 +228,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final Path file = path.resolve(blobName);
         try {
             writeToPath(bytes, file);
@@ -255,6 +250,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         boolean atomic,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         if (atomic) {
             final String tempBlob = tempBlobName(blobName);
             try {
@@ -300,6 +296,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlobAtomic(OperationPurpose purpose, final String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -29,9 +28,9 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -43,15 +42,15 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
@@ -67,7 +66,6 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -78,7 +76,7 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAn
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
-    public static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
+    public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = new PhysicalVerifier();
 
@@ -210,7 +208,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     (canPushToSource(exp) ? pushable : nonPushable).add(exp);
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
-                    QueryBuilder planQuery = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable)).asBuilder();
+                    Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable));
+                    QueryBuilder planQuery = queryDSL.asBuilder();
                     var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
                     queryExec = new EsQueryExec(
                         queryExec.source(),
@@ -259,17 +258,19 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 }
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left()) && canPushToSource(bl.right());
-            } else if (exp instanceof RegexMatch<?> rm) {
-                return isPushableAttribute(rm.field(), rm);
             } else if (exp instanceof In in) {
                 return isPushableAttribute(in.value(), null) && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
                 return canPushToSource(not.field());
+            } else if (exp instanceof UnaryScalarFunction usf) {
+                if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
+                    return isPushableAttribute(usf.field(), usf);
+                }
             }
             return false;
         }
 
-        private static boolean isPushableAttribute(Expression expression, ScalarFunction operation) {
+        private static boolean isPushableAttribute(Expression expression, Expression operation) {
             if (expression instanceof FieldAttribute f && f.getExactInfo().hasExact()) {
                 return isAggregatable(f);
             }
@@ -501,22 +502,4 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
-    private static final class EsqlTranslatorHandler extends QlTranslatorHandler {
-        @Override
-        public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
-            if (field instanceof FieldAttribute fa) {
-                if (fa.getExactInfo().hasExact()) {
-                    var exact = fa.exactAttribute();
-                    if (exact != fa) {
-                        fa = exact;
-                    }
-                }
-                return ExpressionTranslator.wrapIfNested(new SingleValueQuery(querySupplier.get(), fa.name()), field);
-            }
-            if (field instanceof MetadataAttribute) {
-                return querySupplier.get(); // MetadataAttributes are always single valued
-            }
-            throw new EsqlIllegalArgumentException("Expected a FieldAttribute or MetadataAttribute but received [" + field + "]");
-        }
-    }
 }

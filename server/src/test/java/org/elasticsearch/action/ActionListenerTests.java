@@ -23,13 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -105,49 +105,6 @@ public class ActionListenerTests extends ESTestCase {
             AssertionError.class,
             () -> ActionListener.running(() -> { throw new UnsupportedOperationException(); }).onResponse(null)
         );
-    }
-
-    public void testWrapListener() {
-        var succeeded = new AtomicBoolean();
-        var failed = new AtomicBoolean();
-
-        var listener = ActionListener.wrap(new ActionListener<>() {
-            @Override
-            public void onResponse(Object o) {
-                assertTrue(succeeded.compareAndSet(false, true));
-                if (o instanceof RuntimeException e) {
-                    throw e;
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertTrue(failed.compareAndSet(false, true));
-                assertEquals("test exception", e.getMessage());
-                if (e instanceof UnsupportedOperationException uoe) {
-                    throw uoe;
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "test listener";
-            }
-        });
-
-        assertEquals("wrapped{test listener}", listener.toString());
-
-        listener.onResponse(new Object());
-        assertTrue(succeeded.getAndSet(false));
-        assertFalse(failed.getAndSet(false));
-
-        listener.onFailure(new RuntimeException("test exception"));
-        assertFalse(succeeded.getAndSet(false));
-        assertTrue(failed.getAndSet(false));
-
-        listener.onResponse(new RuntimeException("test exception"));
-        assertTrue(succeeded.getAndSet(false));
-        assertTrue(failed.getAndSet(false));
     }
 
     public void testOnResponse() {
@@ -353,11 +310,7 @@ public class ActionListenerTests extends ESTestCase {
         final var startBarrier = new CyclicBarrier(threads.length);
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    startBarrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startBarrier);
                 if (randomBoolean()) {
                     listener.onResponse(null);
                 } else {
@@ -584,6 +537,9 @@ public class ActionListenerTests extends ESTestCase {
                 l.onResponse(null);
             } catch (Exception e) {
                 // ok
+            } catch (AssertionError e) {
+                // ensure this was only thrown by ActionListener#assertOnce
+                assertThat(e.getMessage(), endsWith("must handle its own exceptions"));
             }
         } else {
             l.onFailure(new RuntimeException("supplied"));

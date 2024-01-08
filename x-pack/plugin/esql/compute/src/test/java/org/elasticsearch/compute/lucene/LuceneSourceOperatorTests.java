@@ -16,7 +16,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -25,8 +25,9 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -36,7 +37,8 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
@@ -48,6 +50,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
@@ -58,7 +61,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
-    private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.INTEGER);
+    private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
     private Directory directory = newDirectory();
     private IndexReader reader;
 
@@ -68,11 +71,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneSourceOperator.Factory simple(BigArrays bigArrays) {
-        return simple(bigArrays, randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
+    protected LuceneSourceOperator.Factory simple() {
+        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
-    private LuceneSourceOperator.Factory simple(BigArrays bigArrays, DataPartitioning dataPartitioning, int numDocs, int limit) {
+    private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit) {
         int commitEvery = Math.max(1, numDocs / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -94,24 +97,23 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = mockSearchContext(reader);
-        SearchExecutionContext ectx = mock(SearchExecutionContext.class);
-        when(ctx.getSearchExecutionContext()).thenReturn(ectx);
-        when(ectx.getFieldType(anyString())).thenAnswer(inv -> {
+        SearchContext ctx = mockSearchContext(reader, 0);
+        when(ctx.getSearchExecutionContext().getFieldType(anyString())).thenAnswer(inv -> {
             String name = inv.getArgument(0);
             return switch (name) {
                 case "s" -> S_FIELD;
                 default -> throw new IllegalArgumentException("don't support [" + name + "]");
             };
         });
-        when(ectx.getForField(any(), any())).thenAnswer(inv -> {
+        when(ctx.getSearchExecutionContext().getForField(any(), any())).thenAnswer(inv -> {
             MappedFieldType ft = inv.getArgument(0);
             IndexFieldData.Builder builder = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"));
-            return builder.build(new IndexFieldDataCache.None(), bigArrays.breakerService());
+            // This breaker is for fielddata from text fields. We don't test it so it won't break not test not to use a breaker here.
+            return builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
-        when(ectx.nestedScope()).thenReturn(new NestedScope());
-        when(ectx.nestedLookup()).thenReturn(NestedLookup.EMPTY);
-        when(ectx.getIndexReader()).thenReturn(reader);
+        when(ctx.getSearchExecutionContext().nestedScope()).thenReturn(new NestedScope());
+        when(ctx.getSearchExecutionContext().nestedLookup()).thenReturn(NestedLookup.EMPTY);
+        when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
         Function<SearchContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
         return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit);
@@ -135,26 +137,53 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     public void testShardDataPartitioning() {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
-        testSimple(size, limit);
+        testSimple(driverContext(), size, limit);
     }
 
     public void testEmpty() {
-        testSimple(0, between(10, 10_000));
+        testSimple(driverContext(), 0, between(10, 10_000));
     }
 
-    private void testSimple(int size, int limit) {
-        DriverContext ctx = driverContext();
-        LuceneSourceOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
-        Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(
-            reader,
-            CoreValuesSourceType.NUMERIC,
-            ElementType.LONG,
-            S_FIELD
-        );
+    public void testWithCranky() {
+        try {
+            testSimple(crankyDriverContext(), between(1, 10_000), 100);
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    public void testEmptyWithCranky() {
+        try {
+            testSimple(crankyDriverContext(), 0, between(10, 10_000));
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    public void testShardDataPartitioningWithCranky() {
+        int size = between(1_000, 20_000);
+        int limit = between(10, size);
+        try {
+            testSimple(crankyDriverContext(), size, limit);
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testSimple(DriverContext ctx, int size, int limit) {
+        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
+        Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();
+
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new PageConsumerOperator(page -> results.add(page)), () -> {})
+            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
         );
         OperatorTestCase.assertDriverContext(ctx);
 
@@ -177,7 +206,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
      * Creates a mock search context with the given index reader.
      * The returned mock search context can be used to test with {@link LuceneOperator}.
      */
-    public static SearchContext mockSearchContext(IndexReader reader) {
+    public static SearchContext mockSearchContext(IndexReader reader, int shardId) {
         try {
             ContextIndexSearcher searcher = new ContextIndexSearcher(
                 reader,
@@ -188,6 +217,10 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             );
             SearchContext searchContext = mock(SearchContext.class);
             when(searchContext.searcher()).thenReturn(searcher);
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchContext.getSearchExecutionContext()).thenReturn(searchExecutionContext);
+            when(searchExecutionContext.getFullyQualifiedIndex()).thenReturn(new Index("test", "uid"));
+            when(searchExecutionContext.getShardId()).thenReturn(shardId);
             return searchContext;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

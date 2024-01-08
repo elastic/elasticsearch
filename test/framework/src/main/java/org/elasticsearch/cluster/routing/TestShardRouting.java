@@ -23,6 +23,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.junit.Assert.assertNotEquals;
 
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
@@ -35,6 +36,17 @@ public class TestShardRouting {
     }
 
     public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return newShardRouting(shardId, currentNodeId, primary, state, -1);
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        long expectedShardSize
+    ) {
+        assertNotEquals(ShardRoutingState.RELOCATING, state);
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -45,7 +57,7 @@ public class TestShardRouting {
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
-            -1,
+            expectedShardSize,
             ShardRouting.Role.DEFAULT
         );
     }
@@ -61,6 +73,29 @@ public class TestShardRouting {
             shardId,
             currentNodeId,
             null,
+            primary,
+            state,
+            recoverySource,
+            buildUnassignedInfo(state),
+            buildRelocationFailureInfo(state),
+            buildAllocationId(state),
+            -1,
+            ShardRouting.Role.DEFAULT
+        );
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        RecoverySource recoverySource
+    ) {
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
             primary,
             state,
             recoverySource,

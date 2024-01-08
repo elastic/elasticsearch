@@ -15,8 +15,8 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,8 +25,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -46,7 +47,7 @@ public abstract class TransportNodesAction<
     NodesRequest extends BaseNodesRequest<NodesRequest>,
     NodesResponse extends BaseNodesResponse<?>,
     NodeRequest extends TransportRequest,
-    NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
+    NodeResponse extends BaseNodeResponse> extends TransportAction<NodesRequest, NodesResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
 
@@ -58,26 +59,21 @@ public abstract class TransportNodesAction<
 
     /**
      * @param actionName        action name
-     * @param threadPool        thread-pool
      * @param clusterService    cluster service
      * @param transportService  transport service
      * @param actionFilters     action filters
-     * @param request           node request writer
      * @param nodeRequest       node request reader
      * @param executor          executor to execute node action and final collection
      */
     protected TransportNodesAction(
         String actionName,
-        ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Writeable.Reader<NodesRequest> request,
         Writeable.Reader<NodeRequest> nodeRequest,
         Executor executor
     ) {
-        // coordination can run on SAME because it's only O(#nodes) work
-        super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, actionFilters, transportService.getTaskManager());
         assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
             : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -89,6 +85,7 @@ public abstract class TransportNodesAction<
 
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
+        // coordination can run on SAME because it's only O(#nodes) work
         if (request.concreteNodes() == null) {
             resolveRequest(request, clusterService.state());
             assert request.concreteNodes() != null;
@@ -100,6 +97,23 @@ public abstract class TransportNodesAction<
             final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
 
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
+
+            {
+                addReleaseOnCancellationListener();
+            }
+
+            private void addReleaseOnCancellationListener() {
+                if (task instanceof CancellableTask cancellableTask) {
+                    cancellableTask.addListener(() -> {
+                        final List<NodeResponse> drainedResponses;
+                        synchronized (responses) {
+                            drainedResponses = List.copyOf(responses);
+                            responses.clear();
+                        }
+                        Releasables.wrap(Iterators.map(drainedResponses.iterator(), r -> r::decRef)).close();
+                    });
+                }
+            }
 
             @Override
             protected void sendItemRequest(DiscoveryNode discoveryNode, ActionListener<NodeResponse> listener) {
@@ -123,9 +137,14 @@ public abstract class TransportNodesAction<
 
             @Override
             protected void onItemResponse(DiscoveryNode discoveryNode, NodeResponse nodeResponse) {
+                nodeResponse.mustIncRef();
                 synchronized (responses) {
-                    responses.add(nodeResponse);
+                    if ((task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) == false) {
+                        responses.add(nodeResponse);
+                        return;
+                    }
                 }
+                nodeResponse.decRef();
             }
 
             @Override
@@ -139,7 +158,11 @@ public abstract class TransportNodesAction<
             @Override
             protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
-                return l -> newResponseAsync(task, request, responses, exceptions, l);
+                return l -> {
+                    try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
+                        newResponseAsync(task, request, responses, exceptions, l);
+                    }
+                };
             }
 
             @Override
@@ -159,9 +182,11 @@ public abstract class TransportNodesAction<
     }
 
     /**
-     * Create a new {@link NodesResponse} (multi-node response).
+     * Create a new {@link NodesResponse}. This method is executed on {@link #finalExecutor}.
      *
-     * @param request The associated request.
+     * @param request The request whose response we are constructing. {@link TransportNodesAction} may have already released all its
+     *                references to this object before calling this method, so it's up to individual implementations to retain their own
+     *                reference to the request if still needed here.
      * @param responses All successful node-level responses.
      * @param failures All node-level failures.
      * @return Never {@code null}.
@@ -171,7 +196,11 @@ public abstract class TransportNodesAction<
 
     /**
      * Create a new {@link NodesResponse}, possibly asynchronously. The default implementation is synchronous and calls
-     * {@link #newResponse(BaseNodesRequest, List, List)}
+     * {@link #newResponse(BaseNodesRequest, List, List)}. This method is executed on {@link #finalExecutor}.
+     *
+     * @param request The request whose response we are constructing. {@link TransportNodesAction} may have already released all its
+     *                references to this object before calling this method, so it's up to individual implementations to retain their own
+     *                reference to the request if still needed here.
      */
     protected void newResponseAsync(
         Task task,
@@ -180,7 +209,7 @@ public abstract class TransportNodesAction<
         List<FailedNodeException> failures,
         ActionListener<NodesResponse> listener
     ) {
-        ActionListener.completeWith(listener, () -> newResponse(request, responses, failures));
+        ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));
     }
 
     protected abstract NodeRequest newNodeRequest(NodesRequest request);

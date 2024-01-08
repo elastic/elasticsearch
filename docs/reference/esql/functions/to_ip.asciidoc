@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_ip]]
 === `TO_IP`
 Converts an input string to an IP value.

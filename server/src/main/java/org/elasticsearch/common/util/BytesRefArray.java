@@ -22,7 +22,7 @@ import java.io.IOException;
 /**
  * Compact serializable container for ByteRefs
  */
-public class BytesRefArray implements Accountable, Releasable, Writeable {
+public final class BytesRefArray implements Accountable, Releasable, Writeable {
 
     // base size of the bytes ref array
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class);
@@ -32,7 +32,6 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
     private ByteArray bytes;
     private long size;
 
-    @SuppressWarnings("this-escape")
     public BytesRefArray(long capacity, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
         boolean success = false;
@@ -49,7 +48,6 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
         size = 0;
     }
 
-    @SuppressWarnings("this-escape")
     public BytesRefArray(StreamInput in, BigArrays bigArrays) throws IOException {
         this.bigArrays = bigArrays;
         // we allocate big arrays so we have to `close` if we fail here or we'll leak them.

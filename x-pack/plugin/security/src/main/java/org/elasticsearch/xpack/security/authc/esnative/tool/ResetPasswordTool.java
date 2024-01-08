@@ -128,7 +128,7 @@ class ResetPasswordTool extends BaseRunAsSuperuserCommand {
         }
     }
 
-    private SecureString promptForPassword(Terminal terminal, String providedUsername) {
+    private static SecureString promptForPassword(Terminal terminal, String providedUsername) {
         while (true) {
             SecureString password1 = new SecureString(terminal.readSecret("Enter password for [" + providedUsername + "]: "));
             Validation.Error err = Validation.Users.validatePassword(password1);
@@ -150,7 +150,7 @@ class ResetPasswordTool extends BaseRunAsSuperuserCommand {
         }
     }
 
-    private String requestBodySupplier(SecureString pwd) throws Exception {
+    private static String requestBodySupplier(SecureString pwd) throws Exception {
         XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
         xContentBuilder.startObject().field("password", pwd.toString()).endObject();
         return Strings.toString(xContentBuilder);

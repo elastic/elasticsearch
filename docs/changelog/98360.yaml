@@ -1,6 +1,0 @@
-pr: 98360
-summary: Use a competitive iterator in `FiltersAggregator`
-area: Aggregations
-type: enhancement
-issues:
- - 97544

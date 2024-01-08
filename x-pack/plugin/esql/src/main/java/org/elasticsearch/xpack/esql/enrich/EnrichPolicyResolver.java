@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
 import java.util.Map;
@@ -117,7 +118,8 @@ public class EnrichPolicyResolver {
                     IndexResolver.ALL_FIELDS,
                     false,
                     Map.of(),
-                    listener.map(indexResult -> new ResolveResponse(new EnrichPolicyResolution(policyName, policy, indexResult)))
+                    listener.map(indexResult -> new ResolveResponse(new EnrichPolicyResolution(policyName, policy, indexResult))),
+                    EsqlSession::specificValidity
                 );
             }
         }

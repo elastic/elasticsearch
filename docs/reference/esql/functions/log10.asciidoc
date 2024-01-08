@@ -1,3 +1,4 @@
+[discrete]
 [[esql-log10]]
 === `LOG10`
 [.text-center]

@@ -1,0 +1,5 @@
+pr: 101845
+summary: Introduce new endpoint to expose data stream lifecycle stats
+area: Data streams
+type: enhancement
+issues: []

@@ -9,6 +9,8 @@
       indices.create:
         index: test_index
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             dynamic_templates:
               - location:
@@ -181,6 +183,8 @@
       indices.create:
         index: test_index
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             dynamic_templates:
               - location:

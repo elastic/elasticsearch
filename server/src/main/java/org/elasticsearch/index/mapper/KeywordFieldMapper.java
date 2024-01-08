@@ -137,7 +137,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -184,7 +184,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, IndexVersion indexCreatedVersion) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
@@ -579,6 +578,35 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            }
+            if (isSyntheticSource) {
+                if (false == isStored()) {
+                    throw new IllegalStateException(
+                        "keyword field ["
+                            + name()
+                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
+                    );
+                }
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
+            }
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
+            if (getTextSearchInfo().hasNorms()) {
+                return BlockSourceReader.lookupFromNorms(name());
+            }
+            if (isIndexed() || isStored()) {
+                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            }
+            return BlockSourceReader.lookupMatchingAll();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 
@@ -805,6 +833,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                 );
             }
         }
+
+        public boolean hasNormalizer() {
+            return normalizer != Lucene.KEYWORD_ANALYZER;
+        }
     }
 
     private final boolean indexed;
@@ -990,7 +1022,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return syntheticFieldLoader(simpleName());
     }
 
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

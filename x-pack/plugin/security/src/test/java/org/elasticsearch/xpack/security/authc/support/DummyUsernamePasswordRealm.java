@@ -21,11 +21,10 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
+public final class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
 
     private Map<String, Tuple<SecureString, User>> users;
 
-    @SuppressWarnings("this-escape")
     public DummyUsernamePasswordRealm(RealmConfig config) {
         super(config);
         initRealmRef(

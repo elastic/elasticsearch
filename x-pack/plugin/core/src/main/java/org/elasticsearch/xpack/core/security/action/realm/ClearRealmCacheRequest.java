@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.realm;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,12 +21,6 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
 
     public ClearRealmCacheRequest() {
         super((String[]) null);
-    }
-
-    public ClearRealmCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        realms = in.readStringArray();
-        usernames = in.readStringArray();
     }
 
     /**
@@ -80,9 +75,7 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArrayNullable(realms);
-        out.writeStringArrayNullable(usernames);
+        TransportAction.localOnly();
     }
 
     public static class Node extends TransportRequest {

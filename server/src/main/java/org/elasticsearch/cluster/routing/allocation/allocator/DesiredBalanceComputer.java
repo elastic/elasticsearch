@@ -51,6 +51,7 @@ public class DesiredBalanceComputer {
     private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
 
+    // stats
     protected final MeanMetric iterations = new MeanMetric();
 
     public static final Setting<TimeValue> PROGRESS_LOG_INTERVAL_SETTING = Setting.timeSetting(
@@ -83,7 +84,7 @@ public class DesiredBalanceComputer {
         final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
-        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
+        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
 
         if (routingNodes.size() == 0) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
@@ -273,7 +274,7 @@ public class DesiredBalanceComputer {
             routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
             logger.trace("running delegate allocator");
             delegateAllocator.allocate(routingAllocation);
-            assert routingNodes.unassigned().size() == 0; // any unassigned shards should now be ignored
+            assert routingNodes.unassigned().isEmpty(); // any unassigned shards should now be ignored
 
             hasChanges = false;
             for (final var routingNode : routingNodes) {

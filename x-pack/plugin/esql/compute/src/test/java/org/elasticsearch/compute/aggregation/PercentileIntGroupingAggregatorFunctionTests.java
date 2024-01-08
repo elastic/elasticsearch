@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -33,8 +32,8 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentile);
     }
 
     @Override
@@ -58,7 +57,8 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
         if (td.size() > 0) {
             double expected = td.quantile(percentile / 100);
             double value = ((DoubleBlock) result).getDouble(position);
-            assertThat(value, closeTo(expected, expected * 0.1));
+            double errorDelta = Math.abs(expected * 0.1);
+            assertThat(value, closeTo(expected, errorDelta));
         } else {
             assertTrue(result.isNull(position));
         }

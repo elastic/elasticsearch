@@ -1,0 +1,14 @@
+pr: 101457
+summary: "Remove Plugin.createComponents method in favour of overload with a PluginServices object"
+area: Infra/Plugins
+type: breaking-java
+breaking:
+  area: "Java API"
+  title: "Plugin.createComponents method has been refactored to take a single PluginServices object"
+  details: >
+    Plugin.createComponents currently takes several different service arguments. The signature of this method changes
+    every time a new service is added. The method has now been modified to take a single interface object
+    that new services are added to. This will reduce API incompatibility issues when a new service
+    is introduced in the future.
+  impact: "Plugins that override createComponents will need to be refactored to override the new method on ES 8.12+"
+  notable: false

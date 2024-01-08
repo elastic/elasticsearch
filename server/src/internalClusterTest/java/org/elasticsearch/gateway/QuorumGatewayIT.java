@@ -42,15 +42,15 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         final NumShards test = getNumShards("test");
 
         logger.info("--> indexing...");
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         // We don't check for failures in the flush response: if we do we might get the following:
         // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
         flush();
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
         refresh();
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2L);
         }
         logger.info("--> restart all nodes");
         internalCluster().fullRestart(new RestartCallback() {
@@ -79,7 +79,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                         .get();
                     assertNoFailures(activeClient.admin().indices().prepareRefresh().get());
                     for (int i = 0; i < 10; i++) {
-                        assertHitCount(activeClient.prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 3L);
+                        assertHitCount(activeClient.prepareSearch().setSize(0).setQuery(matchAllQuery()), 3L);
                     }
                 }
             }
@@ -90,7 +90,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 3L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 3L);
         }
     }
 }

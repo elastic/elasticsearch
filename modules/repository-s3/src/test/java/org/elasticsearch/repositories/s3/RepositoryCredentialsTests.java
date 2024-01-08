@@ -26,6 +26,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -160,7 +161,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             final Settings newSettings = Settings.builder().setSecureSettings(newSecureSettings).build();
             // reload S3 plugin settings
             final PluginsService plugins = getInstanceFromNode(PluginsService.class);
-            final ProxyS3RepositoryPlugin plugin = plugins.filterPlugins(ProxyS3RepositoryPlugin.class).get(0);
+            final ProxyS3RepositoryPlugin plugin = plugins.filterPlugins(ProxyS3RepositoryPlugin.class).findFirst().get();
             plugin.reload(newSettings);
 
             // check the not-yet-closed client reference still has the same credentials
@@ -261,9 +262,10 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             NamedXContentRegistry registry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, repositoriesMetrics) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

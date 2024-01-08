@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.DateTimeException;
@@ -41,48 +42,53 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref datetimeRef = datetime.eval(page)) {
-      if (datetimeRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
-      LongBlock datetimeBlock = (LongBlock) datetimeRef.block();
+  public Block eval(Page page) {
+    try (LongBlock datetimeBlock = (LongBlock) datetime.eval(page)) {
       LongVector datetimeVector = datetimeBlock.asVector();
       if (datetimeVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), datetimeBlock));
+        return eval(page.getPositionCount(), datetimeBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), datetimeVector));
+      return eval(page.getPositionCount(), datetimeVector);
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (datetimeBlock.isNull(p) || datetimeBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (datetimeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (datetimeBlock.getValueCount(p) != 1) {
+          if (datetimeBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(Sub.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), temporalAmount));
+        } catch (ArithmeticException | DateTimeException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendLong(Sub.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), temporalAmount));
-      } catch (ArithmeticException | DateTimeException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, LongVector datetimeVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(Sub.processDatetimes(datetimeVector.getLong(p), temporalAmount));
-      } catch (ArithmeticException | DateTimeException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(Sub.processDatetimes(datetimeVector.getLong(p), temporalAmount));
+        } catch (ArithmeticException | DateTimeException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -93,5 +99,30 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public void close() {
     Releasables.closeExpectNoException(datetime);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+
+    private final TemporalAmount temporalAmount;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
+        TemporalAmount temporalAmount) {
+      this.source = source;
+      this.datetime = datetime;
+      this.temporalAmount = temporalAmount;
+    }
+
+    @Override
+    public SubDatetimesEvaluator get(DriverContext context) {
+      return new SubDatetimesEvaluator(source, datetime.get(context), temporalAmount, context);
+    }
+
+    @Override
+    public String toString() {
+      return "SubDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + "]";
+    }
   }
 }

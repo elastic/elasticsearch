@@ -72,7 +72,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         final Set<Pattern> wildcardPipelinePatterns = request.ids()
             .stream()
             .filter(pipeline -> pipeline.contains(WILDCARD))
-            .map(this::toWildcardPipelineIdPattern)
+            .map(TransportGetPipelineAction::toWildcardPipelineIdPattern)
             .map(Pattern::compile)
             .collect(Collectors.toSet());
 
@@ -129,7 +129,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         }, e -> handleFailure(e, listener)));
     }
 
-    private void handleFailure(Exception e, ActionListener<GetPipelineResponse> listener) {
+    private static void handleFailure(Exception e, ActionListener<GetPipelineResponse> listener) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         if (cause instanceof IndexNotFoundException) {
             listener.onResponse(new GetPipelineResponse(Map.of()));
@@ -186,23 +186,22 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
             client.prepareSearchScroll(searchResponse.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(1L))
                 .execute(
-                    ActionListener.wrap(
-                        searchResponse1 -> handleFilteringSearchResponse(
+                    listener.delegateFailureAndWrap(
+                        (delegate, searchResponse1) -> handleFilteringSearchResponse(
                             searchResponse1,
                             pipelineSources,
                             explicitPipelineIds,
                             wildcardPipelinePatterns,
                             numberOfHitsSeenSoFar,
                             clearScroll,
-                            listener
-                        ),
-                        listener::onFailure
+                            delegate
+                        )
                     )
                 );
         }
     }
 
-    private void logFailures(MultiGetResponse multiGetResponse) {
+    private static void logFailures(MultiGetResponse multiGetResponse) {
         List<String> ids = Arrays.stream(multiGetResponse.getResponses())
             .filter(MultiGetItemResponse::isFailed)
             .filter(itemResponse -> itemResponse.getFailure() != null)
@@ -213,7 +212,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         }
     }
 
-    private String toWildcardPipelineIdPattern(String wildcardPipelineId) {
+    private static String toWildcardPipelineIdPattern(String wildcardPipelineId) {
         Matcher matcher = WILDCARD_PATTERN.matcher(wildcardPipelineId);
         StringBuilder stringBuilder = new StringBuilder();
         while (matcher.find()) {

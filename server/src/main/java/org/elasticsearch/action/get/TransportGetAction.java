@@ -11,6 +11,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,6 +47,7 @@ import java.util.concurrent.Executor;
  */
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 
+    public static final ActionType<GetResponse> TYPE = new ActionType<>("indices:data/read/get", GetResponse::new);
     private static final Logger logger = LogManager.getLogger(TransportGetAction.class);
 
     private final IndicesService indicesService;
@@ -63,7 +66,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         NodeClient client
     ) {
         super(
-            GetAction.NAME,
+            TYPE.name(),
             threadPool,
             clusterService,
             transportService,
@@ -213,7 +216,9 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                             ActionRunnable.supply(l, () -> shardOperation(request, shardId)).run();
                         } else {
                             assert r.segmentGeneration() > -1L;
-                            indexShard.waitForSegmentGeneration(
+                            assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
+                            indexShard.waitForPrimaryTermAndGeneration(
+                                r.primaryTerm(),
                                 r.segmentGeneration(),
                                 listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
                             );

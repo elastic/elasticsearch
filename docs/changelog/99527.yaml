@@ -1,5 +1,0 @@
-pr: 99445
-summary: Add new max_inner_product vector similarity function 
-area: Vector Search
-type: enhancement
-issues: []

@@ -1,17 +1,41 @@
+[discrete]
 [[esql-abs]]
 === `ABS`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/abs.svg[Embedded,opts=inline]
 
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
 Returns the absolute value.
 
-[source,esql]
-----
-FROM employees
-| KEEP first_name, last_name, height
-| EVAL abs_height = ABS(0.0 - height)
-----
-
-Supported types:
+*Supported types*
 
 include::types/abs.asciidoc[]
+
+*Examples*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=docsAbs]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=docsAbs-result]
+|===
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=docsAbsEmployees]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=docsAbsEmployees-result]
+|===

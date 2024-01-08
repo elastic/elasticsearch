@@ -9,17 +9,11 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskCancelledException;
 
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -42,11 +36,10 @@ public abstract class DriverRunner {
      */
     public void runToCompletion(List<Driver> drivers, ActionListener<Void> listener) {
         AtomicReference<Exception> failure = new AtomicReference<>();
-        AtomicArray<Map<String, List<String>>> responseHeaders = new AtomicArray<>(drivers.size());
+        var responseHeadersCollector = new ResponseHeadersCollector(threadContext);
         CountDown counter = new CountDown(drivers.size());
         for (int i = 0; i < drivers.size(); i++) {
             Driver driver = drivers.get(i);
-            int driverIndex = i;
             ActionListener<Void> driverListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -81,16 +74,9 @@ public abstract class DriverRunner {
                 }
 
                 private void done() {
-                    responseHeaders.setOnce(driverIndex, threadContext.getResponseHeaders());
+                    responseHeadersCollector.collect();
                     if (counter.countDown()) {
-                        mergeResponseHeaders(responseHeaders);
-                        for (Driver d : drivers) {
-                            if (d.status().status() == DriverStatus.Status.QUEUED) {
-                                d.close();
-                            } else {
-                                Releasables.close(d.driverContext().getSnapshot().releasables());
-                            }
-                        }
+                        responseHeadersCollector.finish();
                         Exception error = failure.get();
                         if (error != null) {
                             listener.onFailure(error);
@@ -102,25 +88,6 @@ public abstract class DriverRunner {
             };
 
             start(driver, driverListener);
-        }
-    }
-
-    private void mergeResponseHeaders(AtomicArray<Map<String, List<String>>> responseHeaders) {
-        final Map<String, Set<String>> merged = new HashMap<>();
-        for (int i = 0; i < responseHeaders.length(); i++) {
-            final Map<String, List<String>> resp = responseHeaders.get(i);
-            if (resp == null || resp.isEmpty()) {
-                continue;
-            }
-            for (Map.Entry<String, List<String>> e : resp.entrySet()) {
-                // Use LinkedHashSet to retain the order of the values
-                merged.computeIfAbsent(e.getKey(), k -> new LinkedHashSet<>(e.getValue().size())).addAll(e.getValue());
-            }
-        }
-        for (Map.Entry<String, Set<String>> e : merged.entrySet()) {
-            for (String v : e.getValue()) {
-                threadContext.addResponseHeader(e.getKey(), v);
-            }
         }
     }
 }

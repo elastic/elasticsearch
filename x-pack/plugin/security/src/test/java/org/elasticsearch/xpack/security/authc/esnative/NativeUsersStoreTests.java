@@ -317,10 +317,11 @@ public class NativeUsersStoreTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private NativeUsersStore startNativeUsersStore() {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();

@@ -9,15 +9,13 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -115,8 +113,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         assertNotNull(inferenceConfigMap);
         InferenceConfig parsedInferenceConfig = TransportPutTrainedModelAction.parseInferenceConfigFromModelPackage(
             Collections.singletonMap(inferenceConfig.getWriteableName(), inferenceConfigMap),
-            xContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE
+            xContentRegistry()
         );
 
         assertEquals(inferenceConfig, parsedInferenceConfig);
@@ -141,6 +138,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         assertEquals(packageConfig.getDescription(), trainedModelConfig.getDescription());
         assertEquals(packageConfig.getMetadata(), trainedModelConfig.getMetadata());
         assertEquals(packageConfig.getTags(), trainedModelConfig.getTags());
+        assertEquals(packageConfig.getPrefixStrings(), trainedModelConfig.getPrefixStrings());
 
         // fully tested in {@link #testParseInferenceConfigFromModelPackage}
         assertNotNull(trainedModelConfig.getInferenceConfig());
@@ -159,7 +157,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
             ActionListener<ListTasksResponse> actionListener = (ActionListener<ListTasksResponse>) invocationOnMock.getArguments()[2];
             actionListener.onFailure(new Exception("error"));
             return Void.TYPE;
-        }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportListTasksAction.TYPE), any(), any());
 
         var responseListener = new PlainActionFuture<PutTrainedModelAction.Response>();
 
@@ -277,7 +275,6 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         doReturn(threadPool).when(mockClient).threadPool();
 
         return new TransportPutTrainedModelAction(
-            Settings.EMPTY,
             mockTransportService,
             mockClusterService,
             threadPool,

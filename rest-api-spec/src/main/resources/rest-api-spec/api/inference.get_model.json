@@ -1,7 +1,7 @@
 {
   "inference.get_model":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/inference_get_model.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-inference-api.html",
       "description":"Get a model in the Inference API"
     },
     "stability":"experimental",

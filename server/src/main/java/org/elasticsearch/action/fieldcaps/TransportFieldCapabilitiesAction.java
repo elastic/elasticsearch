@@ -12,6 +12,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -63,7 +64,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
-    public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
+    public static final String NAME = "indices:data/read/field_caps";
+    public static final ActionType<FieldCapabilitiesResponse> TYPE = new ActionType<>(NAME, FieldCapabilitiesResponse::new);
+    public static final String ACTION_NODE_NAME = NAME + "[n]";
     public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
     private final ThreadPool threadPool;
@@ -86,7 +89,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
-            FieldCapabilitiesAction.NAME,
+            NAME,
             transportService,
             actionFilters,
             FieldCapabilitiesRequest::new,
@@ -325,7 +328,29 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         } else {
             collectResponseMap(responseMapBuilder, responseMap);
         }
+
+        // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
+        // log relevant "5xx" errors that occurred in this 2xx response to ensure they are only logged once.
+        // These failures have already been deduplicated, before this method was called.
+        for (FieldCapabilitiesFailure failure : failures) {
+            if (shouldLogException(failure.getException())) {
+                LOGGER.warn(
+                    "Field caps partial-results Exception for indices " + Arrays.toString(failure.getIndices()),
+                    failure.getException()
+                );
+            }
+        }
         return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
+    }
+
+    private static boolean shouldLogException(Exception e) {
+        // ConnectTransportExceptions are thrown when a cluster marked with skip_unavailable=false are not available for searching
+        // (Clusters marked with skip_unavailable=false return a different error that is considered a 4xx error.)
+        // In such a case, the field-caps endpoint returns a 200 (unless all clusters failed).
+        // To keep the logs from being too noisy, we choose not to log the ConnectTransportException here.
+        return e instanceof org.elasticsearch.transport.ConnectTransportException == false
+            && ExceptionsHelper.status(e).getStatus() >= 500
+            && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false;
     }
 
     private static void collectResponseMapIncludingUnmapped(

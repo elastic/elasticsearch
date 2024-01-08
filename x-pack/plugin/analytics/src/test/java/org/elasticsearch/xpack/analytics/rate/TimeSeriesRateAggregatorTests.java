@@ -12,6 +12,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -108,6 +109,45 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
             iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
         }, verifier, aggTestConfig);
+    }
+
+    public void testNestedWithinAutoDateHistogram() throws IOException {
+        RateAggregationBuilder builder = new RateAggregationBuilder("counter_field").field("counter_field");
+        AutoDateHistogramAggregationBuilder dateBuilder = new AutoDateHistogramAggregationBuilder("date");
+        dateBuilder.field("@timestamp");
+        dateBuilder.subAggregation(builder);
+        TimeSeriesAggregationBuilder tsBuilder = new TimeSeriesAggregationBuilder("tsid");
+        tsBuilder.subAggregation(dateBuilder);
+
+        Consumer<InternalTimeSeries> verifier = r -> {
+            assertThat(r.getBuckets(), hasSize(2));
+            assertThat(r.getBucketByKey("{dim=1}"), instanceOf(InternalTimeSeries.InternalBucket.class));
+            InternalDateHistogram hb = r.getBucketByKey("{dim=1}").getAggregations().get("date");
+            {
+                Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), closeTo((60 - 37 + 14) / 2000.0 * MILLIS_IN_SECOND, 0.00001));
+            }
+            {
+                Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
+            }
+            hb = r.getBucketByKey("{dim=2}").getAggregations().get("date");
+            {
+                Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), closeTo((150 - 74) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
+            }
+            {
+                Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), closeTo(90 / 2000.0 * MILLIS_IN_SECOND, 0.00001));
+            }
+        };
+
+        AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
+            .withSplitLeavesIntoSeperateAggregators(false);
+        expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
+            iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
+        }, verifier, aggTestConfig));
     }
 
     private List<Document> docs(long startTimestamp, String dim, long... values) throws IOException {

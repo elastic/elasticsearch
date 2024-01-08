@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
@@ -189,13 +190,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         return this;
     }
 
-    @Override
-    public BytesRefBlock build() {
-        finish();
-        BytesRefBlock block;
+    private BytesRefBlock buildFromBytesArray() {
         assert estimatedBytes == 0 || firstValueIndexes != null;
+        final BytesRefBlock theBlock;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
             /*
              * Update the breaker with the actual bytes used.
              * We pass false below even though we've used the bytes. That's weird,
@@ -204,13 +203,13 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
              * still technically be open, meaning the calling code should close it
              * which will return all used memory to the breaker.
              */
-            blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes);
             Releasables.closeExpectNoException(values);
         } else {
             if (isDense() && singleValued()) {
-                block = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
+                theBlock = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                block = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                theBlock = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
             /*
              * Update the breaker with the actual bytes used.
@@ -220,11 +219,24 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
              * still technically be open, meaning the calling code should close it
              * which will return all used memory to the breaker.
              */
-            blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed(), false);
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed());
         }
-        values = null;
-        built();
-        return block;
+        return theBlock;
+    }
+
+    @Override
+    public BytesRefBlock build() {
+        try {
+            finish();
+            BytesRefBlock theBlock;
+            theBlock = buildFromBytesArray();
+            values = null;
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
+        }
     }
 
     @Override

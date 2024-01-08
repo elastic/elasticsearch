@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.security.action.enrollment;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -145,7 +145,7 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
 
         final List<String> nodeList = new ArrayList<>();
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().addMetric(NodesInfoMetrics.Metric.TRANSPORT.metricName());
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, TransportNodesInfoAction.TYPE, nodesInfoRequest, ActionListener.wrap(response -> {
             for (NodeInfo nodeInfo : response.getNodes()) {
                 nodeList.add(nodeInfo.getInfo(TransportInfo.class).getAddress().publishAddress().toString());
             }

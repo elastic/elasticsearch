@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -31,12 +30,9 @@ public class HashAggregationOperator implements Operator {
 
     public record GroupSpec(int channel, ElementType elementType) {}
 
-    public record HashAggregationOperatorFactory(
-        List<GroupSpec> groups,
-        List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize,
-        BigArrays bigArrays
-    ) implements OperatorFactory {
+    public record HashAggregationOperatorFactory(List<GroupSpec> groups, List<GroupingAggregator.Factory> aggregators, int maxPageSize)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(
@@ -63,6 +59,8 @@ public class HashAggregationOperator implements Operator {
 
     private final List<GroupingAggregator> aggregators;
 
+    private final DriverContext driverContext;
+
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
         List<GroupingAggregator.Factory> aggregators,
@@ -70,6 +68,7 @@ public class HashAggregationOperator implements Operator {
         DriverContext driverContext
     ) {
         this.aggregators = new ArrayList<>(aggregators.size());
+        this.driverContext = driverContext;
         boolean success = false;
         try {
             this.blockHash = blockHash.get();
@@ -150,7 +149,7 @@ public class HashAggregationOperator implements Operator {
             int offset = keys.length;
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected);
+                aggregator.evaluate(blocks, offset, selected, driverContext);
                 offset += aggBlockCounts[i];
             }
             output = new Page(blocks);
@@ -158,7 +157,7 @@ public class HashAggregationOperator implements Operator {
         } finally {
             // selected should always be closed
             if (selected != null) {
-                Releasables.closeExpectNoException(selected.asBlock()); // we always close blocks, not vectors
+                selected.close();
             }
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);

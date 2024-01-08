@@ -123,7 +123,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         }
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField INCLUDE = new ParseField("include");
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
@@ -136,7 +136,6 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             this(id, null, null);
         }
 
-        @SuppressWarnings("this-escape")
         public Request(String id, List<String> tags, Set<String> includes) {
             setResourceId(id);
             setAllowNoResources(true);

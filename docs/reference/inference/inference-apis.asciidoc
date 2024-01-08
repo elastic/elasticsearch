@@ -2,6 +2,8 @@
 [[inference-apis]]
 == {infer-cap} APIs
 
+experimental[]
+
 You can use the following APIs to manage {infer} models and perform {infer}:
 
 * <<delete-inference-api>>

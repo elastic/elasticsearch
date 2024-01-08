@@ -1,5 +1,0 @@
-pr: 99956
-summary: "ESQL: Serialize the source in expressions"
-area: ES|QL
-type: enhancement
-issues: []

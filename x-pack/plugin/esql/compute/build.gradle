@@ -19,7 +19,7 @@ tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
 }
 
-spotlessJava.dependsOn stringTemplates
+tasks.named("spotlessJava") { dependsOn stringTemplates }
 
 spotless {
   java {
@@ -30,12 +30,13 @@ spotless {
   }
 }
 
-def prop(Type, type, TYPE, BYTES) {
+def prop(Type, type, TYPE, BYTES, Array) {
   return [
     "Type" : Type,
     "type" : type,
     "TYPE" : TYPE,
     "BYTES" : BYTES,
+    "Array" : Array,
 
     "int" : type == "int" ? "true" : "",
     "long" : type == "long" ? "true" : "",
@@ -46,11 +47,11 @@ def prop(Type, type, TYPE, BYTES) {
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES")
-  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES")
-  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES")
+  var intProperties      = prop("Int", "int", "INT", "Integer.BYTES", "IntArray")
+  var longProperties     = prop("Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
+  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {
@@ -126,33 +127,6 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile =  bigArrayVectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanBigArrayVector.java"
-  }
-  //  filter vectors
-  File filterVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-FilterVector.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterIntVector.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterLongVector.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterDoubleVector.java"
-  }
-  template {
-    it.properties = bytesRefProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterBytesRefVector.java"
-  }
-  template {
-    it.properties = booleanProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterBooleanVector.java"
   }
   // constant vectors
   File constantVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-ConstantVector.java.st")
@@ -235,32 +209,27 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanArrayBlock.java"
   }
-  // filter blocks
-  File filterBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-FilterBlock.java.st")
+  // BigArray block implementations
+  File bigArrayBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-BigArrayBlock.java.st")
   template {
     it.properties = intProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterIntBlock.java"
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntBigArrayBlock.java"
   }
   template {
     it.properties = longProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterLongBlock.java"
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongBigArrayBlock.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterDoubleBlock.java"
-  }
-  template {
-    it.properties = bytesRefProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterBytesRefBlock.java"
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleBigArrayBlock.java"
   }
   template {
     it.properties = booleanProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterBooleanBlock.java"
+    it.inputFile =  bigArrayBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanBigArrayBlock.java"
   }
   // vector blocks
   File vectorBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorBlock.java.st")

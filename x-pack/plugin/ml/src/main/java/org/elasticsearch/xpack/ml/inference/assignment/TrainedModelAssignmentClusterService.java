@@ -35,6 +35,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -43,12 +44,14 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
-import org.elasticsearch.xpack.ml.inference.deployment.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -65,8 +68,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
 public class TrainedModelAssignmentClusterService implements ClusterStateListener {
 
@@ -103,7 +106,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.systemAuditor = Objects.requireNonNull(systemAuditor);
         this.nodeAvailabilityZoneMapper = Objects.requireNonNull(nodeAvailabilityZoneMapper);
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-        this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.useAuto = MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
@@ -115,7 +118,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMemoryPercentage);
             clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
+                .addSettingsUpdateConsumer(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
@@ -206,7 +209,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     void logMlNodeHeterogeneity() {
         ActionListener<Set<String>> architecturesListener = getArchitecturesSetActionListener();
-        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            architecturesListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
     }
 
     static ActionListener<Set<String>> getArchitecturesSetActionListener() {
@@ -590,7 +597,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             });
         }, listener::onFailure);
 
-        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            architecturesListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
     }
 
     ClusterState stopPlatformSpecificModelsInHeterogeneousClusters(
@@ -635,15 +646,22 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
 
+        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(TransportVersionUtils.getMinTransportVersion(currentState));
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
             currentMetadata,
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
             modelToAdd,
-            allocatedProcessorsScale
+            allocatedProcessorsScale,
+            useNewMemoryFields
         );
 
         Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        /*
+         * To signal that we should gracefully stop the deployments routed to a particular node we set the routing state to stopping.
+         * The TrainedModelAssignmentNodeService will see that the route is in stopping for a shutting down node and gracefully shut down
+         * the native process after draining the queues.
+         */
         TrainedModelAssignmentMetadata.Builder rebalanced = setShuttingDownNodeRoutesToStopping(
             currentMetadata,
             shuttingDownNodeIds,
@@ -1080,31 +1098,61 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // it may get re-allocated to that node when another node is added/removed...
         boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
         if (event.nodesChanged() || nodesShutdownChanged) {
+            // This is just to track the various log messages that happen in this function to help with debugging in the future
+            // so that we can reasonably assume they're all related
+            // If the log messages printed from this method get interlaced across nodes it can make debugging difficult
+            var eventIdentity = Long.toHexString(System.nanoTime());
+
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());
             DiscoveryNodes.Delta nodesDelta = event.nodesDelta();
 
             Set<String> removedNodes = nodesDelta.removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> addedNodes = nodesDelta.addedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
+            logger.debug(
+                () -> format(
+                    "Initial node change info; identity: %s; removed nodes: %s; added nodes: %s; shutting down nodes: %s",
+                    eventIdentity,
+                    removedNodes,
+                    addedNodes,
+                    shuttingDownNodes
+                )
+            );
+
             Set<String> exitingShutDownNodes;
             if (nodesShutdownChanged) {
                 Set<String> previousShuttingDownNodes = nodesShuttingDown(event.previousState());
+                Set<String> presentNodes = event.state().nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
 
                 // Add nodes that where marked for shutdown in the previous state
                 // but are no longer marked as shutdown in the current state.
-                Set<String> returningShutDownNodes = Sets.difference(previousShuttingDownNodes, shuttingDownNodes);
+                // The intersection is to only include the nodes that actually exist
+                Set<String> returningShutDownNodes = Sets.intersection(
+                    presentNodes,
+                    Sets.difference(previousShuttingDownNodes, shuttingDownNodes)
+                );
                 addedNodes.addAll(returningShutDownNodes);
 
                 // and nodes that are marked for shutdown in this event only
                 exitingShutDownNodes = Sets.difference(shuttingDownNodes, previousShuttingDownNodes);
                 removedNodes.addAll(exitingShutDownNodes);
+
+                logger.debug(
+                    () -> format(
+                        "Shutting down nodes were changed; identity: %s; previous shutting down nodes: %s; returning nodes: %s",
+                        eventIdentity,
+                        previousShuttingDownNodes,
+                        returningShutDownNodes
+                    )
+                );
             } else {
                 exitingShutDownNodes = Collections.emptySet();
             }
 
             logger.debug(
                 () -> format(
-                    "added nodes %s; removed nodes %s; shutting down nodes %s; exiting shutdown nodes %s",
+                    "identity: %s; added nodes %s; removed nodes %s; shutting down nodes %s; exiting shutdown nodes %s",
+                    eventIdentity,
                     addedNodes,
                     removedNodes,
                     shuttingDownNodes,

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
@@ -71,9 +72,9 @@ public final class MapperRegistry {
      * returned map uses the name of the field as a key.
      */
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(IndexVersion indexCreatedVersion) {
-        if (indexCreatedVersion.onOrAfter(IndexVersion.V_8_0_0)) {
+        if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
             return metadataMapperParsers;
-        } else if (indexCreatedVersion.onOrAfter(IndexVersion.V_7_0_0)) {
+        } else if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
             return metadataMapperParsers7x;
         } else if (indexCreatedVersion.onOrAfter(IndexVersion.fromId(6000099))) {
             return metadataMapperParsers6x;

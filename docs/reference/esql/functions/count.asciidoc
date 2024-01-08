@@ -1,0 +1,46 @@
+[discrete]
+[[esql-agg-count]]
+=== `COUNT`
+
+*Syntax*
+
+[source,esql]
+----
+COUNT([input])
+----
+
+*Parameters*
+
+`input`::
+Column or literal for which to count the number of values. If omitted, returns a
+count all (the number of rows).
+
+*Description*
+
+Returns the total number (count) of input values.
+
+*Supported types*
+
+Can take any field type as input.
+
+*Examples*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=count]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=count-result]
+|===
+
+To count the number of rows, use `COUNT()` or `COUNT(*)`:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=countAll]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=countAll-result]
+|===

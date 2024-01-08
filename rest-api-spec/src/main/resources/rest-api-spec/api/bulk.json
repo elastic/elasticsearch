@@ -79,6 +79,10 @@
       "require_alias": {
         "type": "boolean",
         "description": "Sets require_alias for all incoming documents. Defaults to unset (false)"
+      },
+      "list_executed_pipelines": {
+        "type": "boolean",
+        "description": "Sets list_executed_pipelines for all incoming documents. Defaults to unset (false)"
       }
     },
     "body":{

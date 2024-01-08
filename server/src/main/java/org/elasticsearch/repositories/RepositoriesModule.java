@@ -13,11 +13,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -42,8 +44,10 @@ public final class RepositoriesModule {
         ClusterService clusterService,
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        TelemetryProvider telemetryProvider
     ) {
+        final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,
@@ -56,7 +60,8 @@ public final class RepositoriesModule {
                 namedXContentRegistry,
                 clusterService,
                 bigArrays,
-                recoverySettings
+                recoverySettings,
+                repositoriesMetrics
             );
             for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
                 if (factories.put(entry.getKey(), entry.getValue()) != null) {
@@ -100,7 +105,7 @@ public final class RepositoriesModule {
                         "the snapshot was created with Elasticsearch version ["
                             + version
                             + "] which is below the current versions minimum index compatibility version ["
-                            + IndexVersion.MINIMUM_COMPATIBLE
+                            + IndexVersions.MINIMUM_COMPATIBLE
                             + "]"
                     );
                 }

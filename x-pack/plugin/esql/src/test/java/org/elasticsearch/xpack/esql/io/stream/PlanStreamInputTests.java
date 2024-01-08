@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.hamcrest.Matchers.equalTo;
@@ -144,5 +145,10 @@ public class PlanStreamInputTests extends ESTestCase {
             assertThat(planIn, equalTo(planOut));
             assertThat(sources.apply(planIn), equalTo(sources.apply(planOut)));
         }
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

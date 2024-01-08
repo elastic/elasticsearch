@@ -56,7 +56,7 @@ public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandle
         );
     }
 
-    private InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {
+    private static InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {
         InetAddress remoteAddress = restRequest.getHttpChannel().getRemoteAddress().getAddress();
         if (headers.containsKey(X_FORWARDED_FOR_HEADER)) {
             final List<String> addresses = headers.get(X_FORWARDED_FOR_HEADER);
@@ -71,7 +71,7 @@ public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandle
         return remoteAddress;
     }
 
-    private PostAnalyticsEventAction.Request buidRequest(RestRequest restRequest) {
+    private static PostAnalyticsEventAction.Request buidRequest(RestRequest restRequest) {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
 
         PostAnalyticsEventAction.RequestBuilder builder = PostAnalyticsEventAction.Request.builder(

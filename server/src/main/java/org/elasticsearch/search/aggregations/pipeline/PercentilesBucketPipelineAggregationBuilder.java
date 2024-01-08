@@ -84,13 +84,6 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
         return this;
     }
 
-    /**
-     * Get whether the XContent should be keyed
-     */
-    public boolean getKeyed() {
-        return keyed;
-    }
-
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metadata) {
         return new PercentilesBucketPipelineAggregator(name, percents, keyed, bucketsPaths, gapPolicy(), formatter(), metadata);

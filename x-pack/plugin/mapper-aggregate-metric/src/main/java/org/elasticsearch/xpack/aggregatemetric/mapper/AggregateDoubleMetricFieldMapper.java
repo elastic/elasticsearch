@@ -115,13 +115,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         public static final EnumSet<Metric> METRICS = EnumSet.noneOf(Metric.class);
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Parameter<Boolean> ignoreMalformed;
 
-        @SuppressWarnings("this-escape")
         private final Parameter<EnumSet<Metric>> metrics = new Parameter<>(Names.METRICS, false, () -> Defaults.METRICS, (n, c, o) -> {
             @SuppressWarnings("unchecked")
             List<String> metricsList = (List<String>) o;

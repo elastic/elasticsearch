@@ -27,7 +27,7 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
 
     BooleanVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
-        blockFactory.adjustBreaker(preAdjustedBytes, false);
+        blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
         this.values = new boolean[size];
     }
@@ -69,7 +69,8 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     public void close() {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
-            blockFactory.adjustBreaker(-preAdjustedBytes, false);
+            nextIndex = -1;
+            blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 

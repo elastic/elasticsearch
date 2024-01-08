@@ -209,8 +209,13 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
     }
 
     @Override
-    void assertFieldValues(ClassificationInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        String path = resultsField + "." + createdInstance.getResultsField();
+    void assertFieldValues(
+        ClassificationInferenceResults createdInstance,
+        IngestDocument document,
+        String parentField,
+        String resultsField
+    ) {
+        String path = parentField + resultsField;
         switch (createdInstance.getPredictionFieldType()) {
             case NUMBER -> assertThat(document.getFieldValue(path, Double.class), equalTo(createdInstance.predictedValue()));
             case STRING -> assertThat(document.getFieldValue(path, String.class), equalTo(createdInstance.predictedValue()));

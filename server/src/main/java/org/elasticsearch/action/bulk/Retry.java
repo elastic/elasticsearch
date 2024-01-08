@@ -66,7 +66,7 @@ public class Retry {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         BulkRequest bulkRequest
     ) {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         withBackoff(consumer, bulkRequest, future);
         return future;
     }

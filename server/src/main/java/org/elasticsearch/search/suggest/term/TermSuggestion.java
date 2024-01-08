@@ -34,7 +34,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
 
-    private SortBy sort;
+    private final SortBy sort;
 
     public TermSuggestion(String name, int size, SortBy sort) {
         super(name, size);
@@ -83,14 +83,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             // third criteria: term text
             return first.getText().compareTo(second.getText());
         }
-    }
-
-    public void setSort(SortBy sort) {
-        this.sort = sort;
-    }
-
-    public SortBy getSort() {
-        return sort;
     }
 
     @Override
@@ -191,10 +183,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             protected void mergeInto(Suggestion.Entry.Option otherOption) {
                 super.mergeInto(otherOption);
                 freq += ((Option) otherOption).freq;
-            }
-
-            public void setFreq(int freq) {
-                this.freq = freq;
             }
 
             /**

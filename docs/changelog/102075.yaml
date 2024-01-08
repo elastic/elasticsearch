@@ -1,0 +1,5 @@
+pr: 102075
+summary: Accept a single or multiple inputs to `_inference`
+area: Machine Learning
+type: enhancement
+issues: []

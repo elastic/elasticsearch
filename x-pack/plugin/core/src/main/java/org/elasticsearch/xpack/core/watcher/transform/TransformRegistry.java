@@ -16,13 +16,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransformRegistry {
+public final class TransformRegistry {
 
     private final Map<
         String,
         TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> factories;
 
-    @SuppressWarnings("this-escape")
     public TransformRegistry(
         Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> factories
     ) {

@@ -1,13 +1,14 @@
 {
   "inference.inference":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/inference.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/post-inference-api.html",
       "description":"Perform inference on a model"
     },
     "stability":"experimental",
     "visibility":"public",
     "headers":{
-      "accept": [ "application/json"]
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
     },
     "url":{
       "paths":[

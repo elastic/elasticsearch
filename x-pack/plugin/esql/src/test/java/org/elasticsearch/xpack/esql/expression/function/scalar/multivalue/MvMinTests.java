@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -37,13 +36,9 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
         doubles(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsDouble()));
         ints(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsInt()));
         longs(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsLong()));
-        unsignedLongs(
-            cases,
-            "mv_min",
-            "MvMin",
-            (size, values) -> equalTo(NumericUtils.asLongUnsigned(values.reduce(BigInteger::min).get()))
-        );
-        return parameterSuppliersFromTypedData(cases);
+        unsignedLongs(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.reduce(BigInteger::min).get()));
+        dateTimes(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsLong()));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
     }
 
     @Override
@@ -53,6 +48,6 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType[] supportedTypes() {
-        return representable();
+        return representableNonSpatialTypes();
     }
 }

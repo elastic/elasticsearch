@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.DoubleArray;
 
 import java.util.Arrays;
 
@@ -178,23 +180,64 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         return this;
     }
 
+    private DoubleBlock buildBigArraysBlock() {
+        final DoubleBlock theBlock;
+        final DoubleArray array = blockFactory.bigArrays().newDoubleArray(valueCount, false);
+        for (int i = 0; i < valueCount; i++) {
+            array.set(i, values[i]);
+        }
+        if (isDense() && singleValued()) {
+            theBlock = new DoubleBigArrayVector(array, positionCount, blockFactory).asBlock();
+        } else {
+            theBlock = new DoubleBigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+        }
+        /*
+        * Update the breaker with the actual bytes used.
+        * We pass false below even though we've used the bytes. That's weird,
+        * but if we break here we will throw away the used memory, letting
+        * it be deallocated. The exception will bubble up and the builder will
+        * still technically be open, meaning the calling code should close it
+        * which will return all used memory to the breaker.
+        */
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+        return theBlock;
+    }
+
     @Override
     public DoubleBlock build() {
-        finish();
-        DoubleBlock block;
-        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes);
-        } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
-            }
-            if (isDense() && singleValued()) {
-                block = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
+        try {
+            finish();
+            DoubleBlock theBlock;
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes);
             } else {
-                block = blockFactory.newDoubleArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, estimatedBytes);
+                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                    theBlock = buildBigArraysBlock();
+                } else {
+                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                        adjustBreaker(valueCount * elementSize());
+                        values = Arrays.copyOf(values, valueCount);
+                        adjustBreaker(-values.length * elementSize());
+                    }
+                    if (isDense() && singleValued()) {
+                        theBlock = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
+                    } else {
+                        theBlock = blockFactory.newDoubleArrayBlock(
+                            values,
+                            positionCount,
+                            firstValueIndexes,
+                            nullsMask,
+                            mvOrdering,
+                            estimatedBytes
+                        );
+                    }
+                }
             }
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
         }
-        built();
-        return block;
     }
 }

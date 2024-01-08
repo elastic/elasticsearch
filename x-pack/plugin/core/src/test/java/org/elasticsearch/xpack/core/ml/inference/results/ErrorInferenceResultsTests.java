@@ -34,7 +34,7 @@ public class ErrorInferenceResultsTests extends InferenceResultsTestCase<ErrorIn
     }
 
     @Override
-    void assertFieldValues(ErrorInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        assertThat(document.getFieldValue(resultsField + ".error", String.class), equalTo(createdInstance.getException().getMessage()));
+    void assertFieldValues(ErrorInferenceResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        assertThat(document.getFieldValue(parentField + "error", String.class), equalTo(createdInstance.getException().getMessage()));
     }
 }

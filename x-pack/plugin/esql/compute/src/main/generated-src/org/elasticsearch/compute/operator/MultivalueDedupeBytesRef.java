@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 
@@ -29,14 +30,12 @@ public class MultivalueDedupeBytesRef {
      * The choice of number has been experimentally derived.
      */
     private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
-    private final Block.Ref ref;
     private final BytesRefBlock block;
     private BytesRef[] work = new BytesRef[ArrayUtil.oversize(2, org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
     private int w;
 
-    public MultivalueDedupeBytesRef(Block.Ref ref) {
-        this.ref = ref;
-        this.block = (BytesRefBlock) ref.block();
+    public MultivalueDedupeBytesRef(BytesRefBlock block) {
+        this.block = block;
         // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
         fillWork(0, work.length);
     }
@@ -45,12 +44,12 @@ public class MultivalueDedupeBytesRef {
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public Block.Ref dedupeToBlockAdaptive() {
+    public BytesRefBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -85,7 +84,7 @@ public class MultivalueDedupeBytesRef {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -95,12 +94,12 @@ public class MultivalueDedupeBytesRef {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public Block.Ref dedupeToBlockUsingCopyAndSort() {
+    public BytesRefBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -113,7 +112,7 @@ public class MultivalueDedupeBytesRef {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -125,12 +124,12 @@ public class MultivalueDedupeBytesRef {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public Block.Ref dedupeToBlockUsingCopyMissing() {
+    public BytesRefBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -143,7 +142,7 @@ public class MultivalueDedupeBytesRef {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -151,33 +150,34 @@ public class MultivalueDedupeBytesRef {
      * Dedupe values and build a {@link IntBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
-        boolean sawNull = false;
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> {
-                    sawNull = true;
-                    builder.appendInt(0);
-                }
-                case 1 -> {
-                    BytesRef v = block.getBytesRef(first, work[0]);
-                    hash(builder, hash, v);
-                }
-                default -> {
-                    if (count < ALWAYS_COPY_MISSING) {
-                        copyMissing(first, count);
-                        hashUniquedWork(hash, builder);
-                    } else {
-                        copyAndSort(first, count);
-                        hashSortedWork(hash, builder);
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, BytesRefHash hash) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
+            boolean sawNull = false;
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> {
+                        sawNull = true;
+                        builder.appendInt(0);
+                    }
+                    case 1 -> {
+                        BytesRef v = block.getBytesRef(first, work[0]);
+                        hash(builder, hash, v);
+                    }
+                    default -> {
+                        if (count < ALWAYS_COPY_MISSING) {
+                            copyMissing(first, count);
+                            hashUniquedWork(hash, builder);
+                        } else {
+                            copyAndSort(first, count);
+                            hashSortedWork(hash, builder);
+                        }
                     }
                 }
             }
+            return new MultivalueDedupe.HashResult(builder.build(), sawNull);
         }
-        return new MultivalueDedupe.HashResult(builder.build(), sawNull);
     }
 
     /**

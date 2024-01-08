@@ -39,13 +39,20 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -74,6 +81,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -101,6 +109,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -114,6 +124,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -138,6 +149,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -155,8 +167,10 @@ import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -242,6 +256,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
 
+        final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
             Logger leakLogger = LogManager.getLogger(leakLoggerName);
             Appender leakAppender = new AbstractAppender(leakLoggerName, null, PatternLayout.newBuilder().withPattern("%m").build()) {
@@ -257,13 +272,34 @@ public abstract class ESTestCase extends LuceneTestCase {
             };
             leakAppender.start();
             Loggers.addAppender(leakLogger, leakAppender);
-            // shutdown hook so that when the test JVM exits, logging is shutdown too
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                leakAppender.stop();
-                LoggerContext context = (LoggerContext) LogManager.getContext(false);
-                Configurator.shutdown(context);
-            }));
+            testAppenders.add(leakAppender);
         }
+        Logger promiseUncaughtLogger = LogManager.getLogger("io.netty.util.concurrent.DefaultPromise");
+        final Appender uncaughtAppender = new AbstractAppender(
+            promiseUncaughtLogger.getName(),
+            null,
+            PatternLayout.newBuilder().withPattern("%m").build()
+        ) {
+            @Override
+            public void append(LogEvent event) {
+                if (Level.WARN.equals(event.getLevel())) {
+                    synchronized (loggedLeaks) {
+                        loggedLeaks.add(event.getMessage().getFormattedMessage());
+                    }
+                }
+            }
+        };
+        uncaughtAppender.start();
+        Loggers.addAppender(promiseUncaughtLogger, uncaughtAppender);
+        testAppenders.add(uncaughtAppender);
+        // shutdown hook so that when the test JVM exits, logging is shutdown too
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            for (Appender testAppender : testAppenders) {
+                testAppender.stop();
+            }
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+        }));
 
         BootstrapForTesting.ensureInitialized();
 
@@ -322,6 +358,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+        if (System.getProperty("es.use_unpooled_allocator") == null) {
+            // unless explicitly forced to unpooled, always test with the pooled allocator to get the best possible coverage from Netty's
+            // leak detection which does not cover simple unpooled heap buffers
+            System.setProperty("es.use_unpooled_allocator", "false");
+        }
 
         // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
         // other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -751,6 +792,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * @return a random instant between a min and a max value with a random nanosecond precision
+     */
+    public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
+        return Instant.ofEpochSecond(
+            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
+            randomLongBetween(0, 999999999)
+        );
+    }
+
+    /**
      * The maximum value that can be represented as an unsigned long.
      */
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
@@ -801,6 +852,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static boolean randomBoolean() {
         return random().nextBoolean();
+    }
+
+    public static Boolean randomOptionalBoolean() {
+        return randomBoolean() ? Boolean.TRUE : randomFrom(Boolean.FALSE, null);
     }
 
     public static byte randomByte() {
@@ -995,6 +1050,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
     }
 
+    public static String randomUUID() {
+        return UUIDs.randomBase64UUID(random());
+    }
+
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
         return RandomizedTest.randomUnicodeOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
@@ -1136,6 +1195,34 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Generate a random valid point constrained to geographic ranges (lat, lon ranges).
+     */
+    public static SpatialPoint randomGeoPoint() {
+        double lat = randomDoubleBetween(-90, 90, true);
+        double lon = randomDoubleBetween(-180, 180, true);
+        return new GeoPoint(lat, lon);
+    }
+
+    /**
+     * Generate a random valid point constrained to cartesian ranges.
+     */
+    public static SpatialPoint randomCartesianPoint() {
+        double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        return new SpatialPoint() {
+            @Override
+            public double getX() {
+                return x;
+            }
+
+            @Override
+            public double getY() {
+                return y;
+            }
+        };
+    }
+
+    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -1244,6 +1331,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
         return breakSupplier.getAsBoolean();
+    }
+
+    protected TestThreadPool createThreadPool(ExecutorBuilder<?>... executorBuilders) {
+        return new TestThreadPool(getTestName(), executorBuilders);
     }
 
     public static boolean terminate(ExecutorService... services) {
@@ -1645,10 +1736,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContentParserConfiguration config, XContent xContent, BytesReference data)
         throws IOException {
-        if (data.hasArray()) {
-            return xContent.createParser(config, data.array(), data.arrayOffset(), data.length());
-        }
-        return xContent.createParser(config, data.streamInput());
+        return XContentHelper.createParserNotCompressed(config, data, xContent.type());
     }
 
     protected final XContentParser createParserWithCompatibilityFor(XContent xContent, String data, RestApiVersion restApiVersion)
@@ -2007,9 +2095,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             barrier.await(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -2018,7 +2106,22 @@ public abstract class ESTestCase extends LuceneTestCase {
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
+        }
+    }
+
+    public static <T> T safeAwait(SubscribableListener<T> listener) {
+        final var future = new PlainActionFuture<T>();
+        listener.addListener(future);
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("safeAwait: interrupted", e);
+        } catch (ExecutionException e) {
+            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+        } catch (TimeoutException e) {
+            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
         }
     }
 
@@ -2027,7 +2130,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -2036,7 +2139,33 @@ public abstract class ESTestCase extends LuceneTestCase {
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 
-    public static void fail(Throwable t, String msg, Object... args) {
+    public static <T> T fail(Throwable t, String msg, Object... args) {
         throw new AssertionError(org.elasticsearch.common.Strings.format(msg, args), t);
+    }
+
+    public static <T> T fail(Throwable t) {
+        return fail(t, "unexpected");
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T asInstanceOf(Class<T> clazz, Object o) {
+        assertThat(o, Matchers.instanceOf(clazz));
+        return (T) o;
+    }
+
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionFuture<? extends RefCounted> future) {
+        return expectThrows(
+            expectedType,
+            "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
+            () -> future.actionGet().decRef()  // dec ref if we unexpectedly fail to not leak transport response
+        );
+    }
+
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ActionRequestBuilder<?, ?> builder) {
+        return expectThrows(
+            expectedType,
+            "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
+            () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
+        );
     }
 }

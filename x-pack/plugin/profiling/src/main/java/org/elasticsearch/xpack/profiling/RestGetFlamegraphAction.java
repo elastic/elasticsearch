@@ -9,15 +9,17 @@ package org.elasticsearch.xpack.profiling;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetFlamegraphAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
@@ -32,9 +34,12 @@ public class RestGetFlamegraphAction extends BaseRestHandler {
         getStackTracesRequest.setAdjustSampleCount(true);
 
         return channel -> {
-            RestActionListener<GetFlamegraphResponse> listener = new RestChunkedToXContentListener<>(channel);
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(GetFlamegraphAction.INSTANCE, getStackTracesRequest, listener);
+            cancelClient.execute(
+                GetFlamegraphAction.INSTANCE,
+                getStackTracesRequest,
+                new RestRefCountedChunkedToXContentListener<>(channel)
+            );
         };
     }
 

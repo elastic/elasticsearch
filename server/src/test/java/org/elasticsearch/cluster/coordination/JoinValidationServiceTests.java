@@ -186,11 +186,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 final var seed = randomLong();
                 threads[i] = new Thread(() -> {
                     final var random = new Random(seed);
-                    try {
-                        startBarrier.await(10, TimeUnit.SECONDS);
-                    } catch (Exception e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(startBarrier);
 
                     while (keepGoing.get()) {
                         Thread.yield();
@@ -401,7 +397,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
 
         assertThat(
-            expectThrows(CoordinationStateRejectedException.class, future::actionGet).getMessage(),
+            expectThrows(CoordinationStateRejectedException.class, future).getMessage(),
             allOf(
                 containsString("This node previously joined a cluster with UUID"),
                 containsString("and is now trying to join a different cluster"),
@@ -451,10 +447,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         );
         deterministicTaskQueue.runAllTasks();
 
-        assertThat(
-            expectThrows(IllegalStateException.class, future::actionGet).getMessage(),
-            allOf(containsString("simulated validation failure"))
-        );
+        assertThat(expectThrows(IllegalStateException.class, future).getMessage(), allOf(containsString("simulated validation failure")));
     }
 
     public void testJoinValidationFallsBackToPingIfNotMaster() {

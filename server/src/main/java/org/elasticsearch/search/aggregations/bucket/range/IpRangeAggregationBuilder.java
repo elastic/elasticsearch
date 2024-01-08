@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -164,18 +163,6 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
             out.writeOptionalString(to);
         }
 
-        public String getKey() {
-            return key;
-        }
-
-        public String getFrom() {
-            return from;
-        }
-
-        public String getTo() {
-            return to;
-        }
-
         @Override
         public boolean equals(Object obj) {
             if (obj == null || getClass() != obj.getClass()) {
@@ -239,23 +226,9 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     public IpRangeAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
-    }
-
-    public boolean keyed() {
-        return keyed;
-    }
-
-    /** Get the current list or ranges that are configured on this aggregation. */
-    public List<Range> getRanges() {
-        return Collections.unmodifiableList(ranges);
     }
 
     /** Add a new {@link Range} to this aggregation. */

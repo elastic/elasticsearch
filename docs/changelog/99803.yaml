@@ -1,5 +1,0 @@
-pr: 99803
-summary: Do not use PIT in the presence of remote indices in source
-area: Transform
-type: bug
-issues: []

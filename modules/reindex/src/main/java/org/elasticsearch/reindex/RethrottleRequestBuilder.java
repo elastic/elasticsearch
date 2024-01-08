@@ -8,7 +8,6 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -17,8 +16,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  * Java API support for changing the throttle on reindex tasks while they are running.
  */
 public class RethrottleRequestBuilder extends TasksRequestBuilder<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> {
-    public RethrottleRequestBuilder(ElasticsearchClient client, ActionType<ListTasksResponse> action) {
-        super(client, action, new RethrottleRequest());
+    public RethrottleRequestBuilder(ElasticsearchClient client) {
+        super(client, ReindexPlugin.RETHROTTLE_ACTION, new RethrottleRequest());
     }
 
     /**

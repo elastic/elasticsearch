@@ -8,17 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Granular tests for the {@link NodesInfoRequest} class. Higher-level tests
@@ -30,35 +27,27 @@ public class NodesInfoRequestTests extends ESTestCase {
      * Make sure that we can set, serialize, and deserialize arbitrary sets
      * of metrics.
      */
-    public void testAddMetricsSet() throws Exception {
-        NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
-        randomSubsetOf(NodesInfoMetrics.Metric.allMetrics()).forEach(request::addMetric);
-        NodesInfoRequest deserializedRequest = roundTripRequest(request);
-        assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
-    }
-
-    /**
-     * Check that we can add a metric.
-     */
-    public void testAddSingleMetric() throws Exception {
-        NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
-        request.addMetric(randomFrom(NodesInfoMetrics.Metric.allMetrics()));
-        NodesInfoRequest deserializedRequest = roundTripRequest(request);
-        assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
+    public void testAddMetricsSet() {
+        final NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
+        request.clear();
+        final var requestedMetrics = randomSubsetOf(NodesInfoMetrics.Metric.allMetrics());
+        requestedMetrics.forEach(request::addMetric);
+        assertThat(request.requestedMetrics(), equalTo(Set.copyOf(requestedMetrics)));
     }
 
     /**
      * Check that we can remove a metric.
      */
-    public void testRemoveSingleMetric() throws Exception {
+    public void testRemoveSingleMetric() {
         NodesInfoRequest request = new NodesInfoRequest(randomAlphaOfLength(8));
         request.all();
         String metric = randomFrom(NodesInfoMetrics.Metric.allMetrics());
         request.removeMetric(metric);
 
-        NodesInfoRequest deserializedRequest = roundTripRequest(request);
-        assertThat(request.requestedMetrics(), equalTo(deserializedRequest.requestedMetrics()));
-        assertThat(metric, not(in(request.requestedMetrics())));
+        assertThat(
+            request.requestedMetrics(),
+            equalTo(NodesInfoMetrics.Metric.allMetrics().stream().filter(m -> m.equals(metric) == false).collect(Collectors.toSet()))
+        );
     }
 
     /**
@@ -117,19 +106,5 @@ public class NodesInfoRequestTests extends ESTestCase {
         unknownMetrics.add(unknownMetric2);
         exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
         assertThat(exception.getMessage(), equalTo("Used illegal metrics: [" + unknownMetric1 + ", " + unknownMetric2 + "]"));
-    }
-
-    /**
-     * Serialize and deserialize a request.
-     * @param request A request to serialize.
-     * @return The deserialized, "round-tripped" request.
-     */
-    private static NodesInfoRequest roundTripRequest(NodesInfoRequest request) throws Exception {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                return new NodesInfoRequest(in);
-            }
-        }
     }
 }

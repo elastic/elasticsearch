@@ -21,9 +21,9 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -119,22 +119,22 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testGetChunkEndOfStream() throws IOException {
-        byte[] chunk = geoIpDownloader.getChunk(new InputStream() {
+        byte[] chunk = GeoIpDownloader.getChunk(new InputStream() {
             @Override
             public int read() {
                 return -1;
             }
         });
         assertArrayEquals(new byte[0], chunk);
-        chunk = geoIpDownloader.getChunk(new ByteArrayInputStream(new byte[0]));
+        chunk = GeoIpDownloader.getChunk(new ByteArrayInputStream(new byte[0]));
         assertArrayEquals(new byte[0], chunk);
     }
 
     public void testGetChunkLessThanChunkSize() throws IOException {
         ByteArrayInputStream is = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4 });
-        byte[] chunk = geoIpDownloader.getChunk(is);
+        byte[] chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(new byte[] { 1, 2, 3, 4 }, chunk);
-        chunk = geoIpDownloader.getChunk(is);
+        chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(new byte[0], chunk);
 
     }
@@ -145,9 +145,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             bigArray[i] = (byte) i;
         }
         ByteArrayInputStream is = new ByteArrayInputStream(bigArray);
-        byte[] chunk = geoIpDownloader.getChunk(is);
+        byte[] chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(bigArray, chunk);
-        chunk = geoIpDownloader.getChunk(is);
+        chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(new byte[0], chunk);
     }
 
@@ -159,17 +159,17 @@ public class GeoIpDownloaderTests extends ESTestCase {
         byte[] smallArray = new byte[MAX_CHUNK_SIZE];
         System.arraycopy(bigArray, 0, smallArray, 0, MAX_CHUNK_SIZE);
         ByteArrayInputStream is = new ByteArrayInputStream(bigArray);
-        byte[] chunk = geoIpDownloader.getChunk(is);
+        byte[] chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(smallArray, chunk);
         System.arraycopy(bigArray, MAX_CHUNK_SIZE, smallArray, 0, MAX_CHUNK_SIZE);
-        chunk = geoIpDownloader.getChunk(is);
+        chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(smallArray, chunk);
-        chunk = geoIpDownloader.getChunk(is);
+        chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(new byte[0], chunk);
     }
 
     public void testGetChunkRethrowsIOException() {
-        expectThrows(IOException.class, () -> geoIpDownloader.getChunk(new InputStream() {
+        expectThrows(IOException.class, () -> GeoIpDownloader.getChunk(new InputStream() {
             @Override
             public int read() throws IOException {
                 throw new IOException();
@@ -221,7 +221,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         AtomicInteger chunkIndex = new AtomicInteger();
 
-        client.addHandler(IndexAction.INSTANCE, (IndexRequest request, ActionListener<DocWriteResponse> listener) -> {
+        client.addHandler(TransportIndexAction.TYPE, (IndexRequest request, ActionListener<DocWriteResponse> listener) -> {
             int chunk = chunkIndex.getAndIncrement();
             assertEquals(OpType.CREATE, request.opType());
             assertThat(request.id(), Matchers.startsWith("test_" + (chunk + 15) + "_"));

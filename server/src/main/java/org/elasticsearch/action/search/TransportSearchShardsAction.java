@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -41,6 +42,9 @@ import java.util.Set;
  * An internal search shards API performs the can_match phase and returns target shards of indices that might match a query.
  */
 public class TransportSearchShardsAction extends HandledTransportAction<SearchShardsRequest, SearchShardsResponse> {
+
+    public static final String NAME = "indices:admin/search/search_shards";
+    public static final ActionType<SearchShardsResponse> TYPE = new ActionType<>(NAME, SearchShardsResponse::new);
     private final TransportService transportService;
     private final TransportSearchAction transportSearchAction;
     private final SearchService searchService;
@@ -61,7 +65,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            SearchShardsAction.NAME,
+            TYPE.name(),
             transportService,
             actionFilters,
             SearchShardsRequest::new,
@@ -79,7 +83,6 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
 
     @Override
     protected void doExecute(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
             .routing(searchShardsRequest.routing())

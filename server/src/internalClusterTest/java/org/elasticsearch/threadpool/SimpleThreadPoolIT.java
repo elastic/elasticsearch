@@ -48,23 +48,22 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(2, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx")
-                .setSource(
-                    jsonBuilder().startObject()
-                        .field("str_value", "s" + i)
-                        .array("str_values", new String[] { "s" + (i * 2), "s" + (i * 2 + 1) })
-                        .field("l_value", i)
-                        .array("l_values", new int[] { i * 2, i * 2 + 1 })
-                        .field("d_value", i)
-                        .array("d_values", new double[] { i * 2, i * 2 + 1 })
-                        .endObject()
-                );
+            builders[i] = prepareIndex("idx").setSource(
+                jsonBuilder().startObject()
+                    .field("str_value", "s" + i)
+                    .array("str_values", new String[] { "s" + (i * 2), "s" + (i * 2 + 1) })
+                    .field("l_value", i)
+                    .array("l_values", new int[] { i * 2, i * 2 + 1 })
+                    .field("d_value", i)
+                    .array("d_values", new double[] { i * 2, i * 2 + 1 })
+                    .endObject()
+            );
         }
         indexRandom(true, builders);
         int numSearches = randomIntBetween(2, 100);
         for (int i = 0; i < numSearches; i++) {
-            assertNoFailures(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)).get());
-            assertNoFailures(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)).get());
+            assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)));
+            assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)));
         }
         Set<String> threadNames = new HashSet<>();
         for (long l : threadBean.getAllThreadIds()) {

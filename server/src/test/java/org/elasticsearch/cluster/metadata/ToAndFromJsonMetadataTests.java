@@ -89,20 +89,21 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             )
             .put(
                 "index_templatev2",
-                new ComposableIndexTemplate(
-                    Arrays.asList("foo", "bar*"),
-                    new Template(
-                        Settings.builder().put("setting", "value").build(),
-                        new CompressedXContent("{\"baz\":\"eggplant\"}"),
-                        Collections.singletonMap("alias", AliasMetadata.builder("alias").build())
-                    ),
-                    Collections.singletonList("component_template"),
-                    5L,
-                    4L,
-                    Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")),
-                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate(),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Arrays.asList("foo", "bar*"))
+                    .template(
+                        new Template(
+                            Settings.builder().put("setting", "value").build(),
+                            new CompressedXContent("{\"baz\":\"eggplant\"}"),
+                            Collections.singletonMap("alias", AliasMetadata.builder("alias").build())
+                        )
+                    )
+                    .componentTemplates(Collections.singletonList("component_template"))
+                    .priority(5L)
+                    .version(4L)
+                    .metadata(Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")))
+                    .dataStreamTemplate(randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
             )
             .put(
                 IndexMetadata.builder("test12")
@@ -137,7 +138,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
 
-        Metadata parsedMetadata = Metadata.Builder.fromXContent(createParser(builder));
+        Metadata parsedMetadata;
+        try (var parser = createParser(builder)) {
+            parsedMetadata = Metadata.Builder.fromXContent(parser);
+        }
 
         // templates
         assertThat(parsedMetadata.templates().get("foo").name(), is("foo"));

@@ -28,8 +28,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
-import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -149,8 +148,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> READ_ILM_PATTERN = Set.of(GetLifecycleAction.NAME, GetStatusAction.NAME);
     private static final Set<String> MANAGE_SLM_PATTERN = Set.of(
         "cluster:admin/slm/*",
-        StartILMAction.NAME,
-        StopILMAction.NAME,
+        ILMActions.START.name(),
+        ILMActions.STOP.name(),
         GetStatusAction.NAME
     );
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
@@ -165,12 +164,12 @@ public class ClusterPrivilegeResolver {
 
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME,
+        RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME,
+        RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME,
         ClusterStateAction.NAME
     );

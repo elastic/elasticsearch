@@ -376,6 +376,24 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         }
     }
 
+    public void testBlockLoader() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
+                assertThat(
+                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType),
+                    equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
+                );
+                assertThat(
+                    blockLoaderReadValuesFromRowStrideReader(reader, fieldType),
+                    equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
+                );
+            }
+        }
+    }
+
     @Override
     protected KeywordScriptFieldType simpleMappedFieldType() {
         return build("read_foo", Map.of(), OnScriptError.FAIL);

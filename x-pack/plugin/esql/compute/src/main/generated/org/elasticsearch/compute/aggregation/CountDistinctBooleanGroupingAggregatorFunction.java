@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -17,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link CountDistinctBooleanAggregator}.
@@ -31,18 +31,18 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   private final List<Integer> channels;
 
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   public CountDistinctBooleanGroupingAggregatorFunction(List<Integer> channels,
-      CountDistinctBooleanAggregator.GroupingState state, BigArrays bigArrays) {
+      CountDistinctBooleanAggregator.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
-    this.bigArrays = bigArrays;
+    this.driverContext = driverContext;
   }
 
   public static CountDistinctBooleanGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new CountDistinctBooleanGroupingAggregatorFunction(channels, CountDistinctBooleanAggregator.initGrouping(bigArrays), bigArrays);
+      DriverContext driverContext) {
+    return new CountDistinctBooleanGroupingAggregatorFunction(channels, CountDistinctBooleanAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -57,20 +57,7 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      state.enableGroupIdTracking(seenGroupIds);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-        }
-      };
-    }
-    BooleanBlock valuesBlock = (BooleanBlock) uncastValuesBlock;
+    BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     BooleanVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
@@ -182,12 +169,13 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-    blocks[offset] = CountDistinctBooleanAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+      DriverContext driverContext) {
+    blocks[offset] = CountDistinctBooleanAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

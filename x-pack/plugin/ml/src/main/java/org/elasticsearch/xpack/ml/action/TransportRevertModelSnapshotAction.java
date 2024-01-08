@@ -259,7 +259,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         }, listener::onFailure);
     }
 
-    private void getModelSnapshot(
+    private static void getModelSnapshot(
         RevertModelSnapshotAction.Request request,
         JobResultsProvider provider,
         Consumer<ModelSnapshot> handler,
@@ -272,7 +272,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             return;
         }
 
-        provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
+        provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), true, modelSnapshot -> {
             if (modelSnapshot == null) {
                 throw missingSnapshotException(request);
             }

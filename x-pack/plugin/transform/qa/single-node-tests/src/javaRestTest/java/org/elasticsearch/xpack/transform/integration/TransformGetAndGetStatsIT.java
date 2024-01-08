@@ -89,19 +89,19 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
         // Check all the different ways to retrieve transform stats
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_stats", authHeader);
+        Request getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "_stats", authHeader, randomTimeout());
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_all/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "_all/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "*/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "*/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1,pivot_2/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1,pivot_2/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_*/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_*/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
 
@@ -122,7 +122,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         }
 
         // only pivot_1
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
 
@@ -133,7 +133,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
 
         // only continuous
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_continuous/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + "pivot_continuous/_stats",
+            authHeader,
+            randomTimeout()
+        );
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
 
@@ -300,7 +305,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
-        Request request = createRequestWithAuth("GET", path, authHeader);
+        Request request = createRequestWithAuthAndTimeout("GET", path, authHeader, randomTimeout());
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         Response response = client().performRequest(request);
         Map<String, Object> stats = entityAsMap(response);
@@ -354,7 +359,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId + "/_stats", authHeader);
+        Request getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + transformId + "/_stats",
+            authHeader,
+            randomTimeout()
+        );
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
@@ -420,7 +430,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         startAndWaitForContinuousTransform(transformId, transformDest, null);
 
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId + "/_stats", null);
+        Request getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + transformId + "/_stats",
+            null,
+            randomTimeout()
+        );
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
@@ -571,5 +586,17 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
                   "frequency": "10s"
                 }
             """;
+    }
+
+    private Request createRequestWithAuthAndTimeout(String method, String endpoint, String authHeader, String timeout) {
+        Request request = createRequestWithAuth(method, endpoint, authHeader);
+        if (timeout != null) {
+            request.addParameter("timeout", timeout);
+        }
+        return request;
+    }
+
+    private static String randomTimeout() {
+        return randomFrom((String) null, "5s", "30s", "1m");
     }
 }

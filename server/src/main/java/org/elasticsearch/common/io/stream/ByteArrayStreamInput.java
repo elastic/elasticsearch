@@ -17,18 +17,16 @@ import java.io.IOException;
  * Resettable {@link StreamInput} that wraps a byte array. It is heavily inspired in Lucene's
  * {@link org.apache.lucene.store.ByteArrayDataInput}.
  */
-public class ByteArrayStreamInput extends StreamInput {
+public final class ByteArrayStreamInput extends StreamInput {
 
     private byte[] bytes;
     private int pos;
     private int limit;
 
-    @SuppressWarnings("this-escape")
     public ByteArrayStreamInput() {
         reset(BytesRef.EMPTY_BYTES);
     }
 
-    @SuppressWarnings("this-escape")
     public ByteArrayStreamInput(byte[] bytes) {
         reset(bytes);
     }

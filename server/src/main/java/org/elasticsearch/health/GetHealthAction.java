@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -64,6 +65,12 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             } else {
                 this.status = null;
             }
+        }
+
+        public Response(final ClusterName clusterName, final List<HealthIndicatorResult> indicators, HealthStatus topLevelStatus) {
+            this.indicators = indicators;
+            this.clusterName = clusterName;
+            this.status = topLevelStatus;
         }
 
         public ClusterName getClusterName() {
@@ -203,8 +210,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
             assert task instanceof CancellableTask;
+            final CancellableTask cancellableTask = (CancellableTask) task;
+            if (cancellableTask.notifyIfCancelled(responseListener)) {
+                return;
+            }
+
             healthService.getHealth(
-                client,
+                new ParentTaskAssigningClient(client, clusterService.localNode(), task),
                 request.indicatorName,
                 request.verbose,
                 request.size,

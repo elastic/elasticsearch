@@ -676,7 +676,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
             setState(clusterService, newStateBuilder.build());
         }
-        expectThrows(TaskCancelledException.class, listener::actionGet);
+        expectThrows(TaskCancelledException.class, listener);
     }
 
     public void testTaskCancellationOnceActionItIsDispatchedToMaster() throws Exception {
@@ -703,7 +703,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         releaseBlockedThreads.run();
 
-        expectThrows(TaskCancelledException.class, listener::actionGet);
+        expectThrows(TaskCancelledException.class, listener);
     }
 
     public void testGlobalBlocksAreCheckedAfterIndexNotFoundException() throws Exception {
@@ -851,12 +851,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < numberOfThreads; i++) {
             executor.submit(() -> {
-                try {
-                    barrier.await();
-                    latch.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(latch);
             });
         }
         barrier.await();

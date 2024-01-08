@@ -9,6 +9,8 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.http.HttpRouteStats;
+import org.elasticsearch.http.HttpRouteStatsTracker;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,6 +23,8 @@ final class MethodHandlers {
 
     private final String path;
     private final Map<RestRequest.Method, Map<RestApiVersion, RestHandler>> methodHandlers;
+
+    private final HttpRouteStatsTracker statsTracker = new HttpRouteStatsTracker();
 
     MethodHandlers(String path) {
         this.path = path;
@@ -74,5 +78,21 @@ final class MethodHandlers {
      */
     Set<RestRequest.Method> getValidMethods() {
         return methodHandlers.keySet();
+    }
+
+    public void addRequestStats(int contentLength) {
+        statsTracker.addRequestStats(contentLength);
+    }
+
+    public void addResponseStats(long contentLength) {
+        statsTracker.addResponseStats(contentLength);
+    }
+
+    public void addResponseTime(long timeMillis) {
+        statsTracker.addResponseTime(timeMillis);
+    }
+
+    public HttpRouteStats getStats() {
+        return statsTracker.getStats();
     }
 }

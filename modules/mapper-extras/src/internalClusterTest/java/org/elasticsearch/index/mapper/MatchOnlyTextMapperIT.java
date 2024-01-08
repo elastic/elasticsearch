@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -27,6 +26,7 @@ import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -55,7 +55,7 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
                             .startObject()
                             .field(
                                 "message",
-                                "[.ds-.slm-history-5-2023.09.20-"
+                                "[.ds-.slm-history-7-2023.09.20-"
                                     + randomInt()
                                     + "][0] marking and sending shard failed due to [failed recovery]"
                             )
@@ -66,18 +66,19 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = bulk.get();
         assertNoFailures(bulkItemResponses);
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchPhraseQuery("message", "marking and sending shard"))
-            .setSize(500)
-            .highlighter(new HighlightBuilder().field("message"))
-            .get();
-        assertNoFailures(searchResponse);
-        for (SearchHit searchHit : searchResponse.getHits()) {
-            assertThat(
-                searchHit.getHighlightFields().get("message").fragments()[0].string(),
-                containsString("<em>marking and sending shard</em>")
-            );
-        }
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(QueryBuilders.matchPhraseQuery("message", "marking and sending shard"))
+                .setSize(500)
+                .highlighter(new HighlightBuilder().field("message")),
+            searchResponse -> {
+                for (SearchHit searchHit : searchResponse.getHits()) {
+                    assertThat(
+                        searchHit.getHighlightFields().get("message").fragments()[0].string(),
+                        containsString("<em>marking and sending shard</em>")
+                    );
+                }
+            }
+        );
     }
 
     public void testHighlightingWithMatchOnlyTextFieldSyntheticSource() throws IOException {
@@ -103,7 +104,7 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
                             .startObject()
                             .field(
                                 "message",
-                                "[.ds-.slm-history-5-2023.09.20-"
+                                "[.ds-.slm-history-7-2023.09.20-"
                                     + randomInt()
                                     + "][0] marking and sending shard failed due to [failed recovery]"
                             )
@@ -114,18 +115,19 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = bulk.get();
         assertNoFailures(bulkItemResponses);
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchPhraseQuery("message", "marking and sending shard"))
-            .setSize(500)
-            .highlighter(new HighlightBuilder().field("message"))
-            .get();
-        assertNoFailures(searchResponse);
-        for (SearchHit searchHit : searchResponse.getHits()) {
-            assertThat(
-                searchHit.getHighlightFields().get("message").fragments()[0].string(),
-                containsString("<em>marking and sending shard</em>")
-            );
-        }
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(QueryBuilders.matchPhraseQuery("message", "marking and sending shard"))
+                .setSize(500)
+                .highlighter(new HighlightBuilder().field("message")),
+            searchResponse -> {
+                for (SearchHit searchHit : searchResponse.getHits()) {
+                    assertThat(
+                        searchHit.getHighlightFields().get("message").fragments()[0].string(),
+                        containsString("<em>marking and sending shard</em>")
+                    );
+                }
+            }
+        );
     }
 
 }

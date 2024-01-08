@@ -251,8 +251,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public String toString() {
-            final StringBuilder sb = new StringBuilder("FieldUsageTrackingLeafReader(reader=");
-            return sb.append(in).append(')').toString();
+            return "FieldUsageTrackingLeafReader(reader=" + in + ')';
         }
 
         @Override

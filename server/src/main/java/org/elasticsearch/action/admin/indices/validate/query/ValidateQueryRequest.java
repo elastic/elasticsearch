@@ -29,7 +29,7 @@ import java.util.Arrays;
  * <p>
  * The request requires the query to be set using {@link #query(QueryBuilder)}
  */
-public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
+public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
 
@@ -65,7 +65,6 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
      * Constructs a new validate request against the provided indices. No indices provided means it will
      * run against all indices.
      */
-    @SuppressWarnings("this-escape")
     public ValidateQueryRequest(String... indices) {
         super(indices);
         indicesOptions(DEFAULT_INDICES_OPTIONS);

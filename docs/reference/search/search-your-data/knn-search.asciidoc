@@ -43,7 +43,7 @@ based on a similarity metric, the better its match.
 {es} supports two methods for kNN search:
 
 * <<approximate-knn,Approximate kNN>> using the `knn` search
-option
+option or `knn` query
 
 * <<exact-knn,Exact, brute-force kNN>> using a `script_score` query with a
 vector function
@@ -76,12 +76,10 @@ to search one or more `dense_vector` fields with indexing enabled.
 requires the following mapping options:
 +
 --
-* An `index` value of `true`.
-
 * A `similarity` value. This value determines the similarity metric used to
 score documents based on similarity between the query and document vector. For a
 list of available metrics, see the <<dense-vector-similarity,`similarity`>>
-parameter documentation.
+parameter documentation. The `similarity` setting defaults to `cosine`.
 
 [source,console]
 ----
@@ -92,13 +90,11 @@ PUT image-index
       "image-vector": {
         "type": "dense_vector",
         "dims": 3,
-        "index": true,
         "similarity": "l2_norm"
       },
       "title-vector": {
         "type": "dense_vector",
         "dims": 5,
-        "index": true,
         "similarity": "l2_norm"
       },
       "title": {
@@ -129,7 +125,8 @@ POST image-index/_bulk?refresh=true
 //TEST[continued]
 //TEST[s/\.\.\.//]
 
-. Run the search using the <<search-api-knn, `knn` option>>.
+. Run the search using the <<search-api-knn, `knn` option>> or the
+<<query-dsl-knn-query,`knn` query>> (expert case).
 +
 [source,console]
 ----
@@ -157,7 +154,7 @@ NOTE: Support for approximate kNN search was added in version 8.0. Before
 this, `dense_vector` fields did not support enabling `index` in the mapping.
 If you created an index prior to 8.0 containing `dense_vector` fields, then to
 support approximate kNN search the data must be reindexed using a new field
-mapping that sets `index: true`.
+mapping that sets `index: true` which is the default option.
 
 [discrete]
 [[tune-approximate-knn-for-speed-accuracy]]
@@ -198,9 +195,7 @@ PUT byte-image-index
       "byte-image-vector": {
         "type": "dense_vector",
         "element_type": "byte",
-        "dims": 2,
-        "index": true,
-        "similarity": "cosine"
+        "dims": 2
       },
       "title": {
         "type": "text"
@@ -245,6 +240,114 @@ POST byte-image-index/_search
 ----
 // TEST[continued]
 // TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
+[discrete]
+[[knn-search-quantized-example]]
+==== Byte quantized kNN search
+
+If you want to provide `float` vectors, but want the memory savings of `byte` vectors, you can use the
+<<dense-vector-quantization, quantization>> feature. Quantization allows you to provide `float` vectors, but
+internally they are indexed as `byte` vectors. Additionally, the original `float` vectors are still retained
+in the index.
+
+To use quantization, you can use the index type `int8_hnsw` object in the `dense_vector` mapping.
+
+[source,console]
+----
+PUT quantized-image-index
+{
+  "mappings": {
+    "properties": {
+      "image-vector": {
+        "type": "dense_vector",
+        "element_type": "float",
+        "dims": 2,
+        "index": true,
+        "index_options": {
+          "type": "int8_hnsw"
+        }
+      },
+      "title": {
+        "type": "text"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+. Index your `float` vectors.
++
+[source,console]
+----
+POST quantized-image-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "image-vector": [0.1, -2], "title": "moose family" }
+{ "index": { "_id": "2" } }
+{ "image-vector": [0.75, -1], "title": "alpine lake" }
+{ "index": { "_id": "3" } }
+{ "image-vector": [1.2, 0.1], "title": "full moon" }
+----
+//TEST[continued]
+
+. Run the search using the <<search-api-knn, `knn` option>>. When searching, the `float` vector is
+automatically quantized to a `byte` vector.
++
+[source,console]
+----
+POST quantized-image-index/_search
+{
+  "knn": {
+    "field": "image-vector",
+    "query_vector": [0.1, -2],
+    "k": 10,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ]
+}
+----
+// TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
+Since the original `float` vectors are still retained in the index, you can optionally use them for re-scoring. Meaning,
+you can search over all the vectors quickly using the `int8_hnsw` index and then rescore only the top `k` results. This
+provides the best of both worlds, fast search and accurate scoring.
+
+[source,console]
+----
+POST quantized-image-index/_search
+{
+  "knn": {
+    "field": "image-vector",
+    "query_vector": [0.1, -2],
+    "k": 15,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ],
+  "rescore": {
+    "window_size": 10,
+    "query": {
+      "rescore_query": {
+        "script_score": {
+          "query": {
+            "match_all": {}
+          },
+          "script": {
+            "source": "cosineSimilarity(params.query_vector, 'image-vector') + 1.0",
+            "params": {
+              "query_vector": [0.1, -2]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/"k": 15/"k": 3/]
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
 [discrete]
@@ -444,6 +547,7 @@ score = 0.9 * match_score + 0.1 * knn_score_image-vector + 0.5 * knn_score_title
 ```
 
 [discrete]
+[[knn-similarity-search]]
 ==== Search kNN with expected similarity
 
 While kNN is a powerful tool, it always tries to return `k` nearest neighbors. Consequently, when using `knn` with
@@ -458,6 +562,18 @@ minimum similarity for a vector to be considered a match. The `knn` search flow 
 * Apply any user provided `filter` queries
 * Explore the vector space to get `k` vectors
 * Do not return any vectors that are further away than the configured `similarity`
+--
+
+NOTE: `similarity` is the true <<dense-vector-similarity, similarity>> before it has been transformed into `_score` and boost applied.
+
+For each configured <<dense-vector-similarity, similarity>>, here is the corresponding inverted `_score` function. This is so if you are wanting to filter from a `_score` perspective, you can do this minor transformation to correctly reject irrelevant results.
+--
+ - `l2_norm`: `sqrt((1 / _score) - 1)`
+ - `cosine`: `(2 * _score) - 1`
+ - `dot_product`: `(2 * _score) - 1`
+ - `max_inner_product`:
+    - `_score < 1`: `1 - (1 / _score)`
+    - `_score >= 1`: `_score - 1`
 --
 
 Here is an example. In this example we search for the given `query_vector` for `k` nearest neighbors. However, with
@@ -515,9 +631,7 @@ PUT passage_vectors
                 "properties": {
                     "vector": {
                         "type": "dense_vector",
-                        "dims": 2,
-                        "index": true,
-                        "similarity": "cosine"
+                        "dims": 2
                     },
                     "text": {
                         "type": "text",
@@ -876,7 +990,6 @@ PUT image-index
       "image-vector": {
         "type": "dense_vector",
         "dims": 3,
-        "index": true,
         "similarity": "l2_norm",
         "index_options": {
           "type": "hnsw",
@@ -911,8 +1024,8 @@ the global top `k` matches across shards. You cannot set the
 To run an exact kNN search, use a `script_score` query with a vector function.
 
 . Explicitly map one or more `dense_vector` fields. If you don't intend to use
-the field for approximate kNN, omit the `index` mapping option or set it to
-`false`. This can significantly improve indexing speed.
+the field for approximate kNN, set the `index` mapping option to `false`. This
+can significantly improve indexing speed.
 +
 [source,console]
 ----

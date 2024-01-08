@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -20,12 +22,9 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final DriverContext driverContext;
-
   public ToUnsignedLongFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
-    super(field, source);
-    this.driverContext = driverContext;
+    super(driverContext, field, source);
   }
 
   @Override
@@ -40,21 +39,22 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
+      } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendLong(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendLong(evalValue(vector, p));
+        } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static long evalValue(DoubleVector container, int index) {
@@ -66,37 +66,59 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
   public Block evalBlock(Block b) {
     DoubleBlock block = (DoubleBlock) b;
     int positionCount = block.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = block.getValueCount(p);
-      int start = block.getFirstValueIndex(p);
-      int end = start + valueCount;
-      boolean positionOpened = false;
-      boolean valuesAppended = false;
-      for (int i = start; i < end; i++) {
-        try {
-          long value = evalValue(block, i);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
+          try {
+            long value = evalValue(block, i);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendLong(value);
+            valuesAppended = true;
+          } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
+            registerException(e);
           }
-          builder.appendLong(value);
-          valuesAppended = true;
-        } catch (Exception e) {
-          registerException(e);
+        }
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
         }
       }
-      if (valuesAppended == false) {
-        builder.appendNull();
-      } else if (positionOpened) {
-        builder.endPositionEntry();
-      }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static long evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToUnsignedLong.fromDouble(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToUnsignedLongFromDoubleEvaluator get(DriverContext context) {
+      return new ToUnsignedLongFromDoubleEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToUnsignedLongFromDoubleEvaluator[field=" + field + "]";
+    }
   }
 }

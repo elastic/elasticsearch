@@ -82,23 +82,29 @@ public final class Page implements Writeable {
     private Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
-                throw new IllegalArgumentException("Block does not have same position count");
+                throw new IllegalArgumentException("Block [" + block + "] does not have same position count");
             }
         }
         this.positionCount = prev.positionCount;
 
         this.blocks = Arrays.copyOf(prev.blocks, prev.blocks.length + toAdd.length);
-        for (int i = 0; i < toAdd.length; i++) {
-            this.blocks[prev.blocks.length + i] = toAdd[i];
-        }
+        System.arraycopy(toAdd, 0, this.blocks, prev.blocks.length, toAdd.length);
     }
 
     public Page(StreamInput in) throws IOException {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
-        for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-            blocks[blockIndex] = in.readNamedWriteable(Block.class);
+        boolean success = false;
+        try {
+            for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
+                blocks[blockIndex] = in.readNamedWriteable(Block.class);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
+            }
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
@@ -169,8 +175,8 @@ public final class Page implements Writeable {
     @Override
     public int hashCode() {
         int result = Objects.hash(positionCount);
-        for (int i = 0; i < blocks.length; i++) {
-            result = 31 * result + Objects.hashCode(blocks[i]);
+        for (Block block : blocks) {
+            result = 31 * result + Objects.hashCode(block);
         }
         return result;
     }
@@ -221,23 +227,24 @@ public final class Page implements Writeable {
      * Release all blocks in this page, decrementing any breakers accounting for these blocks.
      */
     public void releaseBlocks() {
+        if (blocksReleased) {
+            return;
+        }
+
         blocksReleased = true;
+
         Releasables.closeExpectNoException(blocks);
     }
 
-    public static class PageWriter implements Writeable.Writer<Page> {
-
-        @Override
-        public void write(StreamOutput out, Page value) throws IOException {
-            value.writeTo(out);
-        }
-    }
-
-    public static class PageReader implements Writeable.Reader<Page> {
-
-        @Override
-        public Page read(StreamInput in) throws IOException {
-            return new Page(in);
+    /**
+     * Before passing a Page to another Driver, it is necessary to switch the owning block factories of its Blocks to their parents,
+     * which are associated with the global circuit breaker. This ensures that when the new driver releases this Page, it returns
+     * memory directly to the parent block factory instead of the local block factory. This is important because the local block
+     * factory is not thread safe and doesn't support simultaneous access by more than one thread.
+     */
+    public void allowPassingToDifferentDriver() {
+        for (Block block : blocks) {
+            block.allowPassingToDifferentDriver();
         }
     }
 }

@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -41,15 +43,20 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -57,6 +64,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -573,13 +581,10 @@ public class StatementParserTests extends ESTestCase {
     public void testMetadataFieldOnOtherSources() {
         expectError(
             "row a = 1 [metadata _index]",
-            "1:11: mismatched input '[' expecting {<EOF>, PIPE, 'and', COMMA, 'or', '+', '-', '*', '/', '%'}"
+            "1:11: mismatched input '[' expecting {<EOF>, '|', 'and', ',', 'or', '+', '-', '*', '/', '%'}"
         );
-        expectError("show functions [metadata _index]", "line 1:16: mismatched input '[' expecting {<EOF>, PIPE}");
-        expectError(
-            "explain [from foo] [metadata _index]",
-            "line 1:20: mismatched input '[' expecting {PIPE, COMMA, OPENING_BRACKET, ']'}"
-        );
+        expectError("show functions [metadata _index]", "line 1:16: token recognition error at: '['");
+        expectError("explain [from foo] [metadata _index]", "line 1:20: mismatched input '[' expecting {'|', ',', OPENING_BRACKET, ']'}");
     }
 
     public void testMetadataFieldMultipleDeclarations() {
@@ -610,12 +615,14 @@ public class StatementParserTests extends ESTestCase {
         assertEquals("", dissect.parser().appendSeparator());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
 
-        cmd = processingCommand("dissect a \"%{foo}\" append_separator=\",\"");
-        assertEquals(Dissect.class, cmd.getClass());
-        dissect = (Dissect) cmd;
-        assertEquals("%{foo}", dissect.parser().pattern());
-        assertEquals(",", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        for (String separatorName : List.of("append_separator", "APPEND_SEPARATOR", "AppEnd_SeparAtor")) {
+            cmd = processingCommand("dissect a \"%{foo}\" " + separatorName + "=\",\"");
+            assertEquals(Dissect.class, cmd.getClass());
+            dissect = (Dissect) cmd;
+            assertEquals("%{foo}", dissect.parser().pattern());
+            assertEquals(",", dissect.parser().appendSeparator());
+            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        }
 
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
             Tuple.tuple("from a | dissect foo \"\"", "[]"),
@@ -631,6 +638,7 @@ public class StatementParserTests extends ESTestCase {
             "from a | dissect foo \"%{bar}\" append_separator=3",
             "Invalid value for dissect append_separator: expected a string, but was [3]"
         );
+        expectError("from a | dissect foo \"%{}\"", "Invalid pattern for dissect: [%{}]");
     }
 
     public void testGrokPattern() {
@@ -703,16 +711,36 @@ public class StatementParserTests extends ESTestCase {
         assertThat(expand.target(), equalTo(attribute("a")));
     }
 
+    // see https://github.com/elastic/elasticsearch/issues/103331
+    public void testKeepStarMvExpand() {
+        try {
+            String query = "from test | keep * | mv_expand a";
+            var plan = statement(query);
+        } catch (UnresolvedException e) {
+            fail(e, "Regression: https://github.com/elastic/elasticsearch/issues/103331");
+        }
+
+    }
+
     public void testUsageOfProject() {
         processingCommand("project a");
         assertWarnings("PROJECT command is no longer supported, please use KEEP instead");
     }
 
     public void testInputParams() {
-        LogicalPlan stm = statement("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1), new TypedParamValue("keyword", "2")));
+        LogicalPlan stm = statement(
+            "row x = ?, y = ?, a = ?, b = ?, c = ?",
+            List.of(
+                new TypedParamValue("integer", 1),
+                new TypedParamValue("keyword", "2"),
+                new TypedParamValue("date_period", "2 days"),
+                new TypedParamValue("time_duration", "4 hours"),
+                new TypedParamValue("version", "1.2.3")
+            )
+        );
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
-        assertThat(row.fields().size(), is(2));
+        assertThat(row.fields().size(), is(5));
 
         NamedExpression field = row.fields().get(0);
         assertThat(field.name(), is("x"));
@@ -725,10 +753,86 @@ public class StatementParserTests extends ESTestCase {
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(), is("2"));
+
+        field = row.fields().get(2);
+        assertThat(field.name(), is("a"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(Period.ofDays(2)));
+
+        field = row.fields().get(3);
+        assertThat(field.name(), is("b"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(Duration.ofHours(4)));
+
+        field = row.fields().get(4);
+        assertThat(field.name(), is("c"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold().getClass(), is(Version.class));
+        assertThat(alias.child().fold().toString(), is("1.2.3"));
+    }
+
+    public void testWrongIntervalParams() {
+        expectError("row x = ?", List.of(new TypedParamValue("date_period", "12")), "Cannot parse [12] to DATE_PERIOD");
+        expectError("row x = ?", List.of(new TypedParamValue("time_duration", "12")), "Cannot parse [12] to TIME_DURATION");
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("date_period", "12 months foo")),
+            "Cannot parse [12 months foo] to DATE_PERIOD"
+        );
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "12 minutes bar")),
+            "Cannot parse [12 minutes bar] to TIME_DURATION"
+        );
+        expectError("row x = ?", List.of(new TypedParamValue("date_period", "12 foo")), "Unexpected time interval qualifier: 'foo'");
+        expectError("row x = ?", List.of(new TypedParamValue("time_duration", "12 bar")), "Unexpected time interval qualifier: 'bar'");
+        expectError("row x = ?", List.of(new TypedParamValue("date_period", "foo days")), "Cannot parse [foo days] to DATE_PERIOD");
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "bar seconds")),
+            "Cannot parse [bar seconds] to TIME_DURATION"
+        );
+
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("date_period", "2 minutes")),
+            "Cannot parse [2 minutes] to DATE_PERIOD, did you mean TIME_DURATION?"
+        );
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "11 months")),
+            "Cannot parse [11 months] to TIME_DURATION, did you mean DATE_PERIOD?"
+        );
     }
 
     public void testMissingInputParams() {
         expectError("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1)), "Not enough actual parameters 1");
+    }
+
+    public void testFieldContainingDotsAndNumbers() {
+        LogicalPlan where = processingCommand("where `a.b.1m.4321`");
+        assertThat(where, instanceOf(Filter.class));
+        Filter w = (Filter) where;
+        assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));
+        assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
+    }
+
+    public void testFieldQualifiedName() {
+        LogicalPlan where = processingCommand("where a.b.`1m`.`4321`");
+        assertThat(where, instanceOf(Filter.class));
+        Filter w = (Filter) where;
+        assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));
+        assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
+    }
+
+    public void testQuotedName() {
+        // row `my-field`=123 | stats count(`my-field`) | eval x = `count(`my-field`)`
+        LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(``my-field``)`");
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("count(`my-field`)"));
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

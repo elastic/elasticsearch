@@ -21,13 +21,10 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public final class MvSumLongEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
   private final Warnings warnings;
 
-  private final DriverContext driverContext;
-
   public MvSumLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       DriverContext driverContext) {
-    super(field);
+    super(driverContext, field);
     this.warnings = new Warnings(source);
-    this.driverContext = driverContext;
   }
 
   @Override
@@ -39,11 +36,10 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block.Ref evalNullable(Block.Ref ref) {
-    try (ref) {
-      LongBlock v = (LongBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+  public Block evalNullable(Block fieldVal) {
+    LongBlock v = (LongBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         if (valueCount == 0) {
@@ -65,7 +61,28 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
           builder.appendNull();
         }
       }
-      return Block.Ref.floating(builder.build());
+      return builder.build();
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+      this.source = source;
+      this.field = field;
+    }
+
+    @Override
+    public MvSumLongEvaluator get(DriverContext context) {
+      return new MvSumLongEvaluator(source, field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
     }
   }
 }

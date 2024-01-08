@@ -495,7 +495,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         executeRequest(Settings.EMPTY, "request-host");
 
-        verify(tracer).setAttribute(argThat(id -> id.getRawId().startsWith("rest-")), eq("http.status_code"), eq(200L));
+        verify(tracer).setAttribute(argThat(id -> id.getSpanId().startsWith("rest-")), eq("http.status_code"), eq(200L));
         verify(tracer).stopTrace(any(RestRequest.class));
     }
 
@@ -692,7 +692,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                     }
                     return new TestHttpResponse(status, bso.bytes());
                 } catch (IOException e) {
-                    throw new AssertionError("unexpected", e);
+                    return fail(e);
                 }
             }
         };

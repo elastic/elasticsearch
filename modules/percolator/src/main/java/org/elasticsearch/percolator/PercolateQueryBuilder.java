@@ -47,6 +47,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -597,7 +598,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         assert valueLength > 0;
 
                         TransportVersion transportVersion;
-                        if (indexVersion.before(IndexVersion.V_8_8_0)) {
+                        if (indexVersion.before(IndexVersions.V_8_8_0)) {
                             transportVersion = TransportVersion.fromId(indexVersion.id());
                         } else {
                             transportVersion = TransportVersion.readVersion(input);
@@ -662,6 +663,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);
+            }
+
+            @Override
+            public void addNamedQuery(String name, Query query) {
+                delegate.addNamedQuery(name, query);
             }
         };
     }

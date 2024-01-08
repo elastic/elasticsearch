@@ -1,3 +1,11 @@
+---
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: "counter field support added in 8.10"
+      features: close_to
+
+---
 missing routing path field:
   - skip:
       features: close_to

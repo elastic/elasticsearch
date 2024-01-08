@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesXContentResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -24,22 +25,18 @@ import java.util.List;
 
 public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
-    public NodesStatsResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public NodesStatsResponse(ClusterName clusterName, List<NodeStats> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodeStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(NodeStats::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStats> nodes) throws IOException {
-        out.writeCollection(nodes);
+        TransportAction.localOnly();
     }
 
     @Override

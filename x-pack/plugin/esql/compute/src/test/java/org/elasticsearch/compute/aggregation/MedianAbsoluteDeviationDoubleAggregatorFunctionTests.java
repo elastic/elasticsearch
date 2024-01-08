@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -26,12 +25,12 @@ public class MedianAbsoluteDeviationDoubleAggregatorFunctionTests extends Aggreg
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<Double> values = Arrays.asList(1.2, 1.25, 2.0, 2.0, 4.3, 6.0, 9.0);
         Randomness.shuffle(values);
-        return new SequenceDoubleBlockSourceOperator(blockFactory, values);
+        return new SequenceDoubleBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override

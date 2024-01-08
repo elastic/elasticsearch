@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -169,7 +170,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void checkSecurityStatus(boolean expectEnabled) throws IOException {

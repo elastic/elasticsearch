@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -43,12 +42,12 @@ public class MedianAbsoluteDeviationIntGroupingAggregatorFunctionTests extends G
                 values.add(Tuple.tuple((long) i, v));
             }
         }
-        return new LongIntBlockSourceOperator(blockFactory, values);
+        return new LongIntBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override

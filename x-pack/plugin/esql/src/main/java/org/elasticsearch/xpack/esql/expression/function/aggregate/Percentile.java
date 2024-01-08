@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
@@ -56,26 +55,22 @@ public class Percentile extends NumericAggregate {
             return resolution;
         }
 
-        resolution = isNumeric(percentile, sourceText(), SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return isFoldable(percentile, sourceText(), SECOND);
+        return isNumeric(percentile, sourceText(), SECOND).and(isFoldable(percentile, sourceText(), SECOND));
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
+        return new PercentileLongAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
+        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentileValue());
     }
 
     private int percentileValue() {

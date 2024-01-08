@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -90,14 +91,13 @@ public class JobNodeSelectorTests extends ESTestCase {
     public void testNodeNameAndVersionForOldNode() {
         TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
         Map<String, String> attributes = Map.of("unrelated", "attribute");
-        DiscoveryNode node = new DiscoveryNode(
-            "_node_name2",
-            "_node_id2",
-            ta,
-            attributes,
-            ROLES_WITH_ML,
-            VersionInformation.inferVersions(Version.V_8_7_0)
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("_node_id2")
+            .name("_node_name2")
+            .address(ta)
+            .attributes(attributes)
+            .roles(ROLES_WITH_ML)
+            .version(VersionInformation.inferVersions(Version.V_8_7_0))
+            .build();
         assertEquals("{_node_name2}{ML config version=8.7.0}", JobNodeSelector.nodeNameAndVersion(node));
     }
 
@@ -913,24 +913,22 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
-                    "_node_name1",
-                    "_node_id1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr1,
-                    ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("7.2.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id1")
+                    .name("_node_name1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr1)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.2.0")))
+                    .build()
             )
             .add(
-                new DiscoveryNode(
-                    "_node_name2",
-                    "_node_id2",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    nodeAttr2,
-                    ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("7.1.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id2")
+                    .name("_node_name2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .attributes(nodeAttr2)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.1.0")))
+                    .build()
             )
             .build();
 
@@ -976,24 +974,22 @@ public class JobNodeSelectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
-                    "_node_name1",
-                    "_node_id1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
-                    ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("6.2.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id1")
+                    .name("_node_name1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("6.2.0")))
+                    .build()
             )
             .add(
-                new DiscoveryNode(
-                    "_node_name2",
-                    "_node_id2",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    nodeAttr,
-                    ROLES_WITH_ML,
-                    VersionInformation.inferVersions(Version.fromString("6.4.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id2")
+                    .name("_node_name2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .attributes(nodeAttr)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("6.4.0")))
+                    .build()
             )
             .build();
 
@@ -1434,7 +1430,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         if (state != null) {
             builder.updateTaskState(
                 MlTasks.dataFrameAnalyticsTaskId(id),
-                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null)
+                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null, Instant.now())
             );
         }
     }

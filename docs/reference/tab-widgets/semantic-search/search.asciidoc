@@ -2,8 +2,8 @@
 
 ELSER text embeddings can be queried using a 
 <<query-dsl-text-expansion-query,text expansion query>>. The text expansion 
-query enables you to query a rank features field, by providing the model ID of 
-the NLP model, and the query text:
+query enables you to query a rank features field or a sparse vector field, by 
+providing the model ID of the NLP model, and the query text:
 
 [source,console]
 ----
@@ -11,7 +11,7 @@ GET my-index/_search
 {
    "query":{
       "text_expansion":{
-         "my_embeddings.tokens":{ <1>
+         "my_tokens":{ <1>
             "model_id":".elser_model_2",
             "model_text":"the query string"
          }

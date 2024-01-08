@@ -1,0 +1,77 @@
+[role="xpack"]
+[[list-connector-api]]
+=== List connectors API
+
+preview::[]
+
+++++
+<titleabbrev>List connectors</titleabbrev>
+++++
+
+Returns information about all stored connectors.
+
+
+[[list-connector-api-request]]
+==== {api-request-title}
+
+`GET _connector`
+
+[[list-connector-api-prereq]]
+==== {api-prereq-title}
+
+* To sync data using connectors, it's essential to have the Elastic connectors service running.
+
+[[list-connector-api-path-params]]
+==== {api-path-parms-title}
+
+`size`::
+(Optional, integer) Maximum number of results to retrieve.
+
+`from`::
+(Optional, integer) The offset from the first result to fetch.
+
+[[list-connector-api-example]]
+==== {api-examples-title}
+
+The following example lists all connectors:
+
+////
+[source,console]
+--------------------------------------------------
+PUT _connector/connector-1
+{
+  "index_name": "search-google-drive",
+  "name": "Google Drive Connector",
+  "service_type": "google_drive"
+}
+
+PUT _connector/connector-2
+{
+  "index_name": "search-sharepoint-online",
+  "name": "Sharepoint Online Connector",
+  "service_type": "sharepoint_online"
+}
+
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _connector/connector-1
+
+DELETE _connector/connector-2
+--------------------------------------------------
+// TEARDOWN
+////
+
+[source,console]
+----
+GET _connector
+----
+
+The following example lists the first two connectors:
+
+[source,console]
+----
+GET _connector/?from=0&size=2
+----

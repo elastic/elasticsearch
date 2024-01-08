@@ -11,6 +11,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,7 +39,7 @@ public class ObjectPath {
     }
 
     public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, input.streamInput())) {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, input, xContent.type())) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }
@@ -82,7 +83,7 @@ public class ObjectPath {
     }
 
     @SuppressWarnings("unchecked")
-    private Object evaluate(String key, Object objectToEvaluate, Stash stash) throws IOException {
+    private static Object evaluate(String key, Object objectToEvaluate, Stash stash) throws IOException {
         if (stash.containsStashedValue(key)) {
             key = stash.getValue(key).toString();
         }
@@ -119,7 +120,7 @@ public class ObjectPath {
         );
     }
 
-    private String[] parsePath(String path) {
+    private static String[] parsePath(String path) {
         List<String> list = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean escape = false;

@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.security;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,9 +36,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -70,6 +75,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -114,6 +120,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -131,7 +138,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SecurityTests extends ESTestCase {
@@ -206,6 +216,7 @@ public class SecurityTests extends ESTestCase {
             client,
             threadPool,
             clusterService,
+            new FeatureService(List.of(new SecurityFeatures())),
             mock(ResourceWatcherService.class),
             mock(ScriptService.class),
             xContentRegistry(),
@@ -402,7 +413,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         License license = TestUtils.generateSignedLicense(
@@ -427,7 +438,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType = randomFrom(
@@ -569,6 +580,32 @@ public class SecurityTests extends ESTestCase {
             .build();
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
         assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
+    }
+
+    public void testValidateForFipsRequiredProvider() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .putList(XPackSettings.FIPS_REQUIRED_PROVIDERS.getKey(), List.of("BCFIPS"))
+            .build();
+        if (inFipsJvm()) {
+            Security.validateForFips(settings);
+            // no exceptions since gradle has wired in the bouncy castle FIPS provider
+        } else {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [bcfips]"));
+        }
+
+        final Settings settings2 = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .putList(XPackSettings.FIPS_REQUIRED_PROVIDERS.getKey(), List.of("junk0", "BCFIPS", "junk1", "junk2"))
+            .build();
+        if (inFipsJvm()) {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings2));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [junk0, junk1, junk2]"));
+        } else {
+            final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings2));
+            assertThat(iae.getMessage(), containsString("Could not find required FIPS security provider: [junk0, bcfips, junk1, junk2]"));
+        }
     }
 
     public void testValidateForFipsMultipleValidationErrors() {
@@ -769,17 +806,18 @@ public class SecurityTests extends ESTestCase {
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
-                Arrays.asList(security),
+                List.of(security),
                 null,
                 null,
                 usageService,
                 null,
                 Tracer.NOOP,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, null);
 
             appender.assertAllExpectationsMatched();
         } finally {
@@ -873,6 +911,23 @@ public class SecurityTests extends ESTestCase {
                     + "Please either enable security or remove these settings from the keystore."
             )
         );
+
+        // Security off, remote cluster with credentials on reload call
+        final MockSecureSettings secureSettings5 = new MockSecureSettings();
+        secureSettings5.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
+        secureSettings5.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
+        final Settings.Builder builder5 = Settings.builder().setSecureSettings(secureSettings5);
+        // Use builder with security disabled to construct valid Security instance
+        final var security = new Security(builder2.build());
+        final IllegalArgumentException e5 = expectThrows(IllegalArgumentException.class, () -> security.reload(builder5.build()));
+        assertThat(
+            e5.getMessage(),
+            containsString(
+                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
+                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
+                    + "Please either enable security or remove these settings from the keystore."
+            )
+        );
     }
 
     public void testLoadExtensions() throws Exception {
@@ -899,6 +954,98 @@ public class SecurityTests extends ESTestCase {
         OperatorOnlyRegistry registry = ((OperatorPrivileges.DefaultOperatorPrivilegesService) operatorPrivilegesService)
             .getOperatorOnlyRegistry();
         assertThat(registry, instanceOf(DummyOperatorOnlyRegistry.class));
+    }
+
+    public void testReload() throws Exception {
+        final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
+
+        final PlainActionFuture<ActionResponse.Empty> value = new PlainActionFuture<>();
+        final Client mockedClient = mock(Client.class);
+
+        final Realms mockedRealms = mock(Realms.class);
+        when(mockedRealms.stream()).thenReturn(Stream.of());
+
+        doAnswer((inv) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+            listener.onResponse(ActionResponse.Empty.INSTANCE);
+            return null;
+        }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+
+        security = new Security(settings, Collections.emptyList()) {
+            @Override
+            protected Client getClient() {
+                return mockedClient;
+            }
+
+            @Override
+            protected Realms getRealms() {
+                return mockedRealms;
+            }
+        };
+
+        final Settings inputSettings = Settings.EMPTY;
+        security.reload(inputSettings);
+
+        verify(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+        verify(mockedRealms).stream();
+    }
+
+    public void testReloadWithFailures() {
+        final Settings settings = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir()).build();
+
+        final boolean failRemoteClusterCredentialsReload = randomBoolean();
+        final Client mockedClient = mock(Client.class);
+        if (failRemoteClusterCredentialsReload) {
+            doAnswer((inv) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+                listener.onFailure(new RuntimeException("failed remote cluster credentials reload"));
+                return null;
+            }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+        } else {
+            doAnswer((inv) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) inv.getArguments()[2];
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
+                return null;
+            }).when(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+        }
+
+        final Realms mockedRealms = mock(Realms.class);
+        final boolean failRealmsReload = (false == failRemoteClusterCredentialsReload) || randomBoolean();
+        if (failRealmsReload) {
+            when(mockedRealms.stream()).thenThrow(new RuntimeException("failed jwt realms reload"));
+        } else {
+            when(mockedRealms.stream()).thenReturn(Stream.of());
+        }
+        security = new Security(settings, Collections.emptyList()) {
+            @Override
+            protected Client getClient() {
+                return mockedClient;
+            }
+
+            @Override
+            protected Realms getRealms() {
+                return mockedRealms;
+            }
+        };
+
+        final Settings inputSettings = Settings.EMPTY;
+        final var exception = expectThrows(ElasticsearchException.class, () -> security.reload(inputSettings));
+
+        assertThat(exception.getMessage(), containsString("secure settings reload failed for one or more security component"));
+        if (failRemoteClusterCredentialsReload) {
+            assertThat(exception.getSuppressed()[0].getMessage(), containsString("failed remote cluster credentials reload"));
+            if (failRealmsReload) {
+                assertThat(exception.getSuppressed()[1].getMessage(), containsString("failed jwt realms reload"));
+            }
+        } else {
+            assertThat(exception.getSuppressed()[0].getMessage(), containsString("failed jwt realms reload"));
+        }
+        // Verify both called despite failure
+        verify(mockedClient).execute(eq(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION), any(), any());
+        verify(mockedRealms).stream();
     }
 
     public void testLoadNoExtensions() throws Exception {

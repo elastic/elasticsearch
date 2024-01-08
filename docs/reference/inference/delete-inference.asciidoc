@@ -2,6 +2,8 @@
 [[delete-inference-api]]
 === Delete {infer} API
 
+experimental[]
+
 Deletes an {infer} model deployment.
 
 

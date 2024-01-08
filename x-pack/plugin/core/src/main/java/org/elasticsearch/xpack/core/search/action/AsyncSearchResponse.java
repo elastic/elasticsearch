@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -216,7 +217,7 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
             }
             return builder;
         }),
-            searchResponse == null ? Iterators.concat() : searchResponse.toXContentChunked(params),
+            searchResponse == null ? Collections.emptyIterator() : searchResponse.toXContentChunked(params),
             ChunkedToXContentHelper.singleChunk((builder, p) -> {
                 if (error != null) {
                     builder.startObject("error");

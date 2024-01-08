@@ -30,7 +30,7 @@ import java.util.Objects;
  * information about errors, progress and counters. There is exactly 1 document
  * per forecast request, getting updated while the request is processed.
  */
-public class ForecastRequestStats implements ToXContentObject, Writeable {
+public final class ForecastRequestStats implements ToXContentObject, Writeable {
     /**
      * Result type
      */
@@ -147,7 +147,6 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.status = forecastRequestStats.status;
     }
 
-    @SuppressWarnings("this-escape")
     public ForecastRequestStats(StreamInput in) throws IOException {
         jobId = in.readString();
         forecastId = in.readString();

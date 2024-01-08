@@ -174,7 +174,7 @@ class Elasticsearch {
         // initialize probes before the security manager is installed
         initializeProbes();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown));
+        Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown, "elasticsearch-shutdown"));
 
         // look for jar hell
         final Logger logger = LogManager.getLogger(JarHell.class);
@@ -376,7 +376,7 @@ class Elasticsearch {
                     Bootstrap.exit(1);
                 }
             }
-        }).start();
+        }, "elasticsearch-cli-monitor-thread").start();
     }
 
     /**
@@ -460,6 +460,8 @@ class Elasticsearch {
     }
 
     private static void shutdown() {
+        ElasticsearchProcess.markStopping();
+
         if (INSTANCE == null) {
             return; // never got far enough
         }

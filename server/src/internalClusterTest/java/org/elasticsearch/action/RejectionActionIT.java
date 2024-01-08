@@ -43,15 +43,14 @@ public class RejectionActionIT extends ESIntegTestCase {
 
     public void testSimulatedSearchRejectionLoad() throws Throwable {
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "1").get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "1").get();
         }
 
         int numberOfAsyncOps = randomIntBetween(200, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
         final CopyOnWriteArrayList<Object> responses = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numberOfAsyncOps; i++) {
-            client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(QueryBuilders.matchQuery("field", "1"))
                 .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
                     @Override

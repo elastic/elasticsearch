@@ -8,16 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -47,41 +41,72 @@ public class BasicPageTests extends SerializationTestCase {
     }
 
     public void testEqualityAndHashCodeSmallInput() {
+        Page in = new Page(0);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(0, new Block[] {}),
-            page -> new Page(0, new Block[] {}),
-            page -> new Page(1, IntBlock.newConstantBlockWith(1, 1))
+            in,
+            page -> new Page(0),
+            page -> new Page(1, blockFactory.newConstantIntBlockWith(1, 1)),
+            Page::releaseBlocks
         );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(new int[] {}, 0).asBlock()),
-            page -> new Page(new IntArrayVector(new int[] {}, 0).asBlock()),
-            page -> new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock())
+            in,
+            page -> new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()),
+            page -> new Page(blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock()),
+            Page::releaseBlocks
         );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(new int[] { 1 }, 0).asBlock());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(new int[] { 1 }, 0).asBlock()),
-            page -> new Page(new IntArrayVector(new int[] { 1 }, 0).asBlock()),
-            page -> new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock())
+            in,
+            page -> new Page(blockFactory.newIntArrayVector(new int[] { 1 }, 0).asBlock()),
+            page -> new Page(blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock()),
+            Page::releaseBlocks
         );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(new int[] { 1, 1, 1 }, 3).asBlock());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(new int[] { 1, 1, 1 }, 3).asBlock()),
-            page -> new Page(IntBlock.newConstantBlockWith(1, 3)),
-            page -> new Page(IntBlock.newConstantBlockWith(1, 2))
+            in,
+            page -> new Page(blockFactory.newConstantIntBlockWith(1, 3)),
+            page -> new Page(blockFactory.newConstantIntBlockWith(1, 2)),
+            Page::releaseBlocks
         );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock()),
-            page -> new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock()),
-            page -> new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 9).asBlock())
+            in,
+            page -> new Page(blockFactory.newIntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock()),
+            page -> new Page(blockFactory.newIntArrayVector(IntStream.range(0, 10).toArray(), 9).asBlock()),
+            Page::releaseBlocks
         );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(IntStream.range(0, 100).toArray(), 100).asBlock());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(IntStream.range(0, 100).toArray(), 100).asBlock()),
-            page -> new Page(new IntArrayVector(IntStream.range(0, 100).toArray(), 100).asBlock()),
-            page -> new Page(new LongArrayVector(LongStream.range(0, 100).toArray(), 100).asBlock())
+            in,
+            page -> new Page(blockFactory.newIntArrayVector(IntStream.range(0, 100).toArray(), 100).asBlock()),
+            page -> new Page(blockFactory.newLongArrayVector(LongStream.range(0, 100).toArray(), 100).asBlock()),
+            Page::releaseBlocks
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()),
-            page -> new Page(1, page.getBlock(0)),
-            page -> new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock(), new IntArrayVector(new int[] { 1 }, 1).asBlock())
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(in, page -> {
+            page.getBlock(0).incRef();
+            return new Page(1, page.getBlock(0));
+        },
+            page -> new Page(
+                blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock(),
+                blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock()
+            ),
+            Page::releaseBlocks
         );
+        in.releaseBlocks();
     }
 
     public void testEqualityAndHashCode() throws IOException {
@@ -99,7 +124,10 @@ public class BasicPageTests extends SerializationTestCase {
             int positions = randomInt(page.getPositionCount() - 1);
             for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
                 Block block = page.getBlock(blockIndex);
-                blocks[blockIndex] = block.elementType().newBlockBuilder(positions).copyFrom(block, 0, page.getPositionCount() - 1).build();
+                blocks[blockIndex] = block.elementType()
+                    .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
+                    .copyFrom(block, 0, page.getPositionCount() - 1)
+                    .build();
             }
             return new Page(blocks);
         };
@@ -109,87 +137,111 @@ public class BasicPageTests extends SerializationTestCase {
         Block[] blocks = new Block[blockCount];
         for (int blockIndex = 0; blockIndex < blockCount; blockIndex++) {
             blocks[blockIndex] = switch (randomInt(6)) {
-                case 0 -> new IntArrayVector(randomInts(positions).toArray(), positions).asBlock();
-                case 1 -> new LongArrayVector(randomLongs(positions).toArray(), positions).asBlock();
-                case 2 -> new DoubleArrayVector(randomDoubles(positions).toArray(), positions).asBlock();
-                case 3 -> IntBlock.newConstantBlockWith(randomInt(), positions);
-                case 4 -> LongBlock.newConstantBlockWith(randomLong(), positions);
-                case 5 -> DoubleBlock.newConstantBlockWith(randomDouble(), positions);
-                case 6 -> BytesRefBlock.newConstantBlockWith(new BytesRef(Integer.toHexString(randomInt())), positions);
+                case 0 -> blockFactory.newIntArrayVector(randomInts(positions).toArray(), positions).asBlock();
+                case 1 -> blockFactory.newLongArrayVector(randomLongs(positions).toArray(), positions).asBlock();
+                case 2 -> blockFactory.newDoubleArrayVector(randomDoubles(positions).toArray(), positions).asBlock();
+                case 3 -> blockFactory.newConstantIntBlockWith(randomInt(), positions);
+                case 4 -> blockFactory.newConstantLongBlockWith(randomLong(), positions);
+                case 5 -> blockFactory.newConstantDoubleBlockWith(randomDouble(), positions);
+                case 6 -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(Integer.toHexString(randomInt())), positions);
                 default -> throw new AssertionError();
             };
         }
         Page page = new Page(positions, blocks);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(page, copyPageFunction, mutatePageFunction);
+        try {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(page, copyPageFunction, mutatePageFunction);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(page, unused -> serializeDeserializePage(page));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(page, this::serializeDeserializePage, null, Page::releaseBlocks);
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     public void testBasic() {
         int positions = randomInt(1024);
-        Page page = new Page(new IntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock());
+        Page page = new Page(blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock());
         assertThat(1, is(page.getBlockCount()));
         assertThat(positions, is(page.getPositionCount()));
         IntBlock block = page.getBlock(0);
         IntStream.range(0, positions).forEach(i -> assertThat(i, is(block.getInt(i))));
+        page.releaseBlocks();
     }
 
     public void testAppend() {
-        Page page1 = new Page(new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock());
-        Page page2 = page1.appendBlock(new LongArrayVector(LongStream.range(0, 10).toArray(), 10).asBlock());
+        Page page1 = new Page(blockFactory.newIntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock());
+        Page page2 = page1.appendBlock(blockFactory.newLongArrayVector(LongStream.range(0, 10).toArray(), 10).asBlock());
         assertThat(1, is(page1.getBlockCount()));
         assertThat(2, is(page2.getBlockCount()));
         IntBlock block1 = page2.getBlock(0);
         IntStream.range(0, 10).forEach(i -> assertThat(i, is(block1.getInt(i))));
         LongBlock block2 = page2.getBlock(1);
         IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block2.getLong(i))));
+        page2.releaseBlocks();
     }
 
     public void testPageSerializationSimple() throws IOException {
-        try (var bytesRefArray = bytesRefArrayOf("0a", "1b", "2c", "3d", "4e", "5f", "6g", "7h", "8i", "9j")) {
-            final BytesStreamOutput out = new BytesStreamOutput();
-            Page origPage = new Page(
-                new IntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock(),
-                new LongArrayVector(LongStream.range(10, 20).toArray(), 10).asBlock(),
-                new DoubleArrayVector(LongStream.range(30, 40).mapToDouble(i -> i).toArray(), 10).asBlock(),
-                new BytesRefArrayVector(bytesRefArray, 10).asBlock(),
-                IntBlock.newConstantBlockWith(randomInt(), 10),
-                LongBlock.newConstantBlockWith(randomInt(), 10),
-                DoubleBlock.newConstantBlockWith(randomInt(), 10),
-                BytesRefBlock.newConstantBlockWith(new BytesRef(Integer.toHexString(randomInt())), 10),
-                new IntArrayVector(IntStream.range(0, 20).toArray(), 20).filter(5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
-            );
+        IntVector toFilter = blockFactory.newIntArrayVector(IntStream.range(0, 20).toArray(), 20);
+        Page origPage = new Page(
+            blockFactory.newIntArrayVector(IntStream.range(0, 10).toArray(), 10).asBlock(),
+            blockFactory.newLongArrayVector(LongStream.range(10, 20).toArray(), 10).asBlock(),
+            blockFactory.newDoubleArrayVector(LongStream.range(30, 40).mapToDouble(i -> i).toArray(), 10).asBlock(),
+            blockFactory.newBytesRefArrayVector(bytesRefArrayOf("0a", "1b", "2c", "3d", "4e", "5f", "6g", "7h", "8i", "9j"), 10).asBlock(),
+            blockFactory.newConstantIntBlockWith(randomInt(), 10),
+            blockFactory.newConstantLongBlockWith(randomLong(), 10),
+            blockFactory.newConstantDoubleBlockWith(randomDouble(), 10),
+            blockFactory.newConstantBytesRefBlockWith(new BytesRef(Integer.toHexString(randomInt())), 10),
+            toFilter.filter(5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
+        );
+        toFilter.close();
+        try {
             Page deserPage = serializeDeserializePage(origPage);
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPage, unused -> deserPage);
+            try {
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPage, unused -> deserPage);
 
-            for (int i = 0; i < origPage.getBlockCount(); i++) {
-                Vector vector = origPage.getBlock(i).asVector();
-                if (vector != null) {
-                    assertEquals(vector.isConstant(), deserPage.getBlock(i).asVector().isConstant());
+                for (int i = 0; i < origPage.getBlockCount(); i++) {
+                    Vector vector = origPage.getBlock(i).asVector();
+                    if (vector != null) {
+                        assertEquals(vector.isConstant(), deserPage.getBlock(i).asVector().isConstant());
+                    }
                 }
+            } finally {
+                deserPage.releaseBlocks();
             }
+        } finally {
+            origPage.releaseBlocks();
         }
     }
 
     public void testSerializationListPages() throws IOException {
         final int positions = randomIntBetween(1, 64);
         List<Page> origPages = List.of(
-            new Page(new IntArrayVector(randomInts(positions).toArray(), positions).asBlock()),
+            new Page(blockFactory.newIntArrayVector(randomInts(positions).toArray(), positions).asBlock()),
             new Page(
-                new LongArrayVector(randomLongs(positions).toArray(), positions).asBlock(),
-                DoubleBlock.newConstantBlockWith(randomInt(), positions)
+                blockFactory.newLongArrayVector(randomLongs(positions).toArray(), positions).asBlock(),
+                blockFactory.newConstantDoubleBlockWith(randomInt(), positions)
             ),
-            new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("Hello World"), positions))
+            new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("Hello World"), positions))
         );
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeCollection(origPages);
-        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-
-        List<Page> deserPages = in.readCollectionAsList(new Page.PageReader());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPages, unused -> deserPages);
+        try {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPages, page -> {
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    out.writeCollection(origPages);
+                    return blockStreamInput(out).readCollectionAsList(Page::new);
+                }
+            }, null, pages -> Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks)));
+        } finally {
+            Releasables.close(() -> Iterators.map(origPages.iterator(), p -> p::releaseBlocks));
+        }
     }
 
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+    public void testPageMultiRelease() {
+        int positions = randomInt(1024);
+        var block = blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock();
+        Page page = new Page(block);
+        page.releaseBlocks();
+        assertThat(block.isReleased(), is(true));
+        page.releaseBlocks();
+    }
 
     BytesRefArray bytesRefArrayOf(String... values) {
         var array = new BytesRefArray(values.length, bigArrays);

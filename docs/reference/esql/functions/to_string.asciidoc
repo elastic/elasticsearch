@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_string]]
 === `TO_STRING`
 [.text-center]

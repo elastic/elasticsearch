@@ -54,11 +54,9 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     ) {
         super(
             WatcherStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            WatcherStatsRequest::new,
             WatcherStatsRequest.Node::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

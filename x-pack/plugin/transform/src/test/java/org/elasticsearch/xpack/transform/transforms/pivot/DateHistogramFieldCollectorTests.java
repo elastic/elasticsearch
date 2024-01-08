@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -85,12 +84,16 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
 
         // simulate the agg response, that should inject
         SearchResponse response = buildSearchResponse(minTimestamp, maxTimestamp);
-        collector.processSearchResponse(response);
+        try {
+            collector.processSearchResponse(response);
 
-        // checkpoints are provided although are not used in this case
-        QueryBuilder queryBuilder = buildFilterQuery(collector);
+            // checkpoints are provided although are not used in this case
+            QueryBuilder queryBuilder = buildFilterQuery(collector);
 
-        assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
+            assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testWhenOutputAndSyncFieldSame() {
@@ -99,10 +102,14 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
 
         // simulate the agg response, that should inject
         SearchResponse response = buildSearchResponse(minTimestamp, maxTimestamp);
-        collector.processSearchResponse(response);
-        QueryBuilder queryBuilder = buildFilterQuery(collector);
+        try {
+            collector.processSearchResponse(response);
+            QueryBuilder queryBuilder = buildFilterQuery(collector);
 
-        assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
+            assertQuery(queryBuilder, EXPECTED_LOWER_BOUND, EXPECTED_UPPER_BOUND, TIMESTAMP);
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testMissingBucketDisablesOptimization() {
@@ -163,16 +170,22 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
     }
 
     private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
-        SearchResponseSections sections = new SearchResponseSections(
+        return new SearchResponse(
             null,
             new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
             null,
             false,
             null,
             null,
-            1
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
         );
-        return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
     }
 
 }

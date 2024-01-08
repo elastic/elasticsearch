@@ -215,12 +215,10 @@ public class AuthenticationService {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
-            null,
-            true,
-            realms
+            realms,
+            token
         );
-        context.addAuthenticationToken(token);
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     public void expire(String principal) {
@@ -247,18 +245,21 @@ public class AuthenticationService {
         }
     }
 
-    Authenticator.Context newContext(final String action, final TransportRequest request, final boolean allowAnonymous) {
+    /**
+     * Returns an authenticator context for verifying only the provided {@param authenticationToken} without trying
+     * to extract any other tokens from the thread context.
+     */
+    Authenticator.Context newContext(final String action, final TransportRequest request, AuthenticationToken authenticationToken) {
         return new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
-            null,
-            allowAnonymous,
-            realms
+            realms,
+            authenticationToken
         );
     }
 
     void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     // pkg private method for testing
@@ -266,7 +267,7 @@ public class AuthenticationService {
         return numInvalidation.get();
     }
 
-    abstract static class AuditableRequest {
+    public abstract static class AuditableRequest {
 
         final AuditTrail auditTrail;
         final AuthenticationFailureHandler failureHandler;

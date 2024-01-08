@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +64,7 @@ public class RollupJobTaskTests extends ESTestCase {
     private ThreadPool pool;
 
     @Before
-    public void createThreadPool() {
+    public void createSuiteThreadPool() {
         pool = new TestThreadPool("test");
     }
 
@@ -291,7 +291,8 @@ public class RollupJobTaskTests extends ESTestCase {
 
         final CountDownLatch block = new CountDownLatch(1);
         final CountDownLatch unblock = new CountDownLatch(1);
-        try (NoOpClient client = getEmptySearchResponseClient(block, unblock)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getEmptySearchResponseClient(threadPool, block, unblock);
             SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
 
             AtomicInteger counter = new AtomicInteger(0);
@@ -618,7 +619,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -727,7 +728,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -837,7 +838,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, null);
@@ -949,7 +950,8 @@ public class RollupJobTaskTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         final CountDownLatch block = new CountDownLatch(1);
         final CountDownLatch unblock = new CountDownLatch(1);
-        try (NoOpClient client = getEmptySearchResponseClient(block, unblock)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getEmptySearchResponseClient(threadPool, block, unblock);
             SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
 
             AtomicInteger counter = new AtomicInteger(0);
@@ -1118,8 +1120,8 @@ public class RollupJobTaskTests extends ESTestCase {
         }
     }
 
-    private NoOpClient getEmptySearchResponseClient(CountDownLatch unblock, CountDownLatch block) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getEmptySearchResponseClient(ThreadPool threadPool, CountDownLatch unblock, CountDownLatch block) {
+        return new NoOpClient(threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

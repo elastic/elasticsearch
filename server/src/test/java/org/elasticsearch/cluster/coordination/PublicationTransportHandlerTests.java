@@ -37,7 +37,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -155,7 +155,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 IOUtils.close(in);
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            return fail(e);
         }
     }
 
@@ -229,7 +229,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 var node = DiscoveryNodeUtils.builder("node-" + allNodes.size())
                     .version(
                         VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
-                        IndexVersion.MINIMUM_COMPATIBLE,
+                        IndexVersions.MINIMUM_COMPATIBLE,
                         IndexVersionUtils.randomCompatibleVersion(random())
                     )
                     .build();
@@ -364,7 +364,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var otherNode = DiscoveryNodeUtils.builder("otherNode")
             .version(
                 VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersionUtils.randomCompatibleVersion(random())
             )
             .build();
@@ -387,13 +387,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    throw new AssertionError("unexpected", e);
+                                    fail(e);
                                 }
                             }), new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()));
                     } catch (IncompatibleClusterStateVersionException e) {
                         context.handler().handleException(new RemoteTransportException("wrapped", e));
                     } catch (Exception e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 }
             };

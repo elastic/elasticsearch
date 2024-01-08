@@ -105,6 +105,10 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
+                } else if (reservedState != null) {
+                    logger.debug(() -> "Got reserved state update without error metadata: " + reservedState);
+                } else {
+                    logger.debug(() -> "Got cluster state update: " + event.source());
                 }
             }
         });
@@ -112,7 +116,10 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    @TestLogging(value = "org.elasticsearch.common.file:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/98391")
+    @TestLogging(
+        value = "org.elasticsearch.common.file:DEBUG,org.elasticsearch.xpack.security:DEBUG,org.elasticsearch.cluster.metadata:DEBUG",
+        reason = "https://github.com/elastic/elasticsearch/issues/98391"
+    )
     public void testFailsOnStartMasterNodeWithError() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 

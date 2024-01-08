@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -22,7 +21,6 @@ import java.util.Objects;
 public class ErrorInferenceResults implements InferenceResults {
 
     public static final String NAME = "error";
-    public static final ParseField WARNING = new ParseField("error");
 
     private final Exception exception;
 

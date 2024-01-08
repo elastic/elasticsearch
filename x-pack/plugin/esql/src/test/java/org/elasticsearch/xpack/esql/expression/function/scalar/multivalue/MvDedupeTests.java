@@ -38,6 +38,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         List<TestCaseSupplier> cases = new ArrayList<>();
         booleans(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         bytesRefs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        dateTimes(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
         doubles(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Double::valueOf)));
         ints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Integer::valueOf)));
         longs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
@@ -53,7 +54,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType[] supportedTypes() {
-        return representable();
+        return representableTypes();
     }
 
     @SuppressWarnings("unchecked")

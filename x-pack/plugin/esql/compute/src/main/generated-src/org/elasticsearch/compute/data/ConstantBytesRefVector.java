@@ -14,22 +14,15 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant BytesRef value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
+final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
         .shallowSizeOfInstance(BytesRef.class);
     private final BytesRef value;
 
-    private final BytesRefBlock block;
-
-    public ConstantBytesRefVector(BytesRef value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
+    ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
-        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
@@ -39,12 +32,12 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
 
     @Override
     public BytesRefBlock asBlock() {
-        return block;
+        return new BytesRefVectorBlock(this);
     }
 
     @Override
     public BytesRefVector filter(int... positions) {
-        return new ConstantBytesRefVector(value, positions.length);
+        return blockFactory().newConstantBytesRefVector(value, positions.length);
     }
 
     @Override
@@ -57,9 +50,13 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
         return true;
     }
 
+    public static long ramBytesUsed(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    }
+
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+        return ramBytesUsed(value);
     }
 
     @Override
@@ -77,10 +74,5 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

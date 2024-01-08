@@ -17,8 +17,8 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -49,7 +50,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -530,7 +530,7 @@ public class SystemIndices {
             );
         } else {
             return new IllegalArgumentException(
-                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " use and access is reserved for system operations"
+                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " may not be accessed by product [" + product + "]"
             );
         }
     }
@@ -896,7 +896,7 @@ public class SystemIndices {
         ) {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
             deleteIndexRequest.indices(indexNames);
-            client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
+            client.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     listener.onResponse(ResetFeatureStateStatus.success(name));
@@ -929,7 +929,7 @@ public class SystemIndices {
             Metadata metadata = clusterService.state().getMetadata();
 
             final List<Exception> exceptions = new ArrayList<>();
-            final Consumer<ResetFeatureStateStatus> handleResponse = resetFeatureStateStatus -> {
+            final CheckedConsumer<ResetFeatureStateStatus, Exception> handleResponse = resetFeatureStateStatus -> {
                 if (resetFeatureStateStatus.getStatus() == ResetFeatureStateStatus.Status.FAILURE) {
                     synchronized (exceptions) {
                         exceptions.add(resetFeatureStateStatus.getException());

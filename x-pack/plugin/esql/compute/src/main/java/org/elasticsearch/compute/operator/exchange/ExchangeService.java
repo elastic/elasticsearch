@@ -14,7 +14,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,11 +21,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -41,7 +41,7 @@ import java.util.concurrent.Executor;
 
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
- * It holds a map of {@link ExchangeSourceHandler} and {@link ExchangeSinkHandler} instances for each node in the cluster.
+ * It holds a map of {@link ExchangeSinkHandler} instances for each node in the cluster to serve {@link ExchangeRequest}s
  * To connect exchange sources to exchange sinks, use the {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, int)} method.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
@@ -61,15 +61,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final ThreadPool threadPool;
     private final Executor executor;
+    private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
-    private final Map<String, ExchangeSourceHandler> sources = ConcurrentCollections.newConcurrentMap();
 
     private final InactiveSinksReaper inactiveSinksReaper;
 
-    public ExchangeService(Settings settings, ThreadPool threadPool, String executorName) {
+    public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
         this.executor = threadPool.executor(executorName);
+        this.blockFactory = blockFactory;
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(5));
         this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, this.executor, inactiveInterval);
     }
@@ -122,34 +123,21 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Creates an {@link ExchangeSourceHandler} for the specified exchange id.
-     *
-     * @throws IllegalStateException if a source handler for the given id already exists
-     */
-    public ExchangeSourceHandler createSourceHandler(String exchangeId, int maxBufferSize, String fetchExecutor) {
-        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(maxBufferSize, threadPool.executor(fetchExecutor));
-        if (sources.putIfAbsent(exchangeId, sourceHandler) != null) {
-            throw new IllegalStateException("source exchanger for id [" + exchangeId + "] already exists");
-        }
-        sourceHandler.addCompletionListener(ActionListener.releasing(() -> sources.remove(exchangeId)));
-        return sourceHandler;
-    }
-
-    /**
      * Opens a remote sink handler on the remote node for the given session ID.
      */
     public static void openExchange(
         TransportService transportService,
-        DiscoveryNode targetNode,
+        Transport.Connection connection,
         String sessionId,
         int exchangeBuffer,
         Executor responseExecutor,
         ActionListener<Void> listener
     ) {
         transportService.sendRequest(
-            targetNode,
+            connection,
             OPEN_EXCHANGE_ACTION_NAME,
             new OpenExchangeRequest(sessionId, exchangeBuffer),
+            TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE, responseExecutor)
         );
     }
@@ -194,10 +182,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             if (sinkHandler == null) {
                 listener.onResponse(new ExchangeResponse(null, true));
             } else {
-                // the data-node request hasn't arrived yet; use the task framework to cancel the request if needed.
-                if (sinkHandler.hasData() == false) {
-                    ((CancellableTask) task).addListener(() -> sinkHandler.onFailure(new TaskCancelledException("task cancelled")));
-                }
                 sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
             }
         }
@@ -247,15 +231,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param parentTask       the parent task that initialized the ESQL request
      * @param exchangeId       the exchange ID
      * @param transportService the transport service
-     * @param remoteNode       the node where the remote exchange sink is located
+     * @param conn             the connection to the remote node where the remote exchange sink is located
      */
-    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, DiscoveryNode remoteNode) {
-        return new TransportRemoteSink(transportService, remoteNode, parentTask, exchangeId, executor);
+    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
+        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
     }
 
     record TransportRemoteSink(
         TransportService transportService,
-        DiscoveryNode node,
+        BlockFactory blockFactory,
+        Transport.Connection connection,
         Task parentTask,
         String exchangeId,
         Executor responseExecutor
@@ -264,19 +249,23 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
             transportService.sendChildRequest(
-                node,
+                connection,
                 EXCHANGE_ACTION_NAME,
                 new ExchangeRequest(exchangeId, allSourcesFinished),
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, ExchangeResponse::new, responseExecutor)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    in -> new ExchangeResponse(new BlockStreamInput(in, blockFactory)),
+                    responseExecutor
+                )
             );
         }
     }
 
     // For testing
     public boolean isEmpty() {
-        return sources.isEmpty() && sinks.isEmpty();
+        return sinks.isEmpty();
     }
 
     @Override
@@ -296,6 +285,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     @Override
     public String toString() {
-        return "ExchangeService{" + "sinks=" + sinks.keySet() + ", sources=" + sources.keySet() + '}';
+        return "ExchangeService{" + "sinks=" + sinks.keySet() + '}';
     }
 }

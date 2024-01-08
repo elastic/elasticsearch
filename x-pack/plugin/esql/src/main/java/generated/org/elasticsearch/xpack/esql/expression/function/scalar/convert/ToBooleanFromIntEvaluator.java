@@ -20,12 +20,9 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final DriverContext driverContext;
-
   public ToBooleanFromIntEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
-    super(field, source);
-    this.driverContext = driverContext;
+    super(driverContext, field, source);
   }
 
   @Override
@@ -38,23 +35,14 @@ public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.Abs
     IntVector vector = (IntVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
-      }
+      return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0), positionCount);
     }
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
+    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
         builder.appendBoolean(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static boolean evalValue(IntVector container, int index) {
@@ -66,15 +54,14 @@ public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.Abs
   public Block evalBlock(Block b) {
     IntBlock block = (IntBlock) b;
     int positionCount = block.getPositionCount();
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = block.getValueCount(p);
-      int start = block.getFirstValueIndex(p);
-      int end = start + valueCount;
-      boolean positionOpened = false;
-      boolean valuesAppended = false;
-      for (int i = start; i < end; i++) {
-        try {
+    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
           boolean value = evalValue(block, i);
           if (positionOpened == false && valueCount > 1) {
             builder.beginPositionEntry();
@@ -82,21 +69,40 @@ public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.Abs
           }
           builder.appendBoolean(value);
           valuesAppended = true;
-        } catch (Exception e) {
-          registerException(e);
+        }
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
         }
       }
-      if (valuesAppended == false) {
-        builder.appendNull();
-      } else if (positionOpened) {
-        builder.endPositionEntry();
-      }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static boolean evalValue(IntBlock container, int index) {
     int value = container.getInt(index);
     return ToBoolean.fromInt(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToBooleanFromIntEvaluator get(DriverContext context) {
+      return new ToBooleanFromIntEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToBooleanFromIntEvaluator[field=" + field + "]";
+    }
   }
 }

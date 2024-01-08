@@ -1,6 +1,0 @@
-pr: 99995
-summary: When a primary is inactive but this is considered expected, the same applies for the replica of this shard.
-area: Health
-type: enhancement
-issues:
- - 99951

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -41,6 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
 public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
 
@@ -80,6 +82,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
             EsqlConfigurationSerializationTests.randomConfiguration(query),
+            randomAlphaOfLength(10),
             shardIds,
             aliasFilters,
             physicalPlan
@@ -90,9 +93,16 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     @Override
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
-        return switch (between(0, 5)) {
+        return switch (between(0, 6)) {
             case 0 -> {
-                var request = new DataNodeRequest(randomAlphaOfLength(20), in.configuration(), in.shardIds(), in.aliasFilters(), in.plan());
+                var request = new DataNodeRequest(
+                    randomAlphaOfLength(20),
+                    in.configuration(),
+                    in.clusterAlias(),
+                    in.shardIds(),
+                    in.aliasFilters(),
+                    in.plan()
+                );
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
@@ -100,6 +110,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                 var request = new DataNodeRequest(
                     in.sessionId(),
                     EsqlConfigurationSerializationTests.randomConfiguration(),
+                    in.clusterAlias(),
                     in.shardIds(),
                     in.aliasFilters(),
                     in.plan()
@@ -109,7 +120,14 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             }
             case 2 -> {
                 List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("new-index-" + between(1, 10), "n/a", between(1, 10)));
-                var request = new DataNodeRequest(in.sessionId(), in.configuration(), shardIds, in.aliasFilters(), in.plan());
+                var request = new DataNodeRequest(
+                    in.sessionId(),
+                    in.configuration(),
+                    in.clusterAlias(),
+                    shardIds,
+                    in.aliasFilters(),
+                    in.plan()
+                );
                 request.setParentTask(in.getParentTask());
                 yield request;
             }
@@ -130,6 +148,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                 var request = new DataNodeRequest(
                     in.sessionId(),
                     in.configuration(),
+                    in.clusterAlias(),
                     in.shardIds(),
                     in.aliasFilters(),
                     mapAndMaybeOptimize(parse(newQuery))
@@ -144,16 +163,43 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                 } else {
                     aliasFilters = Map.of(new Index("concrete-index", "n/a"), AliasFilter.of(new TermQueryBuilder("id", "2"), "alias-2"));
                 }
-                var request = new DataNodeRequest(in.sessionId(), in.configuration(), in.shardIds(), aliasFilters, in.plan());
+                var request = new DataNodeRequest(
+                    in.sessionId(),
+                    in.configuration(),
+                    in.clusterAlias(),
+                    in.shardIds(),
+                    aliasFilters,
+                    in.plan()
+                );
                 request.setParentTask(request.getParentTask());
                 yield request;
             }
             case 5 -> {
-                var request = new DataNodeRequest(in.sessionId(), in.configuration(), in.shardIds(), in.aliasFilters(), in.plan());
+                var request = new DataNodeRequest(
+                    in.sessionId(),
+                    in.configuration(),
+                    in.clusterAlias(),
+                    in.shardIds(),
+                    in.aliasFilters(),
+                    in.plan()
+                );
                 request.setParentTask(
                     randomValueOtherThan(request.getParentTask().getNodeId(), () -> randomAlphaOfLength(10)),
                     randomNonNegativeLong()
                 );
+                yield request;
+            }
+            case 6 -> {
+                var clusterAlias = randomValueOtherThan(in.clusterAlias(), () -> randomAlphaOfLength(10));
+                var request = new DataNodeRequest(
+                    in.sessionId(),
+                    in.configuration(),
+                    clusterAlias,
+                    in.shardIds(),
+                    in.aliasFilters(),
+                    in.plan()
+                );
+                request.setParentTask(request.getParentTask());
                 yield request;
             }
             default -> throw new AssertionError("invalid value");
@@ -164,7 +210,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        var logicalOptimizer = new LogicalPlanOptimizer();
+        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG));
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
             TEST_VERIFIER
@@ -181,5 +227,10 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             physical = physicalPlanOptimizer.optimize(physical);
         }
         return physical;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

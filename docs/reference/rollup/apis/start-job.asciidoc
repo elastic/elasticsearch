@@ -6,12 +6,9 @@
 <titleabbrev>Start {rollup-jobs}</titleabbrev>
 ++++
 
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+
 Starts an existing, stopped {rollup-job}.
-
-experimental[]
-
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
 
 [[rollup-start-job-request]]
 ==== {api-request-title}
@@ -36,7 +33,7 @@ to start a job that is already started, nothing happens.
 
 `<job_id>`::
   (Required, string) Identifier for the {rollup-job}.
-  
+
 [[rollup-start-job-response-codes]]
 ==== {api-response-codes-title}
 

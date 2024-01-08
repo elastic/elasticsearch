@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
@@ -29,26 +30,24 @@ public class MultivalueDedupeLong {
      */
     private static final int ALWAYS_COPY_MISSING = 300;
 
-    private final Block.Ref ref;
     private final LongBlock block;
     private long[] work = new long[ArrayUtil.oversize(2, Long.BYTES)];
     private int w;
 
-    public MultivalueDedupeLong(Block.Ref ref) {
-        this.ref = ref;
-        this.block = (LongBlock) ref.block();
+    public MultivalueDedupeLong(LongBlock block) {
+        this.block = block;
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public Block.Ref dedupeToBlockAdaptive() {
+    public LongBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref) {
-            LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -83,7 +82,7 @@ public class MultivalueDedupeLong {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -93,12 +92,12 @@ public class MultivalueDedupeLong {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public Block.Ref dedupeToBlockUsingCopyAndSort() {
+    public LongBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref) {
-            LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -111,7 +110,7 @@ public class MultivalueDedupeLong {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -123,12 +122,12 @@ public class MultivalueDedupeLong {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public Block.Ref dedupeToBlockUsingCopyMissing() {
+    public LongBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref) {
-            LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -141,7 +140,7 @@ public class MultivalueDedupeLong {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -149,33 +148,34 @@ public class MultivalueDedupeLong {
      * Dedupe values and build a {@link IntBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
-        boolean sawNull = false;
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> {
-                    sawNull = true;
-                    builder.appendInt(0);
-                }
-                case 1 -> {
-                    long v = block.getLong(first);
-                    hash(builder, hash, v);
-                }
-                default -> {
-                    if (count < ALWAYS_COPY_MISSING) {
-                        copyMissing(first, count);
-                        hashUniquedWork(hash, builder);
-                    } else {
-                        copyAndSort(first, count);
-                        hashSortedWork(hash, builder);
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, LongHash hash) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
+            boolean sawNull = false;
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> {
+                        sawNull = true;
+                        builder.appendInt(0);
+                    }
+                    case 1 -> {
+                        long v = block.getLong(first);
+                        hash(builder, hash, v);
+                    }
+                    default -> {
+                        if (count < ALWAYS_COPY_MISSING) {
+                            copyMissing(first, count);
+                            hashUniquedWork(hash, builder);
+                        } else {
+                            copyAndSort(first, count);
+                            hashSortedWork(hash, builder);
+                        }
                     }
                 }
             }
+            return new MultivalueDedupe.HashResult(builder.build(), sawNull);
         }
-        return new MultivalueDedupe.HashResult(builder.build(), sawNull);
     }
 
     /**

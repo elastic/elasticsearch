@@ -39,11 +39,9 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
     ) {
         super(
             AnalyticsStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            AnalyticsStatsAction.Request::new,
             AnalyticsStatsAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -61,7 +59,7 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
 
     @Override
     protected AnalyticsStatsAction.NodeRequest newNodeRequest(AnalyticsStatsAction.Request request) {
-        return new AnalyticsStatsAction.NodeRequest(request);
+        return new AnalyticsStatsAction.NodeRequest();
     }
 
     @Override

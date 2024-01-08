@@ -15,17 +15,12 @@ foo bar   | null
 
 
 complexPattern
-// tag::grok[]
 ROW a = "1953-01-23T12:15:00Z 127.0.0.1 some.email@foo.com 42" 
 | GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
-| KEEP date, ip, email, num
-// end::grok[]
-;
+| KEEP date, ip, email, num;
 
-// tag::grok-result[]
 date:keyword          | ip:keyword    | email:keyword       | num:integer
 1953-01-23T12:15:00Z  | 127.0.0.1     | some.email@foo.com  | 42
-// end::grok-result[]
 ;
 
 
@@ -83,8 +78,7 @@ Anneke Preusig        | Anneke       | Preusig
 ;
 
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-grokStats-Ignore
+grokStats
 from employees | eval x = concat(gender, " foobar") | grok x "%{WORD:a} %{WORD:b}" | stats n = max(emp_no) by a | keep a, n | sort a asc;
 
 a:keyword  | n:integer

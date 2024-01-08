@@ -60,7 +60,11 @@ public class MergePolicyConfigTests extends ESTestCase {
     }
 
     private static IndexSettings indexSettings(Settings settings) {
-        return new IndexSettings(newIndexMeta("test", settings), Settings.EMPTY);
+        return indexSettings(settings, Settings.EMPTY);
+    }
+
+    private static IndexSettings indexSettings(Settings indexSettings, Settings nodeSettings) {
+        return new IndexSettings(newIndexMeta("test", indexSettings), nodeSettings);
     }
 
     public void testNoMerges() {
@@ -118,7 +122,7 @@ public class MergePolicyConfigTests extends ESTestCase {
         assertThat(indexSettings.getMergePolicy(randomBoolean()), Matchers.instanceOf(LogByteSizeMergePolicy.class));
     }
 
-    public void testTieredMergePolicySettingsUpdate() throws IOException {
+    public void testTieredMergePolicySettingsUpdate() {
         IndexSettings indexSettings = indexSettings(Settings.EMPTY);
         assertEquals(
             ((TieredMergePolicy) indexSettings.getMergePolicy(false)).getForceMergeDeletesPctAllowed(),
@@ -353,10 +357,6 @@ public class MergePolicyConfigTests extends ESTestCase {
         return Settings.builder().put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), value).build();
     }
 
-    private Settings build(ByteSizeValue value) {
-        return Settings.builder().put(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(), value).build();
-    }
-
     public void testCompoundFileConfiguredByByteSize() throws IOException {
         for (boolean isTimeSeriesIndex : new boolean[] { false, true }) {
             try (Directory dir = newDirectory()) {
@@ -392,6 +392,40 @@ public class MergePolicyConfigTests extends ESTestCase {
                     assertFalse(sci.info.getUseCompoundFile());
                 }
             }
+        }
+    }
+
+    public void testDefaultMaxMergedSegment() {
+        var indexSettings = indexSettings(Settings.EMPTY);
+        {
+            TieredMergePolicy tieredPolicy = (TieredMergePolicy) new MergePolicyConfig(logger, indexSettings).getMergePolicy(false);
+            assertEquals(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getMbFrac(), tieredPolicy.getMaxMergedSegmentMB(), 0.0d);
+        }
+        {
+            LogByteSizeMergePolicy timePolicy = (LogByteSizeMergePolicy) new MergePolicyConfig(logger, indexSettings).getMergePolicy(true);
+            assertEquals(MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT.getMbFrac(), timePolicy.getMaxMergeMB(), 0.0d);
+        }
+    }
+
+    public void testDefaultMaxMergedSegmentWithNodeOverrides() {
+        var maxMergedSegmentSize = ByteSizeValue.ofBytes(randomLongBetween(1L, Long.MAX_VALUE));
+        {
+            var indexSettings = indexSettings(
+                Settings.EMPTY,
+                Settings.builder().put(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING.getKey(), maxMergedSegmentSize).build()
+            );
+            TieredMergePolicy tieredPolicy = (TieredMergePolicy) new MergePolicyConfig(logger, indexSettings).getMergePolicy(false);
+            assertEquals(maxMergedSegmentSize.getMbFrac(), tieredPolicy.getMaxMergedSegmentMB(), 0.0d);
+        }
+        {
+            var indexSettings = indexSettings(
+                Settings.EMPTY,
+                Settings.builder()
+                    .put(MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING.getKey(), maxMergedSegmentSize)
+                    .build()
+            );
+            LogByteSizeMergePolicy timePolicy = (LogByteSizeMergePolicy) new MergePolicyConfig(logger, indexSettings).getMergePolicy(true);
+            assertEquals(maxMergedSegmentSize.getMbFrac(), timePolicy.getMaxMergeMB(), 0.0d);
         }
     }
 }

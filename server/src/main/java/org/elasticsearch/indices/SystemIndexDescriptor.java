@@ -225,7 +225,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         int indexFormat,
         String mappingsNodeVersionMetaKey,
         String origin,
-        Version minimumNodeVersion,
+        @Deprecated Version minimumNodeVersion,
         Type type,
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
@@ -301,7 +301,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             throw new IllegalArgumentException("External system indices without allowed products is not a valid combination");
         }
 
-        Objects.requireNonNull(minimumNodeVersion, "minimumNodeVersion must be provided!");
         Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
         if (priorSystemIndexDescriptors.isEmpty() == false) {
             // the rules for prior system index descriptors
@@ -310,15 +309,20 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             // 3. Prior system index descriptors may not have other prior system index descriptors
             // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
-            Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
-            versions.add(minimumNodeVersion);
+            Set<MappingsVersion> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
+            versions.add(mappingsVersion);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
-                if (versions.add(prior.minimumNodeVersion) == false) {
-                    throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
+                if (versions.add(prior.mappingsVersion) == false) {
+                    throw new IllegalArgumentException(prior + " has the same mappings version as another descriptor");
                 }
-                if (prior.minimumNodeVersion.after(minimumNodeVersion)) {
+                if (prior.mappingsVersion.version() > mappingsVersion.version()) {
                     throw new IllegalArgumentException(
-                        prior + " has minimum node version [" + prior.minimumNodeVersion + "] which is after [" + minimumNodeVersion + "]"
+                        prior
+                            + " has mappings version ["
+                            + prior.mappingsVersion.version()
+                            + "] which is after ["
+                            + mappingsVersion.version()
+                            + "]"
                     );
                 }
                 if (prior.priorSystemIndexDescriptors.isEmpty() == false) {

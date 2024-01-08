@@ -23,10 +23,10 @@ public class Mod extends EsqlArithmeticOperation {
             left,
             right,
             MOD,
-            ModIntsEvaluator::new,
-            ModLongsEvaluator::new,
-            ModUnsignedLongsEvaluator::new,
-            (s, l, r, dvrCtx) -> new ModDoublesEvaluator(l, r, dvrCtx)
+            ModIntsEvaluator.Factory::new,
+            ModLongsEvaluator.Factory::new,
+            ModUnsignedLongsEvaluator.Factory::new,
+            (s, lhs, rhs) -> new ModDoublesEvaluator.Factory(source, lhs, rhs)
         );
     }
 

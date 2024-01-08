@@ -58,7 +58,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     }
 
     public GroupConfig(StreamInput in) throws IOException {
-        source = in.readMap();
+        source = in.readGenericMap();
         groups = in.readOrderedMap(StreamInput::readString, (stream) -> {
             SingleGroupSource.Type groupType = SingleGroupSource.Type.fromId(stream.readByte());
             return switch (groupType) {

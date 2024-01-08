@@ -859,7 +859,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             readName(in),
             readIndices(in),
             in.readVLong(),
-            in.readMap(),
+            in.readGenericMap(),
             in.readBoolean(),
             in.readBoolean(),
             in.readBoolean(),

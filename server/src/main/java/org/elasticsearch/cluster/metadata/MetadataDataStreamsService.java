@@ -220,7 +220,13 @@ public class MetadataDataStreamsService {
     }
 
     /**
-     * Creates an updated cluster state in which the requested data stream has the flag 'rollover_on_write' set to true.
+     * Creates an updated cluster state in which the requested data stream has the flag {@link DataStream#rolloverOnWrite()}
+     * set to the value of the parameter rolloverOnWrite
+     *
+     * @param currentState the initial cluster state
+     * @param dataStreamName the name of the data stream to be updated
+     * @param rolloverOnWrite the value of the flag
+     * @return the updated cluster state
      */
     public static ClusterState setRolloverOnWrite(ClusterState currentState, String dataStreamName, boolean rolloverOnWrite) {
         Metadata metadata = currentState.metadata();

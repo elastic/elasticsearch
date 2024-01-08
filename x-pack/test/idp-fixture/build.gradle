@@ -6,4 +6,7 @@ dependencies {
 
   api project(':test:fixtures:testcontainer-utils')
   api "junit:junit:${versions.junit}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+
 }

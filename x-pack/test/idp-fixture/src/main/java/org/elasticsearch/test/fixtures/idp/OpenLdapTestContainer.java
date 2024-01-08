@@ -10,7 +10,6 @@ package org.elasticsearch.test.fixtures.idp;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.io.IOException;
@@ -20,7 +19,7 @@ import static org.elasticsearch.test.fixtures.ResourceUtils.copyResourceToFile;
 
 public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    public static final String DOCKER_BASE_IMAGE = "osixia/openldap:1.4.0";
+    public static final String DOCKER_BASE_IMAGE = "breskeby/test-fixture-openldap:latest";
 
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private Path certsPath;
@@ -33,25 +32,25 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
         super(
             new ImageFromDockerfile("es-openldap-testfixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
-                    .env("LDAP_ADMIN_PASSWORD", "NickFuryHeartsES")
-                    .env("LDAP_DOMAIN", "oldap.test.elasticsearch.com")
-                    .env("LDAP_BASE_DN", "DC=oldap,DC=test,DC=elasticsearch,DC=com")
-                    .env("LDAP_TLS", "true")
-                    .env("LDAP_TLS_CRT_FILENAME", "ldap_server.pem")
-                    .env("LDAP_TLS_CA_CRT_FILENAME", "ca_server.pem")
-                    .env("LDAP_TLS_KEY_FILENAME", "ldap_server.key")
-                    .env("LDAP_TLS_VERIFY_CLIENT", "never")
-                    .env("LDAP_TLS_CIPHER_SUITE", "NORMAL")
-                    .env("LDAP_LOG_LEVEL", "256")
-                    .copy(
-                        "openldap/ldif/users.ldif",
-                        "/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif"
-                    )
-                    .copy(
-                        "openldap/ldif/config.ldif",
-                        "/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif"
-                    )
-                    .copy("openldap/certs", "/container/service/slapd/assets/certs")
+                    // .env("LDAP_ADMIN_PASSWORD", "NickFuryHeartsES")
+                    // .env("LDAP_DOMAIN", "oldap.test.elasticsearch.com")
+                    // .env("LDAP_BASE_DN", "DC=oldap,DC=test,DC=elasticsearch,DC=com")
+                    // .env("LDAP_TLS", "true")
+                    // .env("LDAP_TLS_CRT_FILENAME", "ldap_server.pem")
+                    // .env("LDAP_TLS_CA_CRT_FILENAME", "ca_server.pem")
+                    // .env("LDAP_TLS_KEY_FILENAME", "ldap_server.key")
+                    // .env("LDAP_TLS_VERIFY_CLIENT", "never")
+                    // .env("LDAP_TLS_CIPHER_SUITE", "NORMAL")
+                    // .env("LDAP_LOG_LEVEL", "256")
+                    // .copy(
+                    // "openldap/ldif/users.ldif",
+                    // "/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif"
+                    // )
+                    // .copy(
+                    // "openldap/ldif/config.ldif",
+                    // "/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif"
+                    // )
+                    // .copy("openldap/certs", "/container/service/slapd/assets/certs")
                     .build()
             )
                 .withFileFromClasspath("openldap/certs", "/openldap/certs/")
@@ -61,7 +60,6 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
         withNetworkAliases("openldap");
         withNetwork(network);
         withExposedPorts(389, 636);
-        waitingFor(Wait.forListeningPorts(389));
     }
 
     public String getLdapUrl() {
@@ -72,6 +70,32 @@ public final class OpenLdapTestContainer extends DockerEnvironmentAwareTestConta
     public void start() {
         super.start();
         setupCerts();
+        //
+        // // Get the DockerClient used by the Testcontainer library (you can also use your own if they every make that private).
+        // final DockerClient dockerClient = getDockerClient();
+        //
+        // // Commit docker container changes into new image (equivalent to command line 'docker commit')
+        // dockerClient.commitCmd(getContainerId())
+        // .withRepository("breskeby/test-fixture-openldap")
+        // .withTag("latest")
+        // .exec();
+        //
+        // // Push new image to your repository. (equivalent to command line 'docker push')
+        // try {
+        // dockerClient.pushImageCmd("breskeby/test-fixture-openldap:latest")
+        // .exec(new ResultCallback.Adapter<>() {
+        // @Override
+        // public void onNext(PushResponseItem object) {
+        //// logger().info(object.toString());
+        // if(object.isErrorIndicated()) {
+        // // This is just to fail the build in case push of new image fails
+        // throw new RuntimeException("Failed push: " + object.getErrorDetail());
+        // }
+        // }
+        // }).awaitCompletion();
+        // } catch (InterruptedException e) {
+        // throw new RuntimeException(e);
+        // }
     }
 
     @Override

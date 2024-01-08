@@ -192,7 +192,7 @@ SHOW functions
 // tag::showFunctionsFiltered-result[]
        name:keyword      |                        synopsis:keyword                |       argNames:keyword  | argTypes:keyword |  argDescriptions:keyword | returnType:keyword |   description:keyword  |   optionalArgs:boolean |  variadic:boolean
 sin                      | "double sin(n:integer|long|double|unsigned_long)"      |n      |"integer|long|double|unsigned_long" | "An angle, in radians"   | double             | "Returns the trigonometric sine of an angle" | false | false
-sinh                     | "double sinh(n:integer|long|double|unsigned_long)"     |n      |"integer|long|double|unsigned_long" | "" | "double" | "" | false | false
+sinh                     | "double sinh(n:integer|long|double|unsigned_long)"     |n      |"integer|long|double|unsigned_long" | "The number to return the hyperbolic sine of" | "double" | "" | false | false
 }
 // end::showFunctionsFiltered-result[]
 ;
@@ -203,5 +203,5 @@ countFunctions#[skip:-8.11.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-84     | 84     | 84
+81     | 81     | 81
 ;
